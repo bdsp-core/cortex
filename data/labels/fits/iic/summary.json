@@ -1,0 +1,15 @@
+{
+  "task": "iic",
+  "n_labels_raw": 317378,
+  "n_labels_fit": 228664,
+  "n_cases": 23549,
+  "n_raters": 36,
+  "min_raters_per_case": 3,
+  "min_labels_per_rater": 100,
+  "sigma_s_eb": 2.0,
+  "sigma_t_eb": 1.0,
+  "sigma_l_eb": 1.0,
+  "final_neg_log_post": 68908.78326114881,
+  "iters": 40,
+  "wall_time_s": 2.5
+}

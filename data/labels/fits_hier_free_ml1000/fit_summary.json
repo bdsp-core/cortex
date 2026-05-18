@@ -1,0 +1,68 @@
+{
+  "variant": "free",
+  "per_task": [
+    {
+      "task": "spike",
+      "n_labels_fit": 631126,
+      "n_cases": 16510,
+      "n_raters": 250,
+      "pos_rate": 0.6663661455874105
+    },
+    {
+      "task": "seizure",
+      "n_labels_fit": 229738,
+      "n_cases": 24253,
+      "n_raters": 33,
+      "pos_rate": 0.1060251242719968
+    },
+    {
+      "task": "lpd",
+      "n_labels_fit": 226209,
+      "n_cases": 23107,
+      "n_raters": 32,
+      "pos_rate": 0.20517309214045418
+    },
+    {
+      "task": "gpd",
+      "n_labels_fit": 226209,
+      "n_cases": 23107,
+      "n_raters": 32,
+      "pos_rate": 0.11745774924958777
+    },
+    {
+      "task": "lrda",
+      "n_labels_fit": 229738,
+      "n_cases": 24253,
+      "n_raters": 33,
+      "pos_rate": 0.07555563293839068
+    },
+    {
+      "task": "grda",
+      "n_labels_fit": 229738,
+      "n_cases": 24253,
+      "n_raters": 33,
+      "pos_rate": 0.09202656939644291
+    }
+  ],
+  "factor": {
+    "variant": "free",
+    "r_hat": 0.23568672975670057,
+    "rho_hat": -0.0034618687486509037,
+    "K": 6,
+    "tasks": [
+      "spike",
+      "seizure",
+      "lpd",
+      "gpd",
+      "lrda",
+      "grda"
+    ],
+    "wall_time_s": 10.560429749952164,
+    "max_outer": 25,
+    "min_raters_per_case": 3,
+    "min_labels_per_rater": 1000,
+    "min_votes_per_class": 5,
+    "sigma_s": 2.0,
+    "ridge": 0.05
+  }
+}

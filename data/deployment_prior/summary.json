@@ -1,0 +1,81 @@
+{
+  "r_ell": 0.32597281907588627,
+  "rho": 0.0,
+  "t_t_offdiag": 0.0,
+  "sigma_t": 1.0,
+  "sigma_ell": 1.0,
+  "tasks": [
+    "spike",
+    "seizure",
+    "lpd",
+    "gpd",
+    "lrda",
+    "grda"
+  ],
+  "K": 6,
+  "DIM": 12,
+  "source_block_fit": "data/labels/fits_hier_block",
+  "block_summary": {
+    "variant": "block",
+    "r_hat": 0.1629864095379432,
+    "rho_hat": 0.0,
+    "r_iiic_hat": 0.2655904786138297,
+    "r_cross_hat": 0.44673749999999995,
+    "K": 6,
+    "tasks": [
+      "spike",
+      "seizure",
+      "lpd",
+      "gpd",
+      "lrda",
+      "grda"
+    ],
+    "wall_time_s": 61.482065792079084,
+    "max_outer": 25,
+    "min_raters_per_case": 3,
+    "min_labels_per_rater": 100,
+    "min_votes_per_class": 5,
+    "sigma_s": 2.0,
+    "ridge": 0.05
+  },
+  "n_cases_per_task": {
+    "spike": 22346,
+    "seizure": 40984,
+    "lpd": 30476,
+    "gpd": 30476,
+    "lrda": 39747,
+    "grda": 40701
+  },
+  "thresholds": {
+    "spike": {
+      "ell_star": 0.6577660336583199,
+      "youden_j": 0.580304489108196,
+      "auroc": 0.8143428812131424
+    },
+    "seizure": {
+      "ell_star": 0.9692217203097414,
+      "youden_j": 0.4565637480139133,
+      "auroc": 0.7973762184910036
+    },
+    "lpd": {
+      "ell_star": 0.3565433370986948,
+      "youden_j": 0.8948685857321652,
+      "auroc": 0.9588652482269504
+    },
+    "gpd": {
+      "ell_star": 0.2658563894237251,
+      "youden_j": 0.8743781094527363,
+      "auroc": 0.9269485903814262
+    },
+    "lrda": {
+      "ell_star": 0.080047406060626,
+      "youden_j": 0.8206724782067247,
+      "auroc": 0.9329916658683782
+    },
+    "grda": {
+      "ell_star": 0.6179828028499886,
+      "youden_j": 0.8467857142857143,
+      "auroc": 0.94859375
+    }
+  }
+}

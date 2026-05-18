@@ -1,0 +1,7 @@
+{
+  "task": "gpd",
+  "n_labels_fit": 803569,
+  "n_cases": 30476,
+  "n_raters": 834,
+  "pos_rate": 0.15392455408309677
+}

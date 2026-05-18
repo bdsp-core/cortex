@@ -1,0 +1,7 @@
+{
+  "task": "seizure",
+  "n_labels_fit": 229738,
+  "n_cases": 24253,
+  "n_raters": 33,
+  "pos_rate": 0.1060251242719968
+}

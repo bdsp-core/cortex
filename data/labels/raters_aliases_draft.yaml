@@ -1,0 +1,488 @@
+# Rater alias resolution — DRAFT v5 (final pre-build).
+#
+# All confirmed aliases (super-8 nicknames, pd-rda-profiler initials,
+# space-stripped variants, middle-initial variants, last-first-swap variants,
+# user-supplied additions) applied.
+#
+# Unresolved (3 remaining): 'Anil', 'GT', 'Sean' — kept as single-token canonicals.
+#
+# Non-person markers: 'IIIC_crowd', 'corrected', 'pending' (profiler-only).
+# These are kept as rater_id rows in the unified raters.csv with is_person=False.
+- canonical: "M. Brandon Westover"
+  n_sources: 26
+  variants:
+    - "'M. Brandon Westover'"
+    - 'M. Brandon Westover'
+    - 'MW'
+    - 'mbw'
+
+- canonical: "Aline Herlopian"
+  n_sources: 23
+  variants:
+    - "'Aline Herlopian'"
+    - 'Aline Herlopian'
+    - 'aline'
+
+- canonical: "Ioannis Karakis"
+  n_sources: 23
+  variants:
+    - "'Ioannis Karakis'"
+    - 'Ioannis Karakis'
+    - 'ioannis'
+
+- canonical: "Jonathan J. Halford"
+  n_sources: 23
+  variants:
+    - "'Jon Halford'"
+    - 'Jon Halford'
+    - 'Jonathan J. Halford'
+    - 'jon'
+
+- canonical: "Marcus Ng"
+  n_sources: 23
+  variants:
+    - "'Marcus Ng'"
+    - 'Marcus Ng'
+    - 'marcus'
+
+- canonical: "Sahar Zafar"
+  n_sources: 20
+  variants:
+    - "'Sahar Zafar'"
+    - 'SZ'
+    - 'Sahar Zafar'
+    - 'Sahar-Zafar'
+
+- canonical: "Jin Jing"
+  n_sources: 20
+  variants:
+    - "'Jin Jing'"
+    - 'Jin Jing'
+    - 'jj'
+
+- canonical: "Hiba A. Haider"
+  n_sources: 20
+  variants:
+    - "'Hiba Arif'"
+    - 'Hiba A. Haider'
+    - 'Hiba Arif'
+
+- canonical: "Olga Taraschenko"
+  n_sources: 20
+  variants:
+    - "'Taraschenko Olha'"
+    - 'Olga Taraschenko'
+    - 'Taraschenko Olha'
+
+- canonical: "Gamal Osman"
+  n_sources: 20
+  variants:
+    - "'Gamal Osman'"
+    - 'Gamal Osman'
+    - 'Osman Gamaleldin'
+
+- canonical: "Sarah Schmitt"
+  n_sources: 20
+  variants:
+    - "'Sarah Schmitt'"
+    - 'Sarah Schmitt'
+
+- canonical: "Zubeda Sheikh"
+  n_sources: 20
+  variants:
+    - "'Zubeda Sheikh'"
+    - 'Zubeda Karim'
+    - 'Zubeda Sheikh'
+
+- canonical: "Aaron F. Struck"
+  n_sources: 19
+  variants:
+    - "'Aaron Struck'"
+    - 'AS'
+    - 'Aaron F. Struck'
+    - 'Aaron Struck'
+
+- canonical: "Ji Yeoun Yoo"
+  n_sources: 19
+  variants:
+    - "'Ji Yeoun Yoo'"
+    - 'Ji Yeoun Yoo'
+    - 'Jiyeoun Yoo'
+
+- canonical: "Jenn Kim"
+  n_sources: 18
+  variants:
+    - "'Jenn Kim'"
+    - 'Jenn Kim'
+    - 'Jenn-Kim'
+
+- canonical: "Peter Kaplan"
+  n_sources: 18
+  variants:
+    - "'Peter Kaplan'"
+    - 'Peter Kaplan'
+    - 'peter kaplan'
+    - 'peter-kaplan'
+
+- canonical: "Rani Sarkis"
+  n_sources: 18
+  variants:
+    - "'Rani Sarkis'"
+    - 'Rani Sarkis'
+    - 'ranisarkis'
+
+- canonical: "Emily Johnson"
+  n_sources: 14
+  variants:
+    - "'Emily Johnson'"
+    - 'Emily Johnson'
+
+- canonical: "Brian Appavu"
+  n_sources: 14
+  variants:
+    - "'Brian Appavu'"
+    - 'Brian Appavu'
+
+- canonical: "Arcot Jayagopal Lakshman Narain"
+  n_sources: 14
+  variants:
+    - "'Arcot Jayagopal Lakshman Narain'"
+    - 'Arcot Jayagopal Lakshman Narain'
+
+- canonical: "Christa Swisher"
+  n_sources: 14
+  variants:
+    - "'Christa Swisher'"
+    - 'Christa Swisher'
+
+- canonical: "Nicolas Gaspard"
+  n_sources: 14
+  variants:
+    - "'Nicolas Gaspard'"
+    - 'Nicolas Gaspard'
+
+- canonical: "Mackenzie C. Cervenka"
+  n_sources: 14
+  variants:
+    - "'Mackenzie C. Cervenka'"
+    - 'Mackenzie C. Cervenka'
+
+- canonical: "Andres Rodriguez"
+  n_sources: 14
+  variants:
+    - "'Andres Rodriguez'"
+    - 'Andres Rodriguez'
+
+- canonical: "Jong Woo Lee"
+  n_sources: 14
+  variants:
+    - "'Jong Woo Lee'"
+    - 'Jong Woo Lee'
+
+- canonical: "Eric S. Rosenthal"
+  n_sources: 14
+  variants:
+    - "'Eric S. Rosenthal'"
+    - 'Eric S. Rosenthal'
+
+- canonical: "Emily Gilmore"
+  n_sources: 14
+  variants:
+    - "'Emily Gilmore'"
+    - 'Emily Gilmore'
+
+- canonical: "Holmes Manisha"
+  n_sources: 14
+  variants:
+    - "'Holmes Manisha'"
+    - 'Holmes Manisha'
+
+- canonical: "Sue Herman"
+  n_sources: 14
+  variants:
+    - "'Sue Herman'"
+    - 'Sue Herman'
+
+- canonical: "Monica Dhakar"
+  n_sources: 13
+  variants:
+    - "'Monica Dhakar'"
+    - 'Monica Dhakar'
+
+- canonical: "Jay Pathmanathan"
+  n_sources: 13
+  variants:
+    - "'Jay Pathmanathan'"
+    - 'Jay Pathmanathan'
+
+- canonical: "Alice Lam"
+  n_sources: 11
+  variants:
+    - 'Alice Lam'
+    - 'alice'
+
+- canonical: "Douglas Maus"
+  n_sources: 11
+  variants:
+    - 'Doug Maus'
+    - 'Douglas Maus'
+    - 'doug'
+
+- canonical: "Sydney S. Cash"
+  n_sources: 11
+  variants:
+    - 'Syd Cash'
+    - 'Sydney S. Cash'
+    - 'syd'
+
+- canonical: "Fabio A. Nascimento"
+  n_sources: 8
+  variants:
+    - 'Fabio A. Nascimento'
+    - 'fabio'
+
+- canonical: "Dan Weber"
+  n_sources: 7
+  variants:
+    - 'Dan Weber'
+
+- canonical: "Olga Selioutski"
+  n_sources: 7
+  variants:
+    - 'Olga Selioutski'
+
+- canonical: "Roohi Katyal"
+  n_sources: 7
+  variants:
+    - 'Roohi Katyal'
+
+- canonical: "Selim R. Benbadis"
+  n_sources: 7
+  variants:
+    - 'Selim R. Benbadis'
+
+- canonical: "William O. Tatum"
+  n_sources: 7
+  variants:
+    - 'William O. Tatum'
+
+- canonical: "Deepti Zutshi"
+  n_sources: 7
+  variants:
+    - "'Deepti Zutshi'"
+    - 'Deepti Zutshi'
+
+- canonical: "Mohammad Tabaeizadeh F."
+  n_sources: 7
+  variants:
+    - "'Mohammad Tabaeizadeh F.'"
+    - 'Mohammad Tabaeizadeh F.'
+
+- canonical: "Dan Rubin"
+  n_sources: 5
+  variants:
+    - 'Dan Rubin'
+    - 'Dan-Rubin'
+
+- canonical: "Mo Shafi"
+  n_sources: 5
+  variants:
+    - 'Mo Shafi'
+    - 'Mo-Shafi'
+
+- canonical: "Abubakar Ayub"
+  n_sources: 4
+  variants:
+    - 'Abubakar'
+
+- canonical: "An Ouyang"
+  n_sources: 4
+  variants:
+    - 'An Ouyang'
+    - 'An-Ouyang'
+
+- canonical: "Anil"
+  n_sources: 4
+  variants:
+    - 'Anil'
+
+- canonical: "Elissa Ye"
+  n_sources: 4
+  variants:
+    - 'Elissa Ye'
+    - 'Elissa-Ye'
+
+- canonical: "GT"
+  n_sources: 4
+  variants:
+    - 'GT'
+
+- canonical: "Gabe Mertz"
+  n_sources: 4
+  variants:
+    - 'Gabe'
+
+- canonical: "Jake Hogan"
+  n_sources: 4
+  variants:
+    - 'Jake Hogan'
+    - 'Jake-Hogan'
+
+- canonical: "Julia Carlson"
+  n_sources: 4
+  variants:
+    - 'Julia Carlson'
+    - 'Julia-Carlson'
+
+- canonical: "Lindsay Joslyn"
+  n_sources: 4
+  variants:
+    - 'Lindsay Joslyn'
+    - 'Lindsay-Joslyn'
+
+- canonical: "Lisa Dümmer"
+  n_sources: 4
+  variants:
+    - 'Lisa Dümmer'
+    - 'Lisa-Dümmer'
+
+- canonical: "Maurice Abou Jaoude"
+  n_sources: 4
+  variants:
+    - 'Maurice Abou Jaoude'
+    - 'Maurice-Abou-Jaoude'
+
+- canonical: "Nitish M. Harid"
+  n_sources: 4
+  variants:
+    - 'NMH'
+
+- canonical: "Ryan Gaudreau"
+  n_sources: 4
+  variants:
+    - 'Ryan Gaudreau'
+    - 'Ryan-Gaudreau'
+
+- canonical: "Sam Terman"
+  n_sources: 4
+  variants:
+    - 'Sam Terman'
+    - 'Sam-Terman'
+
+- canonical: "Sean"
+  n_sources: 4
+  variants:
+    - 'Sean'
+
+- canonical: "Shenda Hong"
+  n_sources: 4
+  variants:
+    - 'Shenda'
+
+- canonical: "Valeria Sacca"
+  n_sources: 4
+  variants:
+    - 'Valeria'
+
+- canonical: "Wei-Long Zheng"
+  n_sources: 4
+  variants:
+    - 'Wei-Long Zheng'
+    - 'Wei-Long-Zheng'
+
+- canonical: "Yu Zhu"
+  n_sources: 4
+  variants:
+    - 'Yu Zhu'
+    - 'Yu-Zhu'
+
+- canonical: "Ziwei Fan"
+  n_sources: 4
+  variants:
+    - 'Ziwei'
+
+- canonical: "Wendong Ge"
+  n_sources: 4
+  variants:
+    - 'wendong'
+
+- canonical: "Adam S. Greenblatt"
+  n_sources: 4
+  variants:
+    - 'Adam S. Greenblatt'
+
+- canonical: "Chinasa Nwankwo"
+  n_sources: 4
+  variants:
+    - 'Chinasa Nwankwo'
+
+- canonical: "Diego Carvalho"
+  n_sources: 4
+  variants:
+    - "'Diego Carvalho'"
+    - 'Diego Carvalho'
+
+- canonical: "Eddy Amorim"
+  n_sources: 4
+  variants:
+    - "'Eddy Amorim'"
+    - 'Eddy Amorim'
+
+- canonical: "Fonda Chan"
+  n_sources: 4
+  variants:
+    - "'Fonda Chan'"
+    - 'Fonda Chan'
+
+- canonical: "Illya Tolokh"
+  n_sources: 4
+  variants:
+    - "'Illya Tolokh'"
+    - 'Illya Tolokh'
+
+- canonical: "Jennifer William"
+  n_sources: 4
+  variants:
+    - "'Jennifer William'"
+    - 'Jennifer William'
+
+- canonical: "Carlos Muniz"
+  n_sources: 3
+  variants:
+    - "'Carlos Muniz'"
+    - 'Carlos Muniz'
+
+- canonical: "Karan Poddar"
+  n_sources: 3
+  variants:
+    - "'Karan Poddar'"
+    - 'Karan Poddar'
+
+- canonical: "Marjan Dolatshahi"
+  n_sources: 3
+  variants:
+    - "'Marjan Dolatshahi'"
+    - 'Marjan Dolatshahi'
+
+- canonical: "Peter Wrigley"
+  n_sources: 3
+  variants:
+    - "'Peter Wrigley'"
+    - 'Peter Wrigley'
+
+- canonical: "Rodrigo Zepeda"
+  n_sources: 3
+  variants:
+    - "'Rodrigo Zepeda'"
+    - 'Rodrigo Zepeda'
+
+- canonical: "Lara Basovic"
+  n_sources: 2
+  variants:
+    - 'LB'
+
+- canonical: "Peter Hadar"
+  n_sources: 2
+  variants:
+    - 'PH'
+

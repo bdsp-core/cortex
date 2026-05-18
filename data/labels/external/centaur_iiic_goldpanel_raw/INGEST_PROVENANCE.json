@@ -1,0 +1,35 @@
+{
+  "ingested": "20260518T104148",
+  "source_dataset": "centaur_iiic_expert",
+  "n_cases": 5000,
+  "n_experts": 4,
+  "n_observations_added": 20000,
+  "rater_id_assignment": {
+    "mbw": "97",
+    "cal": "99000001",
+    "matt": "99000002",
+    "tianyu": "99000003"
+  },
+  "taxonomy": {
+    "gold_native": "7-class {seizure,lpd,gpd,lrda,grda,bipd,birds}",
+    "canonical": "6-class pattern_class",
+    "collapse": {
+      "bipd": "other",
+      "birds": "other"
+    },
+    "n_collapsed_to_other": 1852,
+    "native_7_recoverable_from": "external/centaur_iiic_goldpanel_raw/centaur_iiic_expert_labels.xlsx",
+    "rationale": "AUDIT_centaur_iiic_novice_expert.md section 6"
+  },
+  "join": "case_id -> external/centaur_2025/case_id_to_seg_id.csv -> seg_id; asserted in segments.csv AND aligned with centaur_2025_iiic novice reads",
+  "value_distribution_6class": {
+    "gpd": 4280,
+    "lpd": 4403,
+    "grda": 3466,
+    "lrda": 3081,
+    "other": 1852,
+    "seizure": 2918
+  },
+  "append_only": true,
+  "backups": "*.bak.20260518T104148.csv"
+}

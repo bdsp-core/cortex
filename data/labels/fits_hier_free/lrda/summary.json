@@ -1,0 +1,7 @@
+{
+  "task": "lrda",
+  "n_labels_fit": 372838,
+  "n_cases": 37685,
+  "n_raters": 202,
+  "pos_rate": 0.09251202935323116
+}

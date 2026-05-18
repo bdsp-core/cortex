@@ -1,0 +1,387 @@
+user_id,response,created_at,name
+2,"OK,Other,Not specialized in epileptology,None",26:06.3,eeg_survey_5290
+26,"OK,Other,Not specialized in epileptology,None",34:48.7,eeg_survey_5290
+1196,"OK,Other,Not specialized in epileptology,More than 5 years",07:19.1,eeg_survey_5290
+7884,"OK,Other,Not specialized in epileptology,None",18:38.6,eeg_survey_5290
+43096,"OK,Medical student,Not specialized in epileptology,1-5 years",34:10.3,eeg_survey_5290
+44529,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,0-1 years",04:52.4,eeg_survey_5290
+46967,"OK,Other,Specialized in adult epileptology,None",09:49.1,eeg_survey_5290
+54950,"OK,Resident,Not specialized in epileptology,0-1 years",27:46.3,eeg_survey_5290
+63379,"OK,Medical student,Not specialized in epileptology,0-1 years",36:22.0,eeg_survey_5290
+69061,"OK,Resident,Not specialized in epileptology,None",22:01.0,eeg_survey_5290
+75969,"OK,Medical student,Not specialized in epileptology,0-1 years",26:30.0,eeg_survey_5290
+112839,"OK,Fellow - epilepsy or clinical neurophysiology,Not specialized in epileptology,None",47:11.0,eeg_survey_5290
+123559,"OK,Medical student,Not specialized in epileptology,1-5 years",47:50.8,eeg_survey_5290
+123848,"OK,Nurse,Not specialized in epileptology,1-5 years",54:50.9,eeg_survey_5291
+132535,"OK,Other,Not specialized in epileptology,0-1 years",16:21.0,eeg_survey_5291
+154419,"OK,Medical student,Not specialized in epileptology,None",29:49.8,eeg_survey_5291
+159195,"OK,Medical student,Not specialized in epileptology,0-1 years",30:44.6,eeg_survey_5290
+180994,"OK,Medical student,Not specialized in epileptology,None",00:02.8,eeg_survey_5290
+187180,"OK,Medical student,Not specialized in epileptology,None",55:24.0,eeg_survey_5290
+191971,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,0-1 years",41:32.2,eeg_survey_5291
+195961,"OK,Nurse,Not specialized in epileptology,None",29:58.9,eeg_survey_5291
+209011,"OK,Medical student,Not specialized in epileptology,None",37:54.7,eeg_survey_5291
+262204,"OK,Other,Not specialized in epileptology,None",03:01.4,eeg_survey_5291
+270392,"OK,Medical student,Not specialized in epileptology,None",20:01.8,eeg_survey_5290
+270967,"OK,Other,Not specialized in epileptology,None",37:34.4,eeg_survey_5290
+282558,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,1-5 years",06:04.3,eeg_survey_5290
+292356,"OK,Other,Not specialized in epileptology,None",18:39.2,eeg_survey_5290
+299374,"OK,Other,Not specialized in epileptology,None",16:19.0,eeg_survey_5290
+305108,"OK,Medical student,Not specialized in epileptology,0-1 years",39:35.7,eeg_survey_5291
+314189,"OK,Medical student,Specialized in adult epileptology,1-5 years",44:15.6,eeg_survey_5291
+316516,"OK,Other,Specialized in adult epileptology,More than 5 years",56:14.1,eeg_survey_5290
+316710,"OK,Medical student,Not specialized in epileptology,None",38:40.8,eeg_survey_5290
+317891,"OK,Other,Not specialized in epileptology,None",41:31.1,eeg_survey_5290
+318693,"OK,Medical student,Not specialized in epileptology,None",38:51.9,eeg_survey_5290
+319661,"OK,Other,Not specialized in epileptology,None",45:16.5,eeg_survey_5291
+322125,"OK,Other,Not specialized in epileptology,None",49:38.9,eeg_survey_5290
+329173,"OK,Practicing physician (non-neurologist),Specialized in adult epileptology,0-1 years",17:01.5,eeg_survey_5290
+331025,"OK,Medical student,Not specialized in epileptology,0-1 years",46:43.3,eeg_survey_5291
+332125,"OK,Other,Not specialized in epileptology,None",37:03.7,eeg_survey_5291
+340986,"OK,Other,Not specialized in epileptology,None",32:12.5,eeg_survey_5291
+348570,"OK,Medical student,Not specialized in epileptology,0-1 years",14:20.4,eeg_survey_5290
+351834,"OK,Medical student,Not specialized in epileptology,None",30:24.7,eeg_survey_5291
+358060,"OK,Resident,Specialized in adult epileptology,0-1 years",55:09.6,eeg_survey_5291
+360041,"OK,Other,Not specialized in epileptology,None",30:53.7,eeg_survey_5290
+363431,"OK,Medical student,Not specialized in epileptology,None",23:26.0,eeg_survey_5290
+364382,"OK,Other,Not specialized in epileptology,None",58:58.6,eeg_survey_5290
+364505,"OK,Medical student,Not specialized in epileptology,0-1 years",54:32.4,eeg_survey_5291
+368458,"OK,Other,Not specialized in epileptology,None",38:29.9,eeg_survey_5290
+372514,"OK,Other,Not specialized in epileptology,None",33:35.0,eeg_survey_5291
+376803,"OK,Medical student,Not specialized in epileptology,None",44:41.1,eeg_survey_5290
+377131,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",40:41.5,eeg_survey_5290
+382225,"OK,Medical student,Not specialized in epileptology,1-5 years",58:28.4,eeg_survey_5290
+385640,"OK,Medical student,Not specialized in epileptology,None",22:40.2,eeg_survey_5290
+385861,"OK,Medical student,Not specialized in epileptology,None",49:14.6,eeg_survey_5290
+387958,"OK,Medical student,Not specialized in epileptology,None",07:44.9,eeg_survey_5290
+388028,"OK,Medical student,Not specialized in epileptology,0-1 years",51:24.4,eeg_survey_5291
+406067,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",37:21.4,eeg_survey_5290
+406335,"OK,Other,Not specialized in epileptology,None",02:52.3,eeg_survey_5291
+406396,"OK,Resident,Not specialized in epileptology,0-1 years",37:42.9,eeg_survey_5290
+410229,"OK,Medical student,Not specialized in epileptology,None",52:05.3,eeg_survey_5290
+410463,"OK,Medical student,Not specialized in epileptology,0-1 years",04:03.3,eeg_survey_5291
+410661,"OK,Other,Not specialized in epileptology,None",52:25.0,eeg_survey_5290
+410669,"OK,Medical student,Not specialized in epileptology,0-1 years",35:17.8,eeg_survey_5290
+412853,"OK,Resident,Not specialized in epileptology,None",13:33.9,eeg_survey_5291
+415361,"OK,Resident,Not specialized in epileptology,None",39:28.6,eeg_survey_5291
+415824,"OK,Other,Not specialized in epileptology,None",59:30.7,eeg_survey_5290
+420976,"OK,Medical student,Not specialized in epileptology,0-1 years",49:56.5,eeg_survey_5290
+421122,"OK,Resident,Not specialized in epileptology,0-1 years",56:01.1,eeg_survey_5290
+423724,"OK,Other,Not specialized in epileptology,0-1 years",34:39.3,eeg_survey_5291
+426874,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",50:08.4,eeg_survey_5291
+427026,"OK,Medical student,Not specialized in epileptology,None",43:47.1,eeg_survey_5290
+427272,"OK,Medical student,Not specialized in epileptology,None",49:52.2,eeg_survey_5290
+427522,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",01:13.6,eeg_survey_5290
+427523,"OK,Resident,Not specialized in epileptology,0-1 years",00:35.6,eeg_survey_5290
+433291,"OK,Other,Not specialized in epileptology,None",18:55.2,eeg_survey_5291
+436223,"OK,Medical student,Specialized in pediatric epileptology,None",14:30.7,eeg_survey_5290
+437411,"OK,Medical student,Not specialized in epileptology,None",03:32.1,eeg_survey_5290
+437599,"OK,Medical student,Not specialized in epileptology,None",48:28.7,eeg_survey_5290
+445849,"OK,Other,Not specialized in epileptology,0-1 years",01:37.2,eeg_survey_5290
+445892,"OK,Practicing physician (non-neurologist),Specialized in adult epileptology,0-1 years",38:35.4,eeg_survey_5291
+447302,"OK,Medical student,Not specialized in epileptology,None",45:22.1,eeg_survey_5291
+453167,"OK,Resident,Not specialized in epileptology,None",35:55.2,eeg_survey_5290
+456497,"OK,Medical student,Not specialized in epileptology,0-1 years",22:54.8,eeg_survey_5291
+459512,"OK,Medical student,Not specialized in epileptology,None",52:58.1,eeg_survey_5291
+461485,"OK,Medical student,Specialized in adult epileptology,1-5 years",00:41.1,eeg_survey_5290
+467362,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,1-5 years",17:09.0,eeg_survey_5291
+469638,"OK,Medical student,Not specialized in epileptology,None",18:30.2,eeg_survey_5290
+474366,"OK,Medical student,Specialized in pediatric epileptology,0-1 years",20:03.0,eeg_survey_5290
+474871,"OK,Medical student,Not specialized in epileptology,None",00:50.8,eeg_survey_5290
+475646,"OK,Other,Not specialized in epileptology,None",59:06.0,eeg_survey_5290
+479788,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,0-1 years",05:19.1,eeg_survey_5290
+481254,"OK,Medical student,Not specialized in epileptology,0-1 years",15:24.8,eeg_survey_5290
+483852,"OK,Medical student,Not specialized in epileptology,None",28:53.7,eeg_survey_5290
+484801,"OK,Other,Not specialized in epileptology,None",02:31.7,eeg_survey_5291
+487681,"OK,Medical student,Not specialized in epileptology,None",19:44.8,eeg_survey_5291
+488940,"OK,Other,Not specialized in epileptology,None",16:47.2,eeg_survey_5290
+489184,"OK,Other,Not specialized in epileptology,None",48:48.6,eeg_survey_5291
+489707,"OK,Medical student,Not specialized in epileptology,None",43:52.6,eeg_survey_5290
+490047,"OK,Resident,Not specialized in epileptology,0-1 years",33:31.9,eeg_survey_5290
+492451,"OK,Medical student,Not specialized in epileptology,0-1 years",01:47.9,eeg_survey_5291
+492981,"OK,Other,Not specialized in epileptology,0-1 years",57:54.2,eeg_survey_5290
+493926,"OK,Medical student,Not specialized in epileptology,None",55:22.9,eeg_survey_5291
+499508,"OK,Medical student,Not specialized in epileptology,None",18:23.8,eeg_survey_5290
+499684,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",47:43.6,eeg_survey_5290
+504414,"OK,Nurse,Not specialized in epileptology,None",02:19.1,eeg_survey_5291
+504969,"OK,Other,Specialized in pediatric epileptology,1-5 years",49:22.8,eeg_survey_5291
+505727,"OK,Other,Not specialized in epileptology,0-1 years",47:09.1,eeg_survey_5290
+507897,"OK,Medical student,Not specialized in epileptology,0-1 years",05:25.2,eeg_survey_5290
+508965,"OK,Medical student,Not specialized in epileptology,0-1 years",18:53.6,eeg_survey_5291
+509395,"OK,Medical student,Not specialized in epileptology,0-1 years",04:50.9,eeg_survey_5290
+511270,"OK,Medical student,Not specialized in epileptology,None",56:19.2,eeg_survey_5291
+512889,"OK,Medical student,Not specialized in epileptology,None",48:44.1,eeg_survey_5291
+513496,"OK,Other,Not specialized in epileptology,1-5 years",48:07.8,eeg_survey_5290
+514658,"OK,Medical student,Not specialized in epileptology,None",52:10.8,eeg_survey_5290
+514731,"OK,Other,Not specialized in epileptology,None",24:24.2,eeg_survey_5291
+514758,"OK,Medical student,Not specialized in epileptology,None",58:59.2,eeg_survey_5290
+516714,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,0-1 years",51:07.1,eeg_survey_5290
+517730,"OK,Other,Not specialized in epileptology,None",54:28.5,eeg_survey_5290
+518592,"OK,Medical student,Not specialized in epileptology,None",09:45.0,eeg_survey_5290
+519234,"OK,Medical student,Not specialized in epileptology,0-1 years",15:43.9,eeg_survey_5290
+519297,"OK,Resident,Not specialized in epileptology,None",28:35.9,eeg_survey_5290
+523763,"OK,Medical student,Not specialized in epileptology,None",02:12.0,eeg_survey_5290
+524893,"OK,Medical student,Not specialized in epileptology,None",45:00.1,eeg_survey_5291
+525327,"OK,Medical student,Not specialized in epileptology,None",40:50.1,eeg_survey_5290
+532077,"OK,Medical student,Not specialized in epileptology,None",32:23.5,eeg_survey_5291
+533257,"OK,Other,Not specialized in epileptology,None",07:28.8,eeg_survey_5290
+533775,"OK,Medical student,Not specialized in epileptology,None",21:00.0,eeg_survey_5290
+534165,"OK,Practicing neurologist (non-epileptologist),Not specialized in epileptology,0-1 years",06:26.5,eeg_survey_5290
+543288,"OK,Medical student,Not specialized in epileptology,None",56:10.3,eeg_survey_5290
+547555,"OK,Medical student,Not specialized in epileptology,1-5 years",05:57.3,eeg_survey_5290
+549597,"OK,Other,Not specialized in epileptology,None",09:05.4,eeg_survey_5291
+550438,"OK,Medical student,Specialized in adult epileptology,0-1 years",56:48.5,eeg_survey_5291
+552947,"OK,Resident,Not specialized in epileptology,1-5 years",31:58.4,eeg_survey_5290
+553437,"OK,Medical student,Not specialized in epileptology,None",06:37.2,eeg_survey_5291
+554066,"OK,Nurse,Not specialized in epileptology,None",23:19.1,eeg_survey_5290
+557450,"OK,Other,Not specialized in epileptology,None",10:05.3,eeg_survey_5290
+558034,"OK,Resident,Specialized in adult epileptology,None",56:04.4,eeg_survey_5290
+562756,"OK,Other,Not specialized in epileptology,None",26:00.5,eeg_survey_5290
+564279,"OK,Medical student,Not specialized in epileptology,None",04:54.6,eeg_survey_5290
+564286,"OK,Medical student,Not specialized in epileptology,None",12:47.2,eeg_survey_5291
+565246,"OK,Medical student,Not specialized in epileptology,None",32:02.7,eeg_survey_5290
+565263,"OK,Medical student,Not specialized in epileptology,None",36:26.5,eeg_survey_5290
+566163,"OK,Other,Not specialized in epileptology,None",37:39.7,eeg_survey_5290
+569668,"OK,Medical student,Not specialized in epileptology,0-1 years",50:59.9,eeg_survey_5291
+570326,"OK,Medical student,Not specialized in epileptology,0-1 years",57:31.9,eeg_survey_5290
+572023,"OK,Other,Not specialized in epileptology,None",54:28.9,eeg_survey_5290
+572722,"OK,Medical student,Not specialized in epileptology,None",09:34.5,eeg_survey_5290
+572980,"OK,Medical student,Not specialized in epileptology,0-1 years",20:27.8,eeg_survey_5290
+574935,"OK,Nurse,Not specialized in epileptology,None",10:01.1,eeg_survey_5290
+575298,"OK,Nurse,Not specialized in epileptology,None",05:54.7,eeg_survey_5290
+578243,"OK,Medical student,Not specialized in epileptology,0-1 years",43:50.1,eeg_survey_5291
+578973,"OK,Other,Not specialized in epileptology,0-1 years",30:49.8,eeg_survey_5290
+579427,"OK,Resident,Specialized in adult epileptology,0-1 years",21:10.0,eeg_survey_5290
+579702,"OK,Other,Not specialized in epileptology,None",34:32.5,eeg_survey_5290
+580746,"OK,Medical student,Not specialized in epileptology,None",19:15.4,eeg_survey_5290
+582334,"OK,Nurse,Not specialized in epileptology,1-5 years",09:33.9,eeg_survey_5290
+582929,"OK,Nurse,Specialized in adult epileptology,0-1 years",14:22.4,eeg_survey_5290
+584675,"OK,Practicing physician (non-neurologist),Specialized in adult epileptology,More than 5 years",15:01.0,eeg_survey_5291
+585413,"OK,Medical student,Not specialized in epileptology,None",24:56.9,eeg_survey_5290
+587421,"OK,Medical student,Not specialized in epileptology,1-5 years",55:27.6,eeg_survey_5290
+587724,"OK,Medical student,Specialized in adult epileptology,More than 5 years",43:28.3,eeg_survey_5291
+592156,"OK,Other,Not specialized in epileptology,None",28:30.9,eeg_survey_5290
+594506,"OK,Resident,Not specialized in epileptology,None",45:16.9,eeg_survey_5290
+594753,"OK,Other,Not specialized in epileptology,More than 5 years",17:25.9,eeg_survey_5290
+594820,"OK,Medical student,Not specialized in epileptology,None",40:32.9,eeg_survey_5290
+596802,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,1-5 years",12:16.7,eeg_survey_5290
+597376,"OK,Other,Not specialized in epileptology,None",44:48.7,eeg_survey_5290
+599903,"OK,Nurse,Not specialized in epileptology,None",07:13.4,eeg_survey_5290
+600056,"OK,Medical student,Specialized in adult epileptology,None",20:02.8,eeg_survey_5291
+600128,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",48:15.1,eeg_survey_5291
+600349,"OK,Other,Not specialized in epileptology,None",39:51.5,eeg_survey_5290
+601639,"OK,Medical student,Not specialized in epileptology,0-1 years",05:02.1,eeg_survey_5291
+601918,"OK,Nurse,Not specialized in epileptology,None",35:54.0,eeg_survey_5290
+602990,"OK,Medical student,Not specialized in epileptology,None",55:28.8,eeg_survey_5290
+603032,"OK,Medical student,Not specialized in epileptology,0-1 years",51:10.4,eeg_survey_5290
+603142,"OK,Medical student,Not specialized in epileptology,None",05:08.1,eeg_survey_5291
+603693,"OK,Other,Not specialized in epileptology,None",47:06.5,eeg_survey_5290
+603919,"OK,Medical student,Not specialized in epileptology,0-1 years",10:55.1,eeg_survey_5290
+604555,"OK,Medical student,Not specialized in epileptology,None",19:03.4,eeg_survey_5290
+604914,"OK,Other,Not specialized in epileptology,None",22:33.7,eeg_survey_5290
+605156,"OK,Other,Not specialized in epileptology,0-1 years",37:53.0,eeg_survey_5290
+605792,"OK,Medical student,Not specialized in epileptology,None",37:38.9,eeg_survey_5290
+606111,"OK,Medical student,Not specialized in epileptology,None",18:00.5,eeg_survey_5291
+606228,"OK,Medical student,Not specialized in epileptology,None",05:13.8,eeg_survey_5290
+606570,"OK,Medical student,Not specialized in epileptology,None",56:18.6,eeg_survey_5291
+607384,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",58:14.7,eeg_survey_5291
+608097,"OK,Medical student,Not specialized in epileptology,0-1 years",06:31.1,eeg_survey_5291
+608366,"OK,Other,Not specialized in epileptology,None",17:39.0,eeg_survey_5290
+608494,"OK,Fellow - epilepsy or clinical neurophysiology,Not specialized in epileptology,0-1 years",22:46.6,eeg_survey_5291
+609403,"OK,Medical student,Not specialized in epileptology,0-1 years",10:22.3,eeg_survey_5290
+609701,"OK,Other,Not specialized in epileptology,None",59:53.4,eeg_survey_5291
+609947,"OK,Medical student,Not specialized in epileptology,None",22:10.8,eeg_survey_5290
+610350,"OK,Resident,Not specialized in epileptology,0-1 years",02:08.9,eeg_survey_5290
+610489,"OK,Nurse,Not specialized in epileptology,0-1 years",24:01.2,eeg_survey_5290
+610584,"OK,Medical student,Not specialized in epileptology,None",56:04.0,eeg_survey_5290
+610826,"OK,Medical student,Not specialized in epileptology,None",50:10.3,eeg_survey_5290
+611066,"OK,Medical student,Specialized in adult epileptology,1-5 years",31:12.8,eeg_survey_5290
+611392,"OK,Resident,Not specialized in epileptology,None",11:57.4,eeg_survey_5290
+611749,"OK,Medical student,Not specialized in epileptology,0-1 years",10:42.3,eeg_survey_5290
+611867,"OK,Nurse,Not specialized in epileptology,None",44:56.2,eeg_survey_5290
+612531,"OK,Other,Not specialized in epileptology,None",09:34.2,eeg_survey_5290
+613725,"OK,Nurse,Specialized in pediatric epileptology,0-1 years",51:59.4,eeg_survey_5291
+613919,"OK,Resident,Not specialized in epileptology,More than 5 years",32:22.9,eeg_survey_5291
+613965,"OK,Practicing physician (non-neurologist),Not specialized in epileptology,None",44:02.4,eeg_survey_5291
+614024,"OK,Medical student,Not specialized in epileptology,None",17:42.2,eeg_survey_5290
+614053,"OK,Other,Not specialized in epileptology,None",59:56.8,eeg_survey_5290
+614076,"OK,Medical student,Not specialized in epileptology,None",16:40.2,eeg_survey_5290
+614158,"OK,Nurse,Specialized in adult epileptology,None",03:58.3,eeg_survey_5291
+614177,"OK,Medical student,Not specialized in epileptology,0-1 years",41:33.8,eeg_survey_5290
+614212,"OK,Nurse,Specialized in pediatric epileptology,1-5 years",59:13.7,eeg_survey_5290
+614244,"OK,Nurse,Specialized in adult epileptology,1-5 years",28:33.1,eeg_survey_5290
+614246,"OK,Medical student,Not specialized in epileptology,None",29:54.0,eeg_survey_5290
+614287,"OK,Medical student,Not specialized in epileptology,None",03:55.5,eeg_survey_5290
+614294,"OK,Medical student,Not specialized in epileptology,None",57:40.3,eeg_survey_5290
+614366,"OK,Medical student,Specialized in adult epileptology,1-5 years",21:40.0,eeg_survey_5291
+614369,"OK,Nurse,Not specialized in epileptology,None",02:46.3,eeg_survey_5291
+614398,"OK,Nurse,Specialized in pediatric epileptology,0-1 years",02:26.0,eeg_survey_5291
+614403,"OK,Resident,Not specialized in epileptology,None",11:35.1,eeg_survey_5291
+614423,"OK,Nurse,Not specialized in epileptology,None",49:10.7,eeg_survey_5290
+614437,"OK,Nurse,Specialized in pediatric epileptology,0-1 years",33:04.4,eeg_survey_5291
+614439,"OK,Other,Not specialized in epileptology,0-1 years",35:51.1,eeg_survey_5291
+614469,"OK,Other,Not specialized in epileptology,None",44:08.3,eeg_survey_5290
+614475,"OK,Medical student,Not specialized in epileptology,None",25:18.7,eeg_survey_5291
+614477,"OK,Other,Not specialized in epileptology,None",55:05.3,eeg_survey_5291
+614494,"OK,Medical student,Not specialized in epileptology,0-1 years",50:37.8,eeg_survey_5290
+614495,"OK,Resident,Specialized in pediatric epileptology,More than 5 years",09:19.9,eeg_survey_5290
+614519,"OK,EEG technologist,Specialized in adult epileptology,None",28:47.2,eeg_survey_5290
+614523,"OK,Medical student,Not specialized in epileptology,None",17:44.5,eeg_survey_5290
+614525,"OK,Medical student,Not specialized in epileptology,None",51:19.2,eeg_survey_5290
+614531,"OK,Other,Not specialized in epileptology,None",07:31.7,eeg_survey_5290
+614533,"OK,Medical student,Specialized in adult epileptology,0-1 years",43:31.2,eeg_survey_5290
+614534,"OK,Medical student,Not specialized in epileptology,0-1 years",48:55.4,eeg_survey_5290
+614543,"OK,Resident,Not specialized in epileptology,0-1 years",35:33.4,eeg_survey_5290
+614545,"OK,Other,Not specialized in epileptology,None",41:05.1,eeg_survey_5290
+614547,"OK,Nurse,Not specialized in epileptology,None",41:16.6,eeg_survey_5291
+614553,"OK,Medical student,Specialized in adult epileptology,1-5 years",43:04.9,eeg_survey_5290
+614557,"OK,Other,Specialized in adult epileptology,1-5 years",00:37.0,eeg_survey_5290
+614558,"OK,Medical student,Specialized in adult epileptology,0-1 years",02:45.4,eeg_survey_5290
+614561,"OK,Medical student,Not specialized in epileptology,0-1 years",23:52.6,eeg_survey_5290
+614569,"OK,Other,Not specialized in epileptology,None",10:01.5,eeg_survey_5290
+614570,"OK,Medical student,Not specialized in epileptology,None",12:12.0,eeg_survey_5290
+614586,"OK,Other,Not specialized in epileptology,None",08:58.6,eeg_survey_5290
+614587,"OK,Resident,Not specialized in epileptology,None",51:18.3,eeg_survey_5290
+614593,"OK,Medical student,Specialized in pediatric epileptology,More than 5 years",34:41.7,eeg_survey_5291
+614653,"OK,Medical student,Not specialized in epileptology,0-1 years",01:21.2,eeg_survey_5291
+614660,"OK,Nurse,Not specialized in epileptology,0-1 years",39:57.0,eeg_survey_5290
+614667,"OK,Medical student,Not specialized in epileptology,None",55:19.8,eeg_survey_5290
+614668,"OK,Other,Not specialized in epileptology,None",17:58.6,eeg_survey_5290
+614684,"OK,Other,Not specialized in epileptology,None",35:51.6,eeg_survey_5291
+614687,"OK,Other,Not specialized in epileptology,None",52:20.0,eeg_survey_5290
+614691,"OK,Other,Not specialized in epileptology,None",04:39.9,eeg_survey_5290
+614710,"OK,Medical student,Not specialized in epileptology,None",55:58.9,eeg_survey_5290
+614724,"OK,Other,Not specialized in epileptology,None",34:12.1,eeg_survey_5290
+614755,"OK,Medical student,Not specialized in epileptology,1-5 years",27:19.3,eeg_survey_5290
+614776,"OK,Resident,Not specialized in epileptology,None",40:36.9,eeg_survey_5291
+614777,"OK,Medical student,Not specialized in epileptology,0-1 years",41:09.8,eeg_survey_5290
+614778,"OK,Other,Not specialized in epileptology,None",41:58.0,eeg_survey_5290
+614797,"OK,Medical student,Not specialized in epileptology,None",09:32.8,eeg_survey_5291
+614837,"OK,Medical student,Not specialized in epileptology,None",38:47.5,eeg_survey_5290
+614847,"OK,Resident,Not specialized in epileptology,0-1 years",49:41.2,eeg_survey_5290
+614848,"OK,Other,Not specialized in epileptology,None",07:35.0,eeg_survey_5290
+614849,"OK,Resident,Not specialized in epileptology,0-1 years",28:27.4,eeg_survey_5291
+614860,"OK,Other,Not specialized in epileptology,None",36:30.7,eeg_survey_5290
+614862,"OK,Other,Not specialized in epileptology,None",55:21.7,eeg_survey_5290
+614909,"OK,Resident,Specialized in adult epileptology,0-1 years",50:32.4,eeg_survey_5290
+614918,"OK,Nurse,Specialized in adult epileptology,0-1 years",25:43.0,eeg_survey_5291
+614920,"OK,Other,Not specialized in epileptology,None",49:38.5,eeg_survey_5290
+614929,"OK,Medical student,Not specialized in epileptology,More than 5 years",53:37.9,eeg_survey_5290
+614940,"OK,Other,Not specialized in epileptology,None",52:44.0,eeg_survey_5290
+615031,"OK,Medical student,Not specialized in epileptology,0-1 years",39:01.3,eeg_survey_5291
+615035,"OK,Other,Specialized in pediatric epileptology,None",31:48.9,eeg_survey_5290
+615037,"OK,Nurse,Specialized in adult epileptology,1-5 years",36:53.5,eeg_survey_5291
+615042,"OK,Other,Specialized in adult epileptology,0-1 years",00:32.4,eeg_survey_5291
+615113,"OK,Medical student,Not specialized in epileptology,None",11:05.6,eeg_survey_5290
+615121,"OK,Resident,Not specialized in epileptology,None",16:24.9,eeg_survey_5290
+615209,"OK,Medical student,Not specialized in epileptology,None",32:52.1,eeg_survey_5291
+615212,"OK,Other,Not specialized in epileptology,None",09:09.9,eeg_survey_5291
+615245,"OK,Other,Not specialized in epileptology,None",32:40.4,eeg_survey_5290
+615248,"OK,Other,Not specialized in epileptology,0-1 years",19:33.6,eeg_survey_5291
+615256,"OK,Medical student,Not specialized in epileptology,None",39:20.5,eeg_survey_5290
+615284,"OK,Resident,Not specialized in epileptology,None",07:34.2,eeg_survey_5290
+615312,"OK,Other,Not specialized in epileptology,None",23:12.6,eeg_survey_5290
+615313,"OK,Medical student,Not specialized in epileptology,0-1 years",35:49.0,eeg_survey_5290
+615326,"OK,Medical student,Not specialized in epileptology,1-5 years",30:36.9,eeg_survey_5290
+615347,"OK,Medical student,Specialized in pediatric epileptology,1-5 years",10:01.1,eeg_survey_5291
+615371,"OK,Resident,Not specialized in epileptology,None",12:11.0,eeg_survey_5291
+615456,"OK,Other,Not specialized in epileptology,None",20:17.3,eeg_survey_5290
+615482,"OK,Other,Not specialized in epileptology,None",06:41.6,eeg_survey_5290
+615500,"OK,Medical student,Specialized in adult epileptology,More than 5 years",51:37.2,eeg_survey_5291
+615536,"OK,Other,Not specialized in epileptology,None",55:52.7,eeg_survey_5291
+615555,"OK,Nurse,Not specialized in epileptology,None",33:36.7,eeg_survey_5290
+615607,"OK,Medical student,Specialized in adult epileptology,1-5 years",38:07.8,eeg_survey_5291
+615639,"OK,Other,Not specialized in epileptology,None",03:50.1,eeg_survey_5291
+615686,"OK,Nurse,Not specialized in epileptology,None",10:04.6,eeg_survey_5290
+615693,"OK,Medical student,Not specialized in epileptology,1-5 years",15:43.9,eeg_survey_5290
+615700,"OK,Other,Not specialized in epileptology,None",43:25.5,eeg_survey_5291
+615707,"OK,Other,Not specialized in epileptology,None",44:37.8,eeg_survey_5291
+615709,"OK,Nurse,Not specialized in epileptology,0-1 years",41:54.3,eeg_survey_5291
+615776,"OK,Medical student,Not specialized in epileptology,0-1 years",21:03.9,eeg_survey_5290
+615790,"OK,Resident,Not specialized in epileptology,None",47:09.5,eeg_survey_5291
+615799,"OK,Medical student,Not specialized in epileptology,None",21:35.0,eeg_survey_5290
+615805,"OK,Medical student,Not specialized in epileptology,0-1 years",33:52.9,eeg_survey_5291
+615828,"OK,Medical student,Not specialized in epileptology,None",22:49.7,eeg_survey_5291
+615834,"OK,Resident,Not specialized in epileptology,None",57:10.7,eeg_survey_5290
+615880,"OK,Medical student,Not specialized in epileptology,None",55:38.8,eeg_survey_5291
+615976,"OK,Other,Not specialized in epileptology,None",42:57.2,eeg_survey_5291
+615978,"OK,Resident,Not specialized in epileptology,None",23:09.6,eeg_survey_5290
+615997,"OK,Other,Not specialized in epileptology,More than 5 years",29:41.4,eeg_survey_5291
+616002,"OK,Other,Not specialized in epileptology,0-1 years",08:30.6,eeg_survey_5291
+616003,"OK,Other,Not specialized in epileptology,None",53:10.0,eeg_survey_5290
+616007,"OK,Resident,Not specialized in epileptology,None",37:11.1,eeg_survey_5290
+616027,"OK,Medical student,Not specialized in epileptology,None",03:45.0,eeg_survey_5290
+616051,"OK,Medical student,Not specialized in epileptology,0-1 years",21:52.4,eeg_survey_5290
+616058,"OK,Medical student,Not specialized in epileptology,0-1 years",26:50.0,eeg_survey_5291
+616185,"OK,Medical student,Specialized in adult epileptology,1-5 years",15:48.3,eeg_survey_5290
+616200,"OK,Nurse,Not specialized in epileptology,0-1 years",17:45.3,eeg_survey_5290
+616236,"OK,Other,Not specialized in epileptology,None",39:48.8,eeg_survey_5291
+616268,"OK,Nurse,Not specialized in epileptology,1-5 years",16:43.2,eeg_survey_5290
+616292,"OK,Other,Not specialized in epileptology,0-1 years",53:34.0,eeg_survey_5291
+616320,"OK,Other,Not specialized in epileptology,0-1 years",46:06.7,eeg_survey_5291
+616328,"OK,Medical student,Specialized in adult epileptology,0-1 years",59:27.6,eeg_survey_5290
+616347,"OK,Other,Specialized in pediatric epileptology,0-1 years",36:27.6,eeg_survey_5290
+616349,"OK,Medical student,Specialized in adult epileptology,0-1 years",20:55.2,eeg_survey_5291
+616354,"OK,Other,Specialized in adult epileptology,None",25:55.1,eeg_survey_5291
+616395,"OK,Other,Not specialized in epileptology,None",45:07.5,eeg_survey_5291
+616407,"OK,Nurse,Not specialized in epileptology,None",52:52.3,eeg_survey_5290
+616419,"OK,Medical student,Not specialized in epileptology,0-1 years",56:56.3,eeg_survey_5291
+616427,"OK,Medical student,Specialized in adult epileptology,1-5 years",46:15.6,eeg_survey_5290
+616447,"OK,Other,Not specialized in epileptology,None",54:22.1,eeg_survey_5291
+616452,"OK,Other,Not specialized in epileptology,0-1 years",26:20.5,eeg_survey_5291
+616551,"OK,Other,Not specialized in epileptology,None",10:25.6,eeg_survey_5291
+616609,"OK,EEG technologist,Not specialized in epileptology,None",49:51.1,eeg_survey_5290
+616611,"OK,Other,Not specialized in epileptology,None",41:34.2,eeg_survey_5290
+616644,"OK,Other,Not specialized in epileptology,None",03:42.6,eeg_survey_5291
+616663,"OK,Nurse,Specialized in pediatric epileptology,1-5 years",30:18.3,eeg_survey_5290
+616692,"OK,Medical student,Not specialized in epileptology,None",49:09.3,eeg_survey_5290
+616773,"OK,Other,Not specialized in epileptology,0-1 years",18:19.2,eeg_survey_5290
+616775,"OK,Nurse,Not specialized in epileptology,None",54:22.0,eeg_survey_5290
+616776,"OK,Other,Not specialized in epileptology,None",48:53.1,eeg_survey_5290
+616791,"OK,Other,Not specialized in epileptology,0-1 years",05:41.5,eeg_survey_5290
+616794,"OK,Medical student,Specialized in pediatric epileptology,None",17:31.1,eeg_survey_5291
+616804,"OK,Medical student,Specialized in adult epileptology,1-5 years",43:42.8,eeg_survey_5290
+616822,"OK,Medical student,Specialized in adult epileptology,0-1 years",53:14.8,eeg_survey_5290
+616839,"OK,Other,Not specialized in epileptology,None",44:22.0,eeg_survey_5291
+616840,"OK,Other,Not specialized in epileptology,1-5 years",56:49.1,eeg_survey_5291
+617499,"OK,Medical student,Not specialized in epileptology,0-1 years",39:54.7,eeg_survey_5291
+617844,"OK,Resident,Not specialized in epileptology,None",26:32.4,eeg_survey_5290
+617859,"OK,Medical student,Specialized in adult epileptology,1-5 years",47:21.5,eeg_survey_5291
+617899,"OK,Resident,Specialized in adult epileptology,None",12:08.5,eeg_survey_5290
+617970,"OK,Other,Not specialized in epileptology,None",39:03.1,eeg_survey_5291
+618095,"OK,Other,Not specialized in epileptology,None",08:04.6,eeg_survey_5290
+618108,"OK,Medical student,Not specialized in epileptology,0-1 years",10:41.5,eeg_survey_5290
+618141,"OK,Other,Not specialized in epileptology,None",32:35.4,eeg_survey_5291
+618191,"OK,Medical student,Not specialized in epileptology,0-1 years",15:19.2,eeg_survey_5290
+618198,"OK,Other,Specialized in adult epileptology,1-5 years",16:05.7,eeg_survey_5291
+618266,"OK,Medical student,Not specialized in epileptology,None",59:45.5,eeg_survey_5291
+618271,"OK,Medical student,Not specialized in epileptology,None",20:24.8,eeg_survey_5291
+618325,"OK,Medical student,Specialized in adult epileptology,1-5 years",19:22.6,eeg_survey_5290
+618326,"OK,Other,Not specialized in epileptology,None",42:52.0,eeg_survey_5291
+618336,"OK,Medical student,Not specialized in epileptology,None",36:07.6,eeg_survey_5290
+618343,"OK,Nurse,Not specialized in epileptology,None",44:18.9,eeg_survey_5291
+618385,"OK,Medical student,Not specialized in epileptology,None",58:40.4,eeg_survey_5290
+618394,"OK,Medical student,Not specialized in epileptology,None",02:11.5,eeg_survey_5290
+618413,"OK,Medical student,Not specialized in epileptology,None",10:30.6,eeg_survey_5290
+618427,"OK,Resident,Specialized in adult epileptology,More than 5 years",56:30.6,eeg_survey_5291
+618434,"OK,Other,Not specialized in epileptology,None",18:48.2,eeg_survey_5290
+618444,"OK,Nurse,Not specialized in epileptology,0-1 years",47:21.3,eeg_survey_5291
+618553,"OK,Other,Not specialized in epileptology,None",10:28.3,eeg_survey_5291
+618574,"OK,Medical student,Not specialized in epileptology,None",11:44.9,eeg_survey_5291
+618609,"OK,Medical student,Not specialized in epileptology,None",39:09.9,eeg_survey_5290
+618636,"OK,Medical student,Not specialized in epileptology,None",31:16.2,eeg_survey_5290
+618679,"OK,Other,Not specialized in epileptology,0-1 years",57:11.8,eeg_survey_5290
+618700,"OK,Other,Not specialized in epileptology,0-1 years",46:54.7,eeg_survey_5290
+618757,"OK,Medical student,Not specialized in epileptology,0-1 years",59:15.7,eeg_survey_5291
+618904,"OK,Resident,Not specialized in epileptology,None",42:54.4,eeg_survey_5290
+618911,"OK,Nurse,Specialized in pediatric epileptology,None",45:39.5,eeg_survey_5290
+618933,"OK,Other,Not specialized in epileptology,None",34:39.5,eeg_survey_5291
+619081,"OK,Medical student,Not specialized in epileptology,More than 5 years",46:43.0,eeg_survey_5291
+619089,"OK,Medical student,Not specialized in epileptology,0-1 years",39:54.1,eeg_survey_5290
+619138,"OK,Resident,Not specialized in epileptology,None",55:25.3,eeg_survey_5290
+619146,"OK,Other,Specialized in adult epileptology,1-5 years",58:00.5,eeg_survey_5291
+619147,"OK,Nurse,Not specialized in epileptology,None",33:04.5,eeg_survey_5291
+619196,"OK,Medical student,Not specialized in epileptology,None",29:26.4,eeg_survey_5291
+619274,"OK,Other,Not specialized in epileptology,None",55:30.0,eeg_survey_5291
+619289,"OK,Resident,Not specialized in epileptology,None",17:08.1,eeg_survey_5290
+619320,"OK,Medical student,Not specialized in epileptology,None",53:30.5,eeg_survey_5291

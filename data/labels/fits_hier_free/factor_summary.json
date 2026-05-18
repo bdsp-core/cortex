@@ -1,0 +1,23 @@
+{
+  "variant": "free",
+  "r_hat": 0.23527257287379386,
+  "rho_hat": 0.152577389652942,
+  "r_iiic_hat": 0.43941900933034495,
+  "r_cross_hat": 0.44700373747356104,
+  "K": 6,
+  "tasks": [
+    "spike",
+    "seizure",
+    "lpd",
+    "gpd",
+    "lrda",
+    "grda"
+  ],
+  "wall_time_s": 27.973156166030094,
+  "max_outer": 25,
+  "min_raters_per_case": 3,
+  "min_labels_per_rater": 100,
+  "min_votes_per_class": 5,
+  "sigma_s": 2.0,
+  "ridge": 0.05
+}

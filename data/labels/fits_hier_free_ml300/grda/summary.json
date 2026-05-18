@@ -1,0 +1,7 @@
+{
+  "task": "grda",
+  "n_labels_fit": 255395,
+  "n_cases": 32287,
+  "n_raters": 51,
+  "pos_rate": 0.09119599052448168
+}

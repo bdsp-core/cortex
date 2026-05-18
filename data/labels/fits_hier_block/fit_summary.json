@@ -1,0 +1,70 @@
+{
+  "variant": "block",
+  "per_task": [
+    {
+      "task": "spike",
+      "n_labels_fit": 910040,
+      "n_cases": 17346,
+      "n_raters": 1076,
+      "pos_rate": 0.6491835523713243
+    },
+    {
+      "task": "seizure",
+      "n_labels_fit": 836852,
+      "n_cases": 40984,
+      "n_raters": 861,
+      "pos_rate": 0.19418128892564038
+    },
+    {
+      "task": "lpd",
+      "n_labels_fit": 802890,
+      "n_cases": 30476,
+      "n_raters": 829,
+      "pos_rate": 0.15813374185753964
+    },
+    {
+      "task": "gpd",
+      "n_labels_fit": 803569,
+      "n_cases": 30476,
+      "n_raters": 834,
+      "pos_rate": 0.15392455408309677
+    },
+    {
+      "task": "lrda",
+      "n_labels_fit": 832940,
+      "n_cases": 39747,
+      "n_raters": 855,
+      "pos_rate": 0.13705669075803778
+    },
+    {
+      "task": "grda",
+      "n_labels_fit": 835514,
+      "n_cases": 40701,
+      "n_raters": 856,
+      "pos_rate": 0.14950916441854953
+    }
+  ],
+  "factor": {
+    "variant": "block",
+    "r_hat": 0.1629864095379432,
+    "rho_hat": 0.0,
+    "r_iiic_hat": 0.2655904786138297,
+    "r_cross_hat": 0.44673749999999995,
+    "K": 6,
+    "tasks": [
+      "spike",
+      "seizure",
+      "lpd",
+      "gpd",
+      "lrda",
+      "grda"
+    ],
+    "wall_time_s": 61.482065792079084,
+    "max_outer": 25,
+    "min_raters_per_case": 3,
+    "min_labels_per_rater": 100,
+    "min_votes_per_class": 5,
+    "sigma_s": 2.0,
+    "ridge": 0.05
+  }
+}

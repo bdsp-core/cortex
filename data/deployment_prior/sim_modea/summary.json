@@ -1,0 +1,29 @@
+{
+  "K": 6,
+  "tiers": {
+    "expert": {
+      "ell": 1.0,
+      "n": 15
+    },
+    "experienced": {
+      "ell": 0.5,
+      "n": 15
+    },
+    "novice": {
+      "ell": -1.5,
+      "n": 15
+    }
+  },
+  "modes": [
+    "random",
+    "independent",
+    "hierarchical"
+  ],
+  "deltas": [
+    0.025,
+    0.05,
+    0.1
+  ],
+  "N_TRIALS": 300,
+  "wall_s": 35.703671082970686
+}
