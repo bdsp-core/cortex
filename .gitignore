@@ -37,3 +37,9 @@ dist/
 # in calibration/cert_config.yaml v12 provenance). Canonical outputs are
 # calibration/ + data/engine_inputs/sdt_fits*.
 pipeline/_calib_work/
+
+# Phase 3.5 joint-fit bulky intermediates (regenerable; canonical outputs
+# = the s_j table + regenerated sdt_fits + denormalized IIIC CSV, committed
+# when produced). Per-task posterior npz + run logs are large/regenerable.
+calibration/joint/*_posterior.npz
+calibration/joint/logs/

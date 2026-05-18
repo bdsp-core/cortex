@@ -112,9 +112,10 @@ def test_requirements_and_pyproject_pins_are_consistent():
     ]
     req = {ln.split("==")[0].lower(): ln for ln in req_lines if "==" in ln}
     pp = _pyproject()
-    pp_pins = list(pp["project"]["dependencies"]) + list(
-        pp["project"]["optional-dependencies"]["test"]
-    )
+    opt = pp["project"]["optional-dependencies"]
+    pp_pins = (list(pp["project"]["dependencies"])
+               + list(opt["test"])
+               + list(opt.get("calibration", [])))  # Phase 3.5 NumPyro/JAX
     pp_map = {_norm_req(p).split("==")[0].lower(): _norm_req(p)
               for p in pp_pins if "==" in p}
     missing = sorted(set(req) - set(pp_map))

@@ -31,6 +31,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest==8.3.3", "pytest-timeout==2.3.1"]
+# Phase 3.5 joint hierarchical s_j calibration ONLY. Isolated from the
+# engine runtime (engine never imports these) so the numpy single-thread
+# BLAS bit-exact contract is preserved. Install: pip install -e ".[calibration]"
+calibration = ["numpyro==0.15.3", "jax==0.4.31", "jaxlib==0.4.31"]
 
 [project.scripts]
 # Console entry points (Phase 0: resolvable stubs that fail loudly with the

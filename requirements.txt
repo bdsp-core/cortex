@@ -45,3 +45,12 @@ tqdm==4.66.5
 # --- testing ---
 pytest==8.3.3
 pytest-timeout==2.3.1
+
+# --- Phase 3.5 joint hierarchical s_j calibration ONLY (NumPyro/JAX NUTS).
+# Calibration-stage dependency: NOT imported by the engine runtime, so the
+# engine's numpy single-thread-BLAS bit-exact contract is unaffected. JAX
+# determinism (PRNGKey + XLA) is documented separately in
+# calibration/CALIBRATION_PROVENANCE.md.
+numpyro==0.15.3
+jax==0.4.31
+jaxlib==0.4.31

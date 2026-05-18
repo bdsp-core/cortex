@@ -1,0 +1,41 @@
+{
+  "task": "iic",
+  "n_obs": 40000,
+  "n_seg": 19331,
+  "n_rater": 1829,
+  "n_src": 6,
+  "subsample": 40000,
+  "nuts": {
+    "warmup": 150,
+    "samples": 150,
+    "chains": 1
+  },
+  "wall_s": 22.4,
+  "gauge_invariance_max_abs_dp": 8.411133081698274e-08,
+  "rhat_max": {
+    "s_j": NaN,
+    "ell": NaN,
+    "t": NaN
+  },
+  "scale_anchor_segs": 6165,
+  "loc_anchor_segs": 3626,
+  "lapse_lambda_fixed": 0.025,
+  "per_source_log_gamma_mean": [
+    0.0,
+    -0.6789257526397705,
+    0.12918366491794586,
+    -1.2058281898498535,
+    0.3632955253124237,
+    -1.7240592241287231
+  ],
+  "src_names": [
+    "centaur_2025_iiic",
+    "centaur_iiic_expert",
+    "iiic_crowdsourcing:kong2025:crowd",
+    "iiic_crowdsourcing:kong2025:expert",
+    "pd_rda_profiler",
+    "sparcnet50K"
+  ],
+  "s_id_mean_over_gold": 3.682140148342228e-09,
+  "s_id_std_over_weld": 1.0
+}
