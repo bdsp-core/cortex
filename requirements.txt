@@ -1,0 +1,47 @@
+# Unified ILAE Skill Certification — pinned dependencies.
+# Python: 3.11.9 (see .python-version).  Union of the two source repos'
+# requirements; every overlapping pin was byte-identical, so this is a
+# conflict-free merge (verified Phase 0, 2026-05-18).
+#
+# Reproducibility target: bit-exact SMC/MCMC RNG streams across machines on
+# the same numpy + scipy + BLAS config.  At runtime set
+#   MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+# for cross-machine reproducibility within MCSE tolerance.
+#
+# NOTE: Python 3.14 has no numpy 1.26.4 wheel; the repo pins 3.11.9 via
+# .python-version and a fresh .venv (see README / environment.yml).
+
+# --- core numerical stack (identical in both source repos) ---
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.2.2
+
+# --- I/O + config ---
+PyYAML==6.0.2
+h5py==3.11.0
+openpyxl==3.1.5            # ref repo: reads centaur_iiic_expert_labels.xlsx
+
+# --- visualization ---
+matplotlib==3.9.2
+seaborn==0.13.2            # ref repo: manuscript / deployment figures
+
+# --- posterior-calibration diagnostics (methodology repo: SBC, coverage) ---
+arviz==0.19.0
+pingouin==0.5.4
+
+# --- statistics (ref repo: eval_* scripts) ---
+statsmodels==0.14.2
+
+# --- Ledoit-Wolf shrinkage (methodology repo: Sigma_l sensitivity sweep) ---
+scikit-learn==1.6.1
+
+# --- PDF / image figure assembly (ref repo: finalize_figures.py) ---
+reportlab==4.2.5
+pillow==10.4.0
+
+# --- progress bars (ref repo: eval_sequential_stopping.py) ---
+tqdm==4.66.5
+
+# --- testing ---
+pytest==8.3.3
+pytest-timeout==2.3.1

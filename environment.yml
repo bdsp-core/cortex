@@ -1,0 +1,12 @@
+# Conda environment for the unified ILAE Skill Certification repo.
+# Mirrors requirements.txt; use whichever is convenient.
+#   conda env create -f environment.yml
+#   conda activate ilae-cert-unified
+name: ilae-cert-unified
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.9
+  - pip
+  - pip:
+      - -r requirements.txt

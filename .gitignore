@@ -1,0 +1,34 @@
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.toc
+*.bbl
+*.blg
+
+.DS_Store
+
+# Large experiment outputs — keep summaries/plots, exclude raw per-rep records
+results/**/results.jsonl
+results/**/run.log
+results/run_*.out
+
+# User-managed slide artifacts (not produced by this repo's pipeline)
+*.pptx
+
+# PI ingest scripts write timestamped backups
+*.bak.*.csv
+
+# --- unified-repo additions ---
+.venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
