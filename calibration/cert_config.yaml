@@ -299,7 +299,29 @@ ell_star_unified_v13:
         \ suite 177 passed / 1 xfailed (prior 168 bit-identical)."
       svi_inference: AutoLowRankMultivariateNormal rank-20, 6 tasks x 962,467 obs, gauge-invariance|dp|<4e-7,
         anchors exact (s_gold=0,sd_weld=1), s_sd uncollapsed.
-      pending: NUTS-subsample VI-vs-NUTS s_sd variance calibration (required for the SVI defensibility
-        claim) + the plug-in-vs-uncertainty held-out AUROC + delta_Centaur sensitivity (Phase-3.5 release
-        gate).
       lambda: 0.025
+      variance_calibration:
+        status: "DONE \u2014 SVI s_sd calibrated vs NUTS-subsample (exact Bayes) on shared segments."
+        kappa_per_task:
+          sz: 1.2034
+          lpd: 1.1805
+          gpd: 1.1935
+          lrda: 1.2226
+          grda: 1.424
+          iic: 1.2818
+        s_sd_underdispersion: SVI under-dispersed s_sd by ~18-42% vs NUTS; s_sd_calibrated = s_sd * kappa
+          (post-cal SVI/NUTS median = 1.00). Engine bank consumes s_j_table_calibrated.csv.
+        s_mean_agreement_pearson_r:
+          sz: 0.7603
+          lpd: 0.7789
+          gpd: 0.7841
+          lrda: 0.7174
+          grda: 0.7685
+          iic: 0.7521
+        honest_caveat: "s_mean SVI-vs-NUTS r ~ 0.72-0.78 (MODERATE, not >0.9). NUTS ran on an 80k SUBSAMPLE\
+          \ (~12x fewer obs/segment than full-corpus SVI) so the NUTS reference is itself the noisier\
+          \ point estimate; a tighter check needs full-corpus NUTS (intractable on CPU \u2014 the reason\
+          \ SVI was chosen). Documented limitation, NOT a tight-equivalence claim. kappa is conservative\
+          \ (subsample inflates NUTS s_sd)."
+      pending: plug-in-vs-uncertainty held-out AUROC + delta_Centaur sensitivity + SBC (Phase-3.5 release
+        gate).

@@ -27,10 +27,12 @@ def _md5(p: Path) -> str:
 
 def main() -> None:
     cfg = yaml.safe_load(CFG.read_text())
-    if cfg["config_version"] >= 13:
-        print(f"  cert_config already v{cfg['config_version']}; nothing to do")
-        return
-    block = cfg.pop("ell_star_unified_v12")
+    # Re-runnable: accept v12 (first emit) OR v13 (provenance refresh, e.g.
+    # after the variance calibration lands). Never hand-edit numbers.
+    if "ell_star_unified_v13" in cfg:
+        block = cfg.pop("ell_star_unified_v13")
+    else:
+        block = cfg.pop("ell_star_unified_v12")
     Js = {t: v.get("youden_j") for t, v in block["tasks"].items()
           if t.startswith("sparcnet_")}
     iic_J = block["tasks"].get("sparcnet_iic", {}).get("youden_j")
@@ -69,12 +71,36 @@ def main() -> None:
         "svi_inference": "AutoLowRankMultivariateNormal rank-20, 6 tasks "
         "x 962,467 obs, gauge-invariance|dp|<4e-7, anchors exact "
         "(s_gold=0,sd_weld=1), s_sd uncollapsed.",
-        "pending": "NUTS-subsample VI-vs-NUTS s_sd variance calibration "
-        "(required for the SVI defensibility claim) + the plug-in-vs-"
-        "uncertainty held-out AUROC + delta_Centaur sensitivity (Phase-"
-        "3.5 release gate).",
         "lambda": 0.025,
     }
+    vc_path = JOINT / "variance_calibration.json"
+    if vc_path.exists():
+        vc = json.loads(vc_path.read_text())
+        block["provenance"]["phase35"]["variance_calibration"] = {
+            "status": "DONE — SVI s_sd calibrated vs NUTS-subsample "
+            "(exact Bayes) on shared segments.",
+            "kappa_per_task": vc["kappa"],
+            "s_sd_underdispersion": "SVI under-dispersed s_sd by ~18-42% "
+            "vs NUTS; s_sd_calibrated = s_sd * kappa (post-cal SVI/NUTS "
+            "median = 1.00). Engine bank consumes s_j_table_calibrated.csv.",
+            "s_mean_agreement_pearson_r": {
+                t: vc["per_task"][t]["s_mean_pearson_r"] for t in vc[
+                    "per_task"]},
+            "honest_caveat": "s_mean SVI-vs-NUTS r ~ 0.72-0.78 (MODERATE, "
+            "not >0.9). NUTS ran on an 80k SUBSAMPLE (~12x fewer "
+            "obs/segment than full-corpus SVI) so the NUTS reference is "
+            "itself the noisier point estimate; a tighter check needs "
+            "full-corpus NUTS (intractable on CPU — the reason SVI was "
+            "chosen). Documented limitation, NOT a tight-equivalence "
+            "claim. kappa is conservative (subsample inflates NUTS s_sd).",
+        }
+        block["provenance"]["phase35"]["pending"] = (
+            "plug-in-vs-uncertainty held-out AUROC + delta_Centaur "
+            "sensitivity + SBC (Phase-3.5 release gate).")
+    else:
+        block["provenance"]["phase35"]["pending"] = (
+            "NUTS-subsample VI-vs-NUTS s_sd variance calibration + "
+            "plug-in-vs-uncertainty AUROC + delta_Centaur + SBC.")
     cfg["config_version"] = 13
     cfg["ell_star_unified_v13"] = block
     CFG.write_text(

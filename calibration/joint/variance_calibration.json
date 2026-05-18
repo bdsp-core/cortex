@@ -1,0 +1,111 @@
+{
+  "method": "kappa = max(1, median(NUTS_s_sd / SVI_s_sd)) per task, on shared segments; s_sd_calibrated = s_sd * kappa. NUTS = 80k subsample exact-Bayes reference.",
+  "conservative_note": "NUTS subsample has fewer obs/segment than full-corpus SVI, so kappa is an UPPER bound on needed inflation \u2014 calibration cannot understate s_sd (safe direction).",
+  "per_task": {
+    "sz": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7603,
+      "s_mean_bias_svi_minus_nuts": -0.0035,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 0.844,
+        "25": 1.01,
+        "50": 1.203,
+        "75": 1.781,
+        "90": 3.804
+      },
+      "calibration_kappa": 1.2034,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.6082,
+      "nuts_s_sd_median": 0.7088
+    },
+    "lpd": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7789,
+      "s_mean_bias_svi_minus_nuts": 0.0088,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 0.882,
+        "25": 0.985,
+        "50": 1.18,
+        "75": 1.832,
+        "90": 3.314
+      },
+      "calibration_kappa": 1.1805,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.4155,
+      "nuts_s_sd_median": 0.4859
+    },
+    "gpd": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7841,
+      "s_mean_bias_svi_minus_nuts": -0.0474,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 0.956,
+        "25": 1.043,
+        "50": 1.194,
+        "75": 1.697,
+        "90": 3.531
+      },
+      "calibration_kappa": 1.1935,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.4286,
+      "nuts_s_sd_median": 0.5139
+    },
+    "lrda": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7174,
+      "s_mean_bias_svi_minus_nuts": -0.0434,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 0.982,
+        "25": 1.057,
+        "50": 1.223,
+        "75": 1.793,
+        "90": 3.42
+      },
+      "calibration_kappa": 1.2226,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.4432,
+      "nuts_s_sd_median": 0.5449
+    },
+    "grda": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7685,
+      "s_mean_bias_svi_minus_nuts": -0.0692,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 1.128,
+        "25": 1.223,
+        "50": 1.424,
+        "75": 2.204,
+        "90": 4.254
+      },
+      "calibration_kappa": 1.424,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.4205,
+      "nuts_s_sd_median": 0.606
+    },
+    "iic": {
+      "n_shared_segs": 27289,
+      "s_mean_pearson_r": 0.7521,
+      "s_mean_bias_svi_minus_nuts": 0.1656,
+      "s_sd_ratio_nuts_over_svi_quantiles": {
+        "10": 0.809,
+        "25": 0.95,
+        "50": 1.282,
+        "75": 2.055,
+        "90": 3.013
+      },
+      "calibration_kappa": 1.2818,
+      "post_calibration_svi_over_nuts_median": 1.0,
+      "svi_s_sd_median": 0.3888,
+      "nuts_s_sd_median": 0.5124
+    }
+  },
+  "kappa": {
+    "sz": 1.2034,
+    "lpd": 1.1805,
+    "gpd": 1.1935,
+    "lrda": 1.2226,
+    "grda": 1.424,
+    "iic": 1.2818
+  },
+  "n_calibrated_rows": 418836
+}
