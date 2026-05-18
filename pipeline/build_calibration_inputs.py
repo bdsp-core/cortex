@@ -127,10 +127,19 @@ def build_task(
         )
     else:
         val = sub["value"].astype(str).str.strip()
+        # ERRATUM FIX (decouple, 2026-05-18): apply the canonical 6-class
+        # collapse {bipd,birds}->other UNIFORMLY across ALL sources before
+        # one-vs-rest (AUDIT s6 / Phase-1 decision). Phase-3 omitted this,
+        # so ~30,511 Centaur-novice bipd/birds reads were mislabelled
+        # NEGATIVE for the `iic` task. Collapsing here fixes `iic`
+        # (Y=1 iff collapsed value=='other') and leaves sz/lpd/gpd/lrda/
+        # grda UNCHANGED (collapsed 'other' != those classes).
+        val = val.replace({"bipd": "other", "birds": "other"})
         sub = sub.copy()
         sub["Y"] = (val == spec).astype(np.int64)
         source_filter = (
-            f"label_type=='{label_type}' ; Y = 1 if value=='{spec}' else 0"
+            f"label_type=='{label_type}'; {{bipd,birds}}->other (uniform "
+            f"6-class collapse, erratum fix); Y = 1 if value=='{spec}' else 0"
         )
 
     n_obs = len(sub)

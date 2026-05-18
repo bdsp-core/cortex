@@ -1,0 +1,8 @@
+{
+  "sdt_fits_rows": 14214,
+  "s_table_rows": 418836,
+  "n_iiic_segments": 69806,
+  "param_mapping": "sigma=exp(-ell), theta=-t, ell=-log(sigma)",
+  "uniform_collapse": "{bipd,birds}->other (Phase-3 erratum fix)",
+  "sdt_fits_phase3_preserved": "sdt_fits.phase3.csv"
+}

@@ -43,16 +43,16 @@
       "non_expert_ell_median": -0.411683130966219
     },
     "gpd": {
-      "l_star": 0.33908811105216113,
-      "sigma_star": 0.7124196742765742,
-      "youden_J": 0.8237885462555066,
-      "ci_low": 0.3317126367680828,
-      "ci_high": 0.5616805547062602,
+      "l_star": 0.3297002787536504,
+      "sigma_star": 0.7191392424440423,
+      "youden_J": 0.8215859030837004,
+      "ci_low": 0.3196295091374305,
+      "ci_high": 0.5556338547716283,
       "n_expert": 14,
       "n_non_expert": 1816,
-      "expert_ell_mean": 0.6691456981117969,
+      "expert_ell_mean": 0.6684784998544824,
       "expert_ell_median": 0.6331638129252501,
-      "non_expert_ell_mean": -0.15061406154042586,
+      "non_expert_ell_mean": -0.15060891794152584,
       "non_expert_ell_median": -0.41485627766574784
     },
     "lrda": {
@@ -82,308 +82,308 @@
       "non_expert_ell_median": -0.4196558096124397
     },
     "iic": {
-      "l_star": 0.4201033155481987,
-      "sigma_star": 0.6569789401692472,
-      "youden_J": 0.6431394692264257,
-      "ci_low": 0.401428446787371,
-      "ci_high": 0.5026693608016249,
+      "l_star": 0.4418131962513707,
+      "sigma_star": 0.6428697147121428,
+      "youden_J": 0.8141304347826087,
+      "ci_low": 0.43567094056526623,
+      "ci_high": 0.5192536968964616,
       "n_expert": 14,
-      "n_non_expert": 1771,
-      "expert_ell_mean": 0.6447582876835851,
-      "expert_ell_median": 0.5964713896797862,
-      "non_expert_ell_mean": 0.4345213247326098,
-      "non_expert_ell_median": -0.010701348572604193
+      "n_non_expert": 1840,
+      "expert_ell_mean": 0.670060308030226,
+      "expert_ell_median": 0.6137363704528704,
+      "non_expert_ell_mean": -0.05267424917474654,
+      "non_expert_ell_median": -0.2402982794637275
     }
   },
   "panels": {
     "sz": [
       {
         "canonical": "M. Brandon Westover",
-        "mean_ell_other_5": 1.1959073350808247
+        "mean_ell_other_5": 1.2046024213922277
       },
       {
         "canonical": "Jin Jing",
-        "mean_ell_other_5": 0.954659542310759
+        "mean_ell_other_5": 0.9624410255850441
       },
       {
         "canonical": "Mohammad Tabaeizadeh F.",
-        "mean_ell_other_5": 0.755288766146824
+        "mean_ell_other_5": 0.7626365602396229
       },
       {
         "canonical": "Aaron F. Struck",
-        "mean_ell_other_5": 0.6803067402615348
+        "mean_ell_other_5": 0.6872810558017721
       },
       {
         "canonical": "Marcus Ng",
-        "mean_ell_other_5": 0.6677411099399146
+        "mean_ell_other_5": 0.6711290317364536
       },
       {
         "canonical": "Arcot Jayagopal Lakshman Narain",
-        "mean_ell_other_5": 0.665814985936896
+        "mean_ell_other_5": 0.6693641301024258
       },
       {
         "canonical": "Eric S. Rosenthal",
-        "mean_ell_other_5": 0.6586968909131223
+        "mean_ell_other_5": 0.664803940887185
       },
       {
         "canonical": "Sahar Zafar",
-        "mean_ell_other_5": 0.6569107132718194
+        "mean_ell_other_5": 0.66146978591665
       },
       {
         "canonical": "Emily Johnson",
-        "mean_ell_other_5": 0.6476474235095334
+        "mean_ell_other_5": 0.6512474000143416
       },
       {
         "canonical": "Sarah Schmitt",
-        "mean_ell_other_5": 0.6426854944610634
+        "mean_ell_other_5": 0.6454934520720231
       },
       {
         "canonical": "Christa Swisher",
-        "mean_ell_other_5": 0.6390640075216549
+        "mean_ell_other_5": 0.6437101337660893
       },
       {
         "canonical": "Ioannis Karakis",
-        "mean_ell_other_5": 0.6067656832819476
+        "mean_ell_other_5": 0.6111762182687839
       },
       {
         "canonical": "Rani Sarkis",
-        "mean_ell_other_5": 0.6023607179677634
+        "mean_ell_other_5": 0.6064244871222614
       },
       {
         "canonical": "Hiba A. Haider",
-        "mean_ell_other_5": 0.5868090136874595
+        "mean_ell_other_5": 0.5919129366182505
       }
     ],
     "lpd": [
       {
         "canonical": "M. Brandon Westover",
-        "mean_ell_other_5": 1.2113326511657736
+        "mean_ell_other_5": 1.2200277374771766
       },
       {
         "canonical": "Jin Jing",
-        "mean_ell_other_5": 0.9909565080055509
+        "mean_ell_other_5": 0.998737991279836
       },
       {
         "canonical": "Aaron F. Struck",
-        "mean_ell_other_5": 0.7222503691951847
+        "mean_ell_other_5": 0.729224684735422
       },
       {
         "canonical": "Marcus Ng",
-        "mean_ell_other_5": 0.6621018133967265
+        "mean_ell_other_5": 0.6654897351932655
       },
       {
         "canonical": "Mohammad Tabaeizadeh F.",
-        "mean_ell_other_5": 0.6527239567422245
+        "mean_ell_other_5": 0.6600717508350233
       },
       {
         "canonical": "Sahar Zafar",
-        "mean_ell_other_5": 0.6256646244341687
+        "mean_ell_other_5": 0.6302236970789993
       },
       {
         "canonical": "Emily Johnson",
-        "mean_ell_other_5": 0.6218248555308942
+        "mean_ell_other_5": 0.6254248320357024
       },
       {
         "canonical": "Eric S. Rosenthal",
-        "mean_ell_other_5": 0.6176286067420651
+        "mean_ell_other_5": 0.6237356567161277
       },
       {
         "canonical": "Christa Swisher",
-        "mean_ell_other_5": 0.6097383507715664
+        "mean_ell_other_5": 0.6143844770160009
       },
       {
         "canonical": "Sarah Schmitt",
-        "mean_ell_other_5": 0.5880817048047046
+        "mean_ell_other_5": 0.5908896624156641
       },
       {
         "canonical": "Arcot Jayagopal Lakshman Narain",
-        "mean_ell_other_5": 0.5845430409160215
+        "mean_ell_other_5": 0.5880921850815513
       },
       {
         "canonical": "Rani Sarkis",
-        "mean_ell_other_5": 0.5777624285950094
+        "mean_ell_other_5": 0.5818261977495073
       },
       {
         "canonical": "Ioannis Karakis",
-        "mean_ell_other_5": 0.5764613164078952
+        "mean_ell_other_5": 0.5808718513947315
       },
       {
         "canonical": "Hiba A. Haider",
-        "mean_ell_other_5": 0.5749387761191318
+        "mean_ell_other_5": 0.5800426990499228
       }
     ],
     "gpd": [
       {
         "canonical": "M. Brandon Westover",
-        "mean_ell_other_5": 1.2044453472996548
+        "mean_ell_other_5": 1.2131404336110578
       },
       {
         "canonical": "Jin Jing",
-        "mean_ell_other_5": 0.988194121623373
+        "mean_ell_other_5": 0.995975604897658
       },
       {
         "canonical": "Aaron F. Struck",
-        "mean_ell_other_5": 0.7645577949316321
+        "mean_ell_other_5": 0.7715321104718694
       },
       {
         "canonical": "Mohammad Tabaeizadeh F.",
-        "mean_ell_other_5": 0.7351752778019688
+        "mean_ell_other_5": 0.7425230718947676
       },
       {
         "canonical": "Eric S. Rosenthal",
-        "mean_ell_other_5": 0.6687088193597057
+        "mean_ell_other_5": 0.6748158693337685
       },
       {
         "canonical": "Christa Swisher",
-        "mean_ell_other_5": 0.6624123662892603
+        "mean_ell_other_5": 0.6670584925336948
       },
       {
         "canonical": "Marcus Ng",
-        "mean_ell_other_5": 0.6382346087655966
+        "mean_ell_other_5": 0.6416225305621356
       },
       {
         "canonical": "Sahar Zafar",
-        "mean_ell_other_5": 0.6331767229878543
+        "mean_ell_other_5": 0.6377357956326849
       },
       {
         "canonical": "Emily Johnson",
-        "mean_ell_other_5": 0.6287875336580393
+        "mean_ell_other_5": 0.6323875101628476
       },
       {
         "canonical": "Sarah Schmitt",
-        "mean_ell_other_5": 0.6234372240676608
+        "mean_ell_other_5": 0.6262451816786205
       },
       {
         "canonical": "Arcot Jayagopal Lakshman Narain",
-        "mean_ell_other_5": 0.5817055472270352
+        "mean_ell_other_5": 0.5852546913925649
       },
       {
         "canonical": "Rani Sarkis",
-        "mean_ell_other_5": 0.5773150867468659
-      },
-      {
-        "canonical": "Monica Dhakar",
-        "mean_ell_other_5": 0.574831345373549
+        "mean_ell_other_5": 0.5813788559013638
       },
       {
         "canonical": "Ioannis Karakis",
-        "mean_ell_other_5": 0.5743694437452043
+        "mean_ell_other_5": 0.5787799787320406
+      },
+      {
+        "canonical": "Mackenzie C. Cervenka",
+        "mean_ell_other_5": 0.5753083150793048
       }
     ],
     "lrda": [
       {
         "canonical": "M. Brandon Westover",
-        "mean_ell_other_5": 1.231074565564985
+        "mean_ell_other_5": 1.239769651876388
       },
       {
         "canonical": "Jin Jing",
-        "mean_ell_other_5": 0.9741215657843952
+        "mean_ell_other_5": 0.9819030490586804
       },
       {
         "canonical": "Aaron F. Struck",
-        "mean_ell_other_5": 0.7884935471529854
+        "mean_ell_other_5": 0.7954678626932228
       },
       {
         "canonical": "Mohammad Tabaeizadeh F.",
-        "mean_ell_other_5": 0.7138570191540636
+        "mean_ell_other_5": 0.7212048132468625
       },
       {
         "canonical": "Sahar Zafar",
-        "mean_ell_other_5": 0.6599552507309777
+        "mean_ell_other_5": 0.6645143233758084
       },
       {
         "canonical": "Marcus Ng",
-        "mean_ell_other_5": 0.6409205635585943
+        "mean_ell_other_5": 0.6443084853551333
       },
       {
         "canonical": "Eric S. Rosenthal",
-        "mean_ell_other_5": 0.6379544101168013
+        "mean_ell_other_5": 0.644061460090864
       },
       {
         "canonical": "Christa Swisher",
-        "mean_ell_other_5": 0.6304369408373155
+        "mean_ell_other_5": 0.6341538418328632
       },
       {
         "canonical": "Emily Johnson",
-        "mean_ell_other_5": 0.6299341577952435
+        "mean_ell_other_5": 0.6335341343000518
       },
       {
         "canonical": "Sarah Schmitt",
-        "mean_ell_other_5": 0.6125297052823191
+        "mean_ell_other_5": 0.6153376628932788
       },
       {
         "canonical": "Ioannis Karakis",
-        "mean_ell_other_5": 0.6053178344201735
+        "mean_ell_other_5": 0.6097283694070098
       },
       {
         "canonical": "Rani Sarkis",
-        "mean_ell_other_5": 0.5951479173155637
+        "mean_ell_other_5": 0.5992116864700617
       },
       {
         "canonical": "Arcot Jayagopal Lakshman Narain",
-        "mean_ell_other_5": 0.5768529994576721
+        "mean_ell_other_5": 0.5804021436232019
       },
       {
         "canonical": "Hiba A. Haider",
-        "mean_ell_other_5": 0.5678537103743231
+        "mean_ell_other_5": 0.5729576333051141
       }
     ],
     "grda": [
       {
         "canonical": "M. Brandon Westover",
-        "mean_ell_other_5": 1.2133784401262264
+        "mean_ell_other_5": 1.2220735264376295
       },
       {
         "canonical": "Jin Jing",
-        "mean_ell_other_5": 0.9716492207083884
+        "mean_ell_other_5": 0.9794307039826737
       },
       {
         "canonical": "Aaron F. Struck",
-        "mean_ell_other_5": 0.7681761472113491
+        "mean_ell_other_5": 0.7751504627515864
       },
       {
         "canonical": "Mohammad Tabaeizadeh F.",
-        "mean_ell_other_5": 0.7221697864727392
+        "mean_ell_other_5": 0.7295175805655381
       },
       {
         "canonical": "Eric S. Rosenthal",
-        "mean_ell_other_5": 0.6624137993276292
+        "mean_ell_other_5": 0.6685208493016919
       },
       {
         "canonical": "Sahar Zafar",
-        "mean_ell_other_5": 0.6574528840036775
+        "mean_ell_other_5": 0.6620119566485082
       },
       {
         "canonical": "Marcus Ng",
-        "mean_ell_other_5": 0.6461445473340358
+        "mean_ell_other_5": 0.6495324691305748
       },
       {
         "canonical": "Emily Johnson",
-        "mean_ell_other_5": 0.6115153614478643
+        "mean_ell_other_5": 0.6151153379526726
       },
       {
         "canonical": "Sarah Schmitt",
-        "mean_ell_other_5": 0.588441981831304
+        "mean_ell_other_5": 0.5912499394422636
       },
       {
         "canonical": "Christa Swisher",
-        "mean_ell_other_5": 0.5791803912258287
+        "mean_ell_other_5": 0.5838265174702632
       },
       {
         "canonical": "Ioannis Karakis",
-        "mean_ell_other_5": 0.5773428491498956
+        "mean_ell_other_5": 0.5817533841367319
       },
       {
         "canonical": "Arcot Jayagopal Lakshman Narain",
-        "mean_ell_other_5": 0.5752623894466508
+        "mean_ell_other_5": 0.5788115336121805
       },
       {
         "canonical": "Rani Sarkis",
-        "mean_ell_other_5": 0.5607098610171923
+        "mean_ell_other_5": 0.5647736301716904
       },
       {
         "canonical": "Hiba A. Haider",
-        "mean_ell_other_5": 0.5442760754683201
+        "mean_ell_other_5": 0.549379998399111
       }
     ],
     "iic": [
