@@ -56,24 +56,48 @@ def sample_prior_brute(N, rng):
              "w": np.full(N, 1.0 / N)} for _ in range(2)]
 
 
-def response_prob(s, t, l):
-    """P(y=1 | s, t, ℓ) under spike-paper Eq. 2 symmetric lapse mixture.
+def _marg_z(l, s, t, s_sd=0.0):
+    """Item-signal latent z, EXACTLY marginalized over s ~ N(s, s_sd²).
+
+    Phase 3.5: the segment signal is now a posterior (s_mean, s_sd) rather
+    than an error-free scalar.  Marginalizing the probit-lapse likelihood
+    over a Gaussian s is closed-form (Gaussian–probit convolution):
+
+        E_s[ Φ(e^ℓ (s + t)) ] = Φ(  e^ℓ (s_mean + t)
+                                   / √(1 + e^{2ℓ}·s_sd²) )
+
+    so we attenuate z by 1/√(1 + (e^ℓ·s_sd)²).  At s_sd == 0.0 the factor
+    is exactly 1.0 and z is BIT-IDENTICAL to the pre-Phase-3.5 engine
+    (IEEE-754: 1.0+0.0=1.0, √1.0=1.0, z/1.0=z) — the parity@s_sd→0 gate
+    holds by construction, so the whole validated suite is unchanged.
+    """
+    el = np.exp(l)
+    z = el * (s + t)
+    if np.all(s_sd == 0.0):              # bit-exact fast path / default
+        return z
+    return z / np.sqrt(1.0 + (el * s_sd) ** 2)
+
+
+def response_prob(s, t, l, s_sd=0.0):
+    """P(y=1 | s, t, ℓ) — spike-paper Eq. 2 lapse mixture, marginalized
+    over the segment-signal posterior s ~ N(s, s_sd²).
 
     FIX-T0.7: Computed via log_ndtr for numerical stability in the tails
     (replaces np.clip(norm.cdf(z), 1e-9, 1-1e-9), which collapses to 1.0 at
     |z| ≳ 6 in float64 due to catastrophic cancellation in 1−Φ(z)).
 
-    F0.1: spike-paper Eq. 2 lapse: p ∈ [λ, 1 − λ]:
-        p = λ + (1 − 2λ)·Φ(z)
+    F0.1: spike-paper Eq. 2 lapse: p ∈ [λ, 1 − λ]: p = λ + (1 − 2λ)·Φ(z).
+    Phase 3.5: s_sd=0.0 (default) ⇒ bit-identical to the prior engine.
     """
-    z = np.exp(l) * (s + t)
+    z = _marg_z(l, s, t, s_sd)
     log_phi = log_ndtr(z)
     p = LAPSE_RATE + (1.0 - 2.0 * LAPSE_RATE) * np.exp(log_phi)
     return p
 
 
-def log_response_prob(s, t, l, y):
-    """log P(y | s, t, ℓ) with lapse mixture, stable in the tails.
+def log_response_prob(s, t, l, y, s_sd=0.0):
+    """log P(y | s, t, ℓ), lapse mixture, tail-stable, marginalized over
+    s ~ N(s, s_sd²) (Phase 3.5; s_sd=0 ⇒ bit-identical to prior engine).
 
     FIX-T0.7 + F0.1: uses log_ndtr + logsumexp on the spike-paper lapse mixture,
     avoiding the underflow that np.log(1 − norm.cdf(z)) suffers for z ≫ 0.
@@ -81,7 +105,7 @@ def log_response_prob(s, t, l, y):
         log p(y=1) = logsumexp(log(1−2λ) + log_ndtr( z), log(λ))
         log p(y=0) = logsumexp(log(1−2λ) + log_ndtr(−z), log(λ))
     """
-    z = np.exp(l) * (s + t)
+    z = _marg_z(l, s, t, s_sd)
     log_phi = log_ndtr(z) if y == 1 else log_ndtr(-z)
     a = _LOG_ONE_MINUS_TWO_LAPSE + log_phi
     b = np.broadcast_to(_LOG_LAPSE, np.shape(a))
@@ -252,10 +276,15 @@ def resample_jitter_brute(brute, rng, h=0.1):
 
 # ───────────────────────────── Item selection ─────────────────────────────
 
-def expected_loss_hier_vec(particles, k, signals):
+def expected_loss_hier_vec(particles, k, signals, signal_sds=None):
     t_k = particles["t"][:, k]
     l_k = particles["l"][:, k]
-    z = np.exp(l_k)[None, :] * (signals[:, None] + t_k[None, :])
+    el = np.exp(l_k)[None, :]
+    z = el * (signals[:, None] + t_k[None, :])
+    if signal_sds is not None:
+        # Phase 3.5: marginalize each candidate item over its s posterior
+        # N(signal, signal_sd²); signal_sds=None ⇒ bit-identical (default).
+        z = z / np.sqrt(1.0 + (el * np.asarray(signal_sds)[:, None]) ** 2)
     # FIX-T0.7: log_ndtr replaces np.clip(norm.cdf(z), 1e-9, 1-1e-9) for stability.
     # F0.1: spike-paper Eq. 2 lapse mixture; p ∈ [λ, 1 − λ] without ad-hoc clipping.
     p = LAPSE_RATE + (1.0 - 2.0 * LAPSE_RATE) * np.exp(log_ndtr(z))

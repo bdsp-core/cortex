@@ -1,5 +1,5 @@
 {
-  "task": "iic",
+  "task": "gpd",
   "n_obs": 962467,
   "n_seg": 69806,
   "n_rater": 2369,
@@ -10,8 +10,8 @@
     "samples": 600,
     "chains": 2
   },
-  "wall_s": 2420.9,
-  "gauge_invariance_max_abs_dp": 1.8734823770127917e-07,
+  "wall_s": 2417.7,
+  "gauge_invariance_max_abs_dp": 2.7593576490403393e-07,
   "convergence": {
     "method": "svi",
     "note": "SVI: R\u0302 not applicable; convergence = ELBO; s_sd variance-calibrated vs NUTS-subsample downstream"
@@ -21,11 +21,11 @@
   "lapse_lambda_fixed": 0.025,
   "per_source_log_gamma_mean": [
     0.0,
-    1.9417262077331543,
-    0.6080939173698425,
-    1.20352303981781,
-    1.1129741668701172,
-    1.4377830028533936
+    1.272533893585205,
+    0.13621431589126587,
+    1.0849729776382446,
+    1.7505990266799927,
+    0.9728964567184448
   ],
   "src_names": [
     "centaur_2025_iiic",
@@ -35,6 +35,6 @@
     "pd_rda_profiler",
     "sparcnet50K"
   ],
-  "s_id_mean_over_gold": 1.5258788677030566e-09,
-  "s_id_std_over_weld": 0.9999999403953552
+  "s_id_mean_over_gold": 9.155273872352154e-09,
+  "s_id_std_over_weld": 1.0
 }

@@ -217,17 +217,27 @@ def load_fitted_Sigma(path=None):
 
 # ───────────── log likelihood given history (vectorized) ─────────────
 
-def _log_lik_history(t, l, history):
+def _log_lik_history(t, l, history, history_s_sd=None):
     """Given particles (N, K), compute cumulative log P(history | particle).
 
     history: list of (k, s, y) tuples.  Returns shape (N,).
+    history_s_sd: optional parallel list of per-question s posterior SDs
+        (Phase 3.5).  None ⇒ all 0.0 ⇒ z BIT-IDENTICAL to the prior engine
+        (so rejuvenation-replay stays consistent with `update`, and the
+        whole validated suite is unchanged when s_sd is absent).
 
     FIX-T0.7 + FIX-T1.4: uses log_ndtr and the lapse-rate response model.
+    Phase 3.5: closed-form s-marginalization, z attenuated by
+    1/√(1+(e^ℓ·s_sd)²) — same formula as engine.core._marg_z.
     """
     N = t.shape[0]
     ll = np.zeros(N)
-    for (k, s, y) in history:
-        z = np.exp(l[:, k]) * (s + t[:, k])
+    sds = history_s_sd if history_s_sd is not None else [0.0] * len(history)
+    for (k, s, y), s_sd in zip(history, sds):
+        el = np.exp(l[:, k])
+        z = el * (s + t[:, k])
+        if s_sd != 0.0:
+            z = z / np.sqrt(1.0 + (el * s_sd) ** 2)
         ll += _log_p_response(z, y)
     return ll
 
@@ -333,12 +343,20 @@ def _log_prior_of(state, t, l):
 
 # ───────────── reweight on new observation ─────────────
 
-def update(state, k, s, y):
+def update(state, k, s, y, s_sd=0.0):
     """Reweight particles by likelihood of (k, s, y).  Update history & log_lik.
 
     FIX-T0.7 + FIX-T1.4: log_ndtr-based likelihood with lapse-rate mixture.
+    Phase 3.5: s_sd = posterior SD of the segment signal; the likelihood is
+    marginalized over s ~ N(s, s_sd²) via z /= √(1+(e^ℓ·s_sd)²) (same
+    formula as engine.core._marg_z). s_sd=0.0 (default) ⇒ BIT-IDENTICAL to
+    the prior engine; s_sd is also recorded in a parallel history list so
+    rejuvenation-replay stays consistent.
     """
-    z = np.exp(state["l"][:, k]) * (s + state["t"][:, k])
+    el = np.exp(state["l"][:, k])
+    z = el * (s + state["t"][:, k])
+    if s_sd != 0.0:
+        z = z / np.sqrt(1.0 + (el * s_sd) ** 2)
     log_p_obs = _log_p_response(z, y)
     state["log_lik"] += log_p_obs
     w = state["w"] * np.exp(log_p_obs)
@@ -349,6 +367,9 @@ def update(state, k, s, y):
     else:
         state["w"] = w / s_w
     state["history"].append((int(k), float(s), int(y)))
+    # Phase 3.5: parallel additive list (NOT a 4-tuple — keeps bridge/
+    # audit/tests that unpack (k,s,y) ripple-free). All-zeros ⇒ bit-exact.
+    state.setdefault("history_s_sd", []).append(float(s_sd))
 
 
 def ess(w):
@@ -386,7 +407,8 @@ def mh_rejuvenate(state, n_steps, proposal_scale, rng):
         l_new = theta_new[:, K:]
 
         lp_new = _log_prior_of(state, t_new, l_new)
-        ll_new = _log_lik_history(t_new, l_new, state["history"])
+        ll_new = _log_lik_history(t_new, l_new, state["history"],
+                                  state.get("history_s_sd"))
         log_alpha = (lp_new + ll_new) - (state["log_prior"] + state["log_lik"])
         u = rng.random(N)
         accept = np.log(u) < log_alpha
@@ -447,16 +469,22 @@ def resample_and_rejuvenate(state, rng, n_mh_steps=15, proposal_scale=0.5,
 SIGNAL_GRID = np.linspace(-3.0, 3.0, 11)
 
 
-def _expected_loss_vec(state, k, signals):
+def _expected_loss_vec(state, k, signals, signal_sds=None):
     """Expected total posterior variance over (t_1..t_K, l_1..l_K) after one
     question on task k at each signal level. Vectorized across signals.
 
     FIX-T1.4: response probability incorporates the lapse-rate mixture.
+    Phase 3.5: signal_sds (per-candidate s posterior SD) marginalizes each
+    candidate item over its s posterior so item selection prefers
+    high-precision items; signal_sds=None (default) ⇒ BIT-IDENTICAL.
     """
     K = state["t"].shape[1]
     t_k = state["t"][:, k]
     l_k = state["l"][:, k]
-    z = np.exp(l_k)[None, :] * (signals[:, None] + t_k[None, :])
+    el = np.exp(l_k)[None, :]
+    z = el * (signals[:, None] + t_k[None, :])
+    if signal_sds is not None:
+        z = z / np.sqrt(1.0 + (el * np.asarray(signal_sds)[:, None]) ** 2)
     p = _p_response_yes(z)
     p = np.clip(p, 1e-9, 1.0 - 1e-9)
     w = state["w"]
