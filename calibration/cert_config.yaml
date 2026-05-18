@@ -1,0 +1,281 @@
+# Certified configuration — Phase-3 unified recompute (v12).
+# COPY of repo-root cert_config.yaml (config_version bumped 11->12)
+# plus the new ell_star_unified_v12 block. mode_b_legacy preserved.
+# The repo-root cert_config.yaml is left UNTOUCHED.
+mode: mode_a
+config_version: 12
+domains:
+- sz
+- lpd
+- gpd
+- lrda
+- grda
+- iic
+K: 6
+auroc_delta: 0.025
+delta_sweep:
+- 0.025
+- 0.05
+- 0.1
+alpha: 0.05
+lapse_rate: 0.025
+item_selection: ev
+sigma_l_path: Sigma_l_fitted.npy
+sigma_t_path: Sigma_l_fitted.npy
+use_corr_l: true
+r_assumed_fallback: 0.3782
+n_particles: 1000
+max_q: 3000
+ess_threshold_frac: 0.9
+n_mh_steps: 15
+proposal_scale_hier: null
+proposal_scale_brute: 1.5
+n_reps_pilot: 1
+n_reps_paper: 40
+seed_base: 0
+audit_log_dir: audit_logs/
+log_trajectory: true
+mode_b_legacy:
+  l_star_global: 0.0
+  l_star_per_domain:
+    sz: 0.5004
+    lpd: 0.3741
+    gpd: 0.3218
+    lrda: 0.4269
+    grda: 0.5262
+    iic: 0.338
+  stop_thresh: 0.95
+  stop_thresh_sidak: 0.9915
+  z_buffer_mcse: 2.0
+  prior_mean_l_star: true
+  prior_sigma_l: 0.5
+  use_iut_stopping: true
+  use_fisher_guard: true
+  fisher_guard_epsilon: 0.1
+  n_min_guard: 20
+  virtual_pairs: []
+ell_star_unified_v12:
+  tasks:
+    sparcnet_sz:
+      domain: sz
+      ell_star: 0.45504292981835925
+      sigma_star: 0.6344207317968314
+      youden_j: 0.7768327562848111
+      ci_low: 0.254831216302876
+      ci_high: 0.4943151973565994
+      n_expert: 14
+      n_non_expert: 1898
+    sparcnet_lpd:
+      domain: lpd
+      ell_star: 0.5337430687087749
+      sigma_star: 0.586405899038291
+      youden_j: 0.8664864864864865
+      ci_low: 0.5190228181077238
+      ci_high: 0.6450279327255053
+      n_expert: 14
+      n_non_expert: 1850
+    sparcnet_gpd:
+      domain: gpd
+      ell_star: 0.33908811105216113
+      sigma_star: 0.7124196742765742
+      youden_j: 0.8237885462555066
+      ci_low: 0.3317126367680828
+      ci_high: 0.5616805547062602
+      n_expert: 14
+      n_non_expert: 1816
+    sparcnet_lrda:
+      domain: lrda
+      ell_star: 0.4792595265871899
+      sigma_star: 0.6192417541376783
+      youden_j: 0.806941431670282
+      ci_low: 0.47264688856385817
+      ci_high: 0.5515777166657198
+      n_expert: 13
+      n_non_expert: 1844
+    sparcnet_grda:
+      domain: grda
+      ell_star: 0.48645101728803
+      sigma_star: 0.6148044573343967
+      youden_j: 0.7794279427942794
+      ci_low: 0.4754582665928328
+      ci_high: 0.675866249473201
+      n_expert: 14
+      n_non_expert: 1818
+    sparcnet_iic:
+      domain: iic
+      ell_star: 0.4201033155481987
+      sigma_star: 0.6569789401692472
+      youden_j: 0.6431394692264257
+      ci_low: 0.401428446787371
+      ci_high: 0.5026693608016249
+      n_expert: 14
+      n_non_expert: 1771
+    combined_spike:
+      domain: spike
+      ell_star: 0.3198822024780764
+      sigma_star: 0.7262345806691183
+      youden_j: 0.36571611956721073
+      ci_low: null
+      ci_high: null
+      n_expert: 38
+      n_non_expert: 1148
+  provenance:
+    labels_csv_sha256: f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b
+    raters_csv_sha256: bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f
+    method_iiic: youden_index_cv_top_N
+    method_iiic_description: 'CV top-N: expert panel for domain d = top-N candidates
+      by mean ell on OTHER 5 domains.'
+    panel_size_N: 14
+    bootstrap_n: 2000
+    seed: 42
+    sigma_floor: 0.025
+    method_spike: reference youden_sigma_star (verbatim) on 70/30 expert train split
+      + 50/50 non-expert train split; EXPERT_TRAIN_FRAC=0.70, SEED=42
+    spike_reference_frozen_sigma_star: 0.815
+    spike_delta_vs_frozen: -0.08876541933088167
+    carried_script_md5:
+      fit_main_effects.py: fcf149b4f9c173ab14e9980ee3b82a13
+      fit_sdt_per_domain.py: 6b90d59dcd0aaa878f9a52802254044b
+      run_youden_calibration.py: f8bcfbd61b7a89c70e4dfec3cf8227db
+    candidate_pool:
+      n_candidates: 29
+      n_resolved: 29
+      n_in_new_sdt_fits: 29
+      unresolved: []
+      applied_mappings: []
+    d7_independent_panel:
+      per_task:
+        sz:
+          ell_star_gold: 0.32649265189793303
+          gold_ci_low: 0.324289849440367
+          gold_ci_high: 0.6219695931625495
+          youden_j_gold: 0.7746331236897275
+          n_gold_expert: 4
+          n_non_expert: 1908
+          ell_star_cv_step_f: 0.45504292981835925
+          cv_ci_low: 0.254831216302876
+          cv_ci_high: 0.4943151973565994
+          ci_95_overlap: true
+          ci_overlap_interval:
+          - 0.324289849440367
+          - 0.4943151973565994
+          delta_point: -0.12855027792042623
+        lpd:
+          ell_star_gold: 0.7752363967013001
+          gold_ci_low: 0.7710262120494538
+          gold_ci_high: 0.9236240310965108
+          youden_j_gold: 0.8994623655913978
+          n_gold_expert: 4
+          n_non_expert: 1860
+          ell_star_cv_step_f: 0.5337430687087749
+          cv_ci_low: 0.5190228181077238
+          cv_ci_high: 0.6450279327255053
+          ci_95_overlap: false
+          ci_overlap_interval: null
+          delta_point: 0.2414933279925252
+        gpd:
+          ell_star_gold: 0.42209314230679457
+          gold_ci_low: 0.4174260648857404
+          gold_ci_high: 0.7429304670891297
+          youden_j_gold: 0.8318729463307777
+          n_gold_expert: 4
+          n_non_expert: 1826
+          ell_star_cv_step_f: 0.33908811105216113
+          cv_ci_low: 0.3317126367680828
+          cv_ci_high: 0.5616805547062602
+          ci_95_overlap: true
+          ci_overlap_interval:
+          - 0.4174260648857404
+          - 0.5616805547062602
+          delta_point: 0.08300503125463343
+        lrda:
+          ell_star_gold: 0.8469577727157263
+          gold_ci_low: 0.8234413124949688
+          gold_ci_high: 1.0080240561500116
+          youden_j_gold: 0.857528332433891
+          n_gold_expert: 4
+          n_non_expert: 1853
+          ell_star_cv_step_f: 0.4792595265871899
+          cv_ci_low: 0.47264688856385817
+          cv_ci_high: 0.5515777166657198
+          ci_95_overlap: false
+          ci_overlap_interval: null
+          delta_point: 0.36769824612853635
+        grda:
+          ell_star_gold: 0.6928401934803308
+          gold_ci_low: 0.683336460233969
+          gold_ci_high: 0.9696850216125239
+          youden_j_gold: 0.8036105032822757
+          n_gold_expert: 4
+          n_non_expert: 1828
+          ell_star_cv_step_f: 0.48645101728803
+          cv_ci_low: 0.4754582665928328
+          cv_ci_high: 0.675866249473201
+          ci_95_overlap: false
+          ci_overlap_interval: null
+          delta_point: 0.2063891761923008
+        iic:
+          ell_star_gold: 0.8140468841234124
+          gold_ci_low: 0.7975258115633386
+          gold_ci_high: 1.251487579165648
+          youden_j_gold: 0.7153284671532847
+          n_gold_expert: 4
+          n_non_expert: 1781
+          ell_star_cv_step_f: 0.4201033155481987
+          cv_ci_low: 0.401428446787371
+          cv_ci_high: 0.5026693608016249
+          ci_95_overlap: false
+          ci_overlap_interval: null
+          delta_point: 0.39394356857521373
+      summary:
+        n_iiic_tasks: 6
+        n_ci95_overlap: 2
+        spearman_rho_gold_vs_cv: 0.2571428571428572
+        frac_tasks_gold_higher_than_cv: 0.8333333333333334
+        bootstrap_n: 2000
+        interpretation: "D7 is a consistency/direction check, NOT tight point reproduction:\
+          \ the Centaur gold panel is n=4 experts, so \u2113* is high-variance. Report\
+          \ = bootstrap-CI overlap + rank/shift concordance. A systematic gold>CV\
+          \ shift indicates the gold panel is stricter (more discriminating) than\
+          \ the CV-top-14 pool; this is a known limitation of the n=4 independent\
+          \ panel and is documented as such (not a tight-reproducibility claim)."
+        n4_limitation: Centaur gold panel = 4 experts (mbw/cal/matt/tianyu); bootstrap
+          CIs are wide by construction.
+    sdt_fit_summary:
+      combined_spike:
+        n_total: 3194
+        n_converged: 2351
+        sigma_median: 1.034509313447548
+        seconds: 6.6
+      sparcnet_sz:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 1.0923864443204483
+        seconds: 5.0
+      sparcnet_lpd:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 1.4649253260553987
+        seconds: 4.8
+      sparcnet_gpd:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 1.4597069556437776
+        seconds: 4.9
+      sparcnet_lrda:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 1.4172824517517906
+        seconds: 5.1
+      sparcnet_grda:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 1.4608086505709952
+        seconds: 5.0
+      sparcnet_iic:
+        n_total: 2369
+        n_converged: 1949
+        sigma_median: 0.9280913927042608
+        seconds: 5.3
+    note: Mode-A (Paper-1, Multi-AUROC) does NOT consume ell*; these feed the deployment
+      runtime + Mode-B / Paper-2. The mode_b_legacy block below is retained unchanged.

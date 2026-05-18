@@ -32,3 +32,8 @@ results/run_*.out
 *.egg-info/
 build/
 dist/
+
+# Phase-3 calibration staging (regenerable from labels.csv; sha256-pinned
+# in calibration/cert_config.yaml v12 provenance). Canonical outputs are
+# calibration/ + data/engine_inputs/sdt_fits*.
+pipeline/_calib_work/
