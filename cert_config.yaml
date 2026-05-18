@@ -1,0 +1,94 @@
+# Certified configuration for Multi-AUROC Precision Protocol (Mode-A)
+# Version: v11 (2026-05-15)
+#   Phase 0: F0.1 lapse parametrization unified with spike paper Eq. 2.
+#   Phase 1: Mode-A reactivated as production path for Paper 1 (Epilepsia).
+# Source of truth: this file. All scripts should load constants from here.
+#
+# Multi-AUROC Precision Protocol (Paper 1):
+#   - Stop when max_k halfwidth_{0.95}(AUROC_k) < auroc_delta.
+#   - Item selection via Global EV (`choose_item` in core_mcmc.py) — Bayesian
+#     A-optimal design over total posterior variance.
+#   - Per-domain AUROC is the certification "measurement" (no binary threshold).
+#   - Mode-B (binary cert PASS/FAIL) is DEPRECATED; retained as `cert_config_mode_b.yaml.archived`
+#     for Paper 2 work after prospective panel validation.
+
+mode: mode_a              # mode_a (Multi-AUROC) or mode_b (binary cert, deprecated)
+config_version: 11
+
+domains: [sz, lpd, gpd, lrda, grda, iic]
+K: 6
+
+# ── Multi-AUROC stopping rule ──
+# Stop when max_k halfwidth_{0.95}(AUROC_k) < auroc_delta.
+# auroc_delta=0.025 is the tightest target reported in the paper; the
+# delta_sweep array enumerates all targets evaluated post-hoc from the same
+# trajectory (single δ=0.025 run + `post_hoc_delta_sweep` helper).
+auroc_delta: 0.025          # tightest target; run sessions to this precision
+delta_sweep: [0.025, 0.05, 0.10]   # post-hoc reporting at all three
+alpha: 0.05                 # CI level (95% credible interval)
+
+# ── Response model ──
+# F0.1: spike-paper-canonical symmetric lapse mixture (Eq. 2):
+#   P(y=1 | z) = λ + (1 − 2λ)·Φ(z)
+# Floor λ, ceiling 1 − λ; algebraically consistent with
+# `train_val_split_and_fit.py:probit_lapse_nll`.
+lapse_rate: 0.025
+
+# ── Item selection ──
+# Mode-A: Global EV (expected posterior-variance reduction; Bayesian A-design)
+# `choose_item` in core_mcmc.py.  This is the certified criterion for Multi-AUROC.
+# The boundary-Fisher selector `choose_item_cert` is reserved for Mode-B
+# (deprecated under the 2026-05-15 reframe).
+item_selection: ev
+
+# ── Hierarchical prior (the borrowing-of-strength engine) ──
+# Unstructured Σ fit from cross_domain_rater_matrix.csv (FIX-T1.6).
+# Corr_l (unit-diagonal correlation matrix) is used by default; raw Sigma_l
+# has tiny marginal std (~0.1-0.24) reflecting inter-rater spread, which
+# under-disperses the prior for prospective examinees.  Corr_l keeps the
+# cross-domain correlation structure while restoring unit marginal variance.
+sigma_l_path: Sigma_l_fitted.npy   # produced by W1-A; provides Corr_l + Sigma_l
+sigma_t_path: Sigma_l_fitted.npy   # placeholder if no separate t-data
+use_corr_l: true                   # FIX-T1.7; recommended
+r_assumed_fallback: 0.3782         # only used if sigma_l_path is missing
+
+# ── SMC + MCMC settings ──
+n_particles: 1000           # pilot; paper-grade may bump to 2000
+max_q: 3000                 # raised from 600 (Mode-B) to allow δ=0.025 stopping
+ess_threshold_frac: 0.9     # rejuvenate frequently to maintain coverage
+n_mh_steps: 15
+proposal_scale_hier: null   # computed dynamically as 2.38/sqrt(2*K)
+proposal_scale_brute: 1.5   # 2.38/sqrt(2)
+
+# ── Reproducibility ──
+n_reps_pilot: 1
+n_reps_paper: 40            # raised from 25 to address exp5_v3 thin-tail at K=8
+seed_base: 0
+
+# ── Audit trail ──
+audit_log_dir: audit_logs/  # per-session JSONL (see W2-C)
+log_trajectory: true        # store lo/hi traj per question for δ-sweep helper
+
+# ── Mode-B legacy keys (frozen, ignored under mode='mode_a') ──
+# These remain readable for the deprecated Mode-B path but are NOT used in
+# Mode-A.  Removing them entirely would break older bridge scripts and the
+# 2026-05-14 audit logs; flagging instead.  See cert_config_mode_b.yaml.archived.
+mode_b_legacy:
+  l_star_global: 0.0
+  l_star_per_domain:
+    sz:   0.5004    # CV top-14 Youden ell* (deprecated for binary cert under 2026-05-15 reframe)
+    lpd:  0.3741
+    gpd:  0.3218
+    lrda: 0.4269
+    grda: 0.5262
+    iic:  0.3380
+  stop_thresh: 0.95
+  stop_thresh_sidak: 0.9915
+  z_buffer_mcse: 2.0
+  prior_mean_l_star: true
+  prior_sigma_l: 0.5
+  use_iut_stopping: true
+  use_fisher_guard: true
+  fisher_guard_epsilon: 0.10
+  n_min_guard: 20
+  virtual_pairs: []

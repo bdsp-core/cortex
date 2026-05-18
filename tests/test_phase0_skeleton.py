@@ -25,10 +25,14 @@ EXPECTED_DIRS = [
 ]
 PACKAGES = ["engine", "engine.variants", "deployment", "pipeline",
             "calibration", "bridge"]
+# (module, fn, phase, is_stub).  Phase 2 wired ilae-paper to the REAL
+# Mode-A bridge; ilae-calibrate (Phase 3) / ilae-deploy (Phase 4) remain
+# loud stubs until their phases.
 ENTRY_POINTS = {
-    "ilae-paper": ("bridge.run_multi_auroc_bridge", "main", "Phase 2"),
-    "ilae-calibrate": ("calibration.run_youden_calibration", "main", "Phase 3"),
-    "ilae-deploy": ("deployment.run_deployment_sim", "main", "Phase 4"),
+    "ilae-paper": ("bridge.run_multi_auroc_bridge", "main", "Phase 2", False),
+    "ilae-calibrate": ("calibration.run_youden_calibration", "main",
+                       "Phase 3", True),
+    "ilae-deploy": ("deployment.run_deployment_sim", "main", "Phase 4", True),
 }
 
 
@@ -51,17 +55,27 @@ def test_packages_importable(pkg):
 
 
 @pytest.mark.parametrize("name", list(ENTRY_POINTS))
-def test_entry_point_resolves_to_loud_stub(name):
-    mod_name, fn_name, phase = ENTRY_POINTS[name]
+def test_entry_point_resolves(name):
+    """Stub entry points raise a phase-named NotImplementedError; wired
+    ones resolve to a real callable (not the stub) and are NOT invoked."""
+    mod_name, fn_name, phase, is_stub = ENTRY_POINTS[name]
     mod = importlib.import_module(mod_name)  # must not ImportError
     fn = getattr(mod, fn_name)
-    with pytest.raises(NotImplementedError) as exc:
-        fn()
-    msg = str(exc.value)
-    assert name in msg and phase in msg, (
-        f"{name} stub message must name the script and implementing phase; "
-        f"got: {msg!r}"
-    )
+    assert callable(fn)
+    if is_stub:
+        with pytest.raises(NotImplementedError) as exc:
+            fn()
+        msg = str(exc.value)
+        assert name in msg and phase in msg, (
+            f"{name} stub must name the script and implementing phase; "
+            f"got: {msg!r}"
+        )
+    else:
+        # Real impl: must not be the Phase-0 loud stub. Don't call main()
+        # (argparse + heavy run); assert it's the real module instead.
+        src = sys.modules[mod_name].__doc__ or ""
+        assert "Phase 0 STUB" not in src, f"{name} still the Phase-0 stub"
+        assert fn.__module__ == mod_name
 
 
 def _pyproject():
@@ -73,7 +87,7 @@ def test_pyproject_declares_three_scripts_with_expected_targets():
     pp = _pyproject()
     scripts = pp["project"]["scripts"]
     assert set(scripts) == set(ENTRY_POINTS)
-    for name, (mod_name, fn_name, _phase) in ENTRY_POINTS.items():
+    for name, (mod_name, fn_name, _phase, _stub) in ENTRY_POINTS.items():
         assert scripts[name] == f"{mod_name}:{fn_name}"
 
 
