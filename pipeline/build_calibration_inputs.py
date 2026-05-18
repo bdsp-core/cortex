@@ -19,17 +19,23 @@ the exact long-format schema that the *verbatim-carried* reference scripts
 
 Task definitions (one-vs-rest binary, EXACT per Phase-3 spec):
 
-  combined_spike : ALL rows where label_type=='spike' (nothing dropped).
-                   value in {'0','1'} -> Y=int(value) (sn1 binary
-                   spike-detection cohort). The unified spike corpus also
-                   carries Centaur-2025-IED spike-SUBTYPE labels
-                   ('ied','vertex wave','posts','wickets','bets','other');
-                   for those, Y = 1 iff value=='ied' else 0 — the
-                   clinically meaningful IED-vs-benign-variant binary spike
-                   contrast (decision 2026-05-18; folds the 167,503-row
-                   Centaur-IED cohort into the spike task). DATA-ENTRY-POINT
-                   definition only — recorded in meta provenance; no
-                   methodology altered.
+  combined_spike : label_type=='spike' AND value in {'0','1'} ->
+                   Y=int(value) — the CLEAN sn1 binary spike-detection
+                   cohort only (964,206 rows). UN-FOLD decision 2026-05-18
+                   (reverses the earlier Phase-3.5 IED fold): the
+                   Centaur-2025-IED spike-SUBTYPE rows
+                   ('ied','vertex wave','posts','wickets','bets','other')
+                   are EXCLUDED from the spike CERTIFICATION task. Quantified
+                   evidence (spike_variants_analysis): folding Centaur-IED
+                   in (ied-vs-benign) dropped spike Youden J 0.632->0.366;
+                   dropping ambiguous 'other' did not help (0.350);
+                   Centaur-IED as its OWN task is not certifiable (J=0.063,
+                   barely separates experts/novices). So Centaur-IED is
+                   RECLASSIFIED as non-certification bank/gold material:
+                   its rows REMAIN in labels.csv (nothing deleted; its
+                   per-segment SPIKE/NON-SPIKE gold can inform s_j), it is
+                   simply not a Youden domain. DATA-ENTRY-POINT definition
+                   only; no methodology altered.
   sparcnet_sz    : label_type=='pattern_class'; Y = 1 if value=='seizure' else 0.
   sparcnet_lpd   : Y = 1 if value=='lpd'  else 0.
   sparcnet_gpd   : Y = 1 if value=='gpd'  else 0.
@@ -53,17 +59,19 @@ import numpy as np
 import pandas as pd
 
 # Task -> (label_type, positive-class spec)
-#   spec == "__spike_ied__" -> combined_spike: value in {0,1} → Y=int(value)
-#                              (sn1 binary spike-detection); else (Centaur
-#                              spike-subtype rows) → Y = 1 if value=='ied'
-#                              else 0 (IED vs benign variant: vertex wave,
-#                              POSTS, wickets, BETS, other). Decision
-#                              2026-05-18: fold the centaur_2025_ied cohort
-#                              in as a clinically meaningful binary spike
-#                              contrast (nothing lost).
+#   spec == "__spike_sn1_binary__" -> combined_spike: keep ONLY value in
+#                              {0,1} (clean sn1 binary spike-detection,
+#                              964,206 rows); Y=int(value). Centaur-2025-IED
+#                              spike-SUBTYPE rows are EXCLUDED from the spike
+#                              CERT task (UN-FOLD 2026-05-18; quantified:
+#                              folding dropped spike Youden J 0.632->0.366;
+#                              Centaur-IED standalone J=0.063 not
+#                              certifiable -> reclassified as bank/gold,
+#                              rows retained in labels.csv, not a Youden
+#                              domain).
 #   spec == <class>         -> Y = 1 if value == <class> else 0
 TASKS: dict[str, tuple[str, str]] = {
-    "combined_spike": ("spike", "__spike_ied__"),
+    "combined_spike": ("spike", "__spike_sn1_binary__"),
     "sparcnet_sz": ("pattern_class", "seizure"),
     "sparcnet_lpd": ("pattern_class", "lpd"),
     "sparcnet_gpd": ("pattern_class", "gpd"),
@@ -101,29 +109,25 @@ def build_task(
     sub = labels[labels["label_type"] == label_type].copy()
     n_raw = len(sub)
 
-    if spec == "__spike_ied__":
-        # combined_spike (decision 2026-05-18): keep ALL spike rows.
-        #  - value in {'0','1'}  -> Y = int(value)  (sn1 binary
-        #    spike-detection cohort, ~964,206 rows)
-        #  - else (Centaur-2025-IED spike-SUBTYPE rows: ied / vertex wave /
-        #    posts / wickets / bets / other, ~167,503) -> Y = 1 iff the
-        #    label is an IED, else 0 (IED vs benign variant — a clinically
-        #    meaningful binary spike contrast). Nothing dropped.
+    if spec == "__spike_sn1_binary__":
+        # combined_spike (UN-FOLD decision 2026-05-18): the spike
+        # CERTIFICATION task is the CLEAN sn1 binary spike-detection
+        # cohort ONLY (value in {'0','1'}, ~964,206 rows). The
+        # Centaur-2025-IED spike-SUBTYPE rows are EXCLUDED here (they are
+        # NOT deleted from labels.csv — retained as corpus/bank/gold; just
+        # not a Youden domain). Rationale (quantified, spike_variants_
+        # analysis): folding IED-vs-benign in dropped spike J 0.632->0.366;
+        # dropping 'other' didn't help (0.350); Centaur-IED standalone
+        # J=0.063 (not certifiable).
         val = sub["value"].astype(str).str.strip()
-        is_bin = val.isin(["0", "1"])
-        Y = np.where(
-            is_bin,
-            np.where(val == "1", 1, 0),
-            (val.str.lower() == "ied").astype(int),
-        ).astype(np.int64)
-        sub = sub.copy()
-        sub["Y"] = Y
-        n_bin = int(is_bin.sum())
+        keep = val.isin(["0", "1"])
+        sub = sub.loc[keep].copy()
+        sub["Y"] = (val.loc[keep] == "1").astype(np.int64)
         source_filter = (
-            "label_type=='spike'; value in {'0','1'} -> Y=int(value) "
-            f"({n_bin} sn1 binary rows); else Y = 1 if value=='ied' else 0 "
-            f"({len(sub) - n_bin} Centaur-IED IED-vs-benign rows). "
-            "All spike rows retained."
+            "label_type=='spike' AND value in {'0','1'} -> Y=int(value) "
+            f"({len(sub)} clean sn1 binary rows). Centaur-2025-IED "
+            f"spike-SUBTYPE rows EXCLUDED from the spike cert task "
+            "(retained in labels.csv as bank/gold; un-fold 2026-05-18)."
         )
     else:
         val = sub["value"].astype(str).str.strip()

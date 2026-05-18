@@ -109,13 +109,13 @@ ell_star_unified_v13:
       n_non_expert: 1840
     combined_spike:
       domain: spike
-      ell_star: 0.3198822024780764
-      sigma_star: 0.7262345806691183
-      youden_j: 0.36571611956721073
+      ell_star: 0.2542662861051924
+      sigma_star: 0.775485273596728
+      youden_j: 0.6321364092276831
       ci_low: null
       ci_high: null
-      n_expert: 38
-      n_non_expert: 1148
+      n_expert: 25
+      n_non_expert: 997
   provenance:
     labels_csv_sha256: f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b
     raters_csv_sha256: bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f
@@ -129,7 +129,7 @@ ell_star_unified_v13:
     method_spike: reference youden_sigma_star (verbatim) on 70/30 expert train split + 50/50 non-expert
       train split; EXPERT_TRAIN_FRAC=0.70, SEED=42
     spike_reference_frozen_sigma_star: 0.815
-    spike_delta_vs_frozen: -0.08876541933088167
+    spike_delta_vs_frozen: -0.039514726403271916
     carried_script_md5:
       fit_main_effects.py: fcf149b4f9c173ab14e9980ee3b82a13
       fit_sdt_per_domain.py: 6b90d59dcd0aaa878f9a52802254044b
@@ -239,20 +239,20 @@ ell_star_unified_v13:
           construction.
     sdt_fit_summary:
       combined_spike:
-        n_total: 3194
-        n_converged: 2351
-        sigma_median: 1.034509313447548
-        seconds: 6.6
+        n_total: 2551
+        n_converged: 2030
+        sigma_median: 1.0017253921264397
+        seconds: 5.6
       sparcnet_sz:
         n_total: 2369
         n_converged: 1949
         sigma_median: 1.0923864443204483
-        seconds: 5.0
+        seconds: 4.9
       sparcnet_lpd:
         n_total: 2369
         n_converged: 1949
         sigma_median: 1.4649253260553987
-        seconds: 4.9
+        seconds: 4.8
       sparcnet_gpd:
         n_total: 2369
         n_converged: 1949
@@ -262,12 +262,12 @@ ell_star_unified_v13:
         n_total: 2369
         n_converged: 1949
         sigma_median: 1.4172824517517906
-        seconds: 5.2
+        seconds: 5.1
       sparcnet_grda:
         n_total: 2369
         n_converged: 1949
         sigma_median: 1.4608086505709952
-        seconds: 5.1
+        seconds: 5.0
       sparcnet_iic:
         n_total: 2369
         n_converged: 1949
@@ -300,6 +300,19 @@ ell_star_unified_v13:
       svi_inference: AutoLowRankMultivariateNormal rank-20, 6 tasks x 962,467 obs, gauge-invariance|dp|<4e-7,
         anchors exact (s_gold=0,sd_weld=1), s_sd uncollapsed.
       lambda: 0.025
+      spike_unfold:
+        decision: 'UN-FOLD (2026-05-18, user): the spike cert task is CLEAN sn1 binary only; the Phase-3.5
+          Centaur-IED fold is REVERSED. Centaur-IED reclassified as non-certification bank/gold (rows
+          retained in labels.csv; not a Youden domain).'
+        quantified_spike_youden_J:
+          clean_sn1_unfold (ADOPTED): 0.6321364092276831
+          folded_ied_vs_all (prev v13): 0.36571611956721073
+          fold_drop_other (Lever A, rejected): 0.34993012293625786
+          centaur_ied_standalone (not certifiable): 0.0625
+        evidence: 'spike J recovers 0.366->0.632 by un-folding; dropping ambiguous ''other'' did NOT help
+          (0.350); Centaur-IED as its own task barely separates experts/novices (J=0.063, nE=12) => not
+          a certifiable domain. Investigation: pipeline/joint_calibration/spike_variants_analysis.py (verbatim
+          fitters; report spike_variants_report.json).'
       variance_calibration:
         status: "DONE \u2014 SVI s_sd calibrated vs NUTS-subsample (exact Bayes) on shared segments."
         kappa_per_task:

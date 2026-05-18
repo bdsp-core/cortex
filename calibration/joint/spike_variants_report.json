@@ -1,0 +1,54 @@
+{
+  "scenarios": {
+    "current": {
+      "sigma_star": 0.7262345806691183,
+      "ell_star": 0.3198822024780764,
+      "youden_J": 0.36571611956721073,
+      "n_expert_train": 38,
+      "n_nonexpert_train": 1148,
+      "n_converged": 2351,
+      "n_obs": 1131709,
+      "n_pos": 664184,
+      "pos_rate": 0.5869
+    },
+    "A_no_other": {
+      "sigma_star": 0.7585342289579059,
+      "ell_star": 0.27636735404246093,
+      "youden_J": 0.34993012293625786,
+      "n_expert_train": 37,
+      "n_nonexpert_train": 1141,
+      "n_converged": 2336,
+      "n_obs": 1103300,
+      "n_pos": 664184,
+      "pos_rate": 0.602
+    },
+    "B_clean_sn1": {
+      "sigma_star": 0.775485273596728,
+      "ell_star": 0.2542662861051924,
+      "youden_J": 0.6321364092276831,
+      "n_expert_train": 25,
+      "n_nonexpert_train": 997,
+      "n_converged": 2030,
+      "n_obs": 964206,
+      "n_pos": 623059,
+      "pos_rate": 0.6462
+    },
+    "ied_own": {
+      "sigma_star": 0.2118104069510134,
+      "ell_star": 1.5520637112759021,
+      "youden_J": 0.0625,
+      "n_expert_train": 12,
+      "n_nonexpert_train": 144,
+      "n_converged": 306,
+      "n_obs": 139094,
+      "n_pos": 41125,
+      "pos_rate": 0.2957
+    }
+  },
+  "current_v13_spike_J": 0.36571611956721073,
+  "interpretation": {
+    "B_clean_sn1": "spike = clean sn1 only (un-fold). The clean baseline; centaur_2025_ied would become its own task (see ied_own).",
+    "A_no_other": "fold but drop ambiguous 'other' reads.",
+    "ied_own": "Centaur-IED as a standalone IED-vs-mimic task \u2014 its data fully preserved as a distinct clinical skill."
+  }
+}

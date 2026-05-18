@@ -73,6 +73,29 @@ def main() -> None:
         "(s_gold=0,sd_weld=1), s_sd uncollapsed.",
         "lambda": 0.025,
     }
+    sv_path = JOINT / "spike_variants_report.json"
+    if sv_path.exists():
+        sv = json.loads(sv_path.read_text())["scenarios"]
+        block["provenance"]["phase35"]["spike_unfold"] = {
+            "decision": "UN-FOLD (2026-05-18, user): the spike cert task "
+            "is CLEAN sn1 binary only; the Phase-3.5 Centaur-IED fold is "
+            "REVERSED. Centaur-IED reclassified as non-certification "
+            "bank/gold (rows retained in labels.csv; not a Youden domain).",
+            "quantified_spike_youden_J": {
+                "clean_sn1_unfold (ADOPTED)": sv["B_clean_sn1"]["youden_J"],
+                "folded_ied_vs_all (prev v13)": sv["current"]["youden_J"],
+                "fold_drop_other (Lever A, rejected)":
+                    sv["A_no_other"]["youden_J"],
+                "centaur_ied_standalone (not certifiable)":
+                    sv["ied_own"]["youden_J"],
+            },
+            "evidence": "spike J recovers 0.366->0.632 by un-folding; "
+            "dropping ambiguous 'other' did NOT help (0.350); Centaur-IED "
+            "as its own task barely separates experts/novices (J=0.063, "
+            "nE=12) => not a certifiable domain. Investigation: "
+            "pipeline/joint_calibration/spike_variants_analysis.py "
+            "(verbatim fitters; report spike_variants_report.json).",
+        }
     vc_path = JOINT / "variance_calibration.json"
     if vc_path.exists():
         vc = json.loads(vc_path.read_text())

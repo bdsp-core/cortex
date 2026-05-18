@@ -130,23 +130,26 @@ def test_y_binarization_counts_vs_labels():
         REPO / "data" / "labels" / "labels.csv", low_memory=False
     )
     expect = {}
-    # combined_spike (2026-05-18 IED-vs-benign mapping): ALL spike rows;
-    # value=='1' -> 1 ; value=='ied' -> 1 ; everything else -> 0.
+    # combined_spike (UN-FOLD 2026-05-18): CLEAN sn1 binary ONLY —
+    # value in {'0','1'}; Y=1 iff value=='1'. Centaur-IED spike-SUBTYPE
+    # rows are EXCLUDED from the spike cert task (retained in labels.csv).
     sp = labels[labels.label_type == "spike"]
     spv = sp.value.astype(str).str.strip()
-    expect["combined_spike"] = int(
-        ((spv == "1") | (spv.str.lower() == "ied")).sum()
-    )
+    expect["combined_spike"] = int((spv == "1").sum())
     pc = labels[labels.label_type == "pattern_class"]
+    pcv = pc.value.astype(str).str.strip()
     for cls, task in [
         ("seizure", "sparcnet_sz"),
         ("lpd", "sparcnet_lpd"),
         ("gpd", "sparcnet_gpd"),
         ("lrda", "sparcnet_lrda"),
         ("grda", "sparcnet_grda"),
-        ("other", "sparcnet_iic"),
     ]:
-        expect[task] = int((pc.value.astype(str).str.strip() == cls).sum())
+        expect[task] = int((pcv == cls).sum())
+    # sparcnet_iic: ERRATUM-CORRECTED — uniform {bipd,birds}->other
+    # collapse across all sources, so the positive set is
+    # {other, bipd, birds} (NOT 'other' only; the Phase-3 bug).
+    expect["sparcnet_iic"] = int(pcv.isin(["other", "bipd", "birds"]).sum())
     for task, n_pos in expect.items():
         csv = WORK_PREPARED / f"{task}.csv"
         if not csv.exists():
@@ -157,22 +160,25 @@ def test_y_binarization_counts_vs_labels():
         )
 
 
-# ── (c) cert_config v12 ─────────────────────────────────────────────────────
-def _load_v12():
+# ── (c) cert_config — CURRENT version (single source so a future bump is
+#       a one-line change; Phase-3.5 moved v12 -> v13) ──────────────────────
+_VER = 13
+_VKEY = "ell_star_unified_v13"
+
+
+def _load_cfg():
     p = CALIB_DIR / "cert_config.yaml"
     if not p.exists():
-        pytest.skip("cert_config v12 not emitted yet (run orchestrator)")
+        pytest.skip("cert_config not emitted yet (run orchestrator)")
     return yaml.safe_load(p.read_text())
 
 
-def test_cert_config_v12_parses_and_version():
-    cfg = _load_v12()
-    assert cfg["config_version"] == 12
+def test_cert_config_parses_and_version():
+    assert _load_cfg()["config_version"] == _VER
 
 
-def test_cert_config_v12_has_7_ell_star_and_provenance():
-    cfg = _load_v12()
-    blk = cfg["ell_star_unified_v12"]
+def test_cert_config_has_7_ell_star_and_provenance():
+    blk = _load_cfg()[_VKEY]
     assert set(blk["tasks"].keys()) == set(ALL_TASKS)
     assert len(blk["tasks"]) == 7
     prov = blk["provenance"]
@@ -182,8 +188,8 @@ def test_cert_config_v12_has_7_ell_star_and_provenance():
     assert "d7_independent_panel" in prov
 
 
-def test_cert_config_v12_mode_b_legacy_preserved():
-    cfg = _load_v12()
+def test_cert_config_mode_b_legacy_preserved():
+    cfg = _load_cfg()
     assert "mode_b_legacy" in cfg
     assert "l_star_per_domain" in cfg["mode_b_legacy"]
     # repo-root cert_config left untouched at v11
@@ -200,8 +206,8 @@ def test_all_q2_candidates_resolved():
     idempotent delta (empty on a re-run where the on-disk matrix is already
     reconciled) — it is NOT a correctness property, so it is not asserted
     here; resolution/joinability is."""
-    cfg = _load_v12()
-    pool = cfg["ell_star_unified_v12"]["provenance"]["candidate_pool"]
+    cfg = _load_cfg()
+    pool = cfg[_VKEY]["provenance"]["candidate_pool"]
     assert pool["n_candidates"] == 29
     assert pool["n_resolved"] == 29, (
         f"only {pool['n_resolved']}/29 resolved"
