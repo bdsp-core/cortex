@@ -303,12 +303,12 @@ ell_star_unified_v13:
       variance_calibration:
         status: "DONE \u2014 SVI s_sd calibrated vs NUTS-subsample (exact Bayes) on shared segments."
         kappa_per_task:
-          sz: 1.2034
-          lpd: 1.1805
-          gpd: 1.1935
-          lrda: 1.2226
-          grda: 1.424
-          iic: 1.2818
+          sz: 1.2033909222252932
+          lpd: 1.1804728278964212
+          gpd: 1.1935145546602761
+          lrda: 1.2225770712557147
+          grda: 1.4239909489347595
+          iic: 1.2817695826127131
         s_sd_underdispersion: SVI under-dispersed s_sd by ~18-42% vs NUTS; s_sd_calibrated = s_sd * kappa
           (post-cal SVI/NUTS median = 1.00). Engine bank consumes s_j_table_calibrated.csv.
         s_mean_agreement_pearson_r:

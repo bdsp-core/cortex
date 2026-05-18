@@ -121,7 +121,10 @@ def main() -> None:
         "full-corpus SVI, so kappa is an UPPER bound on needed inflation "
         "— calibration cannot understate s_sd (safe direction).",
         "per_task": report,
-        "kappa": {k: round(v, 4) for k, v in kappa.items()},
+        # FULL precision (the calibrated CSV uses these exact values;
+        # rounding is display-only — kappa_display below).
+        "kappa": {k: float(v) for k, v in kappa.items()},
+        "kappa_display": {k: round(v, 4) for k, v in kappa.items()},
         "n_calibrated_rows": n,
     }
     (JOINT / "variance_calibration.json").write_text(

@@ -71,6 +71,11 @@ def test_calibrated_bank_applies_kappa_and_never_shrinks(vc):
         for d in rd:
             sd, sdc = float(d["s_sd"]), float(d["s_sd_calibrated"])
             assert sdc + 1e-9 >= sd, "calibrated s_sd shrank below raw"
-            assert abs(sdc - sd * k[d["task"]]) < 1e-6 * max(sd, 1.0)
+            # s_sd, s_sd_calibrated serialized at 10 sig figs; k is now
+            # full precision. Assert the ratio == kappa within a tolerance
+            # that accounts only for that 10-sig serialization (rtol 1e-6
+            # is fine now that k is full-precision, not round-4).
+            assert sd == 0 or abs(sdc / sd - k[d["task"]]) < 1e-6, (
+                d["task"], sd, sdc, k[d["task"]])
             n += 1
     assert n == vc["n_calibrated_rows"] == 418836
