@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–4 COMPLETE
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -111,6 +111,39 @@ Methodology repo + PI deployment repo merged into one shippable repo
   `README.md`/`MANIFEST.json`. Tests:
   `tests/test_phase5_engine_inputs.py`. Full suite 237 passed /
   1 xfailed.
+- **Phase 6 — invariant audit (plan §"Phase 6") COMPLETE
+  (2026-05-19).** Each of the 9 invariants audited against actual
+  code; findings + signed-off dispositions in
+  `docs/INVARIANT_AUDIT.md`. **Invariants 1–5 PASS** with in-code
+  evidence pointers: `LOGIT_TO_PROBIT=1.0/1.7` at
+  `fit_sdt_per_domain.py:38` + runtime-asserted in
+  `run_unified_calibration.py:201`; `λ=0.025` single-sourced at
+  `engine/core.py:21` and imported by Mode-B/deployment/MCMC paths;
+  the two `fit_sdt_per_domain.py` copies remain
+  **md5 `6b90d59dcd0aaa878f9a52802254044b`** (gated also by Phase-3
+  + new Phase-6 drift-guard test); σ*/ℓ* on TRAIN-only via
+  `EXPERT_TRAIN_FRAC=0.70` at `youden_sigma_star_ref.py:19` (70/30
+  expert + 50/50 non-expert split in `run_unified_calibration.py`
+  STEP g); CLAUDE.md placeholder records the 70/30 correction for
+  Phase-8 assembly. **Four signed-off deviations**: §6
+  `GRAY_ZONE_DELTA` and §8 `T_TOL` are Mode-B/Paper-2 constants that
+  the merge plan didn't carry (N/A for the unified Paper-1 scope —
+  the paper-2-validation scripts were not ported); §7 the plan's
+  `EXPERTS` set / `gold_standard_raters.yaml` both name non-existent
+  sources — *actual* authoritative expert membership is the
+  `expertise_level` column in `data/labels/raters.csv`
+  (`run_unified_calibration.py:450`, `freeze_deployment_prior.py`),
+  a wording clarification not a content gap; §9 `r_ℓ=0.326` is the
+  retired K=6 PI-era value (preserved at
+  `_pi_baseline_frozen/sim_summary.json:3`) — the current K=7
+  shipped value is **0.36656350316581954** (derived, not pinned,
+  from the frozen Σ ℓ-block at `freeze_deployment_prior.py:126`,
+  recomputed at simulate-time `run_deployment_sim.py:104`),
+  superseded by Phase-4.6-A re-freeze. **Phase-6 gate satisfied.**
+  Tests: `tests/test_phase6_invariants.py` (the §3 byte-equivalence
+  drift-guard explicitly requested by the plan; audit-doc
+  consistency; spot-check the 5 PASS invariants point at code that
+  actually defines them). Full suite **240 passed / 1 xfailed**.
 
 ---
 
