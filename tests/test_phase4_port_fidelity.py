@@ -64,6 +64,50 @@ def test_deployment_imports_shape_and_config_defaults():
             c.pass_p, c.fail_p) == (60, 500, 10, 120, 0.95, 0.05)
 
 
+# ── Phase 4.4-A: K-agnostic runtime + drift-guard ───────────────────────────
+def test_deployment_tasks_drift_guard():
+    """The module TASKS/K/DIM defaults must equal what the AUTHORITATIVE
+    Σ-slot-name parser returns from the frozen artifact (4.2-style
+    canonical-default vs artifact drift-guard). Currently K=6; after the
+    Phase-4.6 re-freeze this becomes the 7-list and the default updates
+    with it — the guard prevents silent drift either way."""
+    import engine_paths
+    import pandas as pd
+    from deployment import simulate_test as st
+    parsed = st.deployment_task_names()
+    assert parsed == st.TASKS, (
+        f"Σ-parsed tasks {parsed} != module default {st.TASKS}")
+    assert st.K == len(parsed) and st.DIM == 2 * st.K
+    Sig = pd.read_csv(
+        Path(engine_paths.DEPLOYMENT_PRIOR) / "Sigma.csv", index_col=0)
+    assert Sig.shape == (st.DIM, st.DIM)            # Σ ⇔ K consistent
+    # ell_thresholds + case_bank cover exactly the parsed tasks
+    S, bank, ell = st.load_deployment(uniform_ell_star=None)
+    assert S.shape == (2 * len(parsed), 2 * len(parsed))
+    assert len(ell) == len(parsed) and len(bank) == len(parsed)
+
+
+def test_simulate_candidate_is_K_agnostic():
+    """The engine derives K/DIM from Σ.shape — feed a synthetic K=2
+    deployment and assert the state scales (proves it will accept the
+    K=7 artifact at 4.6 without code change)."""
+    import numpy as np
+    from deployment import simulate_test as st
+    K2 = 2
+    Sigma = np.eye(2 * K2) * 0.5 + 0.1            # PD 4×4
+    ell = np.zeros(K2)
+    bank = {ki: pd.DataFrame({"seg_id": range(50),
+                              "s_mean": np.linspace(-2, 2, 50),
+                              "s_sd": np.zeros(50)}) for ki in range(K2)}
+    cfg = st.TestConfig.from_yaml()
+    theta = np.zeros(2 * K2)
+    stt = st.simulate_candidate(theta, Sigma, ell, bank, cfg,
+                                np.random.default_rng(0))
+    assert stt.mu.shape == (2 * K2,)
+    assert len(stt.decision) == K2
+    assert stt.n_per_task.shape == (K2,)
+
+
 # ── Phase 4.2: shipping-contract YAML drift-guard + strictness ──────────────
 def test_deployment_config_yaml_equals_canonical_defaults():
     """The Phase-4.2 gate, made explicit and cheap: the externalised

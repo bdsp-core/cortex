@@ -94,9 +94,40 @@ from core import LAPSE_RATE  # noqa: E402
 DEPLOY = Path(engine_paths.DEPLOYMENT_PRIOR)
 _ONE_MINUS_2LAMBDA = 1.0 - 2.0 * LAPSE_RATE
 
+# Phase 4.4-A: the engine is now K-AGNOSTIC — it derives K/DIM from the
+# loaded artifact's array shapes (Σ.shape ⇒ DIM, DIM//2 ⇒ K) so it scales
+# to the K=7 deployment_prior that Phase 4.6 will produce. These
+# module-level constants are kept ONLY as the DEFAULT reflecting the
+# CURRENTLY-SHIPPED K=6 frozen artifact (back-compat for callers/studies
+# that are inherently K=6); the AUTHORITATIVE ordered task list comes
+# from `deployment_task_names()` (parsed from the Σ slot-name index). A
+# drift-guard test asserts these defaults equal the artifact.
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
 K = len(TASKS)
 DIM = 2 * K
+
+
+def deployment_task_names(deploy_dir=None):
+    """AUTHORITATIVE ordered task list for the frozen deployment prior,
+    parsed from the Σ slot-name index (`t_<task>`,`l_<task>` pairs — Σ
+    defines the θ-vector layout the whole engine uses). This is the
+    single source of truth for K and task order; `bank`/`ell` are
+    cross-checked against it in `load_deployment`."""
+    d = Path(deploy_dir) if deploy_dir is not None else DEPLOY
+    idx = list(pd.read_csv(d / "Sigma.csv", index_col=0).index)
+    if len(idx) % 2 != 0:
+        raise ValueError(f"Σ has odd dim {len(idx)} — not t/ℓ pairs")
+    tasks = []
+    for i in range(0, len(idx), 2):
+        ti, li = str(idx[i]), str(idx[i + 1])
+        if not ti.startswith("t_") or not li.startswith("l_"):
+            raise ValueError(
+                f"Σ slot names not t_/l_ pairs at {i}: {ti!r},{li!r}")
+        if ti[2:] != li[2:]:
+            raise ValueError(
+                f"Σ slot pair task mismatch: {ti!r} vs {li!r}")
+        tasks.append(ti[2:])
+    return tasks
 
 
 # ───────────────────────── helpers ─────────────────────────
@@ -181,9 +212,11 @@ def _post_marg_sd(Sigma_post):
 
 
 def _p_pass(mu, Sigma_post, ell_star):
-    """Per-task P(ℓ_k > ℓ*_k | data) under Gaussian marginal."""
-    out = np.zeros(K)
-    for k in range(K):
+    """Per-task P(ℓ_k > ℓ*_k | data) under Gaussian marginal.
+    K-agnostic: K = len(ell_star) (Phase 4.4-A)."""
+    k_ = len(ell_star)
+    out = np.zeros(k_)
+    for k in range(k_):
         m = mu[_slot(k, "l")]
         s = np.sqrt(Sigma_post[_slot(k, "l"), _slot(k, "l")])
         out[k] = 1.0 - norm.cdf(ell_star[k], loc=m, scale=max(s, 1e-6))
@@ -197,6 +230,7 @@ def update_state(state: TestState, k: int, s_val: float, Y: float):
     j_t, j_l = _slot(k, "t"), _slot(k, "l")
     mu = state.mu.copy()
     Sigma_post = state.Sigma_post.copy()
+    dim = mu.shape[0]; K_ = dim // 2          # K-agnostic (4.4-A)
 
     # 1 Newton step at current μ
     t = mu[j_t]; l = mu[j_l]
@@ -205,7 +239,7 @@ def update_state(state: TestState, k: int, s_val: float, Y: float):
     w, z = irls_w_z(np.array([eta]), np.array([Y]))
     w = float(w[0]); z = float(z[0])
     # x has two non-zero entries
-    x = np.zeros(DIM)
+    x = np.zeros(dim)
     x[j_t] = el
     x[j_l] = el * (s_val + t)
 
@@ -216,7 +250,7 @@ def update_state(state: TestState, k: int, s_val: float, Y: float):
     Sigma_post_new = np.linalg.inv(Sigma_post_inv_new)
     mu_new = Sigma_post_new @ (Sigma_post_inv @ mu + w * x * z)
     # Clamp ℓ inside [-3, 3] so e^ℓ stays bounded for next-trial info eval
-    for kk in range(K):
+    for kk in range(K_):
         mu_new[_slot(kk, "l")] = float(np.clip(mu_new[_slot(kk, "l")], -3, 3))
         mu_new[_slot(kk, "t")] = float(np.clip(mu_new[_slot(kk, "t")], -3, 3))
 
@@ -352,24 +386,28 @@ class TestConfig:
 
 def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
                         cfg: TestConfig, rng=None):
-    """Simulate one candidate going through the adaptive multi-task test."""
+    """Simulate one candidate going through the adaptive multi-task test.
+    K-agnostic (Phase 4.4-A): DIM = Σ_prior.shape[0], K = DIM//2 — scales
+    to whatever K the frozen deployment_prior declares (6 now, 7 at 4.6)."""
     if rng is None:
         rng = np.random.default_rng()
+    dim = Sigma_prior.shape[0]
+    K_ = dim // 2
     state = TestState(
-        mu=np.zeros(DIM),
+        mu=np.zeros(dim),
         Sigma_post=Sigma_prior.copy(),
-        n_per_task=np.zeros(K, dtype=int),
-        decision=["pending"] * K,
+        n_per_task=np.zeros(K_, dtype=int),
+        decision=["pending"] * K_,
         history=[],
     )
-    used_segids = [set() for _ in range(K)]
+    used_segids = [set() for _ in range(K_)]
     # snapshot at trial 0
     state.mu_traj.append(state.mu.copy())
     state.sd_traj.append(_post_marg_sd(state.Sigma_post))
     state.p_pass_traj.append(_p_pass(state.mu, state.Sigma_post, ell_star))
 
     for n in range(cfg.N_max):
-        pending = [k for k in range(K) if state.decision[k] == "pending"]
+        pending = [k for k in range(K_) if state.decision[k] == "pending"]
         if not pending:
             break
         sel = select_next_case(state, bank_by_task, pending, used_segids,
@@ -389,7 +427,7 @@ def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
         update_state(state, k, s_val, Y)
         # check stopping
         p_pass_now = _p_pass(state.mu, state.Sigma_post, ell_star)
-        for kk in range(K):
+        for kk in range(K_):
             if state.decision[kk] != "pending":
                 continue
             if state.n_per_task[kk] < cfg.N_min_per_task:
@@ -406,7 +444,7 @@ def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
         state.p_pass_traj.append(p_pass_now)
 
     # anything still pending after N_max → refer
-    for kk in range(K):
+    for kk in range(K_):
         if state.decision[kk] == "pending":
             state.decision[kk] = "refer"
 
@@ -425,35 +463,53 @@ def load_deployment(uniform_ell_star: float | None = None):
     ℓ* is set by a tiny non-expert tail and is not deployment-realistic.
     For a deployable demo we anchor all tasks to spike's 0.62 cutoff.
     Pass `None` to use the per-task empirical thresholds.
+
+    K-agnostic (Phase 4.4-A): the task list+order is parsed
+    AUTHORITATIVELY from the Sigma slot-name index; ell_thresholds and
+    case_bank are cross-checked against it (fail-loud on mismatch). At
+    K=6 with the current frozen artifact the parsed list equals the
+    module default in the same order, so this is bit-identical to the
+    prior behaviour. Return signature unchanged (3-tuple) so committed
+    callers/studies are not perturbed.
     """
+    tasks = deployment_task_names()
     Sigma = pd.read_csv(DEPLOY / "Sigma.csv", index_col=0).values
-    bank  = pd.read_csv(DEPLOY / "case_bank.csv")
-    thr   = pd.read_csv(DEPLOY / "ell_thresholds.csv").set_index("task")
+    assert Sigma.shape == (2 * len(tasks), 2 * len(tasks)), (
+        f"Σ {Sigma.shape} inconsistent with {len(tasks)} parsed tasks")
+    bank = pd.read_csv(DEPLOY / "case_bank.csv")
+    thr  = pd.read_csv(DEPLOY / "ell_thresholds.csv").set_index("task")
+    missing = [t for t in tasks if t not in thr.index]
+    assert not missing, f"ell_thresholds.csv missing tasks: {missing}"
     if uniform_ell_star is not None:
-        ell_star = np.full(len(TASKS), float(uniform_ell_star))
+        ell_star = np.full(len(tasks), float(uniform_ell_star))
     else:
-        ell_star = np.array([float(thr.loc[t, "ell_star"]) for t in TASKS])
+        ell_star = np.array([float(thr.loc[t, "ell_star"]) for t in tasks])
     bank_by_task = {}
-    for ki, t in enumerate(TASKS):
-        bank_by_task[ki] = bank[bank.task == t][["seg_id", "s_mean", "s_sd"]].reset_index(drop=True)
+    for ki, t in enumerate(tasks):
+        sub = bank[bank.task == t][
+            ["seg_id", "s_mean", "s_sd"]].reset_index(drop=True)
+        assert len(sub) > 0, f"case_bank.csv has no items for task {t!r}"
+        bank_by_task[ki] = sub
     return Sigma, bank_by_task, ell_star
 
 
 # ───────────────────────── demo / smoke test ─────────────────────────
 
-def _build_demo_candidates():
-    """Synthetic candidates at predefined skill profiles."""
+def _build_demo_candidates(k_tasks):
+    """Synthetic candidates at predefined skill profiles. K-agnostic
+    (Phase 4.4-A): profiles are built for `k_tasks` (task-0 = spike;
+    tasks 1..K-1 = the IIIC group)."""
     profiles = {
-        "all_expert":     [(0.0, 1.5)] * K,
-        "all_novice":     [(0.0, -0.5)] * K,
-        "spike_strong_iiic_weak": [(0.0, 1.5)] + [(0.0, 0.0)] * 5,
-        "iiic_strong_spike_weak": [(0.0, -0.5)] + [(0.0, 1.5)] * 5,
-        "biased_expert":  [(0.5, 1.5)] * K,
-        "borderline":     [(0.0, 0.5)] * K,
+        "all_expert":     [(0.0, 1.5)] * k_tasks,
+        "all_novice":     [(0.0, -0.5)] * k_tasks,
+        "spike_strong_iiic_weak": [(0.0, 1.5)] + [(0.0, 0.0)] * (k_tasks - 1),
+        "iiic_strong_spike_weak": [(0.0, -0.5)] + [(0.0, 1.5)] * (k_tasks - 1),
+        "biased_expert":  [(0.5, 1.5)] * k_tasks,
+        "borderline":     [(0.0, 0.5)] * k_tasks,
     }
     out = {}
     for name, pairs in profiles.items():
-        theta = np.zeros(DIM)
+        theta = np.zeros(2 * k_tasks)
         for k, (t, l) in enumerate(pairs):
             theta[_slot(k, "t")] = t
             theta[_slot(k, "l")] = l
@@ -463,18 +519,19 @@ def _build_demo_candidates():
 
 def main():
     Sigma, bank_by_task, ell_star = load_deployment()
+    tasks = deployment_task_names()
     cfg = TestConfig.from_yaml()   # Phase 4.2: shipping-contract YAML
     rng = np.random.default_rng(0)
-    cands = _build_demo_candidates()
+    cands = _build_demo_candidates(len(tasks))
     print(f"ℓ* per task: " + ", ".join(f"{t}={es:+.2f}"
-                                          for t, es in zip(TASKS, ell_star)))
+                                          for t, es in zip(tasks, ell_star)))
     for name, theta in cands.items():
         state = simulate_candidate(theta, Sigma, ell_star, bank_by_task, cfg, rng)
         print(f"\n{name}:")
-        print(f"  decisions: {dict(zip(TASKS, state.decision))}")
-        print(f"  trials per task: {dict(zip(TASKS, state.n_per_task.tolist()))}")
+        print(f"  decisions: {dict(zip(tasks, state.decision))}")
+        print(f"  trials per task: {dict(zip(tasks, state.n_per_task.tolist()))}")
         print(f"  final mu (t, l):")
-        for k, t in enumerate(TASKS):
+        for k, t in enumerate(tasks):
             tt = state.mu[_slot(k, 't')]; ll = state.mu[_slot(k, 'l')]
             true_tt = theta[_slot(k, 't')]; true_ll = theta[_slot(k, 'l')]
             print(f"    {t:>8}: t̂={tt:+.2f} (true {true_tt:+.2f})  "
