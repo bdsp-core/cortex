@@ -58,6 +58,15 @@ DEPLOYMENT_PRIOR = os.path.join(_REPO, "data", "deployment_prior")
 #: (decision 2026-05-18; plan D2 "resolve three-lineage conflict").
 CALIB_CERT_CONFIG = os.path.join(_REPO, "calibration", "cert_config.yaml")
 
+#: Phase-4.2 deployment STOPPING-RULE shipping contract. The PI
+#: `TestConfig` dataclass (pass_p/fail_p/N_min/N_max/N_*_per_task)
+#: externalised to YAML so the clinical decision rule is an auditable
+#: artifact next to the deployment code (plan Phase 4 step 3). The
+#: dataclass defaults stay canonical; a drift-guard test asserts this
+#: file equals them (sim output bit-identical — Phase-4.2 gate).
+DEPLOYMENT_CONFIG = os.path.join(_REPO, "deployment",
+                                 "deployment_config.yaml")
+
 
 def sdt_fits_domain(domain):
     """Per-domain SDT-fits DataFrame, a drop-in for the legacy

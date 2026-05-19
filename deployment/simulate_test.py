@@ -56,11 +56,12 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 from scipy.stats import norm
 
 # ── path shim (mirrors bridge/run_mode_b_cert_bridge.py): self-locate the
@@ -253,6 +254,54 @@ class TestConfig:
     pass_p: float = 0.95
     fail_p: float = 0.05
 
+    # Phase 4.2: integer fields of the contract (the rest are floats).
+    _INT_FIELDS = ("N_min", "N_max", "N_min_per_task", "N_max_per_task")
+
+    @classmethod
+    def from_yaml(cls, path=None) -> "TestConfig":
+        """Load the deployment stopping-rule contract from
+        `deployment_config.yaml` (plan Phase 4 step 3).
+
+        STRICT (clinical pass/fail rule — no silent fallback): the YAML
+        key set must EXACTLY equal the dataclass fields and types must
+        match, else ValueError/TypeError. `path=None` resolves the
+        canonical `engine_paths.DEPLOYMENT_CONFIG`. The dataclass
+        defaults remain canonical; a drift-guard test asserts the YAML
+        equals them so deployment output is bit-identical to the
+        hardcoded-default path (Phase-4.2 gate).
+        """
+        p = (Path(path) if path is not None
+             else Path(engine_paths.DEPLOYMENT_CONFIG))
+        raw = yaml.safe_load(p.read_text())
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"{p}: deployment config must be a YAML mapping")
+        expected = {f.name for f in fields(cls)}
+        got = set(raw)
+        if got != expected:
+            raise ValueError(
+                f"{p}: deployment-config keys {sorted(got)} != contract "
+                f"{sorted(expected)} (missing={sorted(expected - got)}, "
+                f"unknown={sorted(got - expected)})")
+        kw = {}
+        for name in expected:
+            v = raw[name]
+            if isinstance(v, bool):  # bool is an int subclass — reject
+                raise TypeError(f"{p}: {name} must not be bool ({v!r})")
+            if name in cls._INT_FIELDS:
+                if not isinstance(v, int):
+                    raise TypeError(
+                        f"{p}: {name} must be int, got {type(v).__name__}"
+                        f" ({v!r})")
+            else:  # pass_p, fail_p
+                if not isinstance(v, (int, float)):
+                    raise TypeError(
+                        f"{p}: {name} must be float, got "
+                        f"{type(v).__name__} ({v!r})")
+                v = float(v)
+            kw[name] = v
+        return cls(**kw)
+
 
 def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
                         cfg: TestConfig, rng=None):
@@ -365,7 +414,7 @@ def _build_demo_candidates():
 
 def main():
     Sigma, bank_by_task, ell_star = load_deployment()
-    cfg = TestConfig()
+    cfg = TestConfig.from_yaml()   # Phase 4.2: shipping-contract YAML
     rng = np.random.default_rng(0)
     cands = _build_demo_candidates()
     print(f"ℓ* per task: " + ", ".join(f"{t}={es:+.2f}"

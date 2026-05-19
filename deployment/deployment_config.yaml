@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────
+# DEPLOYMENT STOPPING-RULE CONTRACT  (Phase 4.2, unified merge)
+#
+# The clinical adaptive-test PASS/FAIL/REFER decision rule, externalised
+# from the PI `simulate_test.TestConfig` dataclass so it is an auditable
+# shipping artifact (UNIFIED_REPO_MERGE_PLAN.md Phase 4 step 3).
+#
+# CONTRACT SEMANTICS (strict): `TestConfig.from_yaml()` requires the key
+# set below to EXACTLY equal the dataclass fields with matching types —
+# no silent fallback for a clinical pass/fail rule. The in-code dataclass
+# defaults remain the CANONICAL values; a drift-guard test asserts this
+# file equals them, so the deployment sim output is BIT-IDENTICAL to the
+# Phase-4.1 PI-faithful baseline (the Phase-4.2 gate). Values here MUST
+# stay exactly the PI defaults until a sub-step deliberately changes them
+# (each change separately gated + signed off).
+# ─────────────────────────────────────────────────────────────────────
+
+# Global trial budget.
+N_min: 60            # min total trials before the test may terminate
+N_max: 500           # hard cap on total trials (then remaining → REFER)
+
+# Per-task coverage / cap.
+N_min_per_task: 10   # a task's verdict stays PENDING below this many
+                     # trials regardless of posterior prob — prevents the
+                     # cross-task ℓ-ℓ prior block from forcing an early
+                     # verdict on a barely-probed task.
+N_max_per_task: 120  # per-task trial cap (then that task → REFER)
+
+# Per-task posterior decision thresholds on P(ℓ_k > ℓ*_k | data).
+pass_p: 0.95         # ≥ → PASS
+fail_p: 0.05         # ≤ → FAIL  (between → PENDING/continue)

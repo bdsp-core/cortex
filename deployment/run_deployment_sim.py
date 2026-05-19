@@ -88,7 +88,7 @@ def main(seed=0, out_dir=None):
     # Post-Kong: per-task IIIC AUROC is 0.93-0.96 so per-task ℓ*_k are
     # defensible. Use them rather than the old uniform 0.62 fallback.
     Sigma, bank_by_task, ell_star = st.load_deployment(uniform_ell_star=None)
-    cfg = st.TestConfig()
+    cfg = st.TestConfig.from_yaml()   # Phase 4.2: shipping-contract YAML
     rng = np.random.default_rng(seed)
     r_ell = float(np.mean([Sigma[1, 3], Sigma[1, 5], Sigma[3, 5]]))
     print(f"r_ell from prior = {r_ell:.3f}", flush=True)

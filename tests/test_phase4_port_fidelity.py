@@ -60,6 +60,61 @@ def test_deployment_imports_shape_and_config_defaults():
             c.pass_p, c.fail_p) == (60, 500, 10, 120, 0.95, 0.05)
 
 
+# ── Phase 4.2: shipping-contract YAML drift-guard + strictness ──────────────
+def test_deployment_config_yaml_equals_canonical_defaults():
+    """The Phase-4.2 gate, made explicit and cheap: the externalised
+    deployment_config.yaml MUST equal the canonical in-code PI defaults
+    field-for-field. This is what guarantees the runtime (which now
+    reads the YAML via TestConfig.from_yaml) produces sim output
+    BIT-IDENTICAL to the Phase-4.1 PI-faithful baseline."""
+    import engine_paths
+    from deployment import simulate_test as st
+    assert Path(engine_paths.DEPLOYMENT_CONFIG).is_file()
+    canon = st.TestConfig()                 # hardcoded PI defaults
+    contract = st.TestConfig.from_yaml()    # the shipping YAML
+    assert contract == canon, (
+        f"deployment_config.yaml drifted from canonical defaults: "
+        f"{contract} != {canon} — would change clinical decisions")
+    # exact values pinned (defence in depth vs both drifting together)
+    assert (contract.N_min, contract.N_max, contract.N_min_per_task,
+            contract.N_max_per_task, contract.pass_p, contract.fail_p
+            ) == (60, 500, 10, 120, 0.95, 0.05)
+
+
+def test_from_yaml_is_strict(tmp_path):
+    """Clinical contract: from_yaml rejects unknown/missing keys and
+    wrong types (no silent fallback for a pass/fail rule)."""
+    import yaml as _yaml
+    from deployment import simulate_test as st
+    good = dict(N_min=60, N_max=500, N_min_per_task=10,
+                N_max_per_task=120, pass_p=0.95, fail_p=0.05)
+
+    ok = tmp_path / "ok.yaml"
+    ok.write_text(_yaml.safe_dump(good))
+    assert st.TestConfig.from_yaml(ok) == st.TestConfig()
+
+    unknown = tmp_path / "unknown.yaml"
+    unknown.write_text(_yaml.safe_dump({**good, "surprise": 1}))
+    with pytest.raises(ValueError):
+        st.TestConfig.from_yaml(unknown)
+
+    missing = tmp_path / "missing.yaml"
+    drop = dict(good); drop.pop("fail_p")
+    missing.write_text(_yaml.safe_dump(drop))
+    with pytest.raises(ValueError):
+        st.TestConfig.from_yaml(missing)
+
+    badtype = tmp_path / "badtype.yaml"
+    badtype.write_text(_yaml.safe_dump({**good, "N_max": "lots"}))
+    with pytest.raises(TypeError):
+        st.TestConfig.from_yaml(badtype)
+
+    boolint = tmp_path / "boolint.yaml"
+    boolint.write_text(_yaml.safe_dump({**good, "N_min": True}))
+    with pytest.raises(TypeError):
+        st.TestConfig.from_yaml(boolint)
+
+
 def test_baseline_present_and_well_formed():
     assert BASELINE.exists(), "carried PI deployment sim baseline missing"
     b = pd.read_csv(BASELINE)
