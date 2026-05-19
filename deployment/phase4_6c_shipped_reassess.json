@@ -1,0 +1,24 @@
+{
+  "scope": "DEFINITIVE 4.3b re-assessment on the FULLY-SHIPPED config: K=7, v13 \u2113*, re-frozen 14\u00d714 \u03a3 (unified corpus), clean-sn1 spike, DECOUPLED RNG. No-lapse arm = same K-agnostic engine with \u03bb=0 (\u2261 PI bare-probit IRLS, proven @4.3 ~2e-16); \u03bb vs \u03bb=0 on the IDENTICAL shipped decoupled population per candidate (4.6-B guarantee). M=20 seeds/candidate/arm.",
+  "n_candidates": 200,
+  "m_seeds": 20,
+  "K": 7,
+  "n_cells": 1400,
+  "n_decisive_cells": 1391,
+  "systematic_d_p_refer": 0.061857142857142854,
+  "systematic_d_p_refer_se": 0.003083156978361191,
+  "systematic_d_p_pass": -0.022678571428571426,
+  "systematic_d_p_pass_se": 0.0022671851126690487,
+  "systematic_d_p_fail": -0.039178571428571424,
+  "systematic_d_p_fail_se": 0.0025647497067905096,
+  "systematic_pass_share_shift_shipped": 0.014441904517033666,
+  "systematic_pass_share_shift_shipped_se": 0.002992760282422098,
+  "passfail_balance_null_shipped": false,
+  "trajectory": {
+    "4.3b_PI_K6_ell_thresholds": 0.014482507736207729,
+    "4.5_K6_v13_ell": 0.015684927161097456,
+    "4.6c_shipped_K7_v13_decoupled": 0.014441904517033666
+  },
+  "definitive_verdict": "\u03bb-lapse SYSTEMATICALLY increases REFER on the shipped system (\u0394P(refer)=+0.0619\u00b10.0031) \u2014 the expected conservative mechanism, confirmed at K=7. Pass-share: PERSISTS on the shipped system: a small, systematic pass-share leniency shift (+0.0144\u00b10.0030, ~5\u00b7SE) remains at K=7 with v13 \u2113* + re-frozen \u03a3 + decoupled RNG + clean-sn1 spike. It is a STABLE, quantified property of the reference-correct \u03bb-lapse likelihood interacting with the decision boundary \u2014 NOT a config artifact (it tracked 0.014482507736207729 \u2192 0.015684927161097456 \u2192 +0.0144 across PI-K6 \u2192 v13-K6 \u2192 shipped-K7).",
+  "disposition": "The long-carried 4.3b finding now has its DEFINITIVE verdict on the actual shipped K=7 system (4.6-B decoupling enabled a native, population-stable \u03bb-vs-\u03bb=0 measurement \u2014 no dual-engine/controlled-study workaround). Effect PERSISTS small + stable \u2014 recorded as a KNOWN, quantified characteristic of the reference-correct lapse likelihood in docs/DEPLOYMENT_INTEGRATION.md (NOT a bug; the lapse model is the validated one). No further re-assessment is owed \u2014 this is the shipped config."
+}

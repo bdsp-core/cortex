@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–3.5
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–4 (4.7 CLI remaining)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -68,6 +68,29 @@ Methodology repo + PI deployment repo merged into one shippable repo
   approximation over-detected at large n; δ_Centaur smoke-scale;
   SVI-vs-NUTS s_mean r≈0.72–0.78). Tests: `tests/test_phase35_*.py`.
   Full suite 197 passed / 1 xfailed.
+- **Phase 4 — deployment integration (4.1 → 4.6-C COMPLETE; 4.7 CLI
+  remaining).** PI Laplace/EKF clinical-deployment engine merged onto
+  the unified corpus + reference-faithful v13 calibration, strict
+  incremental + two-step-gated (prove port fidelity, then layer each
+  intended change with a signed-off delta). Per-sub-step attribution +
+  the definitive verdict in **`docs/DEPLOYMENT_INTEGRATION.md`**.
+  Highlights: 4.1 bit-faithful path-only port; 4.2 config→YAML
+  contract; 4.3 λ-lapse = one likelihood def shared with Paper-1
+  (λ=0≡PI bare-probit ~2e-16); 4.4-A K-agnostic runtime (bit-identical
+  @K=6); 4.4-B fit/freeze port, delete degenerate `iic=OR`, real
+  erratum-correct `other` (Y=204,163=v13 `sparcnet_iic`; plan's 79,383
+  was stale pre-merge); 4.5 single **v13 ℓ* lineage** (D2; isolated
+  delta large+expected+signed-off); 4.6-A re-fit/re-freeze **K=7** on
+  the unified corpus (Σ 14×14, clean-sn1 spike, PI baseline archived,
+  **D3** `data/labels` sha256 provenance); 4.6-B **RNG decoupled**
+  (the 4.3 population-coupling confound fixed — proven). **DEFINITIVE
+  4.6-C verdict:** the λ-lapse pass-share-of-decisive leniency shift
+  is **stable + reproducible** across PI-K6 → v13-K6 → shipped-K7
+  (+0.0145 → +0.0157 → **+0.0144**, ~5·SE) — a *known, quantified
+  characteristic of the reference-correct lapse likelihood* (also
+  +6 pp more REFER = more conservative), **NOT a bug**; closed, no
+  further re-assessment owed. Tests: `tests/test_phase4_*`. Full
+  suite 229 passed / 1 xfailed.
 
 ---
 

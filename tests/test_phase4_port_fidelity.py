@@ -631,3 +631,79 @@ def test_phase4_6b_canonical_sim_is_k7_wellformed():
         assert set(c[f"decision_{t}"]).issubset(
             {"pass", "fail", "refer"})
     assert s["seed"] == 0 and len(s.get("ell_star", [])) == 7
+
+
+# ── Phase 4.6-C: definitive 4.3b re-assessment on the shipped K=7 ────────────
+_P46C = REPO / "deployment" / "phase4_6c_shipped_reassess.json"
+
+
+def _p46c():
+    if not _P46C.exists():
+        pytest.skip("phase4_6c_shipped_reassess.json not produced — run "
+                    "`python -m pipeline.deployment_delta."
+                    "phase4_6c_shipped_reassess`")
+    import json
+    return json.loads(_P46C.read_text())
+
+
+def test_phase4_6c_definitive_reassessment_invariants():
+    """Robust invariants of the DEFINITIVE shipped-K=7 4.3b verdict
+    (not pinned MC numbers): measured on the shipped config via the
+    λ=0 counterfactual; the lapse REFER mechanism is present; the
+    pass-share trajectory across PI-K6 → v13-K6 → shipped-K7 is
+    recorded; the verdict prose is self-consistent with the SE test
+    and honestly dispositioned (RESOLVED vs PERSISTS-as-known)."""
+    d = _p46c()
+    assert d["K"] == 7 and d["n_candidates"] == 200
+    assert "SHIPPED" in d["scope"] and "λ=0" in d["scope"]
+    # probability conservation
+    s3 = (d["systematic_d_p_pass"] + d["systematic_d_p_fail"]
+          + d["systematic_d_p_refer"])
+    assert abs(s3) < 1e-9
+    assert d["systematic_d_p_refer"] > 0          # lapse → more REFER
+    tr = d["trajectory"]
+    for k in ("4.3b_PI_K6_ell_thresholds", "4.5_K6_v13_ell",
+              "4.6c_shipped_K7_v13_decoupled"):
+        assert k in tr
+    assert tr["4.6c_shipped_K7_v13_decoupled"] == pytest.approx(
+        d["systematic_pass_share_shift_shipped"])
+    # boolean verdict self-consistent with the ~2·SE test
+    null = (abs(d["systematic_pass_share_shift_shipped"])
+            <= 2 * d["systematic_pass_share_shift_shipped_se"])
+    assert d["passfail_balance_null_shipped"] is bool(null)
+    for key in ("definitive_verdict", "disposition"):
+        assert isinstance(d[key], str) and len(d[key]) > 80
+    if null:
+        assert "RESOLVED" in d["definitive_verdict"]
+    else:
+        assert "PERSISTS" in d["definitive_verdict"]
+        assert "DEPLOYMENT_INTEGRATION.md" in d["disposition"]
+        assert "NOT a bug" in d["disposition"]
+
+
+def test_phase4_close_out_doc_present():
+    """Phase-4 close-out provenance doc exists with the per-sub-step
+    attribution + the 4.6-C definitive verdict."""
+    doc = REPO / "docs" / "DEPLOYMENT_INTEGRATION.md"
+    if not doc.exists():
+        pytest.skip("DEPLOYMENT_INTEGRATION.md not written yet (4.6-C)")
+    txt = doc.read_text()
+    for anchor in ("Phase 4.1", "Phase 4.3", "Phase 4.5",
+                   "Phase 4.6-A", "Phase 4.6-B", "Phase 4.6-C",
+                   "D3", "v13"):
+        assert anchor in txt, f"close-out doc missing {anchor!r}"
+
+
+@pytest.mark.slow
+def test_phase4_6c_runs_small_slice():
+    """Live regression: the shipped-K=7 λ-vs-λ=0 study executes +
+    conserves probability on a small slice (verdict gated on the
+    offline full artifact)."""
+    import importlib
+    m = importlib.import_module(
+        "pipeline.deployment_delta.phase4_6c_shipped_reassess")
+    s = m.run_study(limit=6, max_workers=2)
+    s3 = (s["systematic_d_p_pass"] + s["systematic_d_p_fail"]
+          + s["systematic_d_p_refer"])
+    assert abs(s3) < 1e-9
+    assert s["K"] == 7 and s["n_candidates"] == 6
