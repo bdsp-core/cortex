@@ -40,7 +40,13 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
 PRE_COMMIT = "26025fa"          # Phase 4.2 (pre-hardening) — pinned
-BASELINE = REPO / "data" / "deployment_prior" / "sim" / "candidates.csv"
+# Phase 4.6-A: this study is scoped "under PI ℓ* / PI fixed-θ
+# population". 4.6 regenerates the canonical deployment_prior on the
+# unified K=7 corpus, so the PI-lineage inputs were archived FROZEN
+# here; this study reads the archive to stay reproducible as a
+# historical study (NOT the regenerated canonical artifact).
+_PI = REPO / "data" / "deployment_prior" / "_pi_baseline_frozen"
+BASELINE = _PI / "candidates.csv"
 OUT = REPO / "deployment" / "phase4_3_hardening_delta.json"
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
 SEED_BASE = 70_000             # per-candidate paired seed offset
@@ -134,17 +140,20 @@ def run_study(limit: int | None = None) -> dict:
     from deployment import simulate_test as st_now      # hardened (4.3)
     st_pre = _load_pre_module()                          # PI-faithful 4.2
 
-    # identical inputs for both arms. ℓ* PINNED to the PI
-    # ell_thresholds.csv Youden lineage — this study's scope is "the
-    # lapse delta UNDER PI ℓ*". Phase 4.5 switched load_deployment to
-    # the v13 lineage; this study must NOT silently track that (the v13
-    # re-assessment is pipeline/deployment_delta/phase4_5_*). Σ/bank are
-    # the frozen artifact (ℓ*-lineage-independent) so taken from there.
-    Sigma, bank, _ = st_now.load_deployment(uniform_ell_star=None)
-    _thr = pd.read_csv(
-        REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
-    ).set_index("task")
+    # FULLY ARCHIVE-SELF-CONTAINED (Phase 4.6-A): this study's scope is
+    # "the lapse delta UNDER the PI K=6 frozen artifact (Σ/bank/ℓ*) +
+    # PI fixed-θ population". 4.6 regenerates the canonical
+    # deployment_prior on the unified K=7 corpus, so Σ/bank/ℓ* are read
+    # from the FROZEN PI archive (NOT st_now.load_deployment, which is
+    # now v13/K=7-bound). simulate_candidate is K-agnostic ⇒ runs K=6
+    # off the archived 12×12 Σ. cfg is the (stable) shipping contract.
+    _S = pd.read_csv(_PI / "Sigma.csv", index_col=0).values
+    _bk = pd.read_csv(_PI / "case_bank.csv")
+    bank = {ki: _bk[_bk.task == t][["seg_id", "s_mean", "s_sd"]]
+            .reset_index(drop=True) for ki, t in enumerate(TASKS)}
+    _thr = pd.read_csv(_PI / "ell_thresholds.csv").set_index("task")
     ell_star = np.array([float(_thr.loc[t, "ell_star"]) for t in TASKS])
+    Sigma = _S
     cfg = st_now.TestConfig.from_yaml()
     base = pd.read_csv(BASELINE)
     assert len(base) == 200
@@ -160,7 +169,7 @@ def run_study(limit: int | None = None) -> dict:
     dist_now = {t: Counter() for t in TASKS}
     # SINGLE deterministic pass (decisions are seed-deterministic).
     for i, r in base.iterrows():
-        theta = np.zeros(st_now.DIM)
+        theta = np.zeros(2 * len(TASKS))   # PI K=6 self-contained (4.6-A)
         for ki, t in enumerate(TASKS):
             theta[2 * ki] = float(r[f"true_t_{t}"])
             theta[2 * ki + 1] = float(r[f"true_ell_{t}"])

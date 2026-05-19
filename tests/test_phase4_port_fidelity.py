@@ -34,7 +34,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 DEPLOY_DIR = REPO / "deployment"
-BASELINE = REPO / "data" / "deployment_prior" / "sim" / "candidates.csv"
+# Phase 4.6-A: the PI K=6 baseline (the historical anchor for the
+# port-fidelity + 4.3/4.3b/4.5 controlled studies) was archived FROZEN
+# here before 4.6 regenerated the canonical deployment_prior on the
+# unified K=7 corpus. These tests assert the PI-baseline integrity, so
+# they read the archive (the canonical files are now the K=7 re-freeze).
+_PI = REPO / "data" / "deployment_prior" / "_pi_baseline_frozen"
+BASELINE = _PI / "candidates.csv"
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
 
 
@@ -52,12 +58,19 @@ def test_no_absolute_user_paths_in_deployment():
         offenders)
 
 
+_TASKS7 = ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"]
+
+
 def test_deployment_imports_shape_and_config_defaults():
     import engine_paths
     assert Path(engine_paths.DEPLOYMENT_PRIOR).is_dir()
     from deployment import simulate_test as st
-    assert st.TASKS == TASKS
-    assert st.K == 6 and st.DIM == 12
+    # Phase 4.6-A: the deployment RUNTIME is now K=7 (re-frozen on the
+    # unified corpus with the real "other"). The module-level TASKS in
+    # THIS test file (6-list) is the historical PI/archive population
+    # used by the archive-baseline tests — distinct from the runtime.
+    assert st.TASKS == _TASKS7
+    assert st.K == 7 and st.DIM == 14
     c = st.TestConfig()
     # the shipping contract — defaults must match PI EXACTLY
     assert (c.N_min, c.N_max, c.N_min_per_task, c.N_max_per_task,
@@ -358,12 +371,21 @@ def test_v13_single_ell_lineage_drift_guard():
     assert np.array_equal(ell, expect), (
         "deployment ℓ* != v13 cert_config — single-lineage broken")
     # the PI ell_thresholds Youden lineage must NOT be the source: its
-    # values differ materially, so ell must NOT equal it
+    # values differ materially, so ell must NOT equal it. (Read the
+    # FROZEN PI archive — 4.6 regenerated the canonical ell_thresholds
+    # on the unified K=7 corpus; the historical PI lineage lives in the
+    # archive.)
     thr = pd.read_csv(
-        REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
+        _PI / "ell_thresholds.csv"
     ).set_index("task")
-    pi = np.array([float(thr.loc[t, "ell_star"]) for t in tasks])
-    assert not np.allclose(ell, pi), (
+    # the PI K=6 archive has no "other" (7th task is post-K=6); compare
+    # only the tasks present in BOTH (the historical 6) — deployment
+    # v13 ℓ* must differ materially from PI's Youden lineage there.
+    common = [t for t in tasks if t in thr.index]
+    assert len(common) >= 6
+    ell_common = np.array([ell[tasks.index(t)] for t in common])
+    pi = np.array([float(thr.loc[t, "ell_star"]) for t in common])
+    assert not np.allclose(ell_common, pi), (
         "deployment ℓ* still equals PI ell_thresholds — v13 not wired")
     # load_deployment must NOT read ell_thresholds.csv as the ℓ* source
     # (the old code expression is gone; a docstring legacy-note mention
@@ -423,3 +445,116 @@ def test_phase4_5_runs_small_slice():
           + B["systematic_d_p_refer"])
     assert abs(s3) < 1e-9
     assert s["part_A_ell_lineage"]["n_candidates"] == 6
+
+
+# ── Phase 4.6-A: K=7 re-freeze on unified corpus + clean-sn1 spike +
+#    D3 provenance + PI-baseline archive integrity ─────────────────────────
+import engine_paths as _ep   # noqa: E402
+
+_DP = Path(_ep.DEPLOYMENT_PRIOR)
+
+
+def test_phase4_6a_k7_frozen_artifact_shape():
+    """The re-frozen deployment_prior is K=7: Σ 14×14 with 7 t_/l_
+    slot pairs incl 'other'; case_bank + ell_thresholds 7 tasks."""
+    S = pd.read_csv(_DP / "Sigma.csv", index_col=0)
+    assert S.shape == (14, 14)
+    assert list(S.index) == [
+        "t_spike", "l_spike", "t_seizure", "l_seizure", "t_lpd", "l_lpd",
+        "t_gpd", "l_gpd", "t_lrda", "l_lrda", "t_grda", "l_grda",
+        "t_other", "l_other"]
+    bank = pd.read_csv(_DP / "case_bank.csv")
+    assert set(bank.task.unique()) == set(_TASKS7)
+    thr = pd.read_csv(_DP / "ell_thresholds.csv")
+    assert list(thr.task) == _TASKS7
+
+
+def test_phase4_6a_runtime_is_k7_v13_live():
+    """load_deployment now returns K=7 with the v13 ℓ* for ALL 7 incl
+    other←sparcnet_iic (the 7th is LIVE post-re-freeze)."""
+    import numpy as np
+    import yaml
+    from deployment import simulate_test as st
+    tasks = st.deployment_task_names()
+    assert tasks == _TASKS7
+    S, bank, ell = st.load_deployment(uniform_ell_star=None)
+    assert S.shape == (14, 14) and len(bank) == 7 and len(ell) == 7
+    cfg = yaml.safe_load(Path(_ep.CALIB_CERT_CONFIG).read_text())
+    v13 = cfg["ell_star_unified_v13"]["tasks"]
+    exp = np.array([float(v13[st._V13_TASK_KEY[t]]["ell_star"])
+                    for t in tasks])
+    assert np.array_equal(ell, exp)
+    # the 7th task IS the real "other" ← v13 sparcnet_iic, now live
+    assert tasks[6] == "other"
+    assert ell[6] == pytest.approx(
+        float(v13["sparcnet_iic"]["ell_star"]))
+
+
+def test_phase4_6a_clean_sn1_spike_consistent_with_v13():
+    """fit_2pl_probit's spike is now clean-sn1-only (Centaur-IED
+    excluded) — its positive count == the v13 combined_spike / Phase-3
+    sn1-binary definition, and identical to fit_2pl_probit_hier's
+    spike (the bank now shares one population with its v13 ℓ*)."""
+    labels_csv = REPO / "data" / "labels" / "labels.csv"
+    if not labels_csv.exists():
+        pytest.skip("unified labels.csv absent")
+    import sys as _sys
+    _sys.path.insert(0, str(REPO / "pipeline"))
+    import fit_2pl_probit as f
+    import fit_2pl_probit_hier as h
+    L = pd.read_csv(labels_csv, low_memory=False, dtype={"value": "str"})
+    spv = L[L.label_type == "spike"].value.astype(str).str.strip()
+    expect_pos = int((spv == "1").sum())          # Phase-3 sn1 binary
+    assert expect_pos > 0
+    sf = f.extract_task_labels(L, "spike")
+    sh = h.extract_task_labels(L, "spike")
+    assert int(sf.Y.sum()) == expect_pos, (
+        "fit_2pl_probit spike not clean-sn1 (Centaur-IED leaked in?)")
+    assert int(sh.Y.sum()) == expect_pos
+    # no Centaur 6-class string ever counted positive
+    src = (REPO / "pipeline" / "fit_2pl_probit.py").read_text()
+    assert 'isin(["spike", "ied"])' not in src
+    assert "pd.to_numeric(sub[\"value\"]" in src
+
+
+def test_phase4_6a_d3_provenance_anchors_unified_corpus():
+    """deployment_prior summary.json records data/labels sha256 (D3:
+    derived-artifact lineage) and it matches the LIVE corpus."""
+    import hashlib
+    import json
+
+    def _sha(p):
+        x = hashlib.sha256()
+        with open(p, "rb") as fh:
+            for c in iter(lambda: fh.read(1 << 20), b""):
+                x.update(c)
+        return x.hexdigest()
+    s = json.loads((_DP / "summary.json").read_text())
+    assert s["K"] == 7 and s["tasks"] == _TASKS7
+    pv = s["data_labels_provenance"]
+    assert pv["labels_csv_sha256"] == _sha(
+        REPO / "data" / "labels" / "labels.csv")
+    assert pv["raters_csv_sha256"] == _sha(
+        REPO / "data" / "labels" / "raters.csv")
+    assert "v13 cert_config" in pv["ell_star_lineage"]
+
+
+def test_phase4_6a_pi_baseline_archive_intact():
+    """The frozen PI K=6 archive (the historical anchor for the
+    repointed 4.3/4.3b/4.5 studies) is present + well-formed."""
+    A = _DP / "_pi_baseline_frozen"
+    assert (A / "README.md").is_file()
+    Sig = pd.read_csv(A / "Sigma.csv", index_col=0)
+    assert Sig.shape == (12, 12)                  # PI K=6
+    cand = pd.read_csv(A / "candidates.csv")
+    assert len(cand) == 200
+    thr = pd.read_csv(A / "ell_thresholds.csv")
+    assert set(thr.task) == set(TASKS)            # 6-list, no "other"
+    assert not (data_iic := (_DP / "_pi_baseline_frozen" / "iic")).exists()
+
+
+def test_phase4_6a_stale_iic_orphan_removed():
+    """The PI degenerate-OR per-task fit dir is gone (ported fitter
+    writes fits/other; fits/iic would be a dead orphan)."""
+    assert not (REPO / "data" / "labels" / "fits" / "iic").exists()
+    assert (REPO / "data" / "labels" / "fits" / "other").is_dir()

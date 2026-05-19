@@ -1,5 +1,5 @@
 {
-  "r_ell": 0.32597281907588627,
+  "r_ell": 0.36656350316581954,
   "rho": 0.0,
   "t_t_offdiag": 0.0,
   "sigma_t": 1.0,
@@ -10,27 +10,29 @@
     "lpd",
     "gpd",
     "lrda",
-    "grda"
+    "grda",
+    "other"
   ],
-  "K": 6,
-  "DIM": 12,
+  "K": 7,
+  "DIM": 14,
   "source_block_fit": "data/labels/fits_hier_block",
   "block_summary": {
     "variant": "block",
-    "r_hat": 0.1629864095379432,
+    "r_hat": 0.1832817515829098,
     "rho_hat": 0.0,
-    "r_iiic_hat": 0.2655904786138297,
-    "r_cross_hat": 0.44673749999999995,
-    "K": 6,
+    "r_iiic_hat": 0.3344939044321473,
+    "r_cross_hat": 0.4467375,
+    "K": 7,
     "tasks": [
       "spike",
       "seizure",
       "lpd",
       "gpd",
       "lrda",
-      "grda"
+      "grda",
+      "other"
     ],
-    "wall_time_s": 61.482065792079084,
+    "wall_time_s": 93.21954954199464,
     "max_outer": 25,
     "min_raters_per_case": 3,
     "min_labels_per_rater": 100,
@@ -39,43 +41,56 @@
     "ridge": 0.05
   },
   "n_cases_per_task": {
-    "spike": 22346,
+    "spike": 17346,
     "seizure": 40984,
     "lpd": 30476,
     "gpd": 30476,
     "lrda": 39747,
-    "grda": 40701
+    "grda": 40701,
+    "other": 30869
   },
   "thresholds": {
     "spike": {
-      "ell_star": 0.6577660336583199,
-      "youden_j": 0.580304489108196,
-      "auroc": 0.8143428812131424
+      "ell_star": 0.6236226969038786,
+      "youden_j": 0.6132769901853872,
+      "auroc": 0.8471748909487459
     },
     "seizure": {
-      "ell_star": 0.9692217203097414,
-      "youden_j": 0.4565637480139133,
-      "auroc": 0.7973762184910036
+      "ell_star": 0.9762201196288276,
+      "youden_j": 0.46577393685291346,
+      "auroc": 0.8093608282707282
     },
     "lpd": {
-      "ell_star": 0.3565433370986948,
-      "youden_j": 0.8948685857321652,
-      "auroc": 0.9588652482269504
+      "ell_star": 0.4163624273991879,
+      "youden_j": 0.8940149625935162,
+      "auroc": 0.9601413133832086
     },
     "gpd": {
-      "ell_star": 0.2658563894237251,
-      "youden_j": 0.8743781094527363,
-      "auroc": 0.9269485903814262
+      "ell_star": 1.5254441123871083,
+      "youden_j": 0.885997521685254,
+      "auroc": 0.929946303180504
     },
     "lrda": {
-      "ell_star": 0.080047406060626,
-      "youden_j": 0.8206724782067247,
-      "auroc": 0.9329916658683782
+      "ell_star": 0.6156819394780378,
+      "youden_j": 0.7866004962779156,
+      "auroc": 0.9336466882992938
     },
     "grda": {
-      "ell_star": 0.6179828028499886,
-      "youden_j": 0.8467857142857143,
-      "auroc": 0.94859375
+      "ell_star": 1.44823147849892,
+      "youden_j": 0.8281222202455079,
+      "auroc": 0.9485856609144281
+    },
+    "other": {
+      "ell_star": 0.0499391981936062,
+      "youden_j": 0.8060075093867334,
+      "auroc": 0.9243005369615245
     }
+  },
+  "data_labels_provenance": {
+    "labels_csv_sha256": "f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b",
+    "raters_csv_sha256": "bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f",
+    "labels_csv_path": "data/labels/labels.csv",
+    "raters_csv_path": "data/labels/raters.csv",
+    "ell_star_lineage": "v13 cert_config (ell_star_unified_v13) \u2014 see calibration/cert_config.yaml; ell_thresholds.csv here is PI-Youden legacy provenance, NOT consumed."
   }
 }

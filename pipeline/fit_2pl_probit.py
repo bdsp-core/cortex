@@ -37,8 +37,13 @@ PI scripts/fit_2pl_probit.py. Documented, auditable changes vs PI:
     UNIFIED corpus the "other" positive count is 204,163 (= Phase-3
     sparcnet_iic), NOT the plan's stale pre-merge 79,383 (PI's old
     value=='other' on a smaller corpus).
-UN-EXERCISED until Phase 4.6 (no K=7 sim per the locked 4.4 scope);
-gated here by faithful-port diff + OR-iic-gone + Y_other count.
+Phase 4.6-A (2026-05-19) additionally makes the "spike" branch
+CLEAN-SN1-ONLY (Centaur-IED EXCLUDED) — consistent with v13
+combined_spike (the Phase-3.5 spike un-fold) and with
+fit_2pl_probit_hier; so the deployment spike BANK shares one
+population with its v13 ℓ*. Deliberate v13-consistency correction to
+the port (cf. erratum-correct "other"), not a faithful-PI deviation
+bug. 4.6-A EXERCISES this script (re-fit on the unified corpus).
 """
 from __future__ import annotations
 
@@ -84,18 +89,19 @@ def extract_task_labels(labels: pd.DataFrame, task: str) -> pd.DataFrame:
     """Return long-form (seg_id, rater_id, Y) for the given binary task."""
     if task == "spike":
         sub = labels[labels.label_type == "spike"].copy()
-        # Two flavours of spike value in the unified labels:
-        #   - sn1_combined_v2 uses "0" / "1" (binary spike/no-spike)
-        #   - centaur_2025_ied uses 6 string classes
-        #     (spike / vertex wave / posts / wickets / bets / non-spike)
-        # Binarise the string classes: anything labelled "spike" → 1, else 0.
-        v = sub["value"]
-        as_num = pd.to_numeric(v, errors="coerce")
-        as_str = v.fillna("").astype(str).str.strip().str.lower()
-        # Centaur's IED contest uses "ied" as the positive-class label; older
-        # sn1 data uses literal 0/1. Treat either name as spike-positive.
-        is_pos = as_str.isin(["spike", "ied"]).astype(float)
-        sub["Y"] = as_num.fillna(is_pos)
+        # Phase 4.6-A (decision 2026-05-19): CLEAN-SN1-ONLY spike, made
+        # CONSISTENT with v13 `combined_spike` (the Phase-3.5 spike
+        # UN-FOLD: Centaur-IED is EXCLUDED from the spike cert task) AND
+        # with fit_2pl_probit_hier's spike (`pd.to_numeric`). The PI
+        # port's "treat Centaur 'ied'/'spike' strings as positive" is
+        # REMOVED so the deployment spike BANK shares ONE population
+        # with its ℓ* (v13 combined_spike = clean sn1 binary). sn1 is
+        # literal "0"/"1" → numeric; Centaur 6-class strings →
+        # to_numeric NaN → dropped by the trailing .dropna(). This is a
+        # deliberate v13-consistency correction to the faithful port
+        # (cf. the erratum-correct "other" in 4.4-B), documented here
+        # and in the provenance header.
+        sub["Y"] = pd.to_numeric(sub["value"], errors="coerce")
     else:
         sub = labels[labels.label_type == "pattern_class"].copy()
         if task == "other":

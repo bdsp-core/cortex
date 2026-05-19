@@ -97,12 +97,14 @@ _ONE_MINUS_2LAMBDA = 1.0 - 2.0 * LAPSE_RATE
 # Phase 4.4-A: the engine is now K-AGNOSTIC — it derives K/DIM from the
 # loaded artifact's array shapes (Σ.shape ⇒ DIM, DIM//2 ⇒ K) so it scales
 # to the K=7 deployment_prior that Phase 4.6 will produce. These
-# module-level constants are kept ONLY as the DEFAULT reflecting the
-# CURRENTLY-SHIPPED K=6 frozen artifact (back-compat for callers/studies
-# that are inherently K=6); the AUTHORITATIVE ordered task list comes
+# module-level constants are the DEFAULT reflecting the CURRENTLY-
+# SHIPPED frozen artifact; the AUTHORITATIVE ordered task list comes
 # from `deployment_task_names()` (parsed from the Σ slot-name index). A
 # drift-guard test asserts these defaults equal the artifact.
-TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
+# Phase 4.6-A: the deployment_prior was re-frozen on the unified corpus
+# at K=7 (Σ 14×14, real "other"), so the default is now the 7-list (it
+# tracks the shipped artifact, as the drift-guard requires).
+TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"]
 K = len(TASKS)
 DIM = 2 * K
 

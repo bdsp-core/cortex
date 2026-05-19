@@ -29,6 +29,7 @@ UN-EXERCISED until Phase 4.6 (no re-freeze run per the locked 4.4
 scope — 4.6 runs this on the unified corpus with v13 ℓ*).
 """
 from __future__ import annotations
+import hashlib   # Phase 4.6-A: D3 data/labels lineage provenance
 import json
 from pathlib import Path
 
@@ -40,6 +41,19 @@ FITS = ROOT / "data/labels/fits"
 HIER_BLOCK = ROOT / "data/labels/fits_hier_block"
 OUT = ROOT / "data/deployment_prior"
 OUT.mkdir(parents=True, exist_ok=True)
+# Phase 4.6-A: the unified source corpus the fitters consume — its
+# sha256 anchors the D3 derived-artifact lineage (same data/labels
+# engine_inputs derives from; see data/DATA_PROVENANCE.md).
+_LABELS_CSV = ROOT / "data/labels/labels.csv"
+_RATERS_CSV = ROOT / "data/labels/raters.csv"
+
+
+def _sha256(p: Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for blk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(blk)
+    return h.hexdigest()
 
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"]
 K = len(TASKS)
@@ -176,6 +190,23 @@ def main():
             "youden_j": row["youden_j"],
             "auroc": row["auroc_expert_vs_nonexpert"],
         } for row in thresh_rows},
+        # Phase 4.6-A (D3): deployment_prior is a DERIVED artifact of
+        # the unified data/labels corpus — the SAME corpus engine_inputs
+        # derives from (cross-ref data/DATA_PROVENANCE.md +
+        # data/engine_inputs/MANIFEST.json). These sha256 anchor the
+        # shared lineage; re-running this freeze reproduces the artifact
+        # from exactly these inputs. NOTE: ell_thresholds.csv is the
+        # PI-Youden LEGACY provenance only — load_deployment consumes
+        # the v13 cert_config ℓ* (single lineage, Phase 4.5), NOT this.
+        "data_labels_provenance": {
+            "labels_csv_sha256": _sha256(_LABELS_CSV),
+            "raters_csv_sha256": _sha256(_RATERS_CSV),
+            "labels_csv_path": str(_LABELS_CSV.relative_to(ROOT)),
+            "raters_csv_path": str(_RATERS_CSV.relative_to(ROOT)),
+            "ell_star_lineage": "v13 cert_config (ell_star_unified_v13) "
+            "— see calibration/cert_config.yaml; ell_thresholds.csv "
+            "here is PI-Youden legacy provenance, NOT consumed.",
+        },
     }
     with open(OUT / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)

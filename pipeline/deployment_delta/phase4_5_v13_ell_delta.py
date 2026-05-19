@@ -41,8 +41,13 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 PRE_COMMIT = "26025fa"          # Phase 4.2 (pre-hardening) engine — pinned
-BASELINE = _REPO / "data" / "deployment_prior" / "sim" / "candidates.csv"
-ELL_THR = _REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
+# Phase 4.6-A: this historical K=6 study (PI ell_thresholds vs v13 ℓ*
+# on the PI K=6 Σ/bank/population) reads the FROZEN PI archive — 4.6
+# regenerates the canonical deployment_prior on the unified K=7 corpus.
+# (v13 ℓ* still comes from cert_config, which 4.6 does NOT touch.)
+_PI = _REPO / "data" / "deployment_prior" / "_pi_baseline_frozen"
+BASELINE = _PI / "candidates.csv"
+ELL_THR = _PI / "ell_thresholds.csv"
 MC_4_3B = _REPO / "deployment" / "phase4_3_hardening_delta_mc.json"
 OUT = _REPO / "deployment" / "phase4_5_v13_ell_delta.json"
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
@@ -72,15 +77,22 @@ def _ensure_state():
         return _STATE
     from deployment import simulate_test as st_now
     st_pre = _load_pre_module()
-    Sigma, bank, _ = st_now.load_deployment(uniform_ell_star=None)
+    # FULLY ARCHIVE-SELF-CONTAINED (Phase 4.6-A): PI K=6 Σ/bank from
+    # the frozen archive (NOT st_now.load_deployment, now K=7); θ sized
+    # from this study's own 6-list TASKS (NOT st_now.DIM, now 14).
+    _S = pd.read_csv(_PI / "Sigma.csv", index_col=0).values
+    _bk = pd.read_csv(_PI / "case_bank.csv")
+    Sigma = _S
+    bank = {ki: _bk[_bk.task == t][["seg_id", "s_mean", "s_sd"]]
+            .reset_index(drop=True) for ki, t in enumerate(TASKS)}
     cfg = st_now.TestConfig.from_yaml()
     base = pd.read_csv(BASELINE)
-    theta = np.zeros((len(base), st_now.DIM))
+    theta = np.zeros((len(base), 2 * len(TASKS)))
     for i, r in base.iterrows():
         for ki, t in enumerate(TASKS):
             theta[i, 2 * ki] = float(r[f"true_t_{t}"])
             theta[i, 2 * ki + 1] = float(r[f"true_ell_{t}"])
-    ell_v13 = st_now.v13_ell_star(TASKS)
+    ell_v13 = st_now.v13_ell_star(TASKS)   # cert_config (4.6 untouched)
     thr = pd.read_csv(ELL_THR).set_index("task")
     ell_pi = np.array([float(thr.loc[t, "ell_star"]) for t in TASKS])
     _STATE.update(st_now=st_now, st_pre=st_pre, Sigma=Sigma, bank=bank,

@@ -1,15 +1,15 @@
 {
   "task": "spike",
-  "n_labels_raw": 1131709,
-  "n_labels_fit": 1066929,
-  "n_cases": 22346,
-  "n_raters": 1215,
+  "n_labels_raw": 964206,
+  "n_labels_fit": 910040,
+  "n_cases": 17346,
+  "n_raters": 1076,
   "min_raters_per_case": 3,
   "min_labels_per_rater": 100,
   "sigma_s_eb": 2.0,
   "sigma_t_eb": 1.0,
   "sigma_l_eb": 1.0,
-  "final_neg_log_post": 312703.26160595467,
-  "iters": 30,
-  "wall_time_s": 8.8
+  "final_neg_log_post": 273711.51376481703,
+  "iters": 26,
+  "wall_time_s": 6.5
 }

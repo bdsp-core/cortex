@@ -1,0 +1,15 @@
+{
+  "task": "other",
+  "n_labels_raw": 962467,
+  "n_labels_fit": 823754,
+  "n_cases": 30869,
+  "n_raters": 830,
+  "min_raters_per_case": 3,
+  "min_labels_per_rater": 100,
+  "sigma_s_eb": 2.0,
+  "sigma_t_eb": 1.0,
+  "sigma_l_eb": 1.0,
+  "final_neg_log_post": 257667.2978253498,
+  "iters": 7,
+  "wall_time_s": 1.8
+}

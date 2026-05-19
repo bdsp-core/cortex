@@ -45,7 +45,10 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 PRE_COMMIT = "26025fa"          # Phase 4.2 (pre-hardening) — pinned
-BASELINE = _REPO / "data" / "deployment_prior" / "sim" / "candidates.csv"
+# Phase 4.6-A: scoped to the FROZEN PI K=6 baseline (4.6 regenerates
+# the canonical deployment_prior on the unified K=7 corpus).
+_PI = _REPO / "data" / "deployment_prior" / "_pi_baseline_frozen"
+BASELINE = _PI / "candidates.csv"
 OUT = _REPO / "deployment" / "phase4_3_hardening_delta_mc.json"
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
 M_SEEDS = 20                    # seeds per candidate per arm
@@ -75,19 +78,21 @@ def _ensure_state():
         return _STATE
     from deployment import simulate_test as st_now
     st_pre = _load_pre_module()
-    # Σ/bank from the frozen artifact (unaffected by the ℓ*-lineage);
-    # ℓ* PINNED to the PI ell_thresholds.csv Youden lineage — this
-    # study's scientific scope is "the lapse delta UNDER PI ℓ*"
-    # (Phase 4.5 switched load_deployment to v13; this study must NOT
-    # silently track that — the v13 re-assessment is phase4_5_*).
-    Sigma, bank, _ = st_now.load_deployment(uniform_ell_star=None)
-    _thr = pd.read_csv(
-        _REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
-    ).set_index("task")
+    # FULLY ARCHIVE-SELF-CONTAINED (Phase 4.6-A): scope = "the lapse
+    # delta UNDER the PI K=6 frozen artifact (Σ/bank/ℓ*) + PI fixed-θ
+    # population". Σ/bank/ℓ* from the FROZEN PI archive (NOT
+    # st_now.load_deployment, now v13/K=7-bound); simulate_candidate is
+    # K-agnostic ⇒ runs K=6 off the archived 12×12 Σ.
+    _S = pd.read_csv(_PI / "Sigma.csv", index_col=0).values
+    _bk = pd.read_csv(_PI / "case_bank.csv")
+    bank = {ki: _bk[_bk.task == t][["seg_id", "s_mean", "s_sd"]]
+            .reset_index(drop=True) for ki, t in enumerate(TASKS)}
+    _thr = pd.read_csv(_PI / "ell_thresholds.csv").set_index("task")
     ell_star = np.array([float(_thr.loc[t, "ell_star"]) for t in TASKS])
+    Sigma = _S
     cfg = st_now.TestConfig.from_yaml()
     base = pd.read_csv(BASELINE)
-    theta = np.zeros((len(base), st_now.DIM))
+    theta = np.zeros((len(base), 2 * len(TASKS)))   # PI K=6 (4.6-A)
     for i, r in base.iterrows():
         for ki, t in enumerate(TASKS):
             theta[i, 2 * ki] = float(r[f"true_t_{t}"])

@@ -1,15 +1,15 @@
 {
   "task": "gpd",
-  "n_labels_raw": 942467,
-  "n_labels_fit": 803569,
+  "n_labels_raw": 962467,
+  "n_labels_fit": 823569,
   "n_cases": 30476,
-  "n_raters": 834,
+  "n_raters": 837,
   "min_raters_per_case": 3,
   "min_labels_per_rater": 100,
   "sigma_s_eb": 2.0,
   "sigma_t_eb": 1.0,
   "sigma_l_eb": 1.0,
-  "final_neg_log_post": 201878.58592592258,
-  "iters": 4,
-  "wall_time_s": 1.0
+  "final_neg_log_post": 199877.39004789258,
+  "iters": 40,
+  "wall_time_s": 9.2
 }

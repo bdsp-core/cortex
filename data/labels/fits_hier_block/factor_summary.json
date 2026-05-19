@@ -1,19 +1,20 @@
 {
   "variant": "block",
-  "r_hat": 0.1629864095379432,
+  "r_hat": 0.1832817515829098,
   "rho_hat": 0.0,
-  "r_iiic_hat": 0.2655904786138297,
-  "r_cross_hat": 0.44673749999999995,
-  "K": 6,
+  "r_iiic_hat": 0.3344939044321473,
+  "r_cross_hat": 0.4467375,
+  "K": 7,
   "tasks": [
     "spike",
     "seizure",
     "lpd",
     "gpd",
     "lrda",
-    "grda"
+    "grda",
+    "other"
   ],
-  "wall_time_s": 61.482065792079084,
+  "wall_time_s": 93.21954954199464,
   "max_outer": 25,
   "min_raters_per_case": 3,
   "min_labels_per_rater": 100,
