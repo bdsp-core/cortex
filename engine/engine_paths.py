@@ -45,6 +45,19 @@ SIGMA_L = os.path.join(_REPO, "Sigma_l_fitted.npy")
 #: Hand-maintained config. Canonical location is the repo root.
 CERT_CONFIG = os.path.join(_REPO, "cert_config.yaml")
 
+#: Phase-4 deployment integration. The frozen clinical-deployment
+#: artifact (Σ prior, case bank, ℓ* thresholds, reference sim). PI
+#: scripts hardcoded `/Users/mwestover/.../data/deployment_prior`;
+#: resolved here so the ported deployment runtime carries zero
+#: absolute paths (UNIFIED_REPO_MERGE_PLAN.md Phase 4 step 2).
+DEPLOYMENT_PRIOR = os.path.join(_REPO, "data", "deployment_prior")
+
+#: Phase-3.5 unified reference-faithful calibration (config_version 13,
+#: 7 per-task ℓ*). The repo-root `cert_config.yaml` (CERT_CONFIG) is the
+#: untouched legacy v11; deployment consumes THIS v13 single lineage
+#: (decision 2026-05-18; plan D2 "resolve three-lineage conflict").
+CALIB_CERT_CONFIG = os.path.join(_REPO, "calibration", "cert_config.yaml")
+
 
 def sdt_fits_domain(domain):
     """Per-domain SDT-fits DataFrame, a drop-in for the legacy

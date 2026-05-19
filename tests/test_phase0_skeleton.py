@@ -26,13 +26,14 @@ EXPECTED_DIRS = [
 PACKAGES = ["engine", "engine.variants", "deployment", "pipeline",
             "calibration", "bridge"]
 # (module, fn, phase, is_stub).  Phase 2 wired ilae-paper to the REAL
-# Mode-A bridge; ilae-calibrate (Phase 3) / ilae-deploy (Phase 4) remain
-# loud stubs until their phases.
+# Mode-A bridge; Phase 4.1 wired ilae-deploy to the REAL ported
+# deployment simulator. ilae-calibrate (Phase 3) remains a loud stub
+# (its real impl is the calibration orchestrator, not this entry point).
 ENTRY_POINTS = {
     "ilae-paper": ("bridge.run_multi_auroc_bridge", "main", "Phase 2", False),
     "ilae-calibrate": ("calibration.run_youden_calibration", "main",
                        "Phase 3", True),
-    "ilae-deploy": ("deployment.run_deployment_sim", "main", "Phase 4", True),
+    "ilae-deploy": ("deployment.run_deployment_sim", "main", "Phase 4", False),
 }
 
 
