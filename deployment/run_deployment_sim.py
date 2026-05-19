@@ -93,7 +93,14 @@ def main(seed=0, out_dir=None):
     tasks = st.deployment_task_names()       # AUTHORITATIVE (4.4-A)
     k_tasks = len(tasks)
     cfg = st.TestConfig.from_yaml()   # Phase 4.2: shipping-contract YAML
-    rng = np.random.default_rng(seed)
+    # Phase 4.6-B: RNG DECOUPLED. The PI design threaded ONE shared rng
+    # through BOTH θ-generation AND the per-trial Y-draws, so a
+    # likelihood/config change reshuffled the synthetic population
+    # (the 4.3 confound). Now each candidate gets two INDEPENDENT
+    # substreams from SeedSequence([seed, cand_id]).spawn(2): θ-gen and
+    # Y-draws. Candidate i's θ is a pure function of (seed, i) —
+    # INVARIANT to trial counts / likelihood / config (the decoupling
+    # guarantee). Deterministic + order-independent at any seed.
     r_ell = float(np.mean([Sigma[1, 3], Sigma[1, 5], Sigma[3, 5]]))
     print(f"r_ell from prior = {r_ell:.3f}  (K={k_tasks})", flush=True)
     print(f"per-task ℓ* = {dict(zip(tasks, np.round(ell_star, 3)))}", flush=True)
@@ -107,9 +114,17 @@ def main(seed=0, out_dir=None):
     for tier, tcfg in TIERS.items():
         print(f"\n=== {tier} (n={tcfg['n']}) ===", flush=True)
         for j in range(tcfg["n"]):
-            theta = sample_candidate_theta(tcfg, r_ell, rng, k_tasks)
-            state = st.simulate_candidate(theta, Sigma, ell_star,
-                                            bank_by_task, cfg, rng)
+            # Independent per-candidate substreams (decoupled, 4.6-B):
+            # θ-gen depends ONLY on (seed, cand_id); Y-draws on a
+            # separate independent stream — never on prior candidates'
+            # trial counts.
+            _theta_ss, _y_ss = np.random.SeedSequence(
+                [seed, cand_id]).spawn(2)
+            theta = sample_candidate_theta(
+                tcfg, r_ell, np.random.default_rng(_theta_ss), k_tasks)
+            state = st.simulate_candidate(
+                theta, Sigma, ell_star, bank_by_task, cfg,
+                np.random.default_rng(_y_ss))
             row = {"cand_id": cand_id, "tier": tier}
             for ki, t in enumerate(tasks):
                 row[f"true_t_{t}"]  = theta[2 * ki]

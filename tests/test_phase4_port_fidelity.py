@@ -558,3 +558,76 @@ def test_phase4_6a_stale_iic_orphan_removed():
     writes fits/other; fits/iic would be a dead orphan)."""
     assert not (REPO / "data" / "labels" / "fits" / "iic").exists()
     assert (REPO / "data" / "labels" / "fits" / "other").is_dir()
+
+
+# ── Phase 4.6-B: RNG-decouple in run_deployment_sim ─────────────────────────
+@pytest.mark.slow
+def test_phase4_6b_rng_decoupled_population_invariant():
+    """THE 4.6-B gate: per-candidate θ is a pure function of
+    (seed, cand_id) — INVARIANT to the stopping config / trial counts
+    (the 4.3 shared-rng confound is fixed). Tiny panel; perturbing the
+    config must NOT reshuffle the θ-population, yet decisions still
+    respond to it, and a rerun is bit-identical."""
+    import tempfile
+    import numpy as np
+    import pandas as pd
+    from deployment import run_deployment_sim as rds
+    from deployment import simulate_test as st
+    _T, _cfg = rds.TIERS, st.TestConfig.from_yaml
+    try:
+        rds.TIERS = {
+            "expert": dict(n=3, mu_ell=1.6, sd_within=.3, mu_t=0, sd_t=.2),
+            "crowd":  dict(n=3, mu_ell=-.3, sd_within=.45, mu_t=0, sd_t=.6)}
+        A, B, C = (tempfile.mkdtemp() for _ in range(3))
+        rds.main(seed=0, out_dir=A)
+        st.TestConfig.from_yaml = classmethod(lambda cls: cls(
+            N_min=60, N_max=300, N_min_per_task=10, N_max_per_task=80,
+            pass_p=0.9, fail_p=0.1))                 # perturb stopping cfg
+        rds.main(seed=0, out_dir=B)
+        st.TestConfig.from_yaml = _cfg
+        rds.main(seed=0, out_dir=C)                  # determinism rerun
+    finally:
+        rds.TIERS, st.TestConfig.from_yaml = _T, _cfg
+    a = pd.read_csv(Path(A) / "candidates.csv")
+    b = pd.read_csv(Path(B) / "candidates.csv")
+    c = pd.read_csv(Path(C) / "candidates.csv")
+    tcol = [x for x in a.columns if x.startswith("true_")]
+    dcol = [x for x in a.columns if x.startswith("decision_")]
+    # decoupling guarantee: θ-population unchanged by the cfg change
+    assert a[tcol].equals(b[tcol]), (
+        "θ-population shifted under a config change — RNG still coupled")
+    # determinism: same seed/cfg → bit-identical
+    assert a[tcol].equals(c[tcol]) and a[dcol].equals(c[dcol])
+    # sanity: the Y-stream still responds to the config (sim still works)
+    assert not a[dcol].equals(b[dcol])
+
+
+def test_phase4_6b_canonical_sim_is_k7_wellformed():
+    """The regenerated canonical sim/ is K=7 (decoupled, seed=0):
+    200 candidates, 7-task decision columns incl 'other'.
+
+    Asserts on the FINAL regenerated artifact. SKIPS (not fails) if the
+    sim is absent or not yet the completed K=7 product — the 4.6-B
+    `run_deployment_sim` regen is a heavy background step; this test
+    must be race-safe (a partially-written candidates.csv / an old K=6
+    sim still on disk is 'not done yet', not a failure)."""
+    import json
+    sim = _DP / "sim" / "candidates.csv"
+    summ = _DP / "sim" / "summary.json"
+    if not sim.exists() or not summ.exists():
+        pytest.skip("canonical K=7 sim not regenerated yet (4.6-B)")
+    try:
+        c = pd.read_csv(sim)
+        s = json.loads(summ.read_text())
+    except (pd.errors.EmptyDataError, pd.errors.ParserError,
+            ValueError):
+        pytest.skip("canonical sim mid-regeneration (race) — re-run")
+    incomplete = (len(c) != 200 or s.get("seed") != 0
+                  or any(f"decision_{t}" not in c.columns
+                         for t in _TASKS7))
+    if incomplete:
+        pytest.skip("canonical sim not yet the completed K=7 product")
+    for t in _TASKS7:
+        assert set(c[f"decision_{t}"]).issubset(
+            {"pass", "fail", "refer"})
+    assert s["seed"] == 0 and len(s.get("ell_star", [])) == 7
