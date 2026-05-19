@@ -134,8 +134,17 @@ def run_study(limit: int | None = None) -> dict:
     from deployment import simulate_test as st_now      # hardened (4.3)
     st_pre = _load_pre_module()                          # PI-faithful 4.2
 
-    # identical inputs for both arms (PI-faithful ell*/K=6 — v13 is 4.5)
-    Sigma, bank, ell_star = st_now.load_deployment(uniform_ell_star=None)
+    # identical inputs for both arms. ℓ* PINNED to the PI
+    # ell_thresholds.csv Youden lineage — this study's scope is "the
+    # lapse delta UNDER PI ℓ*". Phase 4.5 switched load_deployment to
+    # the v13 lineage; this study must NOT silently track that (the v13
+    # re-assessment is pipeline/deployment_delta/phase4_5_*). Σ/bank are
+    # the frozen artifact (ℓ*-lineage-independent) so taken from there.
+    Sigma, bank, _ = st_now.load_deployment(uniform_ell_star=None)
+    _thr = pd.read_csv(
+        REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
+    ).set_index("task")
+    ell_star = np.array([float(_thr.loc[t, "ell_star"]) for t in TASKS])
     cfg = st_now.TestConfig.from_yaml()
     base = pd.read_csv(BASELINE)
     assert len(base) == 200

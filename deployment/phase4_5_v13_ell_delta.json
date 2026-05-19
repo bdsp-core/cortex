@@ -1,0 +1,111 @@
+{
+  "part_A_ell_lineage": {
+    "scope": "ISOLATED \u2113*-lineage delta \u2014 same hardened engine, identical fixed-\u03b8 population, PAIRED seeds; arm-A=PI ell_thresholds \u2113*, arm-B=v13 \u2113*. Pure \u2113*-swap effect.",
+    "n_candidates": 200,
+    "decision_cells_changed": 411,
+    "decision_change_frac": 0.3425,
+    "direct_pass_fail_flips": 99,
+    "flip_table": {
+      "refer->pass": 116,
+      "fail->pass": 71,
+      "pass->refer": 77,
+      "refer->fail": 41,
+      "fail->refer": 78,
+      "pass->fail": 28
+    },
+    "per_task_agreement": {
+      "spike": 0.54,
+      "seizure": 0.4,
+      "lpd": 0.73,
+      "gpd": 0.845,
+      "lrda": 0.67,
+      "grda": 0.76
+    },
+    "per_task_dist_PI_ell": {
+      "spike": {
+        "pass": 101,
+        "refer": 42,
+        "fail": 57
+      },
+      "seizure": {
+        "pass": 51,
+        "refer": 50,
+        "fail": 99
+      },
+      "lpd": {
+        "pass": 154,
+        "refer": 32,
+        "fail": 14
+      },
+      "gpd": {
+        "pass": 161,
+        "refer": 31,
+        "fail": 8
+      },
+      "lrda": {
+        "pass": 186,
+        "refer": 10,
+        "fail": 4
+      },
+      "grda": {
+        "pass": 105,
+        "refer": 49,
+        "fail": 46
+      }
+    },
+    "per_task_dist_v13_ell": {
+      "spike": {
+        "pass": 169,
+        "refer": 25,
+        "fail": 6
+      },
+      "seizure": {
+        "pass": 137,
+        "refer": 35,
+        "fail": 28
+      },
+      "lpd": {
+        "pass": 122,
+        "refer": 40,
+        "fail": 38
+      },
+      "gpd": {
+        "pass": 155,
+        "fail": 17,
+        "refer": 28
+      },
+      "lrda": {
+        "pass": 129,
+        "refer": 38,
+        "fail": 33
+      },
+      "grda": {
+        "pass": 128,
+        "refer": 46,
+        "fail": 26
+      }
+    },
+    "interpretation": "ISOLATED \u2113*-lineage swap (PI ell_thresholds -> v13). The v13 \u2113* differ materially+heterogeneously per task (e.g. spike 0.66->0.25 easier, lrda 0.08->0.48 much harder), so a LARGE, per-task-directional decision shift is EXPECTED and is the intended consequence of decision D2 (single reference-faithful lineage). \u2192REFER 155 vs \u2190REFER 157; direct PASS\u2194FAIL 28+71. The change is fully attributable to the \u2113* vector (engine + population + seeds identical); it is SIGNED OFF as the deliberate v13 adoption, NOT a regression \u2014 v13 is the validated reference-faithful calibration; PI's ell_thresholds Youden lineage was the one being retired."
+  },
+  "part_B_4_3b_reassessed_under_v13": {
+    "scope": "4.3b lapse decomposition (committed-4.2 PI engine vs hardened) RE-RUN under v13 \u2113*; M=20 seeds/cand/arm, identical population, paired seeds.",
+    "systematic_d_p_refer": 0.05341666666666666,
+    "systematic_d_p_refer_se": 0.003185597940967683,
+    "systematic_d_p_pass": -0.016,
+    "systematic_d_p_pass_se": 0.002444519210994644,
+    "systematic_d_p_fail": -0.03741666666666667,
+    "systematic_d_p_fail_se": 0.002747985799966198,
+    "systematic_pass_share_shift_under_v13": 0.015684927161097456,
+    "systematic_pass_share_shift_under_v13_se": 0.0030669659575770017,
+    "n_decisive_cells": 1198,
+    "passfail_balance_null_under_v13": false,
+    "compare_4_3b_under_PI_ell": {
+      "pass_share_shift_PI_ell": 0.014482507736207729,
+      "pass_share_shift_PI_ell_se": 0.0027907121588083106,
+      "pass_share_shift_v13_ell": 0.015684927161097456,
+      "pass_share_shift_v13_ell_se": 0.0030669659575770017
+    },
+    "interpretation": "RE-ASSESSMENT of the carried-forward 4.3b finding under v13 \u2113* (the boundary it interacts with). The lapse-induced systematic REFER increase persists (\u0394P(refer)=+0.0534\u00b10.0032); the pass-share-of-decisive shift: under PI ell_thresholds it was +0.0145; under v13 it is +0.0157 (still a small systematic leniency shift \u2014 the lapse vs boundary interaction PERSISTS under v13, magnitude comparable; remains a documented small effect of the reference-correct lapse model, NOT a v13 artifact). HONEST: this is the K=6, still-PI-shared-rng re-assessment isolating the v13-\u2113* effect; the FINAL re-assessment on the shipped config (K=7 + re-frozen \u03a3 + RNG-decouple) is Phase 4.6."
+  },
+  "disposition": "Part A: the \u2113*-lineage delta is large, per-task-directional, fully attributed to the v13 swap, and SIGNED OFF as the intended D2 adoption. Part B: the 4.3b pass-share finding is re-assessed under v13 and carried forward (with its v13 magnitude) to the FINAL Phase-4.6 re-assessment. Gate = delta fully MEASURED + attributed + carried forward."
+}

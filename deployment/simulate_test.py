@@ -453,37 +453,72 @@ def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
 
 # ───────────────────────── deployment-state loader ─────────────────────────
 
+# Phase 4.5: deployment-task -> Phase-3/v13 cert_config task key. The
+# deployment ell* is now the SINGLE reference-faithful v13 lineage
+# (decision 2026-05-18; plan D2 "resolve three-lineage conflict"),
+# REPLACING PI's ell_thresholds.csv Youden lineage.
+_V13_TASK_KEY = {
+    "spike":   "combined_spike",
+    "seizure": "sparcnet_sz",
+    "lpd":     "sparcnet_lpd",
+    "gpd":     "sparcnet_gpd",
+    "lrda":    "sparcnet_lrda",
+    "grda":    "sparcnet_grda",
+    "other":   "sparcnet_iic",
+}
+
+
+def v13_ell_star(tasks):
+    """Per-task ℓ* from calibration/cert_config.yaml v13
+    (`ell_star_unified_v13`) — the single reference-faithful lineage
+    (Phase 4.5). Fail-loud if any deployment task lacks a v13 mapping
+    or the v13 key/ell_star is absent."""
+    cfg = yaml.safe_load(
+        Path(engine_paths.CALIB_CERT_CONFIG).read_text())
+    v13 = cfg["ell_star_unified_v13"]["tasks"]
+    out = []
+    for t in tasks:
+        if t not in _V13_TASK_KEY:
+            raise KeyError(
+                f"deployment task {t!r} has no v13 mapping "
+                f"(_V13_TASK_KEY={sorted(_V13_TASK_KEY)})")
+        vk = _V13_TASK_KEY[t]
+        if vk not in v13 or v13[vk].get("ell_star") is None:
+            raise KeyError(
+                f"v13 cert_config missing ell_star for {vk!r} "
+                f"(deployment task {t!r})")
+        out.append(float(v13[vk]["ell_star"]))
+    return np.array(out)
+
+
 def load_deployment(uniform_ell_star: float | None = None):
     """Load the frozen deployment artifact.
 
-    `uniform_ell_star`: if set (default = 0.62, from spike's well-anchored
-    Youden calibration), override the per-task ℓ*_k empirical thresholds.
-    Reason: the IIIC subtype thresholds derived from our pool have near-
-    chance AUROC (~0.5) because the pool is ~95% experts, so a 1.9–2.9
-    ℓ* is set by a tiny non-expert tail and is not deployment-realistic.
-    For a deployable demo we anchor all tasks to spike's 0.62 cutoff.
-    Pass `None` to use the per-task empirical thresholds.
+    `uniform_ell_star`: if set, OVERRIDE the per-task ℓ* with this
+    single scalar (experimental knob). Pass `None` (default) to use the
+    per-task v13 reference-faithful ℓ*.
+
+    Phase 4.5: ℓ* is the SINGLE v13 lineage (`v13_ell_star`, from
+    calibration/cert_config.yaml `ell_star_unified_v13`), REPLACING PI's
+    `ell_thresholds.csv` Youden lineage (decision D2 — one lineage for
+    Mode-A, Mode-B AND deployment). `ell_thresholds.csv` is no longer
+    consumed for ℓ* (it remains in the frozen artifact as legacy
+    provenance only).
 
     K-agnostic (Phase 4.4-A): the task list+order is parsed
-    AUTHORITATIVELY from the Sigma slot-name index; ell_thresholds and
-    case_bank are cross-checked against it (fail-loud on mismatch). At
-    K=6 with the current frozen artifact the parsed list equals the
-    module default in the same order, so this is bit-identical to the
-    prior behaviour. Return signature unchanged (3-tuple) so committed
-    callers/studies are not perturbed.
+    AUTHORITATIVELY from the Sigma slot-name index; Σ/case_bank are
+    cross-checked against it (fail-loud on mismatch). Return signature
+    unchanged (3-tuple) so committed callers/studies are not perturbed.
     """
     tasks = deployment_task_names()
     Sigma = pd.read_csv(DEPLOY / "Sigma.csv", index_col=0).values
     assert Sigma.shape == (2 * len(tasks), 2 * len(tasks)), (
         f"Σ {Sigma.shape} inconsistent with {len(tasks)} parsed tasks")
     bank = pd.read_csv(DEPLOY / "case_bank.csv")
-    thr  = pd.read_csv(DEPLOY / "ell_thresholds.csv").set_index("task")
-    missing = [t for t in tasks if t not in thr.index]
-    assert not missing, f"ell_thresholds.csv missing tasks: {missing}"
     if uniform_ell_star is not None:
         ell_star = np.full(len(tasks), float(uniform_ell_star))
     else:
-        ell_star = np.array([float(thr.loc[t, "ell_star"]) for t in tasks])
+        ell_star = v13_ell_star(tasks)        # Phase 4.5: single v13 lineage
     bank_by_task = {}
     for ki, t in enumerate(tasks):
         sub = bank[bank.task == t][

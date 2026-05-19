@@ -75,7 +75,16 @@ def _ensure_state():
         return _STATE
     from deployment import simulate_test as st_now
     st_pre = _load_pre_module()
-    Sigma, bank, ell_star = st_now.load_deployment(uniform_ell_star=None)
+    # Σ/bank from the frozen artifact (unaffected by the ℓ*-lineage);
+    # ℓ* PINNED to the PI ell_thresholds.csv Youden lineage — this
+    # study's scientific scope is "the lapse delta UNDER PI ℓ*"
+    # (Phase 4.5 switched load_deployment to v13; this study must NOT
+    # silently track that — the v13 re-assessment is phase4_5_*).
+    Sigma, bank, _ = st_now.load_deployment(uniform_ell_star=None)
+    _thr = pd.read_csv(
+        _REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
+    ).set_index("task")
+    ell_star = np.array([float(_thr.loc[t, "ell_star"]) for t in TASKS])
     cfg = st_now.TestConfig.from_yaml()
     base = pd.read_csv(BASELINE)
     theta = np.zeros((len(base), st_now.DIM))
@@ -143,6 +152,7 @@ def run_study(limit: int | None = None, max_workers: int | None = None):
     fa_m, fa_se = _ms(dfail)
     refer_systematic_pos = rp_m - 2 * rp_se > 0
     passfail_balance_null = abs(sh_m) <= 2 * sh_se   # 0 within ~2·SE
+    _fp_ratio = abs(fa_m) / abs(pa_m) if pa_m != 0 else float("nan")
     _refer_txt = (">0 at >2·SE" if refer_systematic_pos else "NS")
     _pf_txt = (
         "consistent with 0 within ~2·SE ⇒ NO systematic stricter/"
@@ -165,8 +175,7 @@ def run_study(limit: int | None = None, max_workers: int | None = None):
         "n_decisive_cells": int(len(dshare)),
         "refer_increase_is_systematic": bool(refer_systematic_pos),
         "passfail_balance_shift_is_null": bool(passfail_balance_null),
-        "fail_to_pass_drop_ratio": (abs(fa_m) / abs(pa_m)
-                                    if pa_m != 0 else float("nan")),
+        "fail_to_pass_drop_ratio": _fp_ratio,
         "conclusion": (
             f"λ-lapse SYSTEMATICALLY increases REFER (ΔP(refer)="
             f"{rp_m:+.4f} ± {rp_se:.4f}, {_refer_txt}) — the expected "
@@ -174,7 +183,7 @@ def run_study(limit: int | None = None, max_workers: int | None = None):
             f"estimate. The pass-share-of-decisive shift is "
             f"{sh_m:+.4f} ± {sh_se:.4f} ({_pf_txt}). ΔP(pass)="
             f"{pa_m:+.4f}±{pa_se:.4f}, ΔP(fail)={fa_m:+.4f}±{fa_se:.4f}"
-            f" — FAIL-mass drops ~{abs(fa_m)/abs(pa_m):.1f}× more than "
+            f" — FAIL-mass drops ~{_fp_ratio:.1f}× more than "
             "PASS-mass (REFER absorbs ASYMMETRICALLY, slightly toward "
             "leniency among decisive verdicts)."),
         "interpretation": (

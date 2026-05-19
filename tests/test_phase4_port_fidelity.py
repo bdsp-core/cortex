@@ -333,3 +333,93 @@ def test_phase4_3b_mc_runs_small_slice():
           + s["systematic_d_p_refer"])
     assert abs(s3) < 1e-9
     assert s["n_cells"] == 36 and s["m_seeds"] >= 10
+
+
+# ── Phase 4.5: single v13 ℓ* lineage ────────────────────────────────────────
+def test_v13_single_ell_lineage_drift_guard():
+    """load_deployment ℓ* MUST equal calibration/cert_config.yaml v13
+    (`ell_star_unified_v13`) by construction for every parsed task —
+    the single reference-faithful lineage (D2). ell_thresholds.csv is
+    NO LONGER consumed as the ℓ* source."""
+    import numpy as np
+    import yaml
+    import engine_paths
+    from deployment import simulate_test as st
+    tasks = st.deployment_task_names()
+    # every deployment task has a v13 mapping
+    for t in tasks:
+        assert t in st._V13_TASK_KEY, f"no v13 mapping for {t!r}"
+    _, _, ell = st.load_deployment(uniform_ell_star=None)
+    cfg = yaml.safe_load(
+        Path(engine_paths.CALIB_CERT_CONFIG).read_text())
+    v13 = cfg["ell_star_unified_v13"]["tasks"]
+    expect = np.array([float(v13[st._V13_TASK_KEY[t]]["ell_star"])
+                       for t in tasks])
+    assert np.array_equal(ell, expect), (
+        "deployment ℓ* != v13 cert_config — single-lineage broken")
+    # the PI ell_thresholds Youden lineage must NOT be the source: its
+    # values differ materially, so ell must NOT equal it
+    thr = pd.read_csv(
+        REPO / "data" / "deployment_prior" / "ell_thresholds.csv"
+    ).set_index("task")
+    pi = np.array([float(thr.loc[t, "ell_star"]) for t in tasks])
+    assert not np.allclose(ell, pi), (
+        "deployment ℓ* still equals PI ell_thresholds — v13 not wired")
+    # load_deployment must NOT read ell_thresholds.csv as the ℓ* source
+    # (the old code expression is gone; a docstring legacy-note mention
+    # of the filename is fine).
+    body = (REPO / "deployment" / "simulate_test.py").read_text().split(
+        "def load_deployment")[1].split("\ndef ")[0]
+    assert 'read_csv(DEPLOY / "ell_thresholds.csv")' not in body, (
+        "load_deployment still reads ell_thresholds.csv for ℓ*")
+    # uniform override still works
+    _, _, e2 = st.load_deployment(uniform_ell_star=0.5)
+    assert np.allclose(e2, 0.5)
+
+
+_P45 = REPO / "deployment" / "phase4_5_v13_ell_delta.json"
+
+
+def _p45():
+    if not _P45.exists():
+        pytest.skip("phase4_5_v13_ell_delta.json not produced — run "
+                    "`python -m pipeline.deployment_delta."
+                    "phase4_5_v13_ell_delta`")
+    import json
+    return json.loads(_P45.read_text())
+
+
+def test_phase4_5_signed_off_artifact_invariants():
+    """Part A: the ℓ*-lineage delta is fully attributed + signed off as
+    the intended D2 swap. Part B: the 4.3b finding is re-assessed under
+    v13 and carried forward. Robust invariants, not pinned numbers."""
+    d = _p45()
+    A = d["part_A_ell_lineage"]
+    B = d["part_B_4_3b_reassessed_under_v13"]
+    assert A["n_candidates"] == 200 and "ISOLATED" in A["scope"]
+    # v13 ℓ* differs materially ⇒ a substantial, attributed shift
+    assert A["decision_change_frac"] > 0.0
+    assert "SIGNED OFF" in A["interpretation"]
+    assert sum(A["flip_table"].values()) == A["decision_cells_changed"]
+    # Part B: lapse REFER increase still present; comparison recorded
+    assert B["systematic_d_p_refer"] > 0
+    cmp = B["compare_4_3b_under_PI_ell"]
+    assert "pass_share_shift_PI_ell" in cmp
+    assert "pass_share_shift_v13_ell" in cmp
+    assert "Phase 4.6" in B["interpretation"]      # carried forward
+    assert "carried forward" in d["disposition"].lower()
+
+
+@pytest.mark.slow
+def test_phase4_5_runs_small_slice():
+    """Live regression: the 4.5 two-part study executes + conserves
+    probability on a small slice (significance gated on the artifact)."""
+    import importlib
+    m = importlib.import_module(
+        "pipeline.deployment_delta.phase4_5_v13_ell_delta")
+    s = m.run_study(limit=6, max_workers=2)
+    B = s["part_B_4_3b_reassessed_under_v13"]
+    s3 = (B["systematic_d_p_pass"] + B["systematic_d_p_fail"]
+          + B["systematic_d_p_refer"])
+    assert abs(s3) < 1e-9
+    assert s["part_A_ell_lineage"]["n_candidates"] == 6
