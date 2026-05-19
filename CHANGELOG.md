@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–2
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–3.5
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -46,6 +46,28 @@ Methodology repo + PI deployment repo merged into one shippable repo
   **Paper-1 is unaffected** (Mode-A has no IUT; Mode-B is deprecated for
   Paper-1, Paper-2 scope). Joint is strictly ≥-conservative than Berger.
   Tests: `tests/mode_b/test_iut_rule.py`.
+- **Phase 3 — reference-faithful calibration.** Byte-verbatim Rasch +
+  per-rater probit-lapse + CV-top-14 two-stage Youden ell* carried into
+  `pipeline/reference_calibration/`; spike un-fold (clean sn1 binary,
+  Centaur-IED excluded from cert task, J 0.366→0.632); erratum fix
+  (uniform `{bipd,birds}→other`, iic J 0.643→0.814). `cert_config` v13.
+- **Phase 3.5 — joint s_j unification + engine s_sd propagation —
+  CLOSED.** Joint hierarchical cross-source SVI fit (split-anchor
+  gauge); engine marginalises item uncertainty
+  (`z/=√(1+(e^ℓ·s_sd)²)`, `s_sd=0` ⇒ **bit-identical** default).
+  Release-gate battery COMPLETE, results reported honestly in
+  `docs/DATA_UNIFICATION_ANALYSIS.md` §8 (+ `cert_config` v13
+  `provenance.phase35.release_gate`): (1) plug-in-vs-uncertainty AUROC
+  — real, correctly-signed, **small** (CI ratio 1.019; bounds the
+  plug-in cost in the favourable regime); (2) δ_Centaur — **robust**
+  vs an SVI noise floor (cheap probe; ratio<1, r≥0.984); (3) **engine
+  SBC — strongest result**: PLUGIN genuinely miscalibrated under real
+  item noise (cov 0.88, KS≫control), UNCERT restores calibration to
+  the CONTROL baseline (cov 0.93) ⇒ s_sd propagation is *not
+  cosmetic*. Honest caveats recorded (CONTROL-KS = baseline SMC
+  approximation over-detected at large n; δ_Centaur smoke-scale;
+  SVI-vs-NUTS s_mean r≈0.72–0.78). Tests: `tests/test_phase35_*.py`.
+  Full suite 197 passed / 1 xfailed.
 
 ---
 

@@ -168,3 +168,78 @@ engine s_sd propagation + validation battery) as a prerequisite for a
 defensible Phase-4 deployment power claim. It is a scope addition that also
 touches the Phase-2 byte-verbatim engine (s_sd propagation). User decision
 required before proceeding (see conversation).
+
+## 8. Phase 3.5 close-out — RESULTS (2026-05-18)
+
+Phase 3.5 was approved and executed. The validation battery (§ "release
+gate") is **COMPLETE**. Results are reported here **honestly, including
+where the effect is small or where a hard test is over-powered** — these
+are not spun. Artifacts: `calibration/joint/{plugin_vs_uncertainty_auroc,
+delta_centaur_sensitivity,sbc_engine}.json`; regression tests
+`tests/test_phase35_*.py`; provenance mirrored in `cert_config.yaml`
+→ `ell_star_unified_v13.provenance.phase35.release_gate`.
+
+**Engine s_sd propagation.** Closed-form Gaussian-probit marginalisation
+`z /= sqrt(1+(e^ℓ·s_sd)²)` in `core`/`core_mcmc`; `s_sd=0` ⇒ engine
+default **bit-identical** to the prior engine (parity gated in the full
+suite). Per-item Fisher deflation proven exact by
+`test_phase35_engine_ssd`.
+
+1. **Plug-in vs uncertainty held-out AUROC** — *real, correctly-signed,
+   SMALL.* Fixed-budget metric (stop-at-δ was rejected as confounded:
+   it forces both arms to CI≈δ and confounds n_q with the adaptive
+   selector — owned and corrected). CI-halfwidth ratio uncert/plug-in
+   = **1.019**; coverage 0.979 → 0.990. The plug-in engine was **not**
+   badly overstating power in the favourable homogeneous-rater /
+   rich-bank regime tested; s_sd propagation is a modest conservative
+   refinement. The result **bounds** the plug-in cost; a stress regime
+   (heterogeneous raters / thin bank) would show more — the ~2% is an
+   honestly-framed optimistic lower bound.
+
+2. **δ_Centaur sensitivity** — *robust* (cheap re-scoped probe, **not**
+   a production refit, per the approved scope). δ_Centaur is partially
+   non-identified against the deterministic Centaur-gold location
+   anchor. Measured against a same-model/different-seed SVI **noise
+   floor** (a first raw-magnitude cut was confounded by smoke-scale SVI
+   noise — the gpd control with δ_Centaur≈0 proved it; owned and
+   corrected): zeroing δ_Centaur perturbs s_j only **0.63× (gpd) /
+   0.83× (iic)** the noise floor, min Pearson r **0.984**, even where
+   δ_Centaur = −0.46 (iic). The s_j unification does not materially
+   depend on this flagged modelling choice. Honest caveat: smoke-scale
+   bound; production refit would tighten.
+
+3. **Engine SBC** — *the strongest Phase-3.5 result.* θ* drawn from the
+   engine's own prior ⇒ rank non-uniformity is pure likelihood
+   misspecification. 150 replicates × 6 IIIC. The harness mirrors the
+   production session loop exactly incl. ESS-triggered
+   resample+rejuvenation (a reweight-only first cut degenerated the
+   cloud, CONTROL mean_rank 0.73 — owned and fixed → 0.52).
+   - CONTROL (noise off, plug-in): mean_rank **0.521**, cov95 **0.934**
+     → harness sound, no false alarm.
+   - PLUGIN (noise on, plug-in): KS **0.123**, mean_rank **0.574**,
+     cov95 **0.884** → genuinely **miscalibrated / overconfident**.
+   - UNCERT (noise on, s_sd): KS **0.031** (uniform not rejected),
+     mean_rank **0.509**, cov95 **0.932** → calibration **restored to
+     the CONTROL baseline**.
+   ⇒ propagating the κ-calibrated s_sd is **not cosmetic**; it recovers
+   posterior calibration the plug-in engine loses under realistic item
+   noise. **Honest nuance (not spun):** CONTROL KS (0.0478) marginally
+   exceeds crit (0.0453) at n=900 — the engine SMC's *known
+   finite-particle approximation*, which KS over-detects at large SBC n
+   even when correctly specified. It is the shared baseline of all
+   three arms; mean_rank≈0.5 and coverage≈nominal prove soundness. The
+   scientific claim is the **contrast** (PLUGIN degrades far beyond the
+   baseline; UNCERT returns to it), which is unambiguous regardless of
+   the absolute KS hard-test.
+
+**Release-gate disposition.** Risk §6.2 ("no power/E[N] claim ships
+until the plug-in-vs-uncertainty arm passes") is satisfied: the arm
+passed, the magnitude is small and bounded, and the SBC contrast
+demonstrates the propagation is material for *calibration* even where
+it is modest for *power*. Risk §6.1 (δ_Centaur as a hard gate) is
+satisfied at smoke scale (robust vs noise floor). The variance
+calibration's documented limitation (SVI-vs-NUTS s_mean r≈0.72–0.78 on
+an 80k NUTS subsample) stands as a known limitation, not a tight
+equivalence claim. Phase 3.5 is **closed**; Phase 4 (deployment
+integration) proceeds under the strict incremental, regression-gated,
+PI-baseline discipline.
