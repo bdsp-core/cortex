@@ -1,0 +1,37 @@
+{
+  "scope": "CHEAP re-scoped robustness probe (short SVI smoke, subsample=40000, 4000 steps) \u2014 NOT a full refit.",
+  "probe_tasks": [
+    "gpd",
+    "iic"
+  ],
+  "min_s_j_pearson_r_delta_swap": 0.9836764266313536,
+  "max_delta_shift_over_noise_floor_ratio": 0.8328383433312715,
+  "robust": true,
+  "interpretation": "\u03b4_Centaur is partially NON-IDENTIFIED against the deterministic location anchor (a = mean s/b over the SAME Centaur-gold segs). The honest metric is the \u03b4-swap s_j shift RELATIVE to a same-model/different-seed SVI noise floor (smoke-scale SVI is itself noisy on thin-coverage segments \u2014 raw max-abs-shift alone is uninterpretable; the gpd control, |\u03b4_Centaur|\u22480.0008, makes this concrete). ratio \u2272 1 \u21d2 zeroing \u03b4_Centaur moves s_j no more than re-running the optimiser does \u21d2 the unified signal does NOT materially depend on this flagged choice. ratio \u226b 1 would flag a genuine dependence. High Pearson r confirms the signal SHAPE is preserved regardless. Honest scope: bounds the dependence at smoke scale; a production-scale refit (out of the user-approved cheap scope) would tighten it.",
+  "per_task": {
+    "gpd": {
+      "n_obs": 40000,
+      "n_seg": 19331,
+      "centaur_src_idx": 1,
+      "delta_centaur_baseline_estimate": 0.0007662141579203308,
+      "s_j_pearson_r_base_vs_fixed": 0.992667065723155,
+      "s_j_pearson_r_noise_floor": 0.9437838376681535,
+      "s_j_max_abs_shift_delta_swap": 2.228754758834839,
+      "s_j_max_abs_shift_svi_noise_floor": 3.5407261848449707,
+      "delta_shift_over_noise_floor_ratio": 0.629462613735669,
+      "wall_s": 57.8
+    },
+    "iic": {
+      "n_obs": 40000,
+      "n_seg": 19331,
+      "centaur_src_idx": 1,
+      "delta_centaur_baseline_estimate": -0.46108561754226685,
+      "s_j_pearson_r_base_vs_fixed": 0.9836764266313536,
+      "s_j_pearson_r_noise_floor": 0.8789251484695579,
+      "s_j_max_abs_shift_delta_swap": 4.24895715713501,
+      "s_j_max_abs_shift_svi_noise_floor": 5.101778984069824,
+      "delta_shift_over_noise_floor_ratio": 0.8328383433312715,
+      "wall_s": 56.2
+    }
+  }
+}
