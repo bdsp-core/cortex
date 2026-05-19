@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1 done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -144,6 +144,32 @@ Methodology repo + PI deployment repo merged into one shippable repo
   drift-guard explicitly requested by the plan; audit-doc
   consistency; spot-check the 5 PASS invariants point at code that
   actually defines them). Full suite **240 passed / 1 xfailed**.
+- **Phase 7 sub-step 1 — Phase-2 validation suite synthetic at K=7,
+  α-scope (per user 2026-05-19).** Pre-execution audit
+  `docs/PHASE7_AUDIT.md`: traced all 5 plan sub-steps to actual
+  code; **critical finding**: `deployment_replay.csv` is a
+  per-candidate Bernoulli-sim *output* (80 cands × 6 tasks, K=6 PI
+  era), NOT held-out real-rater response sequences as the plan's
+  wording implied — so D6 is a true *build* (the real-rater source
+  is `data/labels/labels.csv`). `validate.py` does not exist in
+  this repo (Tier-2 OC `run_phase4_simstudy.py` lives in sibling
+  methodology). Phase-2 validation scripts ARE carried byte-
+  identical (SBC/coverage/lapse/sigma/test-retest/gold-chain) +
+  hardcode K=6 in their entry points (K-agnostic internally).
+  Sub-1 scope α: synthetic K=7 pins via NEW tests in
+  `tests/test_phase7_k7_validation.py` — `test_sbc_skeleton_l_
+  domain0_k7`, `test_posterior_coverage_k7`, `test_lapse_algebra_k7`
+  (all slow-marked, ~8 s); the carried K=3 methodology skeleton
+  tests are NOT edited (md5 byte-identity preserved). Engine
+  K-agnostic at K=7: SBC mean rank ≈ 0.5, 90/95 % CI coverage
+  > 0.7, lapse algebra floor/ceiling holds per-task. Doc:
+  `docs/PHASE7_VALIDATION_K7.md` enumerates what does NOT need a
+  K=7 re-run + why (lapse-sensitivity K-independent; sparcnet
+  test-retest's K=6 IIIC ⊆ K=7's 6 IIIC, `combined_spike` has no
+  SPARCNET analog; Σ-sensitivity K-agnostic in its own grid; gold-
+  chain sampler correctness is K-independent; Phase-3.5 SBC engine
+  artifact at K=6 IIIC covers the 6 IIIC of K=7). Full suite
+  **243 passed / 1 xfailed**.
 
 ---
 
