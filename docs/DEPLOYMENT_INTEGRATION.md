@@ -1,7 +1,7 @@
 # Phase 4 — Deployment Integration: close-out & provenance
 
-Status: **Phase 4.1 → 4.6-C COMPLETE** (4.7 = `ilae-deploy` CLI, the
-last remaining sub-step). This is the *documented attribution summary*
+Status: **Phase 4 COMPLETE** (4.1 → 4.7, all sub-steps gated +
+committed). This is the *documented attribution summary*
 (decision 2026-05-19): each deliberate change to the deployment runtime
 was **isolated and signed off in its own gated sub-step**; this doc
 records that attribution + the definitive verdict on the one finding
@@ -31,7 +31,8 @@ with a signed-off delta).
 | **Phase 4.5** | Deployment ℓ* → **single v13 lineage** (`cert_config.yaml` `ell_star_unified_v13`), retiring PI's `ell_thresholds` Youden lineage (D2) | Isolated ℓ*-lineage delta = **large, expected, signed off** (34.2% cells; v13 ℓ* materially lower on spike/seizure) — the deliberate D2 adoption of the validated calibration, not a regression. + a coupling bug caught by the full-suite gate and fixed (4.3/4.3b studies pinned to PI `ell_thresholds`) | `3c1fea5` |
 | **Phase 4.6-A** | Re-fit `fit_2pl_probit`+`fit_2pl_probit_hier --variant block`@**K=7** on the unified corpus → re-freeze (Σ **14×14**, 7-task bank/ell); **clean-sn1 spike** (v13-consistent); PI K=6 baseline **archived** + studies repointed; **D3** `data/labels` sha256 provenance | K=7 v13 wiring live (`other`←`sparcnet_iic`=0.4418); drift-guard default==artifact; archived studies reproduce PI behaviour; D3 sha256 == live corpus | `8939e81` |
 | **Phase 4.6-B** | **RNG decoupled** in `run_deployment_sim` (per-candidate `SeedSequence([seed,cand_id]).spawn(2)` → independent θ-gen / Y-draw streams) | **Decoupling guarantee proven**: θ-population bit-identical under a perturbed stopping config (the 4.3 confound fixed); deterministic; decisions still respond to config. Canonical K=7 sim regenerated | `0b84cbe` |
-| **Phase 4.6-C** | **Definitive** 4.3b re-assessment on the fully-shipped config | see verdict below | *(this commit)* |
+| **Phase 4.6-C** | **Definitive** 4.3b re-assessment on the fully-shipped config | see verdict below | `d7f72a1` |
+| **Phase 4.7** | `ilae-deploy` CLI = thin `deployment/cli.py` orchestrator (`freeze`/`simulate`/`plot`/`all`); `plot_deploy.py` ported + made **K-agnostic** (was K=6-hardcoded — 12×12 Σ, 2×3 grids); entry point retargeted | All 5 figures render at **K=7**; `plot` is **best-effort** in the pipeline (viz failure ≠ pipeline failure) but fatal when run explicitly; entry-point retarget gated by the phase-0 skeleton test | *(this commit)* |
 
 ## D3 — derived-artifact lineage
 

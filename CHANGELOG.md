@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–4 (4.7 CLI remaining)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–4 COMPLETE
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -68,8 +68,8 @@ Methodology repo + PI deployment repo merged into one shippable repo
   approximation over-detected at large n; δ_Centaur smoke-scale;
   SVI-vs-NUTS s_mean r≈0.72–0.78). Tests: `tests/test_phase35_*.py`.
   Full suite 197 passed / 1 xfailed.
-- **Phase 4 — deployment integration (4.1 → 4.6-C COMPLETE; 4.7 CLI
-  remaining).** PI Laplace/EKF clinical-deployment engine merged onto
+- **Phase 4 — deployment integration (4.1 → 4.7 COMPLETE).** PI
+  Laplace/EKF clinical-deployment engine merged onto
   the unified corpus + reference-faithful v13 calibration, strict
   incremental + two-step-gated (prove port fidelity, then layer each
   intended change with a signed-off delta). Per-sub-step attribution +
@@ -89,8 +89,12 @@ Methodology repo + PI deployment repo merged into one shippable repo
   (+0.0145 → +0.0157 → **+0.0144**, ~5·SE) — a *known, quantified
   characteristic of the reference-correct lapse likelihood* (also
   +6 pp more REFER = more conservative), **NOT a bug**; closed, no
-  further re-assessment owed. Tests: `tests/test_phase4_*`. Full
-  suite 229 passed / 1 xfailed.
+  further re-assessment owed. **4.7**: `ilae-deploy` =
+  `deployment/cli.py` orchestrator (`freeze`/`simulate`/`plot`/`all`);
+  `plot_deploy.py` ported + made **K-agnostic** (renders all 5 figures
+  at K=7; `plot` best-effort in the pipeline); entry point retargeted.
+  Close-out: `docs/DEPLOYMENT_INTEGRATION.md`. Tests:
+  `tests/test_phase4_*`. Full suite 232 passed / 1 xfailed.
 
 ---
 

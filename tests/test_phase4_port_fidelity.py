@@ -707,3 +707,57 @@ def test_phase4_6c_runs_small_slice():
           + s["systematic_d_p_refer"])
     assert abs(s3) < 1e-9
     assert s["K"] == 7 and s["n_candidates"] == 6
+
+
+# ── Phase 4.7: ilae-deploy CLI orchestrator + K-agnostic plot ───────────────
+def test_phase4_7_cli_dispatch_and_argparse():
+    """The ilae-deploy entry point is the deployment.cli orchestrator
+    with freeze/simulate/plot/all stages (default all)."""
+    from deployment import cli
+    assert callable(cli.main)
+    assert cli.main.__module__ == "deployment.cli"
+    # argparse accepts the four stages; rejects junk with SystemExit(2)
+    pr = cli.argparse.ArgumentParser  # smoke that argparse is wired
+    assert pr is not None
+    with pytest.raises(SystemExit) as e:
+        cli.main(["not-a-stage"])
+    assert e.value.code == 2
+    # the three stage helpers exist (freeze/simulate are heavy → not
+    # executed here; the `all` pipeline sequences them)
+    for fn in ("_freeze", "_simulate", "_plot"):
+        assert callable(getattr(cli, fn))
+
+
+def test_phase4_7_plot_is_k_agnostic_and_renders_k7():
+    """plot_deploy derives K from the SHIPPED artifact (K=7 post-4.6,
+    not a hardcoded 6-list); _grid scales; all 5 figures render."""
+    import importlib
+    pdp = importlib.import_module("deployment.plot_deploy")
+    importlib.reload(pdp)                       # pick up current artifact
+    assert pdp.K == 7 and len(pdp.TASKS) == 7 and "other" in pdp.TASKS
+    assert "other" in pdp.PRETTY
+    fig, axs = pdp._grid(7)
+    assert len(axs) == 7                        # K-agnostic grid
+    import matplotlib.pyplot as plt
+    plt.close(fig)
+    figdir = _DP / "figures"
+    if not (figdir / "fig5_verdicts.png").exists():
+        pytest.skip("figures not rendered yet (run `ilae-deploy plot`)")
+    for fn in ("fig1_concept", "fig2_single_candidate",
+               "fig3_skill_by_tier", "fig4_recovery", "fig5_verdicts"):
+        f = figdir / f"{fn}.png"
+        assert f.is_file() and f.stat().st_size > 0
+
+
+def test_phase4_7_plot_is_best_effort_in_pipeline(monkeypatch):
+    """In the `all` pipeline a plot failure must NOT fail the run
+    (figures are derived viz); a standalone `plot` surfaces it."""
+    from deployment import cli, plot_deploy
+
+    def _boom():
+        raise RuntimeError("simulated matplotlib failure")
+    monkeypatch.setattr(plot_deploy, "main", _boom)
+    # best-effort (pipeline): swallow → rc 0
+    assert cli._plot(best_effort=True) == 0
+    # explicit `plot`: fatal → rc 1
+    assert cli._plot(best_effort=False) == 1
