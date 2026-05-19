@@ -39,18 +39,28 @@ Mathematical machinery:
     We use this as the case-selection score (plug-in at posterior mean).
 
 ─────────────────────────────────────────────────────────────────────────
-UNIFIED-MERGE PROVENANCE (Phase 4.1, 2026-05-18). This is a FAITHFUL,
-PATH-ONLY port of the PI repo's `scripts/simulate_test.py`. The ONLY
-substantive change vs the PI source is the PI hardcoded absolute-ROOT /
-DEPLOY block (an absolute path under the PI author's home dir into
-`data/deployment_prior`), replaced by an `engine_paths.DEPLOYMENT_PRIOR`
-shim (UNIFIED_REPO_MERGE_PLAN.md Phase 4 step 2; zero absolute paths —
-a CI test enforces none survive, including in this header). All
-numerics — K=6, the UNHARDENED probit IRLS, ℓ* from ell_thresholds.csv
-— are kept BYTE-FAITHFUL so Phase 4.1 proves PORT fidelity (reproduces
-the carried `data/deployment_prior/sim/` reference at seed=0). The
-intended changes (λ-lapse hardening 4.3, K=7 4.4, v13 ℓ* 4.5,
-re-freeze 4.6) are LAYERED in later sub-steps, each separately gated.
+UNIFIED-MERGE PROVENANCE. Phase 4.1: FAITHFUL PATH-ONLY port of the PI
+`scripts/simulate_test.py` (PI hardcoded absolute-ROOT/DEPLOY block →
+`engine_paths.DEPLOYMENT_PRIOR` shim; zero absolute paths, CI-enforced
+incl. this header). Phase 4.2: PI `TestConfig` → `deployment_config.yaml`
+(bit-unchanged; from_yaml strict).
+
+Phase 4.3 (2026-05-18, user-approved FULL scope): the LIKELIHOOD is now
+ONE definition shared with Paper-1 — λ-lapse mixture p=λ+(1−2λ)Φ(η)
+(λ imported from engine `core`; the SMC vs this Laplace/EKF inference
+engines stay SEPARATE per D1, only the likelihood form is shared).
+Applied to: response generation (byte-faithful to
+`core_mcmc.simulate_response`), the IRLS Newton update
+(`irls_w_z`/`_lapse_components` — exact lapse-GLM Fisher/score,
+reduces to PI at λ=0; the λ floor removes the Φ(1−Φ)→0 blowup the PI
+1e-10 clip patched), the predictive `expected_p`, and the
+`select_next_case` info-gain weight. `_p_pass` is UNCHANGED — it is a
+latent-ℓ posterior tail prob, NOT a response prob (lapse does not
+apply). This DELIBERATELY changes deployment outputs: the Phase-4.1/4.2
+exact-reproduction gate is INTENTIONALLY superseded — the two-step gate
+switches to "delta vs the pristine PI baseline fully attributed to the
+lapse mixture + bounded + signed off" (deployment/phase4_3_hardening_
+delta.json). K=7 (4.4), v13 ℓ* (4.5), re-freeze (4.6) layered next.
 """
 from __future__ import annotations
 import json
@@ -62,6 +72,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.special import log_ndtr           # FIX-T0.7: tail-stable log Φ
 from scipy.stats import norm
 
 # ── path shim (mirrors bridge/run_mode_b_cert_bridge.py): self-locate the
@@ -73,8 +84,15 @@ for _p in (os.path.join(_REPO, "engine"), _REPO):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import engine_paths  # noqa: E402
+# Phase 4.3 (decision 2026-05-18): the LIKELIHOOD is ONE definition —
+# import λ from the engine core (single source). The inference engines
+# (SMC vs this Laplace/EKF) stay SEPARATE per D1; only the likelihood
+# constant/form is shared. core is on sys.path via the shim above; it is
+# the numpy engine (no JAX — calibration-stage only).
+from core import LAPSE_RATE  # noqa: E402
 
 DEPLOY = Path(engine_paths.DEPLOYMENT_PRIOR)
+_ONE_MINUS_2LAMBDA = 1.0 - 2.0 * LAPSE_RATE
 
 TASKS = ["spike", "seizure", "lpd", "gpd", "lrda", "grda"]
 K = len(TASKS)
@@ -88,20 +106,47 @@ def _slot(k, parm):
     return 2 * k + (0 if parm == "t" else 1)
 
 
+def _lapse_components(eta_c: np.ndarray):
+    """The ONE likelihood definition (Phase 4.3), in η-space.
+
+    Spike-paper Eq. 2 lapse mixture (engine `core`; λ = LAPSE_RATE):
+        p(η)  = λ + (1−2λ)·Φ(η)            ∈ [λ, 1−λ]
+        p'(η) = (1−2λ)·φ(η)
+    Φ via `log_ndtr` (engine FIX-T0.7: cancellation-free in the tails,
+    unlike np.clip(norm.cdf,·); the PI 1e-10 Φ-clip is no longer needed —
+    the λ floor makes p(1−p) ≥ λ(1−λ) > 0 by construction). `eta_c` is
+    expected pre-clipped to the PI [−6,6] stability bound by the caller.
+    Returns (p, p').
+    """
+    Phi = np.exp(log_ndtr(eta_c))
+    p = LAPSE_RATE + _ONE_MINUS_2LAMBDA * Phi
+    pp = _ONE_MINUS_2LAMBDA * norm.pdf(eta_c)        # p'(η)
+    return p, pp
+
+
 def irls_w_z(eta: np.ndarray, Y: np.ndarray):
-    """Probit IRLS weight and pseudo-observation, η clipped for stability."""
+    """Lapse-mixture probit IRLS weight + working response (Phase 4.3).
+
+    Fisher-scoring on the ONE likelihood p(η)=λ+(1−2λ)Φ(η):
+        w = p'² / [p(1−p)]        z = η + (Y − p)/p'
+    Reduces EXACTLY to the PI bare-probit IRLS at λ=0 (p→Φ, p'→φ). The
+    λ floor removes the Φ(1−Φ)→0 blowup the PI 1e-10 clip crudely
+    patched, so w needs NO Φ-clip; only the working-response denominator
+    p' is guarded (it → 0 as φ→0 at the tails — orthogonal to the lapse
+    fix, inherent to IRLS; the PI [−6,6] η-bound is kept for that)."""
     eta_c = np.clip(eta, -6.0, 6.0)
-    phi = norm.pdf(eta_c)
-    Phi = np.clip(norm.cdf(eta_c), 1e-10, 1 - 1e-10)
-    phi_c = np.clip(phi, 1e-10, None)
-    w = phi_c ** 2 / (Phi * (1 - Phi))
-    z = eta_c + (Y - Phi) / phi_c
+    p, pp = _lapse_components(eta_c)
+    w = pp ** 2 / (p * (1.0 - p))           # p(1−p) ≥ λ(1−λ) > 0
+    pp_c = np.clip(pp, 1e-12, None)         # guard z denom at saturation
+    z = eta_c + (Y - p) / pp_c
     return w, z
 
 
 def expected_p(mu, Sigma_post, k, s):
-    """Approximate predictive P(Y=1) under current posterior using
-    standard probit-Gaussian conditional: ≈ Φ(η_mean / sqrt(1+v))."""
+    """Lapse-mixture predictive P(Y=1) (Phase 4.3) under the standard
+    probit-Gaussian conditional. The λ-lapse is an AFFINE wrapper of Φ,
+    so it composes EXACTLY with the Φ(η_mean/√(1+v)) approximation:
+        E[λ+(1−2λ)Φ(η)] ≈ λ + (1−2λ)·Φ(η_mean/√(1+v))."""
     t = mu[_slot(k, "t")]; l = mu[_slot(k, "l")]
     el = np.exp(l)
     eta = el * (s + t)
@@ -112,7 +157,8 @@ def expected_p(mu, Sigma_post, k, s):
     Stl = Sigma_post[j_t, j_l]
     Sll = Sigma_post[j_l, j_l]
     v = (el ** 2) * (Stt + 2 * (s + t) * Stl + (s + t) ** 2 * Sll)
-    return norm.cdf(eta / np.sqrt(1 + max(v, 0.0)))
+    z = eta / np.sqrt(1 + max(v, 0.0))
+    return LAPSE_RATE + _ONE_MINUS_2LAMBDA * float(np.exp(log_ndtr(z)))
 
 
 # ───────────────────────── simulator state ─────────────────────────
@@ -217,11 +263,12 @@ def select_next_case(state: TestState, bank_by_task, pending_tasks, used_segids,
         Sll = state.Sigma_post[j_l, j_l]
         # v = x^T Σ x with x = el * (1, s+t)
         v = (el ** 2) * (Stt + 2 * (s_arr + t_mu) * Stl + (s_arr + t_mu) ** 2 * Sll)
-        # Predictive p at current posterior; weight w at η_mean
+        # Info-gain weight = the SAME lapse Fisher weight as the IRLS
+        # update (Phase 4.3 — one likelihood definition, shared helper;
+        # no arbitrary Φ-clip — the λ floor bounds p(1−p)).
         eta_c = np.clip(eta, -6.0, 6.0)
-        phi = norm.pdf(eta_c)
-        Phi = np.clip(norm.cdf(eta_c), 1e-6, 1 - 1e-6)
-        w = phi ** 2 / (Phi * (1 - Phi))
+        p_sel, pp_sel = _lapse_components(eta_c)
+        w = pp_sel ** 2 / (p_sel * (1.0 - p_sel))
         score = np.log1p(np.maximum(w * v, 0.0))
         i_best = int(np.argmax(score))
         if best is None or score[i_best] > best[0]:
@@ -331,10 +378,12 @@ def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
             break
         k, seg, s_val = sel
         used_segids[k].add(seg)
-        # generate response from TRUE θ
+        # generate response from TRUE θ — Phase 4.3: BYTE-FAITHFUL to the
+        # engine generative form core_mcmc.simulate_response
+        # (p = λ + (1−2λ)·norm.cdf(η_true); plain norm.cdf, no η-clip).
         t_true = true_theta[_slot(k, "t")]; l_true = true_theta[_slot(k, "l")]
         eta_true = np.exp(l_true) * (s_val + t_true)
-        p_true = norm.cdf(eta_true)
+        p_true = LAPSE_RATE + _ONE_MINUS_2LAMBDA * float(norm.cdf(eta_true))
         Y = int(rng.random() < p_true)
         # update posterior
         update_state(state, k, s_val, Y)

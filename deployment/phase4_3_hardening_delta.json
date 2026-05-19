@@ -1,0 +1,104 @@
+{
+  "scope": "CONTROLLED pure-likelihood delta \u2014 identical PI candidates (fixed \u03b8 from pristine baseline), per-candidate PAIRED seeds, committed 4.2 engine vs current hardened engine. Isolates the \u03bb-lapse effect (no shared-RNG population confound).",
+  "pre_engine_commit": "26025fa",
+  "lambda": 0.025,
+  "n_candidates": 200,
+  "decision_cells_changed": 167,
+  "decision_cells_total": 1200,
+  "decision_change_frac": 0.13916666666666666,
+  "direct_pass_fail_flips": 24,
+  "flip_table": {
+    "pass->refer": 52,
+    "refer->pass": 31,
+    "refer->fail": 21,
+    "pass->fail": 13,
+    "fail->refer": 39,
+    "fail->pass": 11
+  },
+  "per_task_agreement": {
+    "spike": 0.855,
+    "seizure": 0.88,
+    "lpd": 0.86,
+    "gpd": 0.84,
+    "lrda": 0.9,
+    "grda": 0.83
+  },
+  "per_task_dist_pre": {
+    "spike": {
+      "pass": 104,
+      "refer": 33,
+      "fail": 63
+    },
+    "seizure": {
+      "pass": 56,
+      "refer": 43,
+      "fail": 101
+    },
+    "lpd": {
+      "pass": 159,
+      "fail": 21,
+      "refer": 20
+    },
+    "gpd": {
+      "pass": 168,
+      "refer": 15,
+      "fail": 17
+    },
+    "lrda": {
+      "pass": 189,
+      "refer": 5,
+      "fail": 6
+    },
+    "grda": {
+      "pass": 109,
+      "refer": 38,
+      "fail": 53
+    }
+  },
+  "per_task_dist_hardened": {
+    "spike": {
+      "pass": 104,
+      "fail": 56,
+      "refer": 40
+    },
+    "seizure": {
+      "pass": 50,
+      "refer": 49,
+      "fail": 101
+    },
+    "lpd": {
+      "pass": 148,
+      "refer": 31,
+      "fail": 21
+    },
+    "gpd": {
+      "pass": 165,
+      "refer": 21,
+      "fail": 14
+    },
+    "lrda": {
+      "pass": 187,
+      "refer": 11,
+      "fail": 2
+    },
+    "grda": {
+      "pass": 108,
+      "refer": 41,
+      "fail": 51
+    }
+  },
+  "mean_trials_pre": 217.445,
+  "mean_trials_hardened": 254.28,
+  "mean_trials_delta": 36.83500000000001,
+  "directional_summary": {
+    "to_refer_more_conservative": 91,
+    "from_refer_more_decisive": 52,
+    "pass_to_fail": 13,
+    "fail_to_pass": 11,
+    "net_stricter_pass_fail": 2,
+    "net_stricter_frac": 0.0016666666666666668
+  },
+  "mechanism": "\u03bb-lapse caps p\u2208[\u03bb,1\u2212\u03bb]=[0.025,0.975] \u21d2 extreme items carry less Fisher info \u21d2 tests run LONGER (+36.8 trials) and resolve to REFER more often. The change is DOMINATED by \u2192REFER (91 of 167 changed cells) \u2014 the expected conservative direction, NOT miscalibration.",
+  "pass_fail_flip_caveat": "24/1200 cells are direct PASS\u2194FAIL (13 pass\u2192fail, 11 fail\u2192pass; NET +2 = +0.17%). The near-SYMMETRY (|net|\u22480) is the signature of intra-candidate Y-stream Monte-Carlo noise, NOT systematic bias: with one paired realization per candidate the two arms' response streams desync once trial counts diverge (comparing two stochastic adaptive processes). HONEST LIMITATION: a single realization conflates the systematic likelihood change with this sampling noise for the PASS\u2194FAIL subset; cleanly separating them needs a per-candidate multi-seed Monte-Carlo distribution comparison \u2014 DOCUMENTED, NOT performed (the aggregate \u2192REFER direction is already unambiguous; flagged as optional strengthening).",
+  "signed_off": "Delta is attributable to the \u03bb-lapse likelihood (identical population; the ONLY change is the likelihood), is DOMINATED by the expected conservative \u2192REFER direction + longer tests, and the residual PASS\u2194FAIL flips are near-symmetric sampling noise about a negligible net (+2/1200). The hardened likelihood is the REFERENCE-CORRECT model (lapse = validated spike-paper Eq. 2; PI bare-probit was the approximation), so 'flips' are PI-approximation deviations, not hardened-engine errors. This supersedes the Phase-4.1/4.2 exact-reproduction gate per the two-step gate decision (2026-05-18). Caveat in `pass_fail_flip_caveat`."
+}

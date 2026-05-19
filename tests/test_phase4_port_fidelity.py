@@ -1,21 +1,25 @@
-"""Phase 4.1 — deployment port-fidelity regression.
+"""Phase 4 — deployment port-fidelity + layered-change regression.
 
-Two-step Phase-4 gate, step 1 (prove the PORT is faithful BEFORE
-layering the intended changes — hardening 4.3 / K=7 4.4 / v13 ℓ* 4.5 /
-re-freeze 4.6). The PI deployment scripts were ported PATH-ONLY into
-`deployment/`; this asserts that introduced ZERO behavioural change by
-reproducing the carried PI reference `data/deployment_prior/sim/`
-(produced by PI at seed=0) bit-faithfully.
+Two-step Phase-4 gate. STEP 1 (4.1–4.2, PI-faithful mode): prove the
+PATH-ONLY port + config externalisation introduced ZERO behavioural
+change — fast invariants + the Phase-4.2 drift-guard. (The original
+slow `test_port_reproduces_pi_baseline_exactly` lived here; it was
+DELETED at 4.3 because it fails BY DESIGN once the likelihood is
+hardened — its purpose, proving port fidelity, was fulfilled and
+committed at 4.1/4.2.)
 
-  * fast/durable: zero absolute `/Users/` paths in deployment/ (plan
-    Phase 4 step 2); import + shape + Config-default invariants.
-  * slow: full seed=0 sim reproduces the committed baseline EXACTLY
-    (per-candidate decision identity + posterior numerics within
-    LAPACK round-off). NOTE: this exact-reproduction gate is valid
-    only in PI-FAITHFUL mode (sub-steps 4.1–4.2). It is INTENTIONALLY
-    superseded at 4.3, where likelihood hardening deliberately changes
-    the numbers — at which point the two-step gate switches to
-    "differences fully attributed to the intended change + signed off".
+STEP 2 (4.3+): each intended change is layered and its delta vs the
+pristine PI baseline is signed off. 4.3 = λ-lapse hardening: the gate
+is lapse-math correctness (λ single-sourced from engine `core`; exact
+λ=0 reduction to the PI bare-probit IRLS; p∈[λ,1−λ]) + a CONTROLLED,
+population-matched, signed-off delta attribution
+(`deployment/phase4_3_hardening_delta.json`, produced by
+`pipeline/deployment_delta/phase4_3_lapse_delta.py`).
+
+  * fast/durable: zero `/Users/` paths in deployment/; import/shape;
+    Config defaults; 4.2 YAML drift-guard + strictness; 4.3 lapse-math
+    + determinism; 4.3 signed-off delta invariants (skip-if-absent).
+  * slow: 4.3 live directional-signature regression on a small slice.
 
 Run all:   pytest -m "" tests/test_phase4_port_fidelity.py -q
 Skip slow: pytest tests/test_phase4_port_fidelity.py -q
@@ -124,31 +128,100 @@ def test_baseline_present_and_well_formed():
         assert set(b[f"decision_{t}"]).issubset({"pass", "fail", "refer"})
 
 
-# ── slow: bit-faithful reproduction (PI-FAITHFUL mode gate, 4.1–4.2) ─────────
+# ── Phase 4.3: λ-lapse hardening. The 4.1/4.2 exact-reproduction slow
+#    test (`test_port_reproduces_pi_baseline_exactly`) was DELETED here —
+#    it fails BY DESIGN once the likelihood is hardened (the two-step
+#    gate's intended supersession; port fidelity was already proven +
+#    committed at 4.1/4.2). The gate now = lapse-math correctness + a
+#    signed-off, population-controlled delta attribution. ──────────────
+DELTA = REPO / "deployment" / "phase4_3_hardening_delta.json"
+
+
+def test_lapse_likelihood_one_definition_and_correct():
+    """λ literally single-sourced from engine `core`; p floored to
+    [λ,1−λ]; the lapse IRLS is the EXACT generalization of the PI
+    bare-probit IRLS (the documented λ=0 reduction identity)."""
+    import sys as _sys
+    import numpy as _np
+    from scipy.stats import norm as _N
+    from scipy.special import log_ndtr as _lnd
+    if str(REPO / "engine") not in _sys.path:
+        _sys.path.insert(0, str(REPO / "engine"))
+    import core
+    from deployment import simulate_test as st
+    assert st.LAPSE_RATE is core.LAPSE_RATE          # literal single source
+    eta = _np.array([-8., -3., -0.7, 0.0, 0.4, 2.5, 8.])
+    ec = _np.clip(eta, -6.0, 6.0)
+    p, pp = st._lapse_components(ec)
+    assert p.min() >= st.LAPSE_RATE - 1e-12
+    assert p.max() <= 1.0 - st.LAPSE_RATE + 1e-12
+    # λ=0 reduction identity: lapse formula ≡ PI bare-probit IRLS
+    Y = _np.array([0, 1, 0, 1, 1, 0, 1.])
+    Phi = _np.exp(_lnd(ec)); phi = _N.pdf(ec)
+    w_pi = phi ** 2 / (Phi * (1 - Phi))
+    z_pi = ec + (Y - Phi) / _np.clip(phi, 1e-12, None)
+    o = 1.0 - 2.0 * 0.0
+    p0, pp0 = 0.0 + o * Phi, o * phi               # _lapse_components @ λ=0
+    assert _np.allclose(pp0 ** 2 / (p0 * (1 - p0)), w_pi, atol=1e-12)
+    assert _np.allclose(ec + (Y - p0) / _np.clip(pp0, 1e-12, None),
+                        z_pi, atol=1e-12)
+
+
+def test_simulate_candidate_seed_deterministic():
+    """Hardened engine is seed-deterministic (basic regression net)."""
+    import numpy as _np
+    from deployment import simulate_test as st
+    Sigma, bank, ell = st.load_deployment(uniform_ell_star=None)
+    cfg = st.TestConfig.from_yaml()
+    theta = _np.zeros(st.DIM)
+    for k in range(st.K):
+        theta[2 * k + 1] = 0.6
+    d1 = st.simulate_candidate(theta, Sigma, ell, bank, cfg,
+                               _np.random.default_rng(123)).decision
+    d2 = st.simulate_candidate(theta, Sigma, ell, bank, cfg,
+                               _np.random.default_rng(123)).decision
+    assert d1 == d2
+
+
+def _delta_artifact():
+    if not DELTA.exists():
+        pytest.skip("phase4_3_hardening_delta.json not produced — run "
+                    "`python -m pipeline.deployment_delta."
+                    "phase4_3_lapse_delta`")
+    import json
+    return json.loads(DELTA.read_text())
+
+
+def test_phase4_3_signed_off_delta_invariants():
+    """Robust invariants of the signed-off CONTROLLED delta (NOT the
+    sampling-noisy exact counts): bounded change, the expected
+    conservative →REFER-dominated direction + longer tests, and
+    near-symmetric PASS↔FAIL (⇒ sampling noise, not systematic bias)."""
+    d = _delta_artifact()
+    assert d["n_candidates"] == 200 and "CONTROLLED" in d["scope"]
+    assert 0.05 <= d["decision_change_frac"] <= 0.30
+    assert d["mean_trials_delta"] > 0          # lapse caps info ⇒ longer
+    ds = d["directional_summary"]
+    assert ds["to_refer_more_conservative"] > ds["from_refer_more_decisive"]
+    assert ds["to_refer_more_conservative"] >= 0.4 * d[
+        "decision_cells_changed"]
+    assert abs(ds["net_stricter_frac"]) <= 0.01   # near-symmetric flips
+    for key in ("mechanism", "pass_fail_flip_caveat", "signed_off"):
+        assert isinstance(d[key], str) and d[key]
+    assert "LIMITATION" in d["pass_fail_flip_caveat"]
+
+
 @pytest.mark.slow
-def test_port_reproduces_pi_baseline_exactly(tmp_path):
-    """The definitive port-fidelity net: full seed=0 sim must reproduce
-    the PI reference candidates.csv with ZERO decision mismatches and
-    posterior numerics within LAPACK float64 round-off. Superseded at
-    4.3 (hardening intentionally diverges) — see module docstring."""
-    if not BASELINE.exists():
-        pytest.skip("baseline absent")
-    from deployment.run_deployment_sim import main
-    main(seed=0, out_dir=str(tmp_path))
-    base = pd.read_csv(BASELINE)
-    rep = pd.read_csv(tmp_path / "candidates.csv")
-    assert list(base.columns) == list(rep.columns)
-    assert (base.tier.values == rep.tier.values).all(), "tier/RNG drift"
-
-    dec = [f"decision_{t}" for t in TASKS]
-    n_mis = int((base[dec].values != rep[dec].values).sum())
-    assert n_mis == 0, f"{n_mis}/1200 decision cells diverged from PI"
-
-    true_cols = [c for c in base.columns if c.startswith("true_")]
-    assert np.array_equal(base[true_cols].values, rep[true_cols].values), (
-        "true-theta differs ⇒ RNG stream not bit-faithful")
-    num = [c for c in base.columns
-           if c.startswith(("hat_", "sd_", "n_trials_"))]
-    assert np.allclose(base[num].values, rep[num].values,
-                       atol=1e-9, rtol=0), (
-        "posterior numerics exceed LAPACK round-off ⇒ port not faithful")
+def test_phase4_3_directional_signature_live():
+    """Live regression: the hardened engine + the committed pre-engine
+    still produce the conservative signature on a small slice (the full
+    signed-off artifact is produced offline)."""
+    import importlib
+    m = importlib.import_module(
+        "pipeline.deployment_delta.phase4_3_lapse_delta")
+    s = m.run_study(limit=36)                      # ~45s, no artifact
+    assert 0.0 <= s["decision_change_frac"] <= 0.40
+    assert s["mean_trials_delta"] > 0
+    ds = s["directional_summary"]
+    assert ds["to_refer_more_conservative"] >= ds["from_refer_more_decisive"]
+    assert abs(ds["net_stricter_frac"]) <= 0.05
