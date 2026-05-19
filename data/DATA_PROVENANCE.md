@@ -126,3 +126,43 @@ labels.csv) and is the Paper-1 Centaur-IIIC validation reference.
 
 `SN1_combined_v2.h5` (PHI EEG source) stays EXTERNAL and is never vendored
 (D9); `datasets.csv` records its S3 path only.
+
+## 6. Phase 5 — engine_inputs provenance reconciliation (executed 2026-05-19)
+
+Audit (referencing the actual code) found the original Phase-5 plan
+**stale vs reality** — §2/§3/§5 above said "Phase 5 regenerates
+engine_inputs from the PI corpus"; that framing is **superseded** by
+what was actually found + done:
+
+**Findings.** (1) `scripts/build_engine_inputs.py` read the *legacy
+out-of-repo prepared* fits and produced the **219-row** legacy
+artifact — re-running it would *regress* engine_inputs + violate D9.
+(2) The live `data/engine_inputs/sdt_fits.csv` (**14,214 rows**, 6
+IIIC domains) is **already** the correct Phase-3 recompute on the
+unified `data/labels`, true producer = `pipeline/
+run_unified_calibration.py` **STEP d**, already suite-gated. (3)
+`README.md` + (4) `MANIFEST.json` were both stale (claimed the legacy
+builder/source; `output_sha256` did not match the live files; **no
+`data/labels` D3 anchor**). (5) `sdt_fits.phase3.csv` was a stray,
+NOT-engine-consumed snapshot differing *materially* from the
+authoritative file (σ Δ≈5.0 in ~1.9k rows). (6) the plan gate's
+`data/consolidated/` does not exist (retired Phase 1).
+
+**Decisions (locked 2026-05-19) + outcome.** No content regeneration
+(the Phase-3 artifact is authoritative + gated): `sdt_fits.csv` =
+authoritative (`engine_paths.SDT_FITS`); `sdt_fits.legacy_oldcorpus.csv`
+= the historical 219-row legacy (recorded, never rebuilt);
+`sdt_fits.spike.csv` = the Phase-3 spike-domain fits (kept).
+`build_engine_inputs.py` **repurposed** into a no-sibling MANIFEST
+verifier/regenerator that self-checks the gated contract (6 IIIC
+domains; 29 Q2-locked + 4 R5 name-variants join by canonical name)
+and **cross-checks D3** — `MANIFEST.json` `data_labels_provenance`
+sha256 == `deployment_prior/summary.json` `data_labels_provenance`
+== the live `data/labels/{labels,raters}.csv` ⇒ engine_inputs and
+deployment_prior are **provably the same unified corpus** (D3, proven
+True). Stray `sdt_fits.phase3.csv` **removed**. `MANIFEST.json` +
+`README.md` rewritten truthfully. Gate = the already-green Phase-3 /
+Mode-A / Mode-B suite on `sdt_fits.csv` + `tests/
+test_phase5_engine_inputs.py`; the nonexistent `consolidated/` is
+dropped from the Phase-5 gate. (The §2/§5 "Phase 5 regenerates"
+wording above is retained for history but is superseded by this §6.)

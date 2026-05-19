@@ -95,6 +95,22 @@ Methodology repo + PI deployment repo merged into one shippable repo
   at K=7; `plot` best-effort in the pipeline); entry point retargeted.
   Close-out: `docs/DEPLOYMENT_INTEGRATION.md`. Tests:
   `tests/test_phase4_*`. Full suite 232 passed / 1 xfailed.
+- **Phase 5 — engine_inputs provenance/layout reconciliation (D3),
+  COMPLETE.** Audit found the plan stale: `build_engine_inputs.py`
+  read the legacy out-of-repo prepared fits (219-row → re-running
+  regresses + violates D9); the live `sdt_fits.csv` (14,214 rows) is
+  *already* the gated Phase-3 recompute on `data/labels`
+  (`run_unified_calibration` STEP d). Decision (no content regen):
+  builder **repurposed** into a no-sibling MANIFEST
+  verifier/regenerator that self-checks the gated contract + **proves
+  D3** (`engine_inputs` `data_labels` sha256 == `deployment_prior`
+  == live corpus). Stale `MANIFEST.json`/`README.md` rewritten
+  truthfully; stray materially-divergent `sdt_fits.phase3.csv`
+  removed; nonexistent `consolidated/` dropped from the gate.
+  Findings in `data/DATA_PROVENANCE.md` §6 + `data/engine_inputs/`
+  `README.md`/`MANIFEST.json`. Tests:
+  `tests/test_phase5_engine_inputs.py`. Full suite 237 passed /
+  1 xfailed.
 
 ---
 

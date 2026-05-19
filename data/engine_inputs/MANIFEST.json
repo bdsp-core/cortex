@@ -1,34 +1,36 @@
 {
-  "generated": "2026-05-16",
-  "source_dir": "../ilae-skill-certification-test-main/data/prepared",
-  "source_sha256": {
-    "sparcnet_sz_sdt_fits.csv": "668544156690be550aba560706793549f08580458842260261895c2d9da0ff22",
-    "sparcnet_lpd_sdt_fits.csv": "d8dbc51726da2e5df3c63b46bba04efedeacc7af8134b6d49408fb0b8a13b409",
-    "sparcnet_gpd_sdt_fits.csv": "b340ae6208f48d3b4eb427221918516e8278345bb2b49ea4dff12937dee9ba0e",
-    "sparcnet_lrda_sdt_fits.csv": "a565eaddfa1620151b1f08256bc6170f0572edbc92a2a02a1cefa82a7c95c96c",
-    "sparcnet_grda_sdt_fits.csv": "7f42f0ae18d3847419ec795e01bd7b6771023a8dbfe5a3e89475baa30d927ff6",
-    "sparcnet_iic_sdt_fits.csv": "7b5c36581229f48ce1cc4dec78118bd3356c9b52b9f0b8f0a557267a50e50e0a",
-    "cross_domain_rater_matrix.csv": "a9c6e3852640ea504ff49b6cf9b8cca2957ef7a8049f5266d77336ca281a656f",
-    "Sigma_l_fitted.npy": "246dbc0db76a2b3f3c89bb94514a07e1b19932403f872339063883e9451acfd9"
+  "generated": "2026-05-19",
+  "regenerated_by": "scripts/build_engine_inputs.py (Phase 5: verify + regenerate; NO sibling reads)",
+  "true_producer": "pipeline/run_unified_calibration.py STEP d \u2014 the reference-faithful CV-Youden recompute on the UNIFIED data/labels corpus (Phase 3). This script does NOT build engine_inputs; it verifies + records provenance for it.",
+  "authoritative_artifact": "sdt_fits.csv (engine_paths.SDT_FITS; engine-consumed; gated by tests/test_phase3_calibration.py + Mode-A/Mode-B). sdt_fits.legacy_oldcorpus.csv = the historical sibling-prepared 219-row build (recorded, never rebuilt). Phase 5 REMOVED the stray sdt_fits.phase3.csv (a superseded, not-engine-consumed snapshot that differed materially).",
+  "sdt_fits_rows": 14214,
+  "data_labels_provenance": {
+    "labels_csv_sha256": "f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b",
+    "raters_csv_sha256": "bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f",
+    "labels_csv_path": "data/labels/labels.csv",
+    "raters_csv_path": "data/labels/raters.csv"
+  },
+  "d3_shared_lineage_with_deployment_prior": {
+    "checked": true,
+    "deployment_prior_summary": "data/deployment_prior/summary.json",
+    "shares_data_labels_lineage": true
   },
   "output_sha256": {
-    "sdt_fits.csv": "7a3fa3bdab7e7091413406659da23c1857a5c2ee26d18145d1ca83b5e5aa4f59",
-    "cross_domain_rater_matrix.csv": "a9c6e3852640ea504ff49b6cf9b8cca2957ef7a8049f5266d77336ca281a656f"
+    "sdt_fits.csv": "5925c5691435693038ed36dc32407cd8f64de67ddc2f96fe0098783c4a4fcdd0",
+    "cross_domain_rater_matrix.csv": "c33f4a890f0f703baa7bb3912f4c19677c8408adc87b5c15c81e6894ae500c36",
+    "cross_domain_rater_matrix.q2locked.csv": "a9c6e3852640ea504ff49b6cf9b8cca2957ef7a8049f5266d77336ca281a656f",
+    "sdt_fits.legacy_oldcorpus.csv": "7a3fa3bdab7e7091413406659da23c1857a5c2ee26d18145d1ca83b5e5aa4f59",
+    "sdt_fits.spike.csv": "e6bbd78bb4b32a0519864eeab7b549bc6d328c4d7028fdb12fe471abd38e6d0c",
+    "Sigma_l_fitted.npy(repo-root,frozen)": "246dbc0db76a2b3f3c89bb94514a07e1b19932403f872339063883e9451acfd9"
   },
-  "sdt_fits_rows": 219,
-  "matrix_reproduction": {
-    "formula": "sigma,theta = sdt_fits[domain] (join on confirmed_sparcnet_name); l = -ln(sigma)",
-    "max_abs_delta": 2.220446049250313e-16,
-    "names_exact": true,
-    "status": "REPRODUCIBLE (audited; vendored copy is byte-exact, not overwritten)"
+  "frozen_vendored_input": "Sigma_l_fitted.npy (repo root) \u2014 older 15-rater-era Corr_l; immutable, recorded, never rebuilt.",
+  "self_check": {
+    "contract": "mirrors tests/test_phase3_calibration (6 IIIC domains; 29 Q2-locked + 4 R5 name-variants join sdt_fits by canonical rater_name) + D3 cross-check",
+    "passed": true,
+    "failures": []
   },
-  "sigma_l_frozen": {
-    "status": "FROZEN \u2014 stays at repo root, NOT regenerated or duplicated into engine_inputs/",
-    "reason": "derives from an older 15-rater matrix era; already in-repo (not a cross-repo fragility); referenced at root by core_mcmc + ~15 scripts",
-    "location": "Sigma_l_fitted.npy (repo root)",
-    "sha256": "246dbc0db76a2b3f3c89bb94514a07e1b19932403f872339063883e9451acfd9",
-    "corr_l_vs_current_matrix_max_drift": 0.715395493850577
-  },
-  "cert_config_yaml": "OUT OF SCOPE \u2014 hand-maintained config, stays at repo root",
-  "lossless": "PASS \u2014 sdt_fits round-trips byte-identical to all 6 sources; vendored copies sha256-identical"
+  "superseded_legacy": {
+    "old_builder": "this file PRE-Phase-5 vendored the legacy out-of-repo prepared per-domain SDT fits (219-row, preserved as sdt_fits.legacy_oldcorpus.csv). RETIRED \u2014 re-running that path would regress engine_inputs + violate D9 (no out-of-repo reads) / D3.",
+    "consolidated_dir": "the original plan's Phase-5 gate referenced data/consolidated/ \u2014 it does NOT exist (retired in Phase 1, zero consumers); dropped from the Phase-5 gate."
+  }
 }
