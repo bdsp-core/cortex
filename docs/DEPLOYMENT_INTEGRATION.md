@@ -104,3 +104,25 @@ s_mean r≈0.72–0.78) live in `docs/DATA_UNIFICATION_ANALYSIS.md`.
   shipped-K=7 verdict.
 - `tests/test_phase4_port_fidelity.py` + `test_phase4_4b_ports.py` —
   the full Phase-4 regression suite (gated green before every commit).
+
+## Figures (deliberate retirement — Phase 4.7)
+
+`data/deployment_prior/figures/` now holds **only** the K=7
+`ilae-deploy plot` (`deployment/plot_deploy.py`) set:
+`fig1_concept`, `fig2_single_candidate`, `fig3_skill_by_tier`,
+`fig4_recovery`, `fig5_verdicts`. Six stale PNGs were retired with
+Phase 4.7 (commit `24ab077`):
+
+- `fig3_skill_and_threshold`, `fig4_recovery_vs_N`,
+  `fig5_trials_to_decision` — PI's *older* `plot_deploy` figure names,
+  **superseded** by the K=7 set above.
+- `fig6_phase1_main`, `fig7_method_by_tier`, `fig8_within_tier` —
+  outputs of `plot_deployment_figs.py`, a PI *paper-figures* script
+  that is **not in deployment-CLI scope** and was not ported.
+
+Rationale: stale **K=6** figures (and figures from an unported,
+out-of-scope script) must not sit in the **shipped K=7** deployment
+artifact directory, where they would misrepresent the shipped system.
+Porting `plot_deployment_figs.py` (manuscript/Mode-A figures) is a
+**separate, deferred concern**, tracked independently of Phase 4.
+All deployment figures are derived/regenerable via `ilae-deploy plot`.
