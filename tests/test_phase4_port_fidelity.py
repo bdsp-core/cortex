@@ -225,3 +225,67 @@ def test_phase4_3_directional_signature_live():
     ds = s["directional_summary"]
     assert ds["to_refer_more_conservative"] >= ds["from_refer_more_decisive"]
     assert abs(ds["net_stricter_frac"]) <= 0.05
+
+
+# ── Phase 4.3b: multi-seed Monte-Carlo decomposition (strengthening the
+#    signed-off delta — separates the SYSTEMATIC lapse effect from
+#    intra-candidate sampling noise for the PASS↔FAIL subset). ──────────
+MC = REPO / "deployment" / "phase4_3_hardening_delta_mc.json"
+
+
+def _mc_artifact():
+    if not MC.exists():
+        pytest.skip("phase4_3_hardening_delta_mc.json not produced — "
+                    "run `python -m pipeline.deployment_delta."
+                    "phase4_3_multiseed_mc`")
+    import json
+    return json.loads(MC.read_text())
+
+
+def test_phase4_3b_mc_decomposition_invariants():
+    """ANALYSIS-INTEGRITY + HONESTY invariants (NOT a hoped outcome —
+    the MC in fact OVERTURNED the 'just sampling noise' hypothesis and
+    found a real, small, systematic pass-share shift; the test asserts
+    the decomposition is sound and the finding is truthfully flagged,
+    whatever its sign)."""
+    d = _mc_artifact()
+    assert d["m_seeds"] >= 10
+    assert d["n_cells"] == 1200          # 200 cands × 6 tasks
+    # probability conservation: the 3 decision-prob deltas sum to 0
+    s3 = (d["systematic_d_p_pass"] + d["systematic_d_p_fail"]
+          + d["systematic_d_p_refer"])
+    assert abs(s3) < 1e-9
+    for k in ("systematic_d_p_refer_se", "systematic_d_p_pass_se",
+              "systematic_d_p_fail_se", "systematic_pass_share_shift_se"):
+        assert d[k] > 0                  # real MC standard errors
+    # the conservative REFER increase IS systematic (robust mechanism)
+    assert d["systematic_d_p_refer"] > 0
+    assert d["refer_increase_is_systematic"] is True
+    # the boolean verdict must be SELF-CONSISTENT with the SE test …
+    null = abs(d["systematic_pass_share_shift"]) <= 2 * d[
+        "systematic_pass_share_shift_se"]
+    assert d["passfail_balance_shift_is_null"] is bool(null)
+    # … and HONESTLY reflected in the prose (no overclaim either way)
+    for key in ("conclusion", "interpretation", "open_item"):
+        assert isinstance(d[key], str) and len(d[key]) > 80
+    if not d["passfail_balance_shift_is_null"]:
+        # a real shift MUST be flagged as a carried-forward open item,
+        # not signed off as benign
+        assert "re-assess" in d["open_item"].lower()
+        assert "not signed off as benign" in d["open_item"].lower()
+        assert "OVERTURNED" in d["interpretation"]
+
+
+@pytest.mark.slow
+def test_phase4_3b_mc_runs_small_slice():
+    """Live regression that the parallel MC study still executes and
+    conserves probability on a small slice (underpowered for the
+    significance verdicts — those are gated on the offline artifact)."""
+    import importlib
+    m = importlib.import_module(
+        "pipeline.deployment_delta.phase4_3_multiseed_mc")
+    s = m.run_study(limit=6, max_workers=2)        # ~45s, no artifact
+    s3 = (s["systematic_d_p_pass"] + s["systematic_d_p_fail"]
+          + s["systematic_d_p_refer"])
+    assert abs(s3) < 1e-9
+    assert s["n_cells"] == 36 and s["m_seeds"] >= 10

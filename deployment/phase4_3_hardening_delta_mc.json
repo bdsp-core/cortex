@@ -1,0 +1,21 @@
+{
+  "scope": "Multi-seed MC decomposition \u2014 identical 200 PI candidates (fixed \u03b8), M=20 seeds/candidate/arm, per-(cand,seed) PAIRED seeds, committed-4.2 vs hardened. Averages out intra-candidate Y-stream sampling noise.",
+  "pre_engine_commit": "26025fa",
+  "m_seeds": 20,
+  "n_cells": 1200,
+  "systematic_d_p_refer": 0.04095833333333333,
+  "systematic_d_p_refer_se": 0.002778096283055701,
+  "systematic_d_p_pass": -0.010625,
+  "systematic_d_p_pass_se": 0.00203903238791214,
+  "systematic_d_p_fail": -0.030333333333333337,
+  "systematic_d_p_fail_se": 0.0023794053514917214,
+  "systematic_pass_share_shift": 0.014482507736207729,
+  "systematic_pass_share_shift_se": 0.0027907121588083106,
+  "n_decisive_cells": 1193,
+  "refer_increase_is_systematic": true,
+  "passfail_balance_shift_is_null": false,
+  "conclusion": "\u03bb-lapse SYSTEMATICALLY increases REFER (\u0394P(refer)=+0.0410 \u00b1 0.0028, >0 at >2\u00b7SE) \u2014 the expected conservative mechanism, now an averaged (not noisy) estimate. The pass-share-of-decisive shift is +0.0145 \u00b1 0.0028 (NOT consistent with 0 \u2014 a systematic pass/fail bias exists; investigate before sign-off). \u0394P(pass)=-0.0106\u00b10.0020, \u0394P(fail)=-0.0303\u00b10.0024 \u2014 FAIL-mass drops ~2.9\u00d7 more than PASS-mass (REFER absorbs ASYMMETRICALLY, slightly toward leniency among decisive verdicts).",
+  "fail_to_pass_drop_ratio": 2.854901960784314,
+  "interpretation": "HONEST (the strengthening OVERTURNED the single-run 'just sampling noise' hypothesis \u2014 exactly why this MC was run). The pass/fail-balance shift is REAL and systematic (+0.0145, ~5\u00b7SE) but SMALL (~1.5pp toward leniency among decisive cases) and is DWARFED by the universal conservative REFER increase (+0.041). Single-seed per-task corroboration (phase4_3_hardening_delta.json) shows the aggregate is the NET of HETEROGENEOUS, OPPOSING per-task shifts (e.g. spike/lrda \u2192 lenient via FAIL\u2192REFER; lpd/seizure \u2192 stricter via PASS\u2192REFER) \u2014 NOT a clean \u2113*-monotone trend and NOT a fundamental flaw of the lapse likelihood (which is the REFERENCE-CORRECT model). It is a per-task boundary-interaction between \u03bb-attenuated extreme evidence and where each task \u2113* sits in the skill distribution \u2014 measured here under the PI-FAITHFUL ell_thresholds that Phase 4.5 REPLACES with v13.",
+  "open_item": "NOT signed off as benign in isolation. Flagged QUANTIFIED open item: re-assess this pass-share shift after Phase 4.5 (v13 \u2113*) + 4.6 (re-freeze on the unified corpus), since \u2113* directly sets the pass/fail/refer boundaries this effect is an interaction with. The \u03bb-lapse likelihood itself is correct + reference-consistent; the gate here is that the delta is fully MEASURED, attributed, and carried forward \u2014 not that it is zero."
+}
