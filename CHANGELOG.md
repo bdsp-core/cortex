@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1 done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2 done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -170,6 +170,40 @@ Methodology repo + PI deployment repo merged into one shippable repo
   chain sampler correctness is K-independent; Phase-3.5 SBC engine
   artifact at K=6 IIIC covers the 6 IIIC of K=7). Full suite
   **243 passed / 1 xfailed**.
+- **Phase 7 sub-step 2 — Tier-2 OC simstudy port + K=7 added (per
+  user 2026-05-19, Q2 = port + re-run at K=7).** Faithful port of
+  the methodology reference `run_phase4_simstudy.py` →
+  `scripts/run_tier2_oc_simstudy.py` (the "Paper-1 Results
+  centerpiece" synthetic ℓ-grid OC surface: ℓ∈[-1.5..1.0],
+  K∈{2,4,6,8}, Σ_l∈{empirical,independent,cs0.7}, methods∈{random,
+  brute,hier}). **K=7 added** to K_GRID; MAX_Q_BY_METHOD_K K=7 caps
+  interpolated between K=6/K=8 (hier 5000, random 24000). Path-
+  only edits per Phase-4.4-B precedent: (a) `sys.path` adds
+  `engine/` (unified layout vs methodology root-flat), (b) output
+  dir `results/phase2_validation/` (vs methodology
+  `results/phase4_simstudy/`, per plan §"Phase 7"). Renamed
+  consistently with plan terminology ("Tier-2 OC"). Port gated by
+  `tests/test_phase7_tier2_oc_port.py` (7 fast tests, 0.28 s):
+  design constants preserved, methodology MAX_Q caps no-drift,
+  K=7 in K_GRID, monotone caps cap(6)<cap(7)<cap(8) per method,
+  Σ_l well-shaped K=7 matrices (symmetric PSD; independent=I_7;
+  cs0.7[0,1]=0.7; empirical=matched-mean CS), 30-task graph at
+  K=7 (6 ℓ × 5 methods × correctly-crossed Σ_l-conds), output
+  dir. Functional probe: one K=7 hier-empirical ℓ=0.0 session
+  end-to-end in 42.5 s (reached δ=0.05@q834, δ=0.10@q204; right-
+  censored at δ=0.025 within probe cap max_q=2000 — expected).
+  **Honest pilot-progress evidence:** the in-session --n-reps 1
+  K=7 pilot reached **20/30 sessions in 591 s** (per the script's
+  progress line) before being terminated to keep the sub-step
+  boundary clean — projected ETA total ~16 min; no JSON artifact
+  persisted (parent SIGTERM propagated mid-`parallel_map`, main()
+  never reached `with open(...)`). Sub-7.2 deliverable is the
+  port + tests + probe + doc; the full --n-reps 1 K=7 pilot and
+  the --n-reps 25 full-grid campaign are scoped as **separate
+  paper-grade executions** (re-launchable via the same CLI). Doc:
+  `docs/PHASE7_TIER2_OC.md`. Suite **250 passed / 1 xfailed** in
+  15:31 (slower wall time documented as CPU-contention from the
+  concurrently-running pilot, since terminated).
 
 ---
 
