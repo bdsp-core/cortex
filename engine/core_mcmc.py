@@ -564,12 +564,22 @@ def _coarse_to_fine_argmin(loss_of, n, n_coarse, m_bracket=3):
 
 
 def choose_item(state, bank_signals=None, active_domains=None,
-                n_subsample=None):
+                n_subsample=None, bank_sds=None, return_sd=False):
     """Pick (k, s) globally minimising expected total posterior variance.
 
     bank_signals: optional list of K arrays (one per domain) of candidate
     signal levels. If None, falls back to SIGNAL_GRID for all domains.
     Per-domain arrays may differ in length (e.g. lrda bank has 230 items).
+    bank_sds:  Phase 3.5 — optional list of K arrays parallel to
+               bank_signals giving each candidate's s posterior SD.  When
+               provided, item selection marginalises each candidate over
+               its s posterior (via _expected_loss_vec(signal_sds=...)),
+               so the selector prefers high-precision items.  None
+               (default) ⇒ BIT-IDENTICAL to the prior engine.
+    return_sd: if True, return (k, s, s_sd) — the chosen item's s posterior
+               SD (0.0 when bank_sds is None) — so the session can
+               marginalise the observation likelihood too.  Default False
+               ⇒ returns (k, s), so every existing caller/test is unchanged.
     active_domains: optional list of domain indices to consider (for cert sessions).
     n_subsample: F4.1 OC-campaign enabler.  If set, use the deterministic
                  coarse-to-fine argmin (`_coarse_to_fine_argmin`) with
@@ -584,17 +594,24 @@ def choose_item(state, bank_signals=None, active_domains=None,
     domains = active_domains if active_domains is not None else list(range(K))
     best_loss = np.inf
     best_k, best_s = domains[0], float(np.asarray(candidates[domains[0]])[0])
+    best_sd = 0.0
     for k in domains:
         sigs = np.asarray(candidates[k])
+        sds = (np.asarray(bank_sds[k]) if bank_sds is not None else None)
         idx = _coarse_to_fine_argmin(
-            lambda ii: _expected_loss_vec(state, k, sigs[ii]),
+            lambda ii: _expected_loss_vec(
+                state, k, sigs[ii],
+                signal_sds=(sds[ii] if sds is not None else None)),
             len(sigs), n_subsample)
-        loss = float(_expected_loss_vec(state, k, sigs[idx:idx + 1])[0])
+        loss = float(_expected_loss_vec(
+            state, k, sigs[idx:idx + 1],
+            signal_sds=(sds[idx:idx + 1] if sds is not None else None))[0])
         if loss < best_loss:
             best_loss = loss
             best_k = k
             best_s = float(sigs[idx])
-    return best_k, best_s
+            best_sd = float(sds[idx]) if sds is not None else 0.0
+    return (best_k, best_s, best_sd) if return_sd else (best_k, best_s)
 
 
 # ───────────── AUROC CI (same as before) ─────────────
@@ -625,7 +642,7 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
                             brute_proposal_scale=None,
                             bank_signals=None,
                             Sigma_l=None, Sigma_t=None,
-                            n_subsample=None):
+                            n_subsample=None, bank_sds=None):
     """Session with MCMC-rejuvenation SMC + AUROC-based stopping (Mode-A).
 
     Multi-AUROC Precision Protocol (Paper 1, 2026-05-15):
@@ -708,11 +725,19 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
     accept_rates = []
 
     for q in range(max_q):
-        k, s = choose_item(state, bank_signals, n_subsample=n_subsample)
+        if bank_sds is not None:
+            # Phase 3.5: item selection AND the observation likelihood
+            # marginalise over the segment-signal posterior s ~ N(s,s_sd²).
+            k, s, s_sd = choose_item(state, bank_signals,
+                                     n_subsample=n_subsample,
+                                     bank_sds=bank_sds, return_sd=True)
+        else:                       # default path — BIT-IDENTICAL to prior
+            k, s = choose_item(state, bank_signals, n_subsample=n_subsample)
+            s_sd = 0.0
         t_true = true_params[k * 2]
         l_true = true_params[k * 2 + 1]
         y = simulate_response(s, t_true, l_true, rng)
-        update(state, k, s, y)
+        update(state, k, s, y, s_sd=s_sd)
         if ess(state["w"]) < ess_threshold_frac * N:
             ar = resample_and_rejuvenate(state, rng, n_mh_steps, proposal_scale)
             accept_rates.append(ar)

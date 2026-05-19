@@ -1,0 +1,275 @@
+{
+  "metric": "fixed-budget (run_until_max) per-domain AUROC CI halfwidth + coverage of true AUROC; non-confounded (stop-at-\u03b4 was rejected: it forces both arms to CI\u2248\u03b4 by construction and confounds n_q with the adaptive selector).",
+  "fixed_q_per_session": 120,
+  "n_sessions_per_arm": 32,
+  "n_domain_obs_per_arm": 192,
+  "nominal_coverage": 0.95,
+  "mean_ci_halfwidth_plugin": 0.07673145322164307,
+  "mean_ci_halfwidth_uncert": 0.0781956537207092,
+  "ci_halfwidth_ratio_uncert_over_plugin": 1.0190821421671334,
+  "coverage_plugin": 0.9791666666666666,
+  "coverage_uncert": 0.9895833333333334,
+  "coverage_gap_plugin_vs_nominal": -0.029166666666666674,
+  "coverage_gap_uncert_vs_nominal": -0.039583333333333415,
+  "headline_finding": "HONEST + SMALL: s_sd propagation moves CI width and coverage in the theoretically correct (conservative) direction, but the realised session-level deflation is MODEST (~2% CI widening) and the plug-in engine was NOT badly overstating power \u2014 its AUROC CIs already OVER-cover (>0.95) in this homogeneous-rater / rich-bank regime. The result BOUNDS the cost of the prior plug-in approximation rather than correcting a serious flaw; it does not dramatize it.",
+  "interpretation": "Theory: plug-in (s_sd=0, the PRIOR engine) ignores item-signal error, so its AUROC CIs are biased NARROW and can under-cover. Propagating the \u03ba-calibrated s_sd widens the CI (halfwidth ratio >= 1) and cannot reduce coverage. Measured here: the effect is real and correctly-signed but small (ratio\u22481.02; coverage 0.98->0.99) \u2014 both arms already conservative, so the per-item Fisher deflation (proven exact by test_phase35_engine_ssd) aggregates to only a modest session-level cost once adaptive selection over a large bank compensates. Reported as a magnitude BOUND, not a headline power loss. (NOTE: a stress regime \u2014 heterogeneous raters / thin bank \u2014 would show a larger effect; the homogeneous rich-bank case tested is the FAVORABLE one, so ~2% is an optimistic lower bound on the deflation, honestly framed.)",
+  "directional_invariant_holds": true,
+  "rows": [
+    {
+      "ell_true": 0.15,
+      "seed": 0,
+      "hw_plugin": 0.10009094507927419,
+      "hw_uncert": 0.09382127049603607,
+      "cov_plugin": 0.8333333333333334,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 1,
+      "hw_plugin": 0.09713702160865191,
+      "hw_uncert": 0.09060085294154226,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 2,
+      "hw_plugin": 0.08697138585337864,
+      "hw_uncert": 0.1028277370752192,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 3,
+      "hw_plugin": 0.07497778617399058,
+      "hw_uncert": 0.11994856587417461,
+      "cov_plugin": 0.8333333333333334,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 4,
+      "hw_plugin": 0.07100332614921696,
+      "hw_uncert": 0.07580407874943236,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 5,
+      "hw_plugin": 0.08438335981009375,
+      "hw_uncert": 0.0875913847793837,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 6,
+      "hw_plugin": 0.09144919897261833,
+      "hw_uncert": 0.09215657150096383,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.15,
+      "seed": 7,
+      "hw_plugin": 0.08481310234454871,
+      "hw_uncert": 0.08385958512665044,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 0,
+      "hw_plugin": 0.08874524105518954,
+      "hw_uncert": 0.09064223463199872,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 1,
+      "hw_plugin": 0.09335563377764573,
+      "hw_uncert": 0.0934181577203917,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 2,
+      "hw_plugin": 0.08811077210503787,
+      "hw_uncert": 0.10484438097496081,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 3,
+      "hw_plugin": 0.09503573899002642,
+      "hw_uncert": 0.11312063577401939,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 4,
+      "hw_plugin": 0.08198231309938521,
+      "hw_uncert": 0.0854336419788357,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 5,
+      "hw_plugin": 0.08083119877611214,
+      "hw_uncert": 0.08036577685952088,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 6,
+      "hw_plugin": 0.07833910994890421,
+      "hw_uncert": 0.07584897465095411,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.3,
+      "seed": 7,
+      "hw_plugin": 0.08767254092815864,
+      "hw_uncert": 0.06049755134967481,
+      "cov_plugin": 1.0,
+      "cov_uncert": 0.8333333333333334
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 0,
+      "hw_plugin": 0.07744063523736183,
+      "hw_uncert": 0.08449805407554778,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 1,
+      "hw_plugin": 0.0716684967559962,
+      "hw_uncert": 0.09727439698708014,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 2,
+      "hw_plugin": 0.07956212893216007,
+      "hw_uncert": 0.07891737494929078,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 3,
+      "hw_plugin": 0.07214852099356954,
+      "hw_uncert": 0.06486672521270083,
+      "cov_plugin": 0.8333333333333334,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 4,
+      "hw_plugin": 0.08224713691879525,
+      "hw_uncert": 0.06450660772377148,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 5,
+      "hw_plugin": 0.056716876956899705,
+      "hw_uncert": 0.054827951038935153,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 6,
+      "hw_plugin": 0.07890696022336455,
+      "hw_uncert": 0.07584897465095411,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.45,
+      "seed": 7,
+      "hw_plugin": 0.0757314684461442,
+      "hw_uncert": 0.05910040562040313,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 0,
+      "hw_plugin": 0.06280617082875328,
+      "hw_uncert": 0.0660863383179619,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 1,
+      "hw_plugin": 0.07052440944016111,
+      "hw_uncert": 0.049884093278611014,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 2,
+      "hw_plugin": 0.059411272084997996,
+      "hw_uncert": 0.051575516682115664,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 3,
+      "hw_plugin": 0.048753531328292916,
+      "hw_uncert": 0.08121465514927531,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 4,
+      "hw_plugin": 0.06723112069591529,
+      "hw_uncert": 0.06683112537422513,
+      "cov_plugin": 0.8333333333333334,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 5,
+      "hw_plugin": 0.06868101425465997,
+      "hw_uncert": 0.04489580485693396,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 6,
+      "hw_plugin": 0.054733850168697945,
+      "hw_uncert": 0.07887090371459966,
+      "cov_plugin": 1.0,
+      "cov_uncert": 0.8333333333333334
+    },
+    {
+      "ell_true": 0.6,
+      "seed": 7,
+      "hw_plugin": 0.04394423515457535,
+      "hw_uncert": 0.03228059094652963,
+      "cov_plugin": 1.0,
+      "cov_uncert": 1.0
+    }
+  ]
+}
