@@ -122,11 +122,17 @@ def _build(labels_csv: Path, raters_csv: Path, case_bank_csv: Path,
     # ── persist
     out_dir.mkdir(parents=True, exist_ok=True)
     bank_path = out_dir / "rater_replay_bank.csv.gz"
+    pkl_path = out_dir / "rater_replay_bank.indexed.pkl"
     sum_path = out_dir / "rater_replay_summary.csv"
     bank_merge_out = bank_merge[
         ["rater_id", "task", "seg_id", "y", "s_mean", "s_sd"]
     ].sort_values(["rater_id", "task", "seg_id"]).reset_index(drop=True)
     bank_merge_out.to_csv(bank_path, index=False, compression="gzip")
+    # Phase 7 sub-3-C: also persist a pre-indexed pickle (set_index
+    # by [rater_id, task], pre-sorted) — ~60× faster to load in
+    # workers than the gz CSV. Same content; consumed by
+    # `pipeline/replay/_common.load_replay_bank_cached`.
+    bank_merge_out.set_index(["rater_id", "task"]).to_pickle(pkl_path)
     summary.sort_values(["rater_id", "task"]).to_csv(sum_path, index=False)
 
     dt = time.time() - t0

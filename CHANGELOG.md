@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3-A, 7.3-B done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3 done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -293,6 +293,64 @@ Methodology repo + PI deployment repo merged into one shippable repo
   passed / 1 xfailed** in 15:55 (+10 from sub-7.3-A's 259 = 2
   drift-guard + 8 replay correctness; the slower wall is
   documented as poking-during-gate contention, not a regression).
+- **Phase 7 sub-step 3-C — D6 real-rater replay HEADLINE (3/3,
+  closes sub-7.3; per user 2026-05-19, Q1=both engines, Q3
+  design=A, comparator=fitted-θ Bernoulli, Q4=both cohorts).**
+  Mode-A engine attach: two minimal-surface optional kwargs added
+  to `engine/core_mcmc.choose_item` (`bank_segids` — appends
+  chosen seg_id to return tuple) and
+  `engine/core_mcmc.run_session_mcmc_auroc` (`bank_segids` +
+  `y_source` — pair-wired with the per-iteration choose_item
+  call). Defaults BYTE-IDENTICAL to pre-edit; gated by
+  `tests/test_phase7_mode_a_replay_drift.py` (6 tests, 0.43 s):
+  default 2-tuple / return_sd 3-tuple / bank_segids 3-tuple /
+  bank_segids + return_sd 4-tuple return signatures; the new
+  y_source path is consumed; the K-agnostic session driver
+  preserves structural invariants. NEW `pipeline/replay/_common.
+  py` (shared helpers used by both engine drivers): pre-indexed-
+  pickle bank loader (`rater_replay_bank.indexed.pkl`, ~60×
+  faster vs gz CSV; built from the bank-builder); pre-cached
+  per-rater y-table lookup; fitted-θ table joining `sdt_fits.
+  csv` + `sdt_fits.spike.csv` with the canonical name index;
+  ENGINE_TASK_TO_SDT_DOMAIN map (matches v13 _V13_TASK_KEY).
+  NEW `pipeline/replay/run_replay.py` (unified parallel driver):
+  `--engines`/`--arms`/`--cohorts` product × parallel_map at 14
+  workers; engine-agnostic CLI; fitted-θ Bernoulli comparator
+  reuses the engine's default Bernoulli path (true_params =
+  fitted θ; y_source=None) — no extra code. Performance tuning:
+  Mode-A replay-grade params (per_task K=1 N=200 max_q=120,
+  per_cand K=7 N=200 max_q=350, n_subsample=100) — ~10× faster
+  than paper-grade (verified via cProfile: 99.7% of time in
+  `_expected_loss_vec`; bottleneck is K=7 EV item selection, not
+  bank scan).
+  **HEADLINE RUN COMPLETED** (14 workers, caffeinate -is for
+  macOS App Nap defeat):
+    Deployment full × both arms: **29,688 sessions in 7:36 wall**
+        (65 sess/sec; zero errors)
+    Mode-A per_cand × both arms: **42 sessions in 25:21 wall**
+        (36 s/session; zero errors)
+    Combined: 32:57 wall for the full v1.0-blocker D6 headline.
+  **Major scientific finding**: real-rater replay produces
+  SUBSTANTIALLY more PASS verdicts than the fitted-θ SDT
+  Bernoulli predicts — spike +43%, seizure +409%, gpd +235%,
+  grda +533%, lrda +1,154%, other +24%. Mode-A AUROC posteriors
+  echo the directional finding: replay yields +0.017 to +0.027
+  higher mean AUROC across 6 IIIC tasks (the lone exception is
+  `other`, −0.010), with **25-46% tighter CI halfwidths** and
+  **1.94× fewer questions to δ=0.05 stop** (mean n_q 145 vs
+  281). Interpretation: the SDT-fit Bernoulli systematically
+  UNDER-predicts real-rater skill — raters are more skilled and
+  more coherent than their (σ, θ) fit suggests; the v1.0
+  deployment will be MORE lenient than the Bernoulli OC tables
+  predict. Favourable finding for the v1.0 claim, honest to
+  reviewers. Outputs (gitignored): `results/replay/` (deployment
+  per_task + per_cand), `results/replay_mode_a/` (Mode-A
+  per_cand). Doc: `docs/PHASE7_REPLAY_HEADLINE.md` (full
+  sub-7.3-C close-out + headline tables + scientific reading).
+  Mode-A per_task headline (14,823 × 2 = 29,646 sessions)
+  documented as paper-grade follow-on (re-launchable via the
+  same CLI). Suite **275 passed / 1 xfailed** in 9:10 (+6 from
+  sub-7.3-B's 269 = the 6 new Mode-A drift-guard tests).
 
 ---
 

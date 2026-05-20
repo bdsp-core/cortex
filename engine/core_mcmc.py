@@ -564,7 +564,8 @@ def _coarse_to_fine_argmin(loss_of, n, n_coarse, m_bracket=3):
 
 
 def choose_item(state, bank_signals=None, active_domains=None,
-                n_subsample=None, bank_sds=None, return_sd=False):
+                n_subsample=None, bank_sds=None, return_sd=False,
+                bank_segids=None):
     """Pick (k, s) globally minimising expected total posterior variance.
 
     bank_signals: optional list of K arrays (one per domain) of candidate
@@ -580,6 +581,16 @@ def choose_item(state, bank_signals=None, active_domains=None,
                SD (0.0 when bank_sds is None) — so the session can
                marginalise the observation likelihood too.  Default False
                ⇒ returns (k, s), so every existing caller/test is unchanged.
+    bank_segids: Phase 7 sub-3-C (2026-05-19) — optional list of K arrays
+               parallel to bank_signals giving each candidate's seg_id.
+               When provided, the return tuple is APPENDED with the
+               chosen item's seg_id (so `(k, s, seg_id)` or with
+               `return_sd=True`: `(k, s, s_sd, seg_id)`). This is the
+               D6 real-rater replay attach-point — the Mode-A engine's
+               bank_signals API is signal-only, so seg-id tracking is
+               needed to look up the rater's recorded Y on the chosen
+               item. None (default) ⇒ existing return signature
+               preserved, BYTE-IDENTICAL to pre-7.3-C.
     active_domains: optional list of domain indices to consider (for cert sessions).
     n_subsample: F4.1 OC-campaign enabler.  If set, use the deterministic
                  coarse-to-fine argmin (`_coarse_to_fine_argmin`) with
@@ -595,6 +606,7 @@ def choose_item(state, bank_signals=None, active_domains=None,
     best_loss = np.inf
     best_k, best_s = domains[0], float(np.asarray(candidates[domains[0]])[0])
     best_sd = 0.0
+    best_segid = -1
     for k in domains:
         sigs = np.asarray(candidates[k])
         sds = (np.asarray(bank_sds[k]) if bank_sds is not None else None)
@@ -611,6 +623,14 @@ def choose_item(state, bank_signals=None, active_domains=None,
             best_k = k
             best_s = float(sigs[idx])
             best_sd = float(sds[idx]) if sds is not None else 0.0
+            if bank_segids is not None:
+                best_segid = int(np.asarray(bank_segids[k])[idx])
+    # Phase 7 sub-3-C return-signature extension (bank_segids ⇒ append
+    # seg_id as the last tuple element). Default + return_sd-only paths
+    # unchanged from pre-edit.
+    if bank_segids is not None:
+        return ((best_k, best_s, best_sd, best_segid) if return_sd
+                else (best_k, best_s, best_segid))
     return (best_k, best_s, best_sd) if return_sd else (best_k, best_s)
 
 
@@ -642,7 +662,8 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
                             brute_proposal_scale=None,
                             bank_signals=None,
                             Sigma_l=None, Sigma_t=None,
-                            n_subsample=None, bank_sds=None):
+                            n_subsample=None, bank_sds=None,
+                            bank_segids=None, y_source=None):
     """Session with MCMC-rejuvenation SMC + AUROC-based stopping (Mode-A).
 
     Multi-AUROC Precision Protocol (Paper 1, 2026-05-15):
@@ -725,18 +746,43 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
     accept_rates = []
 
     for q in range(max_q):
-        if bank_sds is not None:
+        # Phase 7 sub-3-C: when `bank_segids` is provided, choose_item also
+        # returns the chosen seg_id (for the strict-A real-rater Y-lookup).
+        if bank_segids is not None and bank_sds is not None:
+            k, s, s_sd, seg_id = choose_item(
+                state, bank_signals,
+                n_subsample=n_subsample, bank_sds=bank_sds,
+                return_sd=True, bank_segids=bank_segids)
+        elif bank_segids is not None:
+            k, s, seg_id = choose_item(
+                state, bank_signals,
+                n_subsample=n_subsample, bank_segids=bank_segids)
+            s_sd = 0.0
+        elif bank_sds is not None:
             # Phase 3.5: item selection AND the observation likelihood
             # marginalise over the segment-signal posterior s ~ N(s,s_sd²).
             k, s, s_sd = choose_item(state, bank_signals,
                                      n_subsample=n_subsample,
                                      bank_sds=bank_sds, return_sd=True)
+            seg_id = None
         else:                       # default path — BIT-IDENTICAL to prior
             k, s = choose_item(state, bank_signals, n_subsample=n_subsample)
             s_sd = 0.0
-        t_true = true_params[k * 2]
-        l_true = true_params[k * 2 + 1]
-        y = simulate_response(s, t_true, l_true, rng)
+            seg_id = None
+        if y_source is None:
+            # Default Bernoulli draw at true_params (the engine's own
+            # generative form; BYTE-IDENTICAL to pre-7.3-C). Also used
+            # by the fitted-θ Bernoulli paired comparator: pass the
+            # rater's fitted (t, ℓ) as true_params and leave y_source
+            # = None (no Mode-A engine change needed for the
+            # comparator arm).
+            t_true = true_params[k * 2]
+            l_true = true_params[k * 2 + 1]
+            y = simulate_response(s, t_true, l_true, rng)
+        else:
+            # Phase 7 sub-3-C: strict-A real-rater Y-lookup.
+            # y_source(k, seg_id, s) → int Y ∈ {0, 1}.
+            y = int(y_source(k, seg_id, s))
         update(state, k, s, y, s_sd=s_sd)
         if ess(state["w"]) < ess_threshold_frac * N:
             ar = resample_and_rejuvenate(state, rng, n_mh_steps, proposal_scale)

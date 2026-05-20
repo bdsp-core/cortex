@@ -49,6 +49,7 @@ calibration/joint/logs/
 # The bank is ~100 MB gz; the summary is small but kept as a build artifact
 # alongside for consistency. Tests skip if absent.
 data/replay/rater_replay_bank.csv.gz
+data/replay/rater_replay_bank.indexed.pkl
 data/replay/rater_replay_summary.csv
 
 # Phase 7 sub-step 3-B/C — deployment + Mode-A replay outputs (regenerable
@@ -58,3 +59,4 @@ data/replay/rater_replay_summary.csv
 # artifacts alongside the bank to keep the regenerate-from-source pipeline
 # clean.
 results/replay/
+results/replay_mode_a/
