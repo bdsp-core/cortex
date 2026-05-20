@@ -37,6 +37,17 @@ from __future__ import annotations
 
 import argparse
 import os
+
+# Engine reproducibility contract (per docs/CLAUDE.md + conftest.py:21):
+# bit-exact SMC + MCMC requires single-threaded BLAS. Set BEFORE numpy
+# imports below. Phase 8 sub-8.4 finding: without these caps, default
+# OpenBLAS multi-threading produces ~1-ULP drift in `hat_*`/`sd_*`.
+# Matches conftest.py:21–25 and deployment/cli.py:33–37.
+for _v in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
+           "OMP_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple

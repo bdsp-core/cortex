@@ -127,3 +127,59 @@ def test_calibration_cli_deferred_import():
         "--help will pay the import cost. The import must be deferred "
         "inside main(), guarded by the --dry-run branch."
     )
+
+
+def test_deployment_cli_sets_blas_single_thread_before_numpy():
+    """deployment/cli.py MUST set OPENBLAS_NUM_THREADS=1 etc. BEFORE
+    any numpy-importing code. Phase 8 sub-8.4 gate finding: the
+    engine's bit-exact-reproducibility contract requires single-thread
+    BLAS, and the CLI must self-enforce it (matching conftest.py:21).
+    Without this, `ilae-deploy all` produces ~1-ULP drift in hat_*/sd_*
+    columns of sim/candidates.csv vs the committed Phase-4.6-B
+    baseline.
+
+    Source inspection check: the env-var setter must appear textually
+    BEFORE the first `import numpy` (or any module that imports numpy)
+    in the file."""
+    cli_path = os.path.join(_REPO, "deployment", "cli.py")
+    src = open(cli_path).read()
+    env_setter = 'os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")'
+    # The exact line may have minor formatting variation; pin the substring.
+    assert "OPENBLAS_NUM_THREADS" in src, (
+        "deployment/cli.py is missing the OPENBLAS_NUM_THREADS env var "
+        "setter required by the engine reproducibility contract."
+    )
+    # All numpy-touching imports in cli.py are deferred (inside functions)
+    # so the env vars set at module-top reach numpy before it imports.
+    # Confirm the env setter appears textually before `def `:
+    first_def = src.find("def ")
+    blas_pos = src.find("OPENBLAS_NUM_THREADS")
+    assert 0 <= blas_pos < first_def, (
+        f"BLAS env-var setter at offset {blas_pos} must precede the "
+        f"first def at offset {first_def}; otherwise deferred-import "
+        f"numpy may inherit the parent shell's multi-thread BLAS state."
+    )
+
+
+def test_bridge_sets_blas_single_thread_before_numpy():
+    """bridge/run_multi_auroc_bridge.py (the ilae-paper entry point)
+    MUST set the same BLAS caps. Same rationale as the deployment-CLI
+    test above; without this, the Mode-A Paper-1 bridge inherits the
+    parent shell's BLAS thread count and engine reproducibility breaks.
+
+    Source inspection: env-var setter appears BEFORE the numpy import.
+    """
+    bridge_path = os.path.join(_REPO, "bridge",
+                               "run_multi_auroc_bridge.py")
+    src = open(bridge_path).read()
+    assert "OPENBLAS_NUM_THREADS" in src, (
+        "bridge/run_multi_auroc_bridge.py missing OPENBLAS_NUM_THREADS"
+    )
+    blas_pos = src.find("OPENBLAS_NUM_THREADS")
+    numpy_import_pos = src.find("import numpy")
+    assert numpy_import_pos > 0, "expected `import numpy` in bridge"
+    assert blas_pos < numpy_import_pos, (
+        f"BLAS env-var setter at offset {blas_pos} must precede "
+        f"`import numpy` at offset {numpy_import_pos}; otherwise the "
+        f"contract is violated at module load."
+    )

@@ -21,6 +21,21 @@ surfaces the error (exit 1) so an explicit run is not silent.
 """
 from __future__ import annotations
 
+import os
+
+# Engine reproducibility contract (per docs/CLAUDE.md + conftest.py:21):
+# the SMC + MCMC + linear-algebra paths are bit-exact ONLY under
+# single-threaded BLAS. The `simulate` stage drives `engine/core_mcmc.py`
+# under default ProcessPool workers; without these caps, default OpenBLAS
+# multi-threading produces ~1-ULP / 2-ULP drift in `hat_*` and `sd_*`
+# (cf. Phase 8 sub-8.4 gate). These MUST be set BEFORE numpy is imported,
+# so they live at the top of the CLI before any deferred-import.
+# Matches conftest.py:21–25.
+for _v in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
+           "OMP_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import argparse
 import sys
 import traceback

@@ -69,3 +69,14 @@ results/replay_mode_a/
 # regenerate-from-source rather than commit large build artifacts.
 results/phase1_figures/
 results/phase2_validation/
+
+# Phase 8 sub-step 4 — `ilae-paper` Mode-A bridge smoke outputs.
+# Regenerable via `ilae-paper --max-raters N --method ... --n-reps M`.
+results/mode_a_auroc/
+
+# D9: PHI-bearing EEG must NEVER be committed (data/SENSITIVE.md §"D9").
+# eeg_bank.h5 is the spike-paper item-bank HDF5; in this repo it appears
+# as a local working file for scripts/eeg_bank_viewer.py and must stay
+# external. Defensive ignore so `git add data/` cannot accidentally
+# stage it. Canonical EEG source remains sibling-repo as documented.
+data/eeg_bank.h5
