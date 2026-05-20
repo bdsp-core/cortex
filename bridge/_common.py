@@ -67,15 +67,16 @@ def _require(cfg: Dict[str, Any], key: str) -> Any:
 def _autodetect_banks_dir() -> str:
     """Pick the first existing curated-banks directory among known locations.
 
-    Order:
-      1. sibling repo  …/ilae-skill-certification-test-main/data/curated_banks/
-      2. this repo     …/ilae-skill-certification-test-multi-main/data/curated_banks/
+    Order (in-repo first → self-contained per D9; sibling fallback retained
+    for back-compat with the methodology-repo layout):
+      1. this repo     …/ilae-skill-certification-unified/data/curated_banks/
+      2. sibling repo  …/ilae-skill-certification-test-main/data/curated_banks/
     """
     project_root = os.path.dirname(ENGINE_REPO)
     candidates = [
+        os.path.join(ENGINE_REPO, "data", "curated_banks"),
         os.path.join(project_root, "ilae-skill-certification-test-main",
                      "data", "curated_banks"),
-        os.path.join(ENGINE_REPO, "data", "curated_banks"),
     ]
     for c in candidates:
         if os.path.isdir(c):

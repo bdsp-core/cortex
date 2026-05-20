@@ -38,8 +38,13 @@ import pandas as pd  # noqa: E402
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 ENGINE_REPO = os.path.dirname(_THIS_DIR)
-if ENGINE_REPO not in sys.path:
-    sys.path.insert(0, ENGINE_REPO)
+# Unified-repo layout (Phase 2): the validated engine lives in engine/
+# with flat bare-name imports. Add both the repo root (for Sigma_l_fitted.npy
+# / cert_config.yaml resolution) and engine/ (for core_mcmc/auroc imports).
+# Matches scripts/run_tier2_oc_simstudy.py:70.
+for _p in (ENGINE_REPO, os.path.join(ENGINE_REPO, "engine")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from core_mcmc import (  # noqa: E402
     run_session_mcmc_auroc, post_hoc_delta_sweep, load_fitted_Sigma,
@@ -225,15 +230,18 @@ def experiment_A_real_k6_v2(max_workers=None):
     print(f"  → wrote {len(rows)} rows to expA_real_k6_v2.json", flush=True)
 
 
-_KS_B = [2, 4, 6, 8]
+_KS_B = [2, 4, 6, 7, 8]
 _N_RATERS_PER_K_B = 5
 # Rigorous per-method × per-K caps.  Panel (b) reports δ=0.05; random
 # needs a far larger budget to reach it (no adaptivity/pooling) but is
 # ~25× cheaper per question, so the big random cap is affordable.
+# K=7 added in Phase 7 sub-7.4 (production deployment dim).  K=7 caps are
+# interpolated linearly between K=6 and K=8 (same convention as
+# scripts/run_tier2_oc_simstudy.py:MAX_Q_BY_METHOD_K).
 _MAX_Q_BY_METHOD_K = {
-    "hier":   {2: 400, 4: 700, 6: 1000, 8: 1400},
-    "brute":  {2: 400, 4: 700, 6: 1000, 8: 1400},
-    "random": {2: 2000, 4: 3500, 6: 5000, 8: 7000},
+    "hier":   {2: 400, 4: 700, 6: 1000, 7: 1200, 8: 1400},
+    "brute":  {2: 400, 4: 700, 6: 1000, 7: 1200, 8: 1400},
+    "random": {2: 2000, 4: 3500, 6: 5000, 7: 6000, 8: 7000},
 }
 _N_PARTICLES_B = 1000           # production (match ExpA / cert_config v11)
 _SEEDS_B = [0, 1, 2, 3, 4]      # 5 seeds (same rigor as ExpA)

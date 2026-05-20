@@ -51,8 +51,13 @@ from matplotlib.lines import Line2D
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
 ENGINE_REPO = os.path.dirname(_THIS)
-OUT_DIR = os.path.join(ENGINE_REPO, "results", "phase4_simstudy")
-ROWS_PATH = os.path.join(OUT_DIR, "simstudy_rows.json")
+# Unified-repo layout (Phase 7 sub-7.4-B): the Tier-2 OC simstudy writes
+# rows to results/phase2_validation/tier2_oc_simstudy_rows.json (matches
+# scripts/run_tier2_oc_simstudy.py:33). Methodology reference wrote
+# results/phase4_simstudy/simstudy_rows.json. Default to the Tier-2 path
+# in this repo; --rows / --out-dir CLI overrides are honored in main().
+OUT_DIR = os.path.join(ENGINE_REPO, "results", "phase2_validation")
+ROWS_PATH = os.path.join(OUT_DIR, "tier2_oc_simstudy_rows.json")
 
 # Method palette = canonical project scheme (matches fig_pilot_methods).
 METHOD_STYLE = {
@@ -177,9 +182,30 @@ def _cell(summary, method, cond, K, d):
     return au, md, lo, hi, rch, cap
 
 
-def fig_oc_surface(summary, KG, d=0.05):
-    fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.4), sharex=True)
-    for ax, K in zip(axes.flat, KG):
+def _subplot_grid(n):
+    """Return (nrows, ncols, figsize) for an n-K subplot layout."""
+    # 1→(1,1) 2→(1,2) 3→(1,3) 4→(2,2) 5→(2,3) 6→(2,3) 7+→(ceil(n/3),3)
+    if n <= 1:
+        return 1, 1, (5.4, 4.6)
+    if n == 2:
+        return 1, 2, (9.6, 4.6)
+    if n == 3:
+        return 1, 3, (12.0, 4.6)
+    if n == 4:
+        return 2, 2, (9.6, 7.4)
+    if n in (5, 6):
+        return 2, 3, (12.6, 7.4)
+    return (n + 2) // 3, 3, (12.6, 3.5 * ((n + 2) // 3))
+
+
+def fig_oc_surface(summary, KG, d=0.05, out_dir=None):
+    if out_dir is None:
+        out_dir = OUT_DIR
+    nrow, ncol, figsize = _subplot_grid(len(KG))
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
+                             squeeze=False)
+    flat_axes = axes.flat
+    for ax, K in zip(flat_axes, KG):
         for m in METHOD_ORDER:
             cond = HIER_COND if m == "hier" else "na"
             au, md, lo, hi, _, _ = _cell(summary, m, cond, K, d)
@@ -193,16 +219,21 @@ def fig_oc_surface(summary, KG, d=0.05):
         ax.grid(True, which="both", axis="y", ls=":", lw=0.5,
                 color="#dddddd", zorder=0)
         ax.margins(x=0.04)
+    # Hide unused panels when len(KG) < nrow*ncol
+    for ax in list(axes.flat)[len(KG):]:
+        ax.set_visible(False)
     for ax in axes[-1]:
         ax.set_xlabel("True AUROC (data-generating skill)")
     for ax in axes[:, 0]:
         ax.set_ylabel("Questions to $\\delta$ (median, log)")
     axes[0, 0].legend(loc="upper right", frameon=False)
+    n_reps_str = (str(summary.get("config", {}).get("n_reps", "?"))
+                  if isinstance(summary, dict) else "?")
     fig.suptitle(
         "Operating characteristic: questions to certify at "
         f"$\\delta$={d:g}\n"
-        "(median $\\pm$ 95% bootstrap CI over 25 replicate seeds; "
-        "fully uncensored)",
+        f"(median $\\pm$ 95% bootstrap CI over {n_reps_str} replicate "
+        f"seeds; fully uncensored)",
         fontweight="bold", x=0.012, ha="left", y=1.005)
     cap = ("Lower is better. random$\\rightarrow$brute isolates "
            "adaptive (Global-EV) item selection; "
@@ -213,12 +244,16 @@ def fig_oc_surface(summary, KG, d=0.05):
              wrap=True)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     for ext in ("pdf", "png"):
-        fig.savefig(os.path.join(OUT_DIR, f"fig_oc_surface.{ext}"))
+        fig.savefig(os.path.join(out_dir, f"fig_oc_surface.{ext}"))
     plt.close(fig)
 
 
-def fig_oc_delta_censored(summary, KG, d=0.025):
-    fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.4), sharex=True)
+def fig_oc_delta_censored(summary, KG, d=0.025, out_dir=None):
+    if out_dir is None:
+        out_dir = OUT_DIR
+    nrow, ncol, figsize = _subplot_grid(len(KG))
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
+                             squeeze=False)
     any_cens = False
     for ax, K in zip(axes.flat, KG):
         for m in METHOD_ORDER:
@@ -255,6 +290,8 @@ def fig_oc_delta_censored(summary, KG, d=0.025):
         ax.grid(True, which="both", axis="y", ls=":", lw=0.5,
                 color="#dddddd", zorder=0)
         ax.margins(x=0.04)
+    for ax in list(axes.flat)[len(KG):]:
+        ax.set_visible(False)
     for ax in axes[-1]:
         ax.set_xlabel("True AUROC (data-generating skill)")
     for ax in axes[:, 0]:
@@ -289,14 +326,18 @@ def fig_oc_delta_censored(summary, KG, d=0.025):
              wrap=True)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     for ext in ("pdf", "png"):
-        fig.savefig(os.path.join(OUT_DIR,
+        fig.savefig(os.path.join(out_dir,
                                  f"fig_oc_delta_censored.{ext}"))
     plt.close(fig)
     return any_cens
 
 
-def fig_hier_gain(summary, KG, d=0.05):
-    fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.4), sharex=True)
+def fig_hier_gain(summary, KG, d=0.05, out_dir=None):
+    if out_dir is None:
+        out_dir = OUT_DIR
+    nrow, ncol, figsize = _subplot_grid(len(KG))
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, sharex=True,
+                             squeeze=False)
     for ax, K in zip(axes.flat, KG):
         au, h_md, *_ = _cell(summary, "hier", HIER_COND, K, d)
         _, b_md, *_ = _cell(summary, "brute", "na", K, d)
@@ -311,6 +352,8 @@ def fig_hier_gain(summary, KG, d=0.05):
         ax.set_title(f"K = {K} domains", loc="left", fontweight="bold")
         ax.grid(True, axis="y", ls=":", lw=0.5, color="#dddddd")
         ax.margins(x=0.04)
+    for ax in list(axes.flat)[len(KG):]:
+        ax.set_visible(False)
     for ax in axes[-1]:
         ax.set_xlabel("True AUROC (data-generating skill)")
     for ax in axes[:, 0]:
@@ -331,32 +374,45 @@ def fig_hier_gain(summary, KG, d=0.05):
              wrap=True)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     for ext in ("pdf", "png"):
-        fig.savefig(os.path.join(OUT_DIR, f"fig_hier_gain.{ext}"))
+        fig.savefig(os.path.join(out_dir, f"fig_hier_gain.{ext}"))
     plt.close(fig)
 
 
 def main():
-    if not os.path.exists(ROWS_PATH):
-        sys.exit(f"missing {ROWS_PATH} — run F4.2 first")
-    payload = json.load(open(ROWS_PATH))
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--rows", type=str, default=ROWS_PATH,
+                    help="Tier-2 OC simstudy rows JSON "
+                         "(default: results/phase2_validation/"
+                         "tier2_oc_simstudy_rows.json).")
+    ap.add_argument("--out-dir", type=str, default=OUT_DIR,
+                    help="Directory to write figures into.")
+    cli = ap.parse_args()
+    rows_path = cli.rows
+    out_dir = cli.out_dir
+    os.makedirs(out_dir, exist_ok=True)
+    if not os.path.exists(rows_path):
+        sys.exit(f"missing {rows_path} — run Tier-2 OC simstudy first "
+                 f"(scripts/run_tier2_oc_simstudy.py).")
+    payload = json.load(open(rows_path))
     rows, cfg = payload["rows"], payload["config"]
     KG = cfg["K_GRID"]
-    print(f"=== F4.4 figures from {len(rows)} rows "
-          f"({cfg['n_reps']} reps) ===", flush=True)
+    print(f"=== OC figures from {len(rows)} rows "
+          f"({cfg['n_reps']} reps; K_GRID={KG}) ===", flush=True)
 
     summary = summarize(rows, cfg)
-    with open(os.path.join(OUT_DIR, "oc_summary.json"), "w") as f:
+    with open(os.path.join(out_dir, "oc_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
     print(f"  → oc_summary.json ({len(summary['cells'])} cells)",
           flush=True)
 
-    fig_oc_surface(summary, KG, d=0.05)
+    fig_oc_surface(summary, KG, d=0.05, out_dir=out_dir)
     print("  → fig_oc_surface.{pdf,png}  (δ=0.05, uncensored)",
           flush=True)
-    cens = fig_oc_delta_censored(summary, KG, d=0.025)
+    cens = fig_oc_delta_censored(summary, KG, d=0.025, out_dir=out_dir)
     print(f"  → fig_oc_delta_censored.{{pdf,png}}  (δ=0.025, KM; "
           f"censoring present={cens})", flush=True)
-    fig_hier_gain(summary, KG, d=0.05)
+    fig_hier_gain(summary, KG, d=0.05, out_dir=out_dir)
     print("  → fig_hier_gain.{pdf,png}  (ablation speedup)",
           flush=True)
 

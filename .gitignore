@@ -60,3 +60,12 @@ data/replay/rater_replay_summary.csv
 # clean.
 results/replay/
 results/replay_mode_a/
+
+# Phase 7 sub-step 4 — Paper-1 figure regeneration outputs (regenerable
+# from `python scripts/run_phase1_experiments_v2.py` +
+# `python scripts/plot_phase1_figure.py`, and Tier-2 OC via
+# `python scripts/run_tier2_oc_simstudy.py --k-grid 7 --n-reps 1` +
+# `python scripts/run_phase4_figures.py`). Same precedent as sub-7.3:
+# regenerate-from-source rather than commit large build artifacts.
+results/phase1_figures/
+results/phase2_validation/
