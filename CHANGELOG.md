@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–7 COMPLETE; Phase 8 (Shippability) next
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–8 COMPLETE — v1.0.0-rc1 SHIPPED
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -464,6 +464,91 @@ Methodology repo + PI deployment repo merged into one shippable repo
   Phase 7 → Phase 8 handoff is clean; remaining work is
   documentation + packaging + open-decisions carrying. No further
   engine / calibration / scientific build required.
+- **Phase 8 — Shippability (5-of-5 sub-steps CLOSED; v1.0.0-rc1
+  SHIPPED).** Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 8". User
+  scope locked 2026-05-20: contributor-facing developer README +
+  reviewer-grade CLAUDE.md; per-task certificates as v1.0
+  per-candidate roll-up policy; `ilae-calibrate` rewired through a
+  thin `--help`-safe wrapper; in-place gate (this venv).
+
+  * ✅ **8.1** (`6d836ca`) — README.md (193 lines, was 19) +
+    CLAUDE.md (162 lines, was 10) merged; Phase-6 invariant
+    corrections baked in (70/30 expert split, raters.csv:
+    expertise_level, K=7 r_ℓ=0.36656…, λ=0.025, LOGIT_TO_PROBIT=
+    1/1.7); two-engine architecture documented; "what NOT to do"
+    rules + contributor conventions in CLAUDE.md.
+  * ✅ **8.2** (`07bc5d8`) — `docs/OPEN_DECISIONS.md` created
+    with 5 open shipping decisions (per-task certs adopted as
+    v1.0 working policy, supported by sub-7.3-C empirical 0/21
+    all_pass finding); `data/SENSITIVE.md` refreshed to cover
+    Phase-5 + Phase-7 files; D9 retrieval-path doc added
+    (`SN1_combined_v2.h5` stays external). `tests/test_phase1_
+    data.py:test_carry_forwards_present` byte-pin replaced with
+    IRB-coverage content invariant (the Phase-8 refresh
+    intentionally diverges from the methodology-repo copy per
+    merge plan §"Phase 8" sub-3).
+  * ✅ **8.3** (`b968f9e`) — packaging: `pyproject.toml` version
+    `0.0.0.dev0` → **`1.0.0rc1`** (PEP 440 form of the v1.0.0-rc1
+    git tag). `ilae-calibrate` entry-point rewired
+    `calibration.run_youden_calibration:main` (Phase-0 stub) →
+    `calibration.cli:main` (NEW thin wrapper, 88 lines).
+    Foot-gun fix: the Phase-3 orchestrator runs ~hours on ANY
+    invocation including `--help`; the wrapper argparse-
+    intercepts BEFORE any heavy import. `--help` in 0.23s,
+    `--dry-run` in 0.02s. Phase-0 stub
+    `calibration/run_youden_calibration.py` DELETED (orphaned).
+    6 packaging drift-guards in
+    `tests/test_phase8_packaging.py` (foot-gun guard included).
+  * ✅ **8.4** (`1ce4341`) — in-place gate + **real
+    reproducibility bug surfaced + fixed in flight**:
+      Step 1 — full slow suite: **288 passed / 1 xfailed** in
+        9:28 (+6 from sub-7.5's 282 = sub-8.3 packaging guards).
+      Step 2 — `ilae-deploy all` end-to-end:
+        FIRST run revealed ~1-ULP drift in `hat_*`/`sd_*` columns
+        of `sim/candidates.csv` vs the committed Phase-4.6-B
+        baseline. Diagnosis: `OPENBLAS_NUM_THREADS=` unset →
+        multi-thread BLAS active → engine's bit-exact-
+        reproducibility contract violated (conftest.py enforces
+        single-thread for pytest; the CLI did NOT).
+        Fix: BLAS env-var setter (5 env vars) at the top of
+        `deployment/cli.py` AND `bridge/run_multi_auroc_bridge.
+        py` BEFORE any numpy-importing code. Deferred imports
+        keep numpy out of module load. Re-run: working-tree diff
+        byte-clean except for `sim/summary.json:wall_time_s`
+        (intentional timing noise). +2 BLAS source-inspection
+        drift-guards in `tests/test_phase8_packaging.py` (now
+        8 packaging tests).
+      Step 3 — `ilae-paper --max-raters 3 --method both --n-reps
+        1 --no-audit`: **6 / 6 sessions in 28:17 wall, zero
+        errors**. hier ~440s/session (δ=0.05 stops at q=141 / 239
+        / 447); brute ~125s/session (q=943 / 701 / 449); hier-
+        vs-brute n_q ratio @ δ=0.05 = 6.7× / 2.9× / 1.0× across
+        3 raters — directionally consistent with the Phase-1 v2
+        paper-grade finding.
+      Phase-8 hygiene caught + fixed: `data/eeg_bank.h5` (175 MB
+        PHI-bearing EEG, mtime 2026-05-20 11:16 from local
+        `scripts/eeg_bank_viewer.py` exploration) was untracked
+        but NOT in `.gitignore`. **D9 defensive ignore added**.
+        `results/mode_a_auroc/` also added (oversight from
+        sub-8.3).
+  * ✅ **8.5** (this commit) — close-out + `v1.0.0-rc1` tag.
+    `docs/PHASE8_CLOSEOUT.md` consolidates per-sub-step evidence
+    + ships-list + carries-list; CHANGELOG entry; final full-
+    suite gate re-confirmed (288 / 1 xfailed); annotated git
+    tag `v1.0.0-rc1`.
+
+  **Phase 8 gate satisfied** (all 6 criteria per merge plan
+  §"Phase 8"): README/CLAUDE merged with Phase-6 corrections;
+  env.yml/requirements.txt union pinned (since Phase 0);
+  SENSITIVE.md + D9 retrieval doc; OPEN_DECISIONS.md created;
+  `v1.0.0-rc1` tagged at this commit; full gate triad green.
+  **v1.0.0-rc1 SHIPS.** Post-tag carries documented in
+  `docs/PHASE8_CLOSEOUT.md` §7: anonymizer runs at journal
+  acceptance; open-decision resolution + external-cohort
+  validation deferred to v1.0 review meeting + paper revision;
+  paper-grade Tier-2 OC / Mode-A Phase-1 / per_task replay
+  re-launchable via their respective CLIs. Tag `v1.0.0` after
+  v1.0 review meeting signs off open decisions.
 
 ---
 
