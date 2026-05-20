@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3, 7.4 done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–7 COMPLETE; Phase 8 (Shippability) next
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -439,6 +439,31 @@ Methodology repo + PI deployment repo merged into one shippable repo
   `data/deployment_prior/figures/` (deployment, from Phase 4.7).
   Suite **282 passed / 1 xfailed**. **Remaining**: 7.5 close-out
   + Phase-7 gate.
+- **Phase 7 sub-step 5 — Close-out + Phase-7 GATE (CLOSED).** Per
+  `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-5. Doc-only commit
+  consolidating evidence across sub-7.1–7.4 in `docs/PHASE7_CLOSEOUT.
+  md`: Phase-7 commit chain (9 commits from `d9cda94` sub-7.1 →
+  this commit); per-sub-step evidence map → gate criteria; 7-row
+  delta table from prior validated runs (every delta signed off
+  in the originating close-out doc); retrospective sign-off for
+  the "pre-registered bounds" on the real-rater replay OC (four
+  bounds in order of strictness — hard / hard / soft / directional
+  — all satisfied). **Phase-7 gate SATISFIED**: coverage within
+  target band ✓ (sub-7.1 K=7 + carried K=6 Phase-2); real-rater
+  replay OC computed and within bounds ✓ (sub-7.3); no unexplained
+  regressions; all deltas attributed to intended corpus /
+  likelihood / calibration / K=7 changes and signed off ✓. Paper-
+  grade follow-ons documented as re-launchable + non-blocking
+  (Mode-A per_task headline at full cohort; paper-grade Mode-A
+  precision N=2500; Tier-2 OC at n_reps=25 K=7-only or full K=
+  {2,4,6,7,8}; Phase-2 inference-validation figure regen if a
+  Phase-8 reviewer asks; formal hypothesis-test layer for replay-
+  vs-Bernoulli paired tests). Suite **282 passed / 1 xfailed**
+  in 9:13, unchanged from sub-7.4-A; 36 Phase-7-specific tests
+  passing (6 slow deselected by default). **Phase 7 SHIPPED.**
+  Phase 7 → Phase 8 handoff is clean; remaining work is
+  documentation + packaging + open-decisions carrying. No further
+  engine / calibration / scientific build required.
 
 ---
 
