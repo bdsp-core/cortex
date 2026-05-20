@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3 done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3, 7.4 done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -351,6 +351,94 @@ Methodology repo + PI deployment repo merged into one shippable repo
   documented as paper-grade follow-on (re-launchable via the
   same CLI). Suite **275 passed / 1 xfailed** in 9:10 (+6 from
   sub-7.3-B's 269 = the 6 new Mode-A drift-guard tests).
+- **Phase 7 sub-step 4 — Paper-1 figures regeneration at K=7
+  (CLOSED, 3-of-3).** Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7"
+  sub-4 (user scope 2026-05-20). Three sub-sub-steps; total wall
+  ~63 min across two figure pipelines + one bank-vendor +
+  scaffolding commit; zero engine drift (sub-7.1-style synthetic
+  K=7 pins from `tests/test_phase7_k7_validation.py` re-confirmed
+  by the production OC numbers below).
+
+  * ✅ **7.4-A — Phase-1 main figure** (commit `6aeb036`).
+    SPARCNET item-bank vendored in-repo (7 JSONs, 168 KB, md5
+    verified vs `docs/_manifests/reference_consulted.md5`);
+    `bridge/_common._autodetect_banks_dir()` precedence flipped
+    (in-repo first → D9 self-contained; sibling fallback retained
+    for back-compat). `scripts/run_phase1_experiments_v2.py`
+    `_KS_B`: `{2,4,6,8}` → `{2,4,6,7,8}`, K=7 caps interpolated
+    between K=6 and K=8 per method (matches sub-7.2
+    `MAX_Q_BY_METHOD_K` convention). `scripts/run_phase4_figures.
+    py` retargeted to the Tier-2 OC rows path
+    (`results/phase2_validation/tier2_oc_simstudy_rows.json`)
+    with `_subplot_grid(n)` K-adaptive (1→1×1, 4→2×2, 7→3×3) +
+    `--rows`/`--out-dir` CLI overrides. Headline run (14-core
+    MacBook, `caffeinate -is`): **ExpA 405 sessions in 56:18 +
+    ExpB 375 sessions in 2:16 = 780 sessions in 58:34 wall,
+    zero errors**. ExpA K=6 SPARCNET median n_q @ δ=0.05:
+    random 967 / brute 458 / hier **412** → **hier-vs-random
+    2.35×**; brute-vs-hier (pooling alone) 1.11× (consistent
+    with the weak-correlation regime r≈0.378; ablation gain
+    dominated by adaptive item selection at this Σ_l). ExpB
+    synthetic K-scaling now covers production K=7: hier vs
+    random speedup band 1.6–1.9× across K∈{2,4,6,**7**,8},
+    with K=7 = **1.63×** (hier 477 vs random 776) — cleanly
+    interpolating between K=6 and K=8 in absolute n_q AND in
+    speedup. No engine pathology at production K. Tests:
+    `tests/test_phase7_sub74_figures.py` (7 tests, 1.01s):
+    bank vendor + md5 + bridge precedence; ExpB K=7 + monotone
+    caps; `run_phase4_figures.py` ROWS_PATH + subplot grid
+    1..7. Doc: `docs/PHASE7_PAPER1_FIGURES.md`. Outputs
+    (gitignored): `results/phase1_figures/`. Suite **282 passed /
+    1 xfailed** in 9:17 (+7 from sub-7.3-C's 275 = the 7 new
+    sub-7.4 drift-guard tests).
+  * ✅ **7.4-B — Tier-2 OC K=7 pilot + figures** (commit
+    `2627ccd`). `python scripts/run_tier2_oc_simstudy.py
+    --k-grid 7 --n-reps 1 --max-workers 14` → 30 sessions
+    in **4:33 wall** (273.2s, 9.11s/session amortized; 3.5×
+    faster than sub-7.2's ~16-min projection thanks to 14
+    workers vs the methodology default 10). `python scripts/
+    run_phase4_figures.py` rendered three 1×1 single-K
+    figures via the sub-7.4-A `_subplot_grid` helper.
+    **Censoring=False at BOTH δ=0.05 AND δ=0.025** — the
+    sub-7.2 K=7 max_q cap interpolation (hier/brute=5000,
+    random=24000) is budget-sufficient. K=7 OC at δ=0.05
+    hier-vs-random speedup ranges 1.01×–2.34× across the
+    6-AUROC sweep; the directional finding matches the
+    sub-7.4-A ExpB K=7 1.63× synthetic. Honest pilot
+    caveats documented in the close-out doc: n_reps=1 makes
+    bootstrap CIs degenerate (CI=median); paper-grade
+    `--n-reps 25 --k-grid 2 4 6 7 8` re-launchable. At
+    AUROC 0.687/0.841 the brute/hier pooling-only ratio
+    inverts (<1.0×) — single-rep noise + the K=7
+    `_sigma_l("empirical")` being a matched-mean CS
+    approximation of the K=6 empirical fit. Outputs
+    (gitignored): `results/phase2_validation/
+    tier2_oc_simstudy_rows.json`, `oc_summary.json`,
+    `fig_oc_{surface,delta_censored,hier_gain}.{pdf,png}`.
+    No code delta vs sub-7.4-A (scaffolding was front-
+    loaded); commit is doc-only.
+  * ✅ **7.4-C — close-out** (this commit). CHANGELOG entry +
+    final full-suite gate + `docs/PHASE7_PAPER1_FIGURES.md`
+    close-out section. **Phase 7 sub-step 4 SHIPPED**: the
+    Paper-1 main ablation figure regenerated on the unified
+    engine+corpus (ExpA K=6, ExpB K∈{2,4,6,**7**,8}); the
+    Tier-2 OC pilot at production K=7 (uncensored even at
+    δ=0.025); the deployment figures already shipped at K=7
+    by Phase 4.7. The Phase-2 inference-validation 4-panel
+    composite is **explicitly deferred** (user scope 2026-
+    05-20): the K=6 SBC 12/12 + coverage |Δ|≤0.007 + sparcnet
+    retest 6/6 ICC≥0.70 + gold-chain 35/36 finding is already
+    the Paper-1 calibration claim, and sub-7.1 added the
+    synthetic K=7 engine-soundness pins via tests; regen is a
+    Phase-8 figures-only follow-on if a reviewer asks.
+
+  **Phase 7 sub-7.4 gate satisfied** — all three deliverable
+  figure sets exist at the unified-engine + K=7 production
+  configuration: `results/phase1_figures/` (Paper-1 main + supp),
+  `results/phase2_validation/` (Tier-2 OC), and
+  `data/deployment_prior/figures/` (deployment, from Phase 4.7).
+  Suite **282 passed / 1 xfailed**. **Remaining**: 7.5 close-out
+  + Phase-7 gate.
 
 ---
 

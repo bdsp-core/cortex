@@ -300,4 +300,80 @@ Figures written:
 
 ## Phase-7 sub-7.4 close-out
 
-_Filled at sub-7.4-C commit. Suite delta + commit hashes recorded._
+Paper-1 figure regeneration at K=7 SHIPPED (3-of-3):
+
+  * ✅ **7.4-A bank-vendor + Phase-1 main figure** (commit `6aeb036`)
+    — `data/curated_banks/` vendored in-repo (D9 self-contained); ExpB
+    extended to K∈{2,4,6,**7**,8}; 780-session run in 58:34 wall;
+    `fig_phase1_main.{pdf,png}` + `fig_phase1_supp_speedup_heatmap.
+    {pdf,png}` written. 7 drift-guard tests added in
+    `tests/test_phase7_sub74_figures.py`.
+  * ✅ **7.4-B Tier-2 OC K=7 pilot + figures** (commit `2627ccd`) —
+    30-session pilot in 4:33 wall; **uncensored at both δ=0.05 AND
+    δ=0.025**; K=7 OC at δ=0.05 hier-vs-random 1.01×–2.34× across the
+    AUROC sweep; the K-adaptive `_subplot_grid` correctly rendered the
+    K=7-only pilot as a 1×1 single-panel figure.
+  * ✅ **7.4-C close-out** (this commit) — `CHANGELOG.md` sub-7.4
+    entry + this doc finalization + full-suite gate.
+
+### Phase 7 sub-7.4 gate
+
+Suite at gate: **282 passed / 1 xfailed** (unchanged from sub-7.4-A —
+sub-7.4-B/C are doc-only, no test delta). Cross-cross-checks
+re-confirmed:
+
+  * Synthetic K=7 algorithmic-soundness pins (sub-7.1
+    `tests/test_phase7_k7_validation.py`): SBC mean rank ≈ 0.5, 90/95%
+    CI coverage > 0.7, lapse algebra holds per-task. Re-confirmed by
+    the production OC numbers below.
+  * Phase-1 ExpB K=7 (sub-7.4-A) ↔ Tier-2 OC K=7 (sub-7.4-B):
+    directional match. ExpB synthetic K=7 hier-vs-random = 1.63×
+    aggregated across the 25 sessions per (rater × method); Tier-2 OC
+    K=7 hier-vs-random ranges 1.01×–2.34× across the 6-AUROC sweep,
+    peaking at 2.34× at AUROC=0.887. Both numbers come from the same
+    engine + same K=7 Σ_l (matched-mean CS on the empirical K=6 fit);
+    the larger Tier-2 range reflects the per-AUROC sweep vs ExpB's
+    homogeneous-rater mix.
+  * Bank-vendor parity: in-repo `data/curated_banks/*.json` byte-match
+    sibling-repo originals (md5 verified;
+    `test_curated_banks_md5_matches_manifest`).
+
+### What sub-7.4 does NOT do (explicit carries)
+
+  * **Phase-2 inference-validation 4-panel composite + Σ_l/lapse
+    robustness figures**: skipped per user scope 2026-05-20. The K=6
+    Phase-2 finding (SBC 12/12, coverage |Δ|≤0.007, sparcnet retest
+    6/6 ICC≥0.70, gold-chain 35/36, lapse-sensitivity, Σ_l-sensitivity)
+    is the Paper-1 calibration claim; sub-7.1 added synthetic K=7
+    engine-soundness pins via `tests/test_phase7_k7_validation.py`.
+    Regen path if a Phase-8 reviewer asks: run
+    `scripts/run_{sbc,coverage_sweep,sparcnet_test_retest,
+    gold_chain_reference,lapse_sensitivity,sigma_sensitivity}.py`
+    sequentially (all hardcode K=6 and write to
+    `results/phase2_validation/`), then `python scripts/
+    plot_validation_figure.py` + `plot_robustness_figure.py`.
+  * **Paper-grade Tier-2 OC K=7 (n_reps=25)**: pilot scope only.
+    Re-launchable via `python scripts/run_tier2_oc_simstudy.py
+    --k-grid 7 --n-reps 25 --max-workers 14` (estimated ~2-3 hours at
+    14 workers, scaling the pilot's 9.11s/session amortized).
+  * **Paper-grade Tier-2 OC full K∈{2,4,6,7,8} (n_reps=25)**: 3,750
+    sessions, overnight. Re-launchable via the same CLI with
+    `--k-grid 2 4 6 7 8`.
+  * **ExpA at K=7**: not feasible from the SPARCNET cohort by
+    construction (6-domain test-retest only; the K=7 `other` task IS
+    K=6's `iic` via the `sparcnet_iic→other` mapping per
+    `docs/PHASE7_VALIDATION_K7.md`). Paper-1's K=7 production claim
+    is carried by the ExpB synthetic K-scaling and the Tier-2 OC
+    pilot.
+
+### Next: Phase 7 sub-7.5 — Phase-7 close-out + gate
+
+Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-5:
+
+  - Document pre-registered tolerance for replay OC bounds (sub-7.3-C
+    headline already records the finding; sub-7.5 confirms it's
+    within bounds OR signs off each delta).
+  - Sign-off on every delta vs prior validated run, or attribute to
+    corpus/likelihood/calibration/K=7 (most already done in Phase 4.6-
+    C, sub-7.1, sub-7.3-C; sub-7.5 collects them).
+  - Phase-7 gate satisfied → ready to begin Phase 8 (Shippability).
