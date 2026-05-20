@@ -292,3 +292,124 @@ has responses across all 7 tasks (general expert pool member).
 output (no nondeterminism in the join). The gitignore policy
 treats the bank + summary as regenerable build artifacts (matches
 the precedent for Phase-3 `pipeline/_calib_work/`).
+
+---
+
+## 10. Sub-step 7.3-B — deployment replay driver CLOSE-OUT (2026-05-19)
+
+`deployment/replay/run_deployment_replay.py` ships the strict-A
+deployment replay driver. The engine attach-point uses **two
+minimal-surface optional kwargs** added to
+`deployment/simulate_test.py::simulate_candidate` (defaults
+byte-identical to pre-edit, gated by
+`tests/test_phase7_replay_engine_drift.py`):
+
+  * `y_source: Callable[[k, seg, s_val], int] | None = None`
+    — when callable, replaces the default Bernoulli draw; the
+    strict-A Y-lookup attach.
+  * `initial_decision: list[str] | None = None` — when a length-K_
+    list, overrides the default `["pending"] * K_`; lets per-task
+    replay pre-mark the 6 non-target tasks as `"refer"`.
+
+### 10.1 The per-task interpretation-(i) fix discovered in smoke
+
+The user-locked per-task interpretation (i) — K=7 engine, 6 non-
+target task banks empty — initially produced REFER on every
+target task at exactly `n=10`. Root cause (from the smoke trace):
+`select_next_case`'s `n_min_per_task` constraint
+(`simulate_test.py:276-279`) restricts the candidate set to
+under-min tasks when any pending task is under-min. The 6
+empty-bank tasks always have `n_per_task=0 < N_min_per_task=10`,
+so they're always under-min; the target task hits `n=10` (no
+longer under-min) and is excluded from the restricted set. The
+engine then tries to select from the 6 empty-bank tasks → returns
+`None` → outer loop breaks → target task REFER.
+
+**Fix**: pre-mark the 6 non-target tasks as `"refer"` so they're
+never in `pending`. The engine's `select_next_case` then sees only
+the target task as pending, gives it up to `N_max_per_task=120`
+trials, and reaches a real verdict (PASS / FAIL / REFER).
+
+The `initial_decision` kwarg is the minimal-surface implementation
+of this fix — same auditable-edit pattern as `y_source`.
+
+### 10.2 Smoke result
+
+`--limit 5 --out-dir /tmp/replay_smoke2`: 5 per-task cells + 5
+per-candidate raters complete in **19 s wall** (single-thread).
+Sample (rater 97 = mbw, the general-pool expert with broadest
+coverage):
+
+| Task | Decision | n_per_task | pos_rate (real) | n_engine_calls |
+|---|---|---|---|---|
+| gpd | pass | 14 | 0.643 | 14 |
+| grda | pass | 34 | 0.676 | 34 |
+| lpd | pass | 41 | 0.683 | 41 |
+| lrda | pass | 22 | 0.636 | 22 |
+| other | refer | 120 | 0.775 | 120 |
+
+The engine reaches PASS verdicts at variable trial counts driven
+by the actual posterior dynamics — *not* the forced `n=10` floor
+that interpretation (i) was exhibiting pre-fix.
+
+### 10.3 Test coverage
+
+`tests/test_phase7_replay_engine_drift.py` — 2 tests (5 s):
+
+  - `test_simulate_candidate_default_y_source_is_byte_identical`
+    (the SLOW drift-guard contract: default branch behaviour
+    unchanged from pre-edit Phase-4)
+  - `test_simulate_candidate_y_source_callable_is_consumed`
+    (sanity: the new path actually invokes the callable)
+
+`tests/test_phase7_deployment_replay.py` — 8 tests (24 s):
+
+  - `test_y_lookup_returns_recorded_response` — `_RaterYLookup`
+    returns labels.csv Y on every recorded (k, seg) for rater 97
+  - `test_y_lookup_raises_on_unrecorded_seg` — contract guard
+  - `test_bank_for_rater_task_returns_strict_subset` — the
+    per-(rater, task) bank exactly equals the rater's scored-seg
+    subset with engine-input cols
+  - `test_per_task_engine_y_matches_labels` — every Y the engine
+    records via state.history matches the rater's labels.csv Y
+    for the seg the engine selected (strict-A contract; uses
+    call-logging y_source since `state.history` records signal,
+    not seg_id)
+  - `test_per_task_replay_runs_end_to_end` — representative cell
+    produces a valid verdict + sensible accounting
+  - `test_per_candidate_replay_runs_end_to_end` — representative
+    rater produces decisions on all 7 tasks
+  - `test_per_task_replay_other_tasks_skipped` — interpretation
+    (i): the 6 non-target tasks receive zero engine calls
+  - `test_per_candidate_replay_y_matches_labels` — strict-A
+    contract on the full 7-task replay (call-logging method)
+
+### 10.4 What 7.3-B does NOT yet do
+
+- Does not run the full **14,823 per-task + 21 per-candidate**
+  cohort headline. At ~3 s/cell single-thread, the per-task
+  cohort would be ~12 hours. Parallelization (`parallel_map`
+  integration like `run_tier2_oc_simstudy.py`) lands in 7.3-C
+  alongside the Bernoulli comparator + Mode-A replay.
+- Does not run the **fitted-θ Bernoulli paired comparator** (Q3
+  arm). That is 7.3-C's headline.
+- Does not drive the Mode-A engine. 7.3-C extends Mode-A's
+  `bank_signals` API with the optional `bank_segids` for Y
+  lookup.
+
+### 10.5 What 7.3-B DOES ship
+
+The full strict-A deployment replay harness:
+
+  - `simulate_candidate(y_source=..., initial_decision=...)` —
+    engine hooks (2 optional kwargs, defaults byte-identical to
+    pre-edit; gated by drift-guard)
+  - `deployment/replay/run_deployment_replay.py` — CLI driver
+    (`--floor`, `--limit`, `--out-dir`, `--seed`); produces
+    `deployment_replay_per_task.csv`,
+    `deployment_replay_per_candidate.csv`, and
+    `deployment_replay_run_summary.json`
+  - The strict-A bank construction + Y-lookup callable
+    (`_bank_for_rater_task`, `_RaterYLookup`)
+  - 10 tests gating the harness end-to-end
+  - Documentation: this section + design audit §1–§9

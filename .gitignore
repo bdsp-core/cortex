@@ -50,3 +50,11 @@ calibration/joint/logs/
 # alongside for consistency. Tests skip if absent.
 data/replay/rater_replay_bank.csv.gz
 data/replay/rater_replay_summary.csv
+
+# Phase 7 sub-step 3-B/C — deployment + Mode-A replay outputs (regenerable
+# from the bank via `python -m deployment.replay.run_deployment_replay`).
+# Per-task CSV is small (~2-3 MB at the full 14,823-cell cohort); per-
+# candidate CSV is ~21 rows; summary JSON ~1 KB. Kept gitignored as build
+# artifacts alongside the bank to keep the regenerate-from-source pipeline
+# clean.
+results/replay/

@@ -387,19 +387,47 @@ class TestConfig:
 
 
 def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
-                        cfg: TestConfig, rng=None):
+                        cfg: TestConfig, rng=None,
+                        y_source=None, initial_decision=None):
     """Simulate one candidate going through the adaptive multi-task test.
     K-agnostic (Phase 4.4-A): DIM = Σ_prior.shape[0], K = DIM//2 — scales
-    to whatever K the frozen deployment_prior declares (6 now, 7 at 4.6)."""
+    to whatever K the frozen deployment_prior declares (6 now, 7 at 4.6).
+
+    Phase 7 sub-3-B (2026-05-19): two optional kwargs for strict-A
+    real-rater replay (the D6 v1.0 blocker). When **None** (default),
+    behaviour is BYTE-IDENTICAL to pre-edit (Phase-4 contract;
+    gated by `tests/test_phase7_replay_engine_drift.py`).
+
+    `y_source`: when callable, `Y = int(y_source(k, seg, s_val))`
+        replaces the default Bernoulli draw at `true_theta`. The
+        strict-A replay attach-point.
+
+    `initial_decision`: when a list of length K_, overrides the
+        default `["pending"] * K_` initial decision array. Used by
+        per-task replay to pre-mark the 6 non-target tasks as
+        "refer" so they are skipped from `pending` (the
+        `select_next_case` n_min_per_task constraint at l.276-279
+        would otherwise force the engine to try selecting from
+        empty banks — pathological in per-task interpretation i).
+    Both used by `deployment/replay/run_deployment_replay.py`."""
     if rng is None:
         rng = np.random.default_rng()
     dim = Sigma_prior.shape[0]
     K_ = dim // 2
+    if initial_decision is None:
+        _initial_decision = ["pending"] * K_
+    else:
+        if len(initial_decision) != K_:
+            raise ValueError(
+                f"initial_decision length {len(initial_decision)} "
+                f"!= K_={K_}")
+        # accept any of the engine's verdict strings + 'pending'
+        _initial_decision = list(initial_decision)
     state = TestState(
         mu=np.zeros(dim),
         Sigma_post=Sigma_prior.copy(),
         n_per_task=np.zeros(K_, dtype=int),
-        decision=["pending"] * K_,
+        decision=_initial_decision,
         history=[],
     )
     used_segids = [set() for _ in range(K_)]
@@ -418,13 +446,21 @@ def simulate_candidate(true_theta, Sigma_prior, ell_star, bank_by_task,
             break
         k, seg, s_val = sel
         used_segids[k].add(seg)
-        # generate response from TRUE θ — Phase 4.3: BYTE-FAITHFUL to the
-        # engine generative form core_mcmc.simulate_response
-        # (p = λ + (1−2λ)·norm.cdf(η_true); plain norm.cdf, no η-clip).
-        t_true = true_theta[_slot(k, "t")]; l_true = true_theta[_slot(k, "l")]
-        eta_true = np.exp(l_true) * (s_val + t_true)
-        p_true = LAPSE_RATE + _ONE_MINUS_2LAMBDA * float(norm.cdf(eta_true))
-        Y = int(rng.random() < p_true)
+        if y_source is None:
+            # generate response from TRUE θ — Phase 4.3: BYTE-FAITHFUL to
+            # the engine generative form core_mcmc.simulate_response
+            # (p = λ + (1−2λ)·norm.cdf(η_true); plain norm.cdf, no η-clip).
+            t_true = true_theta[_slot(k, "t")]
+            l_true = true_theta[_slot(k, "l")]
+            eta_true = np.exp(l_true) * (s_val + t_true)
+            p_true = LAPSE_RATE + _ONE_MINUS_2LAMBDA * float(norm.cdf(eta_true))
+            Y = int(rng.random() < p_true)
+        else:
+            # Phase 7 sub-3-B: strict-A real-rater replay attach-point.
+            # `y_source` is a callable looking up the rater's actually-
+            # recorded binary response on (k, seg_id). true_theta is not
+            # consumed in this branch (record-keeping only).
+            Y = int(y_source(k, seg, s_val))
         # update posterior
         update_state(state, k, s_val, Y)
         # check stopping

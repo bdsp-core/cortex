@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3-A done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3-A, 7.3-B done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -245,6 +245,54 @@ Methodology repo + PI deployment repo merged into one shippable repo
   deployment replay driver; 7.3-C Mode-A replay driver +
   Bernoulli comparator + close-out. Suite **259 passed / 1
   xfailed** in 8:38 (+9 from sub-7.2).
+- **Phase 7 sub-step 3-B — D6 strict-A deployment replay driver
+  (2/3, per user 2026-05-19, Q1=both engines, Q3 design=A,
+  Q4=three sub-sub-steps).** Engine attach: two minimal-surface
+  optional kwargs added to `deployment/simulate_test.
+  simulate_candidate` (defaults BYTE-IDENTICAL to pre-edit
+  Phase-4 contract): `y_source` (callable replacing the default
+  Bernoulli draw — the strict-A Y-lookup attach) and
+  `initial_decision` (overrides the default `["pending"] * K_`;
+  lets per-task replay pre-mark the 6 non-target tasks as
+  `"refer"`). Drift-guard:
+  `tests/test_phase7_replay_engine_drift.py` (2 tests, 5 s) pins
+  the default behaviour at a fixed seed + verifies the new kwarg
+  branches are actually consumed when provided. New
+  `deployment/replay/run_deployment_replay.py` (CLI: `--floor`,
+  `--limit`, `--out-dir`, `--seed`) drives the K=7 deployment
+  engine with the rater's strict-A bank from
+  `data/replay/rater_replay_bank.csv.gz`; produces
+  `results/replay/deployment_replay_per_task.csv` (per (rater,
+  task) row), `deployment_replay_per_candidate.csv` (per rater,
+  full 7-task decisions + roll-up), and
+  `deployment_replay_run_summary.json` (config + headline
+  aggregates). **Per-task interpretation-(i) fix discovered in
+  smoke**: the pathology where every per-task replay halted at
+  exactly n=10 with REFER was root-caused to `select_next_case`'s
+  `n_min_per_task` constraint forcing the engine to try selecting
+  from the 6 empty-bank tasks → `None` → outer loop breaks. Fix:
+  `initial_decision = ["refer"] * K_; initial_decision[k_target]
+  = "pending"` removes the 6 from `pending` so the engine focuses
+  on the target task naturally (up to `N_max_per_task=120`).
+  Smoke result (rater 97 = mbw, per-task replay): gpd PASS@n=14
+  (pos_rate=0.64), grda PASS@n=34, lpd PASS@n=41, lrda PASS@n=22,
+  `other` REFER@n=120 — real verdicts driven by real data. Tests:
+  `tests/test_phase7_deployment_replay.py` (8 tests, 24 s):
+  `_RaterYLookup` returns labels.csv Y on every (k, seg);
+  contract-violation raise; strict-A bank construction;
+  engine-Y-matches-labels (per-task + per-candidate via call-
+  logging y_source — state.history records signal s_val, not
+  seg_id); end-to-end smoke; per-task interpretation-(i) skips
+  the 6 non-target tasks. .gitignore: adds `results/replay/` as
+  regenerable build artifact alongside the bank.
+  Doc: `docs/PHASE7_REPLAY_DESIGN.md` §10 (engine attach-point +
+  smoke + tests + roadmap to 7.3-C). Remaining inside sub-7.3:
+  **7.3-C** = Mode-A replay driver + fitted-θ Bernoulli paired
+  comparator + parallelization (`parallel_map` integration for
+  the 14,823-cell headline run) + sub-7.3 close-out. Suite **269
+  passed / 1 xfailed** in 15:55 (+10 from sub-7.3-A's 259 = 2
+  drift-guard + 8 replay correctness; the slower wall is
+  documented as poking-during-gate contention, not a regression).
 
 ---
 
