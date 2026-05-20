@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ilae-skill-certification"
-version = "0.0.0.dev0"   # Phase 0 skeleton; -> 1.0.0-rc1 at Phase 8.
+version = "1.0.0rc1"   # Phase 8 sub-8.3 (2026-05-20): release candidate. PEP 440 normalized form of `1.0.0-rc1` (the git tag uses the hyphenated form per merge plan §"Phase 8" sub-5).
 description = "Unified ILAE epileptiform-discharge skill certification: SMC+MCMC Paper-1 engine + clinical deployment runtime."
 requires-python = "==3.11.*"
 readme = "README.md"
@@ -37,11 +37,11 @@ test = ["pytest==8.3.3", "pytest-timeout==2.3.1"]
 calibration = ["numpyro==0.15.3", "jax==0.4.31", "jaxlib==0.4.31"]
 
 [project.scripts]
-# Console entry points (Phase 0: resolvable stubs that fail loudly with the
-# implementing phase; wired to real code in Phases 2/3/4).
-ilae-paper     = "bridge.run_multi_auroc_bridge:main"      # Phase 2
-ilae-calibrate = "calibration.run_youden_calibration:main" # Phase 3
-ilae-deploy    = "deployment.cli:main"                     # Phase 4 (4.7: freeze→simulate→plot)
+# Console entry points. All three wired to real code as of Phase 8 sub-8.3.
+# Phase 0 history: stubs raised NotImplementedError; wired progressively.
+ilae-paper     = "bridge.run_multi_auroc_bridge:main"      # Phase 2 (F1.3)
+ilae-calibrate = "calibration.cli:main"                    # Phase 8 sub-8.3 (thin --help-safe wrapper around pipeline.run_unified_calibration)
+ilae-deploy    = "deployment.cli:main"                     # Phase 4.7 (freeze→simulate→plot orchestrator)
 
 [tool.setuptools]
 # Explicit package list (dir name has dashes -> repo root is not importable;

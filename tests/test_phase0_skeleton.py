@@ -28,12 +28,12 @@ PACKAGES = ["engine", "engine.variants", "deployment", "pipeline",
 # (module, fn, phase, is_stub).  Phase 2 wired ilae-paper to the REAL
 # Mode-A bridge; Phase 4.1 wired ilae-deploy to the ported simulator,
 # Phase 4.7 RETARGETED it to the deployment.cli orchestrator
-# (freeze→simulate→plot). ilae-calibrate (Phase 3) remains a loud stub
-# (its real impl is the calibration orchestrator, not this entry point).
+# (freeze→simulate→plot); Phase 8 sub-8.3 wired ilae-calibrate to a
+# thin --help-safe calibration.cli wrapper around pipeline.run_unified_
+# calibration (the Phase-3 orchestrator). All three are now real impls.
 ENTRY_POINTS = {
     "ilae-paper": ("bridge.run_multi_auroc_bridge", "main", "Phase 2", False),
-    "ilae-calibrate": ("calibration.run_youden_calibration", "main",
-                       "Phase 3", True),
+    "ilae-calibrate": ("calibration.cli", "main", "Phase 8 sub-8.3", False),
     "ilae-deploy": ("deployment.cli", "main", "Phase 4", False),
 }
 
