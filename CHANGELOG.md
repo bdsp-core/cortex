@@ -7,7 +7,7 @@ fast-path orientation for a new contributor.
 
 ---
 
-## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2 done)
+## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–6 COMPLETE; Phase 7 in progress (7.1, 7.2, 7.3-A done)
 
 Methodology repo + PI deployment repo merged into one shippable repo
 (plan: `../UNIFIED_REPO_MERGE_PLAN.md`, decisions D1–D9).
@@ -204,6 +204,47 @@ Methodology repo + PI deployment repo merged into one shippable repo
   `docs/PHASE7_TIER2_OC.md`. Suite **250 passed / 1 xfailed** in
   15:31 (slower wall time documented as CPU-contention from the
   concurrently-running pilot, since terminated).
+- **Phase 7 sub-step 3-A — D6 real-rater replay bank-builder (per
+  user 2026-05-19, Q1=both engines, Q2=floor=10, Q3=fitted-θ
+  Bernoulli comparator, Q4=three sub-sub-steps).** The first of
+  three sub-sub-steps inside D6. New
+  `pipeline/replay/build_rater_replay_bank.py` joins
+  `data/labels/labels.csv` (with the erratum-correct {bipd,birds,
+  other}→other mapping for IIIC tasks; spike typed-coerced to
+  {0,1}) with `data/deployment_prior/case_bank.csv` (the K=7
+  frozen production item bank) → per-(rater, task) strict-A bank
+  with engine inputs `s_mean`/`s_sd` attached. Build 27.8 s on
+  single-thread. Outputs: `data/replay/rater_replay_bank.csv.gz`
+  (102 MB; 5,502,146 long-form rows) + `rater_replay_summary.csv`
+  (801 KB; per-(rater, task) aggregates with `expertise_level`
+  joined from raters.csv). Both gitignored as regenerable build
+  artifacts (matches the precedent for Phase-3
+  `pipeline/_calib_work/`). Headline inventory:
+  *14,823 (rater, task) cells at the deployment N_min_per_task=10
+  floor* (per-task headline cohort, 13,724 at floor=20); the
+  *per-candidate cohort = 21 raters with ≥10 segs/task on ALL 7
+  tasks* (19 expert + 2 experienced — the headline full-7
+  cohort). 421,084 of 5,923,230 observations (7.1 %) dropped on
+  the case_bank join — segs the rater scored that aren't in the
+  production K=7 frozen bank (no s_mean signal). Pre-build audit
+  found 22 per-candidate / 14,955 per-task; the 1-rater /
+  132-cell drop is honest data hygiene (one rater had a task
+  whose scored segs all lacked an s_mean in the production
+  bank). Gate: `tests/test_phase7_replay_bank.py` (9 tests,
+  2.25 s): outputs exist; schema = engine inputs (rater_id,
+  task, seg_id, y, s_mean, s_sd); all 7 tasks populated;
+  erratum-correct mapping (no `bipd`/`birds` task survives);
+  Centaur 4-expert gold cohort verifies (cal/matt/tianyu =
+  exactly 5,000 segs/IIIC task each, no spike; mbw=rater 97 on
+  all 7 tasks); summary schema; per-task cohort ≥10,000 cells at
+  floor=10 (each task ≥1,000 raters); per-candidate cohort
+  within 20–23 raters (mostly expert); Y distributions
+  sensible (spike pos rate 0.3–0.9, each IIIC task 0.05–0.40).
+  Docs: `docs/PHASE7_REPLAY_DESIGN.md` (the full sub-7.3 design
+  audit + this sub-step's close-out). Remaining: 7.3-B
+  deployment replay driver; 7.3-C Mode-A replay driver +
+  Bernoulli comparator + close-out. Suite **259 passed / 1
+  xfailed** in 8:38 (+9 from sub-7.2).
 
 ---
 

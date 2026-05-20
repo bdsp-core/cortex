@@ -43,3 +43,10 @@ pipeline/_calib_work/
 # when produced). Per-task posterior npz + run logs are large/regenerable.
 calibration/joint/*_posterior.npz
 calibration/joint/logs/
+
+# Phase 7 sub-step 3-A — rater replay bank (regenerable from labels.csv +
+# case_bank.csv via `python -m pipeline.replay.build_rater_replay_bank`).
+# The bank is ~100 MB gz; the summary is small but kept as a build artifact
+# alongside for consistency. Tests skip if absent.
+data/replay/rater_replay_bank.csv.gz
+data/replay/rater_replay_summary.csv
