@@ -171,12 +171,24 @@ def test_R5_numeric_id_join_is_unsafe_known_hazard():
 
 
 def test_carry_forwards_present():
-    assert (ROOT / "data/SENSITIVE.md").is_file()
-    if MINE_SRC.exists():
-        a = hashlib.md5((ROOT / "data/SENSITIVE.md").read_bytes()).hexdigest()
-        b = hashlib.md5(
-            (MINE_SRC / "data/SENSITIVE.md").read_bytes()).hexdigest()
-        assert a == b, "SENSITIVE.md is not MINE's authoritative copy"
+    """Phase-1 carry-forward presence + Phase-8 invariants.
+
+    Note: the Phase-1-era byte-identity to MINE_SRC was dropped at
+    Phase 8 sub-8.2 (2026-05-20) — Phase 8 refreshes SENSITIVE.md to
+    add the Phase-5 engine_inputs vendor + Phase-7 (curated banks,
+    rater-replay outputs) entries + the D9 SN1_combined_v2.h5
+    retrieval-path doc per merge plan §"Phase 8" sub-3. The MINE
+    byte-pin is replaced with a content invariant check: the file
+    must still carry the IRB-coverage block (the load-bearing
+    governance content).
+    """
+    s = ROOT / "data/SENSITIVE.md"
+    assert s.is_file()
+    body = s.read_text()
+    assert "IRB 2016P000058" in body, (
+        "data/SENSITIVE.md must carry IRB 2016P000058 (BIDMC) coverage")
+    assert "IRB 2013P001024" in body, (
+        "data/SENSITIVE.md must carry IRB 2013P001024 (MGH) coverage")
     ei = ROOT / "data/engine_inputs"
     for f in ("sdt_fits.csv", "cross_domain_rater_matrix.csv",
               "MANIFEST.json", "README.md"):
