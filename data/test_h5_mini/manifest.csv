@@ -1,0 +1,8 @@
+filename,seg_id,test_class,pattern_class,spike_category,source_dataset,n_raters,fs_hz,eeg30s_shape,sdata_shape,size_bytes
+test_iiic_seizure_20533.h5,20533,iiic,seizure,,sparcnet50K,96,200.0,"(20, 6000)","(597, 504)",1503219
+test_iiic_lpd_20726.h5,20726,iiic,lpd,,sparcnet50K,13,200.0,"(20, 6000)","(597, 504)",1563714
+test_iiic_gpd_20913.h5,20913,iiic,gpd,,sparcnet50K,100,200.0,"(20, 6000)","(597, 504)",1550625
+test_iiic_lrda_20600.h5,20600,iiic,lrda,,sparcnet50K,205,200.0,"(20, 6000)","(597, 504)",1552914
+test_iiic_grda_20549.h5,20549,iiic,grda,,sparcnet50K,12,200.0,"(20, 6000)","(597, 504)",1390490
+test_iiic_other_20573.h5,20573,iiic,other,,sparcnet50K,105,200.0,"(20, 6000)","(597, 504)",1549204
+test_spike_100974.h5,100974,spike,,1,morgoth1:spikes,9,128.0,"(20, 3840)",,297397
