@@ -50,6 +50,56 @@ Within `sn1_combined_v2`, segments are further sub-categorized in the
 | `discharge_times` | pd_rda_profiler | JSON list of seconds (per-event timestamps) |
 | `wave_times` | pd_rda_profiler | JSON list of seconds |
 
+## Model predictions (morgoth IIIC classifier soft labels)
+
+When a model (e.g. the morgoth IIIC classifier) is run over the segments
+to produce per-class probabilities, store the output in `labels.csv`
+**as if the model were a rater** — no schema change needed.
+
+**Register the model as a rater** in `raters.csv`:
+
+| field | value |
+|---|---|
+| `rater_id` | `model:morgoth_iiic_v1` (always version it — `_v1`, `_v2`, …) |
+| `is_person` | `False` |
+| (other cols) | blank / `model` as appropriate |
+
+**Write one row per segment** in `labels.csv`, using a JSON-dict value
+(the same convention already used by `discharge_times`, `spatial_channels`,
+`wave_times`):
+
+| column | value |
+|---|---|
+| `seg_id` | the segment |
+| `rater_id` | `model:morgoth_iiic_v1` |
+| `label_type` | `pattern_class_probs` |
+| `value` | `{"seizure":0.731,"lpd":0.08,"gpd":0.05,"lrda":0.04,"grda":0.06,"other":0.039}` |
+| `source_dataset` | the segment's `source_dataset` |
+
+Probabilities should sum to ~1.0 over the model's class set. Reading back:
+
+```python
+import json, pandas as pd
+lab = pd.read_csv("data/labels/labels.csv")
+probs = lab[(lab.label_type == "pattern_class_probs") &
+            (lab.rater_id == "model:morgoth_iiic_v1")]
+probs["p"] = probs["value"].map(json.loads)        # dict per row
+# argmax class per segment:
+probs["pred"] = probs["p"].map(lambda d: max(d, key=d.get))
+```
+
+Alternative (if you prefer one scalar row per class for SQL-style
+aggregation): `label_type = pattern_class_prob_<class>` (e.g.
+`pattern_class_prob_seizure`), `value = "0.731"` — 6 rows/segment, value
+stays a clean float. Pick one convention and keep it consistent; the
+single-row JSON form above is preferred (atomic per segment, matches the
+existing JSON-valued label types).
+
+> The `model:` rater-id prefix keeps model output trivially separable from
+> human reads (`rater_id.str.startswith("model:")`), so the existing
+> calibration/IRR pipelines that consume human `pattern_class` votes are
+> unaffected unless they opt in.
+
 ## Rater alias resolution
 
 The `raters.csv` table consolidates names observed across all sources via
