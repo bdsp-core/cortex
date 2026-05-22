@@ -160,6 +160,14 @@ def main():
                 out["fetch_strategy"]   = "kong_contest_h5"
                 out["fetch_s3_uri"]     = str(s3_uri)
                 out["fetch_h5_key"]     = str(contest_key)
+                # NOTE: contest_h5_seg_key is `{old_file_recording}_{window}`,
+                # but one old_file_recording can span multiple recording
+                # *sessions* (different HHMMSS), and the contest H5 only stores
+                # specific windows — so the constructed key is NOT guaranteed
+                # to exist in iiic_contest_eeg.h5. A post-build validation pass
+                # (open the contest H5, remap to the matching window key, drop
+                # the rest) is required. In practice 10/42 missing kong segs
+                # were fixable by remap; 32 had no contest signal (PNG-only).
                 out["fetch_fs_hz"]      = KONG_FS
                 out["fetch_n_channels"] = KONG_N_CHANNELS
                 out["fetch_n_samples"]  = KONG_N_SAMPLES
