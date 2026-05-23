@@ -1,8 +1,10 @@
 # Live-Test Integration Plan — CORTEX adaptive certification
 
-**Status:** planning draft (no code written yet). Author: investigation by four
-expert agents + synthesis, 2026-05-21. **Rev 2** — engine choice changed to the
-SMC particle-cloud engine; stopping rule deliberately left open.
+**Status:** planning draft, implementation landed as commit `6f79119`
+(2026-05-22). Author: investigation by four expert agents + synthesis,
+2026-05-21. **Rev 2** — engine choice changed to the SMC particle-cloud
+engine. **Rev 3 (2026-05-22)** — AD6 resolved as per-task three-way
+band; see the AD6 section + `docs/AD6_RESOLUTION.md`.
 **Audience:** future implementing agents and the PI.
 **Scope:** integrate the adaptive certification engine into the live PyQt6
 viewer (`scripts/eeg_bank_viewer.py` — the CORTEX app), capture and store live
@@ -33,10 +35,12 @@ than synthesized. It runs in a **background `QThread`**; its `y_source` callback
 live data goes to a **per-session directory** with an append-only JSONL audit
 log.
 
-**One core methodology decision is deliberately left open (see AD6):** the
-**stopping / certificate rule** — when the test ends and how PASS/FAIL/REFER is
-declared — is **NOT YET DECIDED**. Implementers must not hard-code one; it is a
-PI decision.
+**AD6 (stopping / certificate rule) is now RESOLVED — per-task
+three-way band with sample-size + information + probability-band
+gates; see `docs/AD6_RESOLUTION.md` for the spec, the four-expert
+derivation panel record, and the production-restore checklist for the
+internal-test calibration overrides currently in
+`scripts/cortex_policy.py`.**
 
 **⚠ Headline blocker (see §4):** every bank segment the engine can serve as a
 question needs a **calibrated per-segment signal `s`**. `s` is a latent
@@ -144,8 +148,12 @@ methodology, or modifying the engine's numerics.
 
 ## 3. Architecture decisions
 
-AD1–AD5 are recommendations; **AD6 is deliberately undecided.** PI sign-off
-needed on AD1, AD5, and AD6.
+AD1–AD5 are recommendations; **AD6 is now RESOLVED (2026-05-22) —
+per-task three-way band; see `docs/AD6_RESOLUTION.md`.** PI sign-off
+status: AD1 and AD5 may still need confirmation; AD6 is implemented
+under internal-test calibration overrides that must be reverted to
+panel-derived production values before public release (revert
+checklist in `docs/AD6_RESOLUTION.md`).
 
 ### AD1 — Engine: the SMC + MCMC particle-cloud engine (`engine/core_mcmc.py`)
 
@@ -233,10 +241,20 @@ class or a 2-way spike answer.
 This discards information (a 6-way clinical answer is richer than one bit). **It
 is a methodological decision for the PI** — confirm before building Phase 2.
 
-### AD6 — Stopping / certificate rule ⚠ NOT YET DECIDED
+### AD6 — Stopping / certificate rule ✅ RESOLVED (2026-05-22)
 
-**This decision is deliberately deferred. Implementers must not hard-code a
-stopping rule; it is a PI decision and the plan is built to keep it pluggable.**
+**The "per-task three-way band" option below was selected — see
+`docs/AD6_RESOLUTION.md` for the resolved spec, the gate semantics
+(N_min + R* + α/Z bands), the four-expert derivation panel record,
+and the production-restore checklist for the internal-test
+calibration overrides currently in `scripts/cortex_policy.py`.**
+Shipped as commit `6f79119` on `bdsp-core/ilae-skill-certification-test-multi`
+`main`. The legacy Mode-A δ-stopping rule below remains available via
+the `cortex_policy.default_policy_for` precedence ladder
+(`DeltaStopPolicy`), and the never-stop variant (`NoStopPolicy`) is
+used by the audit / OC harnesses.
+
+The original AD6 discussion below is preserved as historical context:
 
 The question has two coupled parts: (a) **when the test ends** (per task and
 overall), and (b) **how PASS / FAIL / REFER is declared** per task. Candidate
