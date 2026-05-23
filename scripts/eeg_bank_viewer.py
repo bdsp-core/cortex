@@ -27,15 +27,20 @@ import datetime
 import json
 import os
 import sys
+import time
+import uuid
 from collections import defaultdict
 from pathlib import Path
 
 # Allow concurrent read while bank builds are still writing.
 os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+# Engine reproducibility contract — pin BLAS single-thread before numpy.
+for _v in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "OMP_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
 
 import h5py
 import numpy as np
-import pandas as pd
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QEvent, QTimer, QRect, QPoint
 from PyQt6.QtGui import (QColor, QFont, QFontDatabase, QPainter, QPainterPath,
@@ -43,16 +48,13 @@ from PyQt6.QtGui import (QColor, QFont, QFontDatabase, QPainter, QPainterPath,
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QComboBox, QFrame, QPushButton, QLabel, QCheckBox, QSplitter,
-    QLineEdit, QFormLayout, QStackedWidget
+    QGridLayout, QLineEdit, QFormLayout, QStackedWidget
 )
 from scipy import signal as sig
 
 
 BANK_PATH = Path(__file__).resolve().parent.parent / "data" / "eeg_bank.h5"
 SPEC_PATH = Path(__file__).resolve().parent.parent / "data" / "eeg_bank_spec.h5"   # precomputed 10-min spectrograms
-LABELS_DIR = Path(__file__).resolve().parent.parent / "data" / "labels"
-LOGO_PATH = (Path(__file__).resolve().parent.parent / "data"
-             / "Brain_Data_Science_Platform.png")
 
 
 # ──────────────────────── data helpers ────────────────────────
@@ -292,100 +294,6 @@ def compute_regional_spectrograms(data_bipolar_clean, fs, window_size=4.0,
     return {k: v[mask] for k, v in out.items()}, freqs[mask], stimes
 
 
-# ──────────────────────── example picker ────────────────────────
-
-def pick_examples(n_total=10):
-    """Pick `n_total` diverse seg_ids from the bank covering IIIC subtypes +
-    spike. Use segments.csv as the source-of-truth list and try-open each
-    candidate (avoids relying on the bank's /segments group iteration,
-    which can get corrupted by interrupted writes).
-
-    Prefer seg_ids that already have precomputed `sdata` so the user sees
-    the 10-min spectrogram immediately.
-    """
-    if not BANK_PATH.exists():
-        raise SystemExit(f"Bank not found at {BANK_PATH}")
-    print(f"Opening bank: {BANK_PATH}")
-
-    seg = pd.read_csv(LABELS_DIR / "segments.csv", low_memory=False,
-                       usecols=["seg_id", "source_dataset", "subtype"])
-    seg["seg_id"] = seg["seg_id"].astype(int)
-    print(f"  segments.csv rows: {len(seg):,}")
-
-    # Bank membership + IIIC pattern class come straight from the bank's
-    # per-segment group attrs — far faster than the old path, which did a
-    # full read of the 2.1M-row labels.csv just to recover the plurality.
-    have_sdata: set[int] = set()
-    bank_seg_ids: set[int] = set()
-    in_bank_domains: dict[int, str] = {}
-    iiic_class: dict[int, str] = {}
-    with h5py.File(BANK_PATH, "r") as f:
-        for domain in ["iiic", "spike"]:
-            if domain not in f:
-                continue
-            for sid_str in f[domain]:
-                try:
-                    sid = int(sid_str)
-                except ValueError:
-                    continue
-                bank_seg_ids.add(sid)
-                in_bank_domains[sid] = domain
-                if domain == "iiic":
-                    pc = f[domain][sid_str].attrs.get("pattern_class")
-                    if pc is not None:
-                        iiic_class[sid] = str(pc)
-    seg["plurality"] = seg["seg_id"].map(iiic_class)
-    if SPEC_PATH.exists():
-        try:
-            with h5py.File(SPEC_PATH, "r") as fs:
-                for sid in seg["seg_id"]:
-                    try:
-                        g = fs[f"segments/{sid}"]
-                        if "sdata" in g:
-                            have_sdata.add(int(sid))
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-    print(f"  in bank (try-open): {len(bank_seg_ids):,}  with sdata: {len(have_sdata):,}")
-    seg = seg[seg["seg_id"].isin(bank_seg_ids)]
-
-    def _safe_pick(df, n=1):
-        for sid in df["seg_id"]:
-            if int(sid) in bank_seg_ids:
-                return int(sid)
-        return None
-
-    # Pick: prefer segments with precomputed sdata (one per IIIC class), then
-    # fall back to non-precomputed for the spike examples
-    picks: list[int] = []
-    classes = ['seizure', 'lpd', 'gpd', 'lrda', 'grda', 'other']
-    for cls in classes:
-        cands_sdata = seg[(seg["plurality"] == cls) & seg["seg_id"].isin(have_sdata)]
-        if len(cands_sdata):
-            picks.append(int(cands_sdata["seg_id"].iloc[0]))
-            continue
-        cands = seg[seg["plurality"] == cls]
-        if len(cands):
-            picks.append(int(cands["seg_id"].iloc[len(cands) // 3]))
-    # Fill the remainder with spike segments, identified directly from the
-    # bank's `spike` group — the segments.csv `source_dataset` string is
-    # not a reliable spike marker. Even-stride sample across the group.
-    spike_ids = sorted(s for s, d in in_bank_domains.items() if d == "spike")
-    if spike_ids and len(picks) < n_total:
-        step = max(1, len(spike_ids) // (n_total - len(picks)))
-        for i in range(0, len(spike_ids), step):
-            if len(picks) >= n_total:
-                break
-            if spike_ids[i] not in picks:
-                picks.append(spike_ids[i])
-    picks = picks[:n_total]
-    print(f"  picked {len(picks)} examples: {picks}")
-    print(f"  of which precomputed-sdata: "
-          f"{sum(1 for s in picks if s in have_sdata)}/{len(picks)}")
-    return picks, seg.set_index("seg_id"), in_bank_domains
-
-
 # ──────────────────────── viewer ────────────────────────
 
 class AnswerButton(QPushButton):
@@ -613,9 +521,9 @@ class BankViewer(QMainWindow):
     _tutorial_active = False
     _overlay = None
 
-    def __init__(self, seg_ids, seg_meta, seg_domains):
+    def __init__(self, controller, session_id, tutorial_sid, recorder=None):
         super().__init__()
-        self.setWindowTitle("EEG Bank Viewer")
+        self.setWindowTitle("CORTEX")
         self.resize(1500, 950)
         pg.setConfigOption("background", "w")
         pg.setConfigOption("foreground", "k")
@@ -629,21 +537,52 @@ class BankViewer(QMainWindow):
                 print(f"  WARN: could not open spec file {SPEC_PATH}: {e}",
                       flush=True)
                 self.spec_file = None
-        self.seg_ids = seg_ids
-        self.seg_meta = seg_meta
-        self.seg_domains = seg_domains
-        self.current_idx = 0
+        self.controller = controller
+        self.session_id = session_id
+        self.tutorial_sid = tutorial_sid
+        self.recorder = recorder
         self.t_start = 0.0
         self.window_s = 10.0
+
+        # live-test state
+        self._awaiting_answer = False
+        self._selected_choice = None
+        self._answer_changes = 0
+        self._interaction = []          # per-question interaction trace
+        self._rt_t0 = None              # perf_counter at question paint
+        self._cur_trial = -1
+        self._cur_seg = None
+        self._cur_k = None
+        self.gui_trial_log = []         # per-question GUI metadata records
+        self.session_result = None
+        self._session_over = False
+        self._n_correct = 0
+        self._n_answered = 0
 
         # The viewer is the functional tool — native system font throughout;
         # the serif app font is kept for the intro / branding screens only.
         self.setFont(QFontDatabase.systemFont(
             QFontDatabase.SystemFont.GeneralFont))
         self._build_ui()
-        self._load_segment(0)
+
+        # Engine -> GUI signals (queued onto this GUI thread).
+        self.controller.itemReady.connect(self.show_item)
+        self.controller.trialDone.connect(self._on_trial_done)
+        self.controller.sessionComplete.connect(self._on_session_complete)
+        self.controller.sessionFailed.connect(self._on_session_failed)
 
     def closeEvent(self, ev):
+        # End the engine session cleanly if the window closes mid-test.
+        if self.session_result is None:
+            try:
+                self.controller.abort()
+            except Exception:
+                pass
+        if self.recorder is not None:
+            try:
+                self.recorder.close()
+            except Exception:
+                pass
         self.bank.close()
         if self.spec_file is not None:
             try:
@@ -665,8 +604,8 @@ class BankViewer(QMainWindow):
         steps = [
             (self._region_top, "Choosing an answer",
              "For each recording, choose the pattern that best matches "
-             "what you see. Selecting an answer is what advances you "
-             "to the next question.\n\n"
+             "what you see, then press Confirm. You can change your "
+             "selection freely before confirming.\n\n"
              "• Seizure:  an electrographic seizure\n"
              "• LPD / GPD:  lateralized or generalized periodic "
              "discharges\n"
@@ -715,43 +654,38 @@ class BankViewer(QMainWindow):
             self._overlay.deleteLater()
             self._overlay = None
         self._tutorial_active = False
-        self._load_segment(0)
+        # Hand control to the engine — the first itemReady follows shortly.
+        self.seg_info_lbl.setText("Preparing the assessment…")
+        self.controller.start()
 
     def _build_ui(self):
         central = QWidget(); self.setCentralWidget(central)
         outer = QVBoxLayout(central)
 
-        # Top bar: answer-selection panel
+        # Top bar: current-question readout + answer panel.
         top = QHBoxLayout()
-        self.example_box = QComboBox()
-        for i, sid in enumerate(self.seg_ids):
-            meta = self.seg_meta.loc[sid] if sid in self.seg_meta.index else None
-            sd = meta["source_dataset"] if meta is not None else "?"
-            sub = meta["subtype"] if meta is not None and not pd.isna(meta["subtype"]) else ""
-            plur = meta["plurality"] if meta is not None and "plurality" in meta and not pd.isna(meta["plurality"]) else ""
-            label = f"[{i+1}] seg {sid}  {sd}  {sub}  ({plur})"
-            self.example_box.addItem(label.strip())
-        self.example_box.currentIndexChanged.connect(self._load_segment)
-        # example_box is kept but never shown — it is only the segment index
-        # that answer-advance / prev / next drive.
-
-        # Current-question readout — sits where the example selector was.
         self.seg_info_lbl = QLabel("")
         top.addWidget(self.seg_info_lbl)
 
-        # Answer-selection panel: the test taker answers with the number
-        # keys — IIIC segments 1-6 (pattern class), spike segments 1-2
-        # (yes/no). Rendered display-only for now; selection capture and
-        # question advancement are deliberately not wired yet.
+        # Answer panel: 6 IIIC pattern-class options. A click or number key
+        # SELECTS (highlights) an option; the Confirm button or Enter commits.
+        # The selection can be changed freely before confirming.
         top.addStretch(1)
         self.answer_buttons = []
         for i in range(6):
             btn = AnswerButton("")
             btn.setMinimumWidth(135)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            btn.clicked.connect(lambda _=False, idx=i: self._answer_chosen(idx))
+            btn.clicked.connect(lambda _=False, idx=i: self._select_answer(idx))
             top.addWidget(btn)
             self.answer_buttons.append(btn)
+        self.confirm_btn = QPushButton("Confirm ⏎")
+        self.confirm_btn.setMinimumWidth(120)
+        self.confirm_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.confirm_btn.setEnabled(False)
+        self.confirm_btn.clicked.connect(self._confirm_answer)
+        top.addSpacing(14)
+        top.addWidget(self.confirm_btn)
         self._region_top = QWidget()
         self._region_top.setLayout(top)
         outer.addWidget(self._region_top)
@@ -858,18 +792,20 @@ class BankViewer(QMainWindow):
         ctrl.addWidget(self.spec_cb)
 
         ctrl.addStretch(1)
-        self.prev_btn = QPushButton("◀ Prev example")
-        self.prev_btn.clicked.connect(lambda: self._step_example(-1))
-        ctrl.addWidget(self.prev_btn)
         self.pan_l_btn = QPushButton("◀ Pan")
         self.pan_l_btn.clicked.connect(lambda: self._pan(-1))
         ctrl.addWidget(self.pan_l_btn)
         self.pan_r_btn = QPushButton("Pan ▶")
         self.pan_r_btn.clicked.connect(lambda: self._pan(+1))
         ctrl.addWidget(self.pan_r_btn)
-        self.next_btn = QPushButton("Next example ▶")
-        self.next_btn.clicked.connect(lambda: self._step_example(+1))
-        ctrl.addWidget(self.next_btn)
+        # Interaction-trace logging — every display change during a question.
+        for _box, _name in ((self.montage_box, "montage"),
+                            (self.gain_box, "gain"), (self.bp_box, "bandpass"),
+                            (self.notch_box, "notch"), (self.win_box, "window")):
+            _box.currentTextChanged.connect(
+                lambda v, n=_name: self._log_interaction(n, v))
+        self.spec_cb.toggled.connect(
+            lambda on: self._log_interaction("spectrogram", bool(on)))
         self._region_ctrl = QWidget()
         self._region_ctrl.setLayout(ctrl)
         outer.addWidget(self._region_ctrl)
@@ -883,54 +819,131 @@ class BankViewer(QMainWindow):
         if on:
             self._redraw()
 
-    def _step_example(self, delta):
-        new_idx = (self.current_idx + delta) % len(self.seg_ids)
-        self.example_box.setCurrentIndex(new_idx)
-
     def _pan(self, direction):
         step = self.window_s * 0.5
         new = self.t_start + direction * step
         max_t = max(0.0, self.duration - self.window_s)
         self.t_start = float(np.clip(new, 0.0, max_t))
+        self._log_interaction("pan", direction)
         self._redraw()
 
-    # Answer options: IIIC pattern classes on keys 1-6, spike yes/no on
-    # keys 1-2. IIIC order matches the engine's IIIC task list.
+    # IIIC pattern-class options on keys 1-6 — order matches the engine's
+    # IIIC task list (sz, lpd, gpd, lrda, grda, iic).
     _IIIC_OPTIONS = ["Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"]
-    _SPIKE_OPTIONS = ["Spike", "No spike"]
 
-    def _refresh_answer_panel(self, domain):
-        opts = self._IIIC_OPTIONS if domain == "iiic" else self._SPIKE_OPTIONS
+    def _refresh_answer_panel(self):
+        """Reset the 6 IIIC answer buttons to an unselected state."""
         for i, btn in enumerate(self.answer_buttons):
             btn.set_flash(False)
-            if i < len(opts):
-                btn.setText(f"{i + 1}  ·  {opts[i]}")
-                btn.setVisible(True)
-            else:
-                btn.setVisible(False)
+            btn.setText(f"{i + 1}  ·  {self._IIIC_OPTIONS[i]}")
+            btn.setVisible(True)
 
-    _FLASH_MS = 85
+    # ─────────────── engine-driven question flow ───────────────
 
-    def _answer_chosen(self, choice):
-        """Register an answer — from a number key or a button click. If the
-        choice is valid for the current segment's domain, flash that button
-        and advance to the next segment."""
-        sid = self.seg_ids[self.current_idx]
-        domain = self.seg_domains.get(sid, "iiic")
-        n_opts = 6 if domain == "iiic" else 2
-        if choice < n_opts:
-            self._flash_and_advance(choice)
+    def show_item(self, item):
+        """Slot for SessionController.itemReady — render the engine's chosen
+        IIIC segment and arm the answer panel for a fresh question."""
+        self._cur_trial = int(item["trial_index"])
+        self._cur_seg = int(item["seg_id"])
+        self._cur_k = int(item["task_k"])
+        self._selected_choice = None
+        self._answer_changes = 0
+        self._interaction = []
+        self._awaiting_answer = True
+        self.confirm_btn.setEnabled(False)
+        self._render(self._cur_seg, "iiic")
+        # Start the reaction-time clock AFTER the segment has painted.
+        self._rt_t0 = None
+        QTimer.singleShot(0, self._start_rt_clock)
 
-    def _flash_and_advance(self, choice):
-        """Briefly outline the chosen answer button, then advance to the
-        next segment (the flash is cleared by the next _refresh_answer_panel)."""
-        self.answer_buttons[choice].set_flash(True)
-        QTimer.singleShot(self._FLASH_MS, lambda: self._step_example(+1))
+    def _start_rt_clock(self):
+        self._rt_t0 = time.perf_counter()
 
-    def _load_segment(self, idx):
-        self.current_idx = int(idx)
-        sid = self.seg_ids[self.current_idx]
-        self._render(sid, self.seg_domains.get(sid, "iiic"))
+    def _log_interaction(self, action, detail):
+        """Append a timestamped display action to the question's trace."""
+        if not self._awaiting_answer or self._rt_t0 is None:
+            return
+        self._interaction.append({
+            "t_ms": round((time.perf_counter() - self._rt_t0) * 1000.0, 1),
+            "action": action, "detail": detail})
+
+    def _select_answer(self, choice):
+        """Select (highlight) an IIIC option without advancing. The choice
+        can be changed freely until Confirm; each change is counted."""
+        if not self._awaiting_answer or choice >= len(self._IIIC_OPTIONS):
+            return
+        if self._selected_choice is not None and self._selected_choice != choice:
+            self._answer_changes += 1
+        self._selected_choice = choice
+        for i, btn in enumerate(self.answer_buttons):
+            btn.set_flash(i == choice)
+        self.confirm_btn.setEnabled(True)
+        self._log_interaction("select", self._IIIC_OPTIONS[choice])
+
+    def _confirm_answer(self):
+        """Commit the selected answer — record the per-question GUI metadata
+        and hand the raw 6-way choice to the engine."""
+        if not self._awaiting_answer or self._selected_choice is None:
+            return
+        rt_ms = (round((time.perf_counter() - self._rt_t0) * 1000.0, 1)
+                 if self._rt_t0 is not None else None)
+        choice = self._selected_choice
+        self._awaiting_answer = False
+        self.confirm_btn.setEnabled(False)
+        self.gui_trial_log.append({
+            "trial_index": self._cur_trial,
+            "seg_id": self._cur_seg,
+            "task_k": self._cur_k,
+            "response_raw": choice,
+            "response_label": self._IIIC_OPTIONS[choice],
+            "reaction_time_ms": rt_ms,
+            "answer_changes": self._answer_changes,
+            "montage": self.montage_box.currentText(),
+            "gain_uv": float(self.gain_box.currentText()),
+            "bandpass": self.bp_box.currentText(),
+            "notch": self.notch_box.currentText(),
+            "window_s": float(self.win_box.currentText()),
+            "pan_t_start": float(self.t_start),
+            "interaction": list(self._interaction),
+        })
+        self.seg_info_lbl.setText("Selecting the next recording…")
+        self.controller.submit_answer(choice)
+
+    def _on_trial_done(self, telemetry):
+        """Slot for SessionController.trialDone — merge the engine telemetry
+        with this trial's GUI metadata, tally accuracy, and persist."""
+        tix = telemetry.get("trial_index")
+        gui = next((g for g in self.gui_trial_log
+                    if g.get("trial_index") == tix), None)
+        if gui is not None:
+            self._n_answered += 1
+            if (str(gui.get("response_label", "")).lower()
+                    == telemetry.get("pattern_class_true")):
+                self._n_correct += 1
+        if self.recorder is not None:
+            self.recorder.write_trial(telemetry, gui)
+
+    def _on_session_complete(self, result):
+        """Slot for SessionController.sessionComplete — finalize storage and
+        swap in the terminal results screen."""
+        self._awaiting_answer = False
+        self._session_over = True
+        self.session_result = result
+        if self.recorder is not None:
+            try:
+                self.recorder.finalize(result)
+            except Exception as e:
+                print(f"  WARN: recorder.finalize failed: {e}", flush=True)
+        if getattr(result, "aborted", False):
+            return                       # window is closing — no results screen
+        self.setCentralWidget(
+            ResultsScreen(result, self._n_correct, self._n_answered))
+
+    def _on_session_failed(self, msg):
+        """Slot for SessionController.sessionFailed."""
+        self._awaiting_answer = False
+        self._session_over = True
+        self.seg_info_lbl.setText(f"Engine error — {msg}")
 
     def _render(self, sid, domain):
         """Load + draw an arbitrary bank segment. Also used for the
@@ -958,7 +971,7 @@ class BankViewer(QMainWindow):
             self.window_s = self.duration
             self.win_box.setCurrentText(str(int(round(self.window_s))))
         self.filter_bank = FilterBank(self.fs)
-        self._refresh_answer_panel(domain)
+        self._refresh_answer_panel()
         self._redraw()
 
     def _redraw(self):
@@ -1023,9 +1036,9 @@ class BankViewer(QMainWindow):
         self.eeg_plot.setXRange(t[0], t[-1], padding=0.005)
         self.eeg_plot.getAxis("left").setTicks([y_ticks])
         self._add_scale_bar(gain_uv, n_ch, t[-1])
-        # UI shows the question number; the segment id (self._cur_sid) is
-        # retained for internal use only, not displayed.
-        qlabel = ("Tutorial example" if self._tutorial_active else f"Question {self.current_idx + 1}")
+        # UI shows the question number; the segment id is internal only.
+        qlabel = ("Tutorial example" if self._tutorial_active
+                  else f"Question {self._cur_trial + 1}")
         self.seg_info_lbl.setText(
             f"{qlabel}:  "
             f"EEG Segment = [{self.t_start:.1f} - {self.t_start + self.window_s:.1f} s of "
@@ -1157,8 +1170,8 @@ class BankViewer(QMainWindow):
 
     # Keys we intercept application-wide so combo boxes don't eat them
     _HOTKEYS = {Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up,
-                Qt.Key.Key_Down, Qt.Key.Key_Control, Qt.Key.Key_N,
-                Qt.Key.Key_P, *_ANSWER_KEYS}
+                Qt.Key.Key_Down, Qt.Key.Key_Control,
+                Qt.Key.Key_Return, Qt.Key.Key_Enter, *_ANSWER_KEYS}
 
     def eventFilter(self, obj, event):
         """App-wide key intercept (installed on QApplication so we beat
@@ -1171,16 +1184,16 @@ class BankViewer(QMainWindow):
         return super().eventFilter(obj, event)
 
     def keyPressEvent(self, event):
-        """Morgoth-style keyboard shortcuts.
+        """Keyboard shortcuts.
 
           ← / →  : pan ±10 s (or ±half window if window shorter than 10s)
           ↑ / ↓  : step through gain ladder (↑ = bigger traces)
           Ctrl   : cycle montage bipolar → average → laplacian → bipolar
-          n / p  : next / previous example
-          1-6    : select answer (IIIC 6-way; spike 1-2) → next segment
+          1-6    : select an IIIC answer option
+          Enter  : confirm the selected answer
         """
-        if self._tutorial_active:
-            return                       # viewer is inert during the tutorial
+        if self._tutorial_active or self._session_over:
+            return            # viewer inert during the tutorial / after the test
         key = event.key()
         if key == Qt.Key.Key_Left:
             self._pan(-1 if self.window_s < 10 else -10 / self.window_s)
@@ -1202,14 +1215,11 @@ class BankViewer(QMainWindow):
             order = ["bipolar", "average", "laplacian"]
             i = order.index(self.montage_box.currentText())
             self.montage_box.setCurrentText(order[(i + 1) % len(order)])
-        elif key == Qt.Key.Key_N:
-            self._step_example(+1)
-        elif key == Qt.Key.Key_P:
-            self._step_example(-1)
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._confirm_answer()
         elif key in self._ANSWER_KEYS:
-            # Answer keys 1-6 (IIIC) / 1-2 (spike) — same path as a click
-            # on the corresponding answer button.
-            self._answer_chosen(self._ANSWER_KEYS.index(key))
+            # Number keys 1-6 select an IIIC option (same as a button click).
+            self._select_answer(self._ANSWER_KEYS.index(key))
         else:
             super().keyPressEvent(event)
 
@@ -1615,7 +1625,9 @@ class RegistrationPage(QWidget):
         if not name or not email:
             self.msg.setText("Please enter at least your name and email.")
             return False
+        self.session_id = str(uuid.uuid4())
         row = {
+            "session_id": self.session_id,
             "timestamp_utc": datetime.datetime.now(
                 datetime.timezone.utc).isoformat(timespec="seconds"),
             "name": name,
@@ -1627,6 +1639,7 @@ class RegistrationPage(QWidget):
                           if self.f_expertise.currentIndex() > 0 else ""),
             "credentials": self.f_creds.text().strip(),
         }
+        self.registration = row          # handed to the SessionRecorder
         try:
             self._save_row(row)
         except Exception as e:
@@ -1645,6 +1658,132 @@ class RegistrationPage(QWidget):
             if is_new:
                 w.writeheader()
             w.writerow(row)
+
+
+class ResultsScreen(QWidget):
+    """Terminal results screen — per-IIIC-task AUROC estimates + 95% CI,
+    shown when the adaptive session completes. CORTEX aesthetic."""
+
+    _TASK_LABELS = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
+                    "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
+    _STOP_TEXT = {
+        "all_resolved": "Each category reached a final assessment.",
+        "delta_reached": "Skill was estimated to the target precision.",
+        "bank_exhausted": "All available recordings were reviewed.",
+        "aborted": "The assessment ended early.",
+    }
+
+    def __init__(self, result, n_correct, n_answered):
+        super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"ResultsScreen {{ background-color: {_PAGE_BG}; }}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addStretch(2)
+
+        heading = QLabel("Assessment Complete")
+        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hf = QFont()
+        hf.setPointSize(30)
+        hf.setWeight(QFont.Weight.DemiBold)
+        hf.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
+        heading.setFont(hf)
+        heading.setStyleSheet("color: #eef1f5; background: transparent;")
+        root.addWidget(heading)
+
+        n_q = int(getattr(result, "n_questions", n_answered) or n_answered)
+        stop = self._STOP_TEXT.get(getattr(result, "stop_reason", ""), "")
+        sub = QLabel(f"{n_q} recordings reviewed.   {stop}")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sf = QFont()
+        sf.setPointSize(13)
+        sub.setFont(sf)
+        sub.setStyleSheet("color: #aab0ba; background: transparent;")
+        root.addSpacing(14)
+        root.addWidget(sub)
+
+        root.addSpacing(34)
+        root.addLayout(_hcenter(self._build_task_table(result)))
+
+        if n_answered:
+            pct = 100.0 * n_correct / n_answered
+            acc_text = (f"Agreement with the reference label:   "
+                        f"{pct:.0f}%   ({n_correct} of {n_answered})")
+        else:
+            acc_text = ""
+        acc = QLabel(acc_text)
+        acc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        acf = QFont()
+        acf.setPointSize(12)
+        acc.setFont(acf)
+        acc.setStyleSheet("color: #868b96; background: transparent;")
+        root.addSpacing(24)
+        root.addWidget(acc)
+
+        foot = QLabel("Your responses have been recorded.")
+        foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ff = QFont()
+        ff.setPointSize(11)
+        foot.setFont(ff)
+        foot.setStyleSheet("color: #5c606a; background: transparent;")
+        root.addSpacing(30)
+        root.addWidget(foot)
+
+        self.close_btn = QPushButton("CLOSE")
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.setFixedSize(200, 48)
+        self.close_btn.setFont(_btn_font())
+        self.close_btn.setStyleSheet(_BTN_CSS)
+        self.close_btn.clicked.connect(lambda: self.window().close())
+        root.addSpacing(20)
+        root.addLayout(_hcenter(self.close_btn))
+        root.addStretch(3)
+
+    def _build_task_table(self, result):
+        """A 6-row grid — task label, AUROC point estimate, 95% CI."""
+        codes = list(getattr(result, "task_codes", []) or [])
+        am = getattr(result, "final_auroc_mean", None)
+        ah = getattr(result, "final_auroc_hw", None)
+        am = [] if am is None else list(am)
+        ah = [] if ah is None else list(ah)
+
+        def _cell(text, color, size, bold=False,
+                  align=Qt.AlignmentFlag.AlignLeft):
+            lbl = QLabel(text)
+            f = QFont()
+            f.setPointSize(size)
+            if bold:
+                f.setWeight(QFont.Weight.DemiBold)
+            lbl.setFont(f)
+            lbl.setStyleSheet(f"color: {color}; background: transparent;")
+            lbl.setAlignment(align | Qt.AlignmentFlag.AlignVCenter)
+            return lbl
+
+        box = QWidget()
+        box.setFixedWidth(440)
+        grid = QGridLayout(box)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(26)
+        grid.setVerticalSpacing(10)
+        right = Qt.AlignmentFlag.AlignRight
+        grid.addWidget(_cell("TASK", "#6b7280", 9, True), 0, 0)
+        grid.addWidget(_cell("AUROC", "#6b7280", 9, True, right), 0, 1)
+        grid.addWidget(_cell("95% CI", "#6b7280", 9, True, right), 0, 2)
+        for i, code in enumerate(codes):
+            label = self._TASK_LABELS.get(code, code)
+            grid.addWidget(_cell(label, "#dde0e6", 13), i + 1, 0)
+            if i < len(am):
+                a = float(am[i])
+                grid.addWidget(_cell(f"{a:.2f}", "#eef1f5", 13, True, right),
+                               i + 1, 1)
+                if i < len(ah):
+                    hw = float(ah[i])
+                    lo, hi = max(0.0, a - hw), min(1.0, a + hw)
+                    grid.addWidget(
+                        _cell(f"[{lo:.2f}, {hi:.2f}]", "#aab0ba", 12,
+                              False, right), i + 1, 2)
+        return box
 
 
 def main():
@@ -1690,25 +1829,38 @@ def main():
         reg.continue_btn.setEnabled(False)
         reg.continue_btn.setText("LOADING…")
         app.processEvents()                  # let the button repaint first
-        seg_ids, seg_meta, seg_domains = pick_examples(n_total=10)
-        if not seg_ids:
-            raise SystemExit("No segments to display")
-        win = BankViewer(seg_ids, seg_meta, seg_domains)
+        from cortex_engine_inputs import build_iiic_engine_inputs
+        from session_controller import SessionController, N_PARTICLES
+        from cortex_storage import SessionRecorder
+        inputs = build_iiic_engine_inputs()
+        # Reserve one IIIC segment for the tutorial and exclude it from the
+        # engine pool, so the engine never re-serves the practice segment.
+        tutorial_sid = inputs.all_seg_ids[0]
+        engine_inputs = inputs.without([tutorial_sid])
+        # capture_clouds=True so the session can write trajectory.npz.
+        controller = SessionController(engine_inputs, reg.session_id,
+                                       capture_clouds=True)
+        # Record which termination policy actually drives this session —
+        # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
+        # legacy/audit paths — so participant.json reflects what stopped
+        # the session, not a stale module constant.
+        recorder = SessionRecorder(
+            reg.session_id, reg.registration,
+            {"n_iiic_segments": len(engine_inputs.all_seg_ids),
+             "policy": type(controller.session.policy).__name__,
+             "n_particles": N_PARTICLES,
+             "tutorial_seg_id": int(tutorial_sid)})
+        win = BankViewer(controller, reg.session_id, tutorial_sid, recorder)
         # Install app-wide event filter so combo boxes don't swallow arrow
         # keys / Ctrl before we see them.
         app.installEventFilter(win)
         win.show()
         reg.close()
         state["page"] = win
-        # Coach-marks walkthrough on a dedicated example — a bank IIIC
-        # segment that is not one of the scored test items — then the test.
-        test_ids = set(seg_ids)
-        tut_sid = next((s for s in sorted(seg_domains)
-                        if seg_domains[s] == "iiic" and s not in test_ids),
-                       None)
-        if tut_sid is not None:
-            app.processEvents()              # let the window lay out first
-            win.start_tutorial(tut_sid)
+        # Coach-marks walkthrough on the reserved practice segment; when it
+        # finishes, _finish_tutorial starts the engine session.
+        app.processEvents()                  # let the window lay out first
+        win.start_tutorial(tutorial_sid)
 
     landing = LandingPage()
     landing.begin_btn.clicked.connect(open_consent)

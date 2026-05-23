@@ -54,3 +54,11 @@ pytest-timeout==2.3.1
 numpyro==0.15.3
 jax==0.4.31
 jaxlib==0.4.31
+
+# --- CORTEX internal test (the live adaptive certification viewer) ---
+# GUI / upload deps — NOT part of the engine's bit-exact reproducibility
+# contract (that is governed by the numpy/scipy/BLAS pins above), so these
+# are floor-pinned. Developed against PyQt6 6.11.0, pyqtgraph 0.14.0.
+PyQt6>=6.5
+pyqtgraph>=0.13
+dropbox>=11.36            # direct upload of result CSVs to the PI's Dropbox

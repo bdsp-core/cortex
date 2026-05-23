@@ -50,6 +50,23 @@ Console entry points:
 Run `ilae-deploy --help`, `ilae-paper --help`, `ilae-calibrate --help`
 for usage.
 
+## CORTEX internal test
+
+`scripts/eeg_bank_viewer.py` (the CORTEX viewer) plus `session_controller.py`,
+`cortex_engine_inputs.py`, and `cortex_storage.py` are a self-contained,
+take-the-test build of the IIIC adaptive certification for internal review:
+a lab member runs it, answers an adaptive question sequence driven by the
+SMC engine, and the per-session results upload to a Dropbox folder. Build
+the distributable bundle with:
+
+```sh
+python scripts/build_internal_test_zip.py     # → dist/cortex-internal-test.zip
+```
+
+Result delivery is configured in `cortex_config.yaml` (see
+`docs/CORTEX_DROPBOX_SETUP.md`); the bundle's own `README_CORTEX_TEST.md` is
+the test-taker setup + run guide.
+
 ## Repository layout
 
 ```

@@ -88,3 +88,17 @@ data/test_h5/
 
 # JSON variant of data/iiic_precompute_manifest.csv (redundant 70 MB).
 data/iiic_precompute_manifest.json
+
+# --- CORTEX internal test ---
+# cortex_config.yaml carries a live Dropbox access token — NEVER commit it.
+# The token-free template cortex_config.example.yaml is tracked instead.
+# (The distributed zip includes the real cortex_config.yaml by design.)
+cortex_config.yaml
+# Per-session test-taker results — PHI (names, emails, responses).
+results/sessions/
+results/registrations.csv
+# Ad-hoc / manually-copied session artifacts also carry PHI — never commit.
+first-test-csv-results/
+
+# --- Claude Code per-project metadata (not project artifacts) ---
+.claude/
