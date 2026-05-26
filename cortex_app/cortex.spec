@@ -22,6 +22,8 @@ Nothing CORTEX-source-related is duplicated under cortex_app/.
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
 
 ROOT = Path(SPECPATH)                # cortex_app/
@@ -49,6 +51,12 @@ datas = [
     # engine + calibration packages (small, vendored verbatim)
     (str(REPO / 'engine'),                      'engine'),
     (str(REPO / 'calibration'),                 'calibration'),
+    # cortex_policy.load_ell_star_iiic() reads calibration/cert_config.yaml
+    # (already shipped via the calibration/ tree above) and falls back to a
+    # bundle-root copy of cert_config.yaml. Ship that fallback so a stripped
+    # bundle that ever loses the calibration/ tree still resolves the
+    # Youden cut-scores. Cheap (4 KB), defensive.
+    (str(REPO / 'cert_config.yaml'),           '.'),
 ]
 
 binaries = []
@@ -85,7 +93,30 @@ hiddenimports = [
     'engine',
     'engine.core_mcmc',
     'engine.auroc',
-]
+    # PyYAML — cortex_storage / cortex_policy do function-body `import yaml`
+    # to load cortex_config.yaml and cert_config.yaml. PyInstaller's PyYAML
+    # hook usually catches this but listing it explicitly is cheap insurance.
+    'yaml',
+    '_yaml',
+    # Dropbox SDK — cortex_storage._dropbox_upload does function-body
+    # `import dropbox`. The SDK lazy-loads ~25 endpoint submodules from its
+    # __init__; explicitly collecting everything below.
+    'dropbox',
+] + collect_submodules('dropbox') + [
+    # numpy 2.0 pickle-compat shim. Sigma_l_fitted.npy's pickle references
+    # numpy._core.multiarray._reconstruct (a numpy 2.x path); numpy 1.26.x
+    # ships a `_core/` shim package whose submodules forward to numpy.core.*
+    # lazily, which the static AST tracer cannot see. Without these, the
+    # bundled app crashes with ModuleNotFoundError: 'numpy._core' on
+    # load_fitted_Sigma() — the v1.0.2 shipped bug.
+    'numpy._core',
+    'numpy._core.multiarray',
+    'numpy._core.umath',
+    'numpy._core._multiarray_umath',
+    'numpy._core._dtype',
+    'numpy._core._dtype_ctypes',
+    'numpy._core._internal',
+] + collect_submodules('numpy._core')
 
 a = Analysis(
     [str(REPO / 'scripts' / 'eeg_bank_viewer.py')],
