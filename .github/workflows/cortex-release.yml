@@ -1,0 +1,176 @@
+name: CORTEX Release Build
+
+# Runs on macOS + Windows runners to build the standalone CORTEX
+# test-taker apps via PyInstaller (cortex_app/cortex.spec), then
+# attaches both to a new GitHub Release.
+#
+# Triggered by:
+#   - pushing a tag like  cortex-v1.0,  cortex-v1.1,  cortex-v2.0
+#   - manually via the Actions UI ("Run workflow")
+#
+# Required repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#       -- credentials for the `opendata` profile (read-only on
+#          bdsp-opendata-credentialed). Used to fetch the test bank.
+#   CORTEX_CONFIG_YAML
+#       -- the full contents of cortex_config.yaml (with Dropbox
+#          app_key, app_secret, refresh_token filled in). CI writes
+#          this to the repo root before the build.
+
+on:
+  push:
+    tags:
+      - 'cortex-v*'
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage cortex_config.yaml from secret
+        env:
+          CORTEX_CONFIG_YAML: ${{ secrets.CORTEX_CONFIG_YAML }}
+        run: |
+          if [ -z "$CORTEX_CONFIG_YAML" ]; then
+            echo "ERROR: secret CORTEX_CONFIG_YAML is not set"; exit 1
+          fi
+          printf '%s' "$CORTEX_CONFIG_YAML" > cortex_config.yaml
+
+      - name: Configure AWS for the test-bank fetch
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          mkdir -p data
+          aws s3 cp s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5 data/eeg_bank.h5
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-cortex.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          cd cortex_app
+          pyinstaller --clean --noconfirm cortex.spec
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "CORTEX" \
+            -srcfolder cortex_app/dist/CORTEX.app \
+            -ov -format UDZO \
+            cortex_app/dist/CORTEX-mac.dmg
+
+      - name: Upload Mac DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORTEX-mac
+          path: cortex_app/dist/CORTEX-mac.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage cortex_config.yaml from secret
+        env:
+          CORTEX_CONFIG_YAML: ${{ secrets.CORTEX_CONFIG_YAML }}
+        shell: pwsh
+        run: |
+          if (-not $env:CORTEX_CONFIG_YAML) {
+            Write-Error "secret CORTEX_CONFIG_YAML is not set"; exit 1
+          }
+          Set-Content -Path cortex_config.yaml -Value $env:CORTEX_CONFIG_YAML -NoNewline
+
+      - name: Configure AWS for the test-bank fetch
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path data | Out-Null
+          aws s3 cp s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5 data/eeg_bank.h5
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-cortex.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          cd cortex_app
+          pyinstaller --clean --noconfirm cortex.spec
+
+      - name: Zip Windows build
+        shell: pwsh
+        run: Compress-Archive -Path cortex_app/dist/CORTEX -DestinationPath cortex_app/dist/CORTEX-windows.zip
+
+      - name: Upload Windows zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORTEX-windows
+          path: cortex_app/dist/CORTEX-windows.zip
+
+  release:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/cortex-v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CORTEX-mac
+          path: artifacts/
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CORTEX-windows
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: |
+            artifacts/CORTEX-mac.dmg
+            artifacts/CORTEX-windows.zip
+          body: |
+            ## CORTEX adaptive EEG certification test
+
+            ### Downloads
+            - **macOS**: `CORTEX-mac.dmg` — open the DMG, drag CORTEX
+              to Applications, then **right-click → Open** the first
+              time to bypass Gatekeeper (only the first launch; macOS
+              remembers your approval after).
+            - **Windows**: `CORTEX-windows.zip` — extract the folder,
+              double-click `CORTEX.exe`. If SmartScreen warns, click
+              "More info" → "Run anyway" once.
+
+            ### Requirements
+            macOS 12+ or Windows 10+. No Python install needed.
+
+            ### Reporting bugs
+            Anything that crashes, looks wrong, or feels slow — email
+            the study team.
+          draft: false
+          prerelease: false

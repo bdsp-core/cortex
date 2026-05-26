@@ -96,21 +96,64 @@ Produces `cortex_app/dist/CORTEX/CORTEX.exe` plus its support files in
 the .exe) before distributing — Right-click → Send to → Compressed
 (zipped) folder.
 
-## Cutting a release
+## Cutting a release (the **automated** way — Mac + Windows, no local build needed)
 
-1. Bump the version in [`cortex.spec`](./cortex.spec)
-   (`CFBundleShortVersionString`) and the `info_plist` if it's a major rev.
-2. Build on macOS → rename `dist/CORTEX.dmg` to `CORTEX-vX.Y.dmg`.
-3. Build on Windows → zip `dist/CORTEX/` to `CORTEX-vX.Y-windows.zip`.
+The repo ships a GitHub Actions workflow at
+[`.github/workflows/cortex-release.yml`](../.github/workflows/cortex-release.yml)
+that:
+
+1. Runs on `macos-latest` to build `CORTEX-mac.dmg`.
+2. Runs on `windows-latest` to build `CORTEX-windows.zip`.
+3. Attaches both to a new GitHub Release.
+
+You don't need a Windows machine. You don't even need to run the local
+build. **Pushing a `cortex-v*` tag does everything.**
+
+### One-time setup: add three secrets
+
+Go to **Settings → Secrets and variables → Actions → New repository
+secret** and add:
+
+| Secret name | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | access key for the `opendata` profile (read-only on `bdsp-opendata-credentialed`) |
+| `AWS_SECRET_ACCESS_KEY` | matching secret key |
+| `CORTEX_CONFIG_YAML` | paste the entire contents of your local `cortex_config.yaml` (the one with the Dropbox app_key / app_secret / refresh_token) |
+
+These only need to be set once; subsequent releases reuse them.
+
+### Cutting a release
+
+    # Bump version in cortex.spec first (CFBundleShortVersionString)
+    git commit -am "cortex: bump to v1.0"
+    git tag cortex-v1.0
+    git push origin main cortex-v1.0   # the tag push triggers the workflow
+
+Then watch it run at **Actions → CORTEX Release Build**. About 10–15
+min later there'll be a new release at **Releases** with both assets
+attached and the release-notes body populated. Hand the release URL to
+the test-takers.
+
+To dry-run without creating a release: use **Actions → CORTEX Release
+Build → Run workflow** (manual dispatch builds the artifacts but only
+creates the release if it was triggered by a tag push).
+
+## Cutting a release (the **manual** way — if you can't use CI)
+
+If the CI workflow is unavailable, you can do it by hand:
+
+1. Bump version in [`cortex.spec`](./cortex.spec)
+   (`CFBundleShortVersionString` + `info_plist`).
+2. Build on a Mac → rename `cortex_app/dist/CORTEX.dmg` → `CORTEX-vX.Y.dmg`.
+3. Build on a Windows machine → zip `cortex_app/dist/CORTEX/` →
+   `CORTEX-vX.Y-windows.zip`.
 4. On GitHub: **Releases → Draft a new release** → tag `cortex-vX.Y` →
-   title "CORTEX vX.Y" → attach both assets → publish.
-5. Hand the release URL to the test-takers. They click the asset that
-   matches their OS, download, double-click.
+   attach both assets → publish.
 
 CLI alternative using `gh`:
 
     gh release create cortex-v1.0 \
-        cortex_app/dist/CORTEX.dmg#"macOS (.dmg)" \
+        cortex_app/dist/CORTEX-mac.dmg#"macOS (.dmg)" \
         CORTEX-v1.0-windows.zip#"Windows (.zip)" \
         --title "CORTEX v1.0" \
         --notes-file release-notes.md
