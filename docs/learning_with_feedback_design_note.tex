@@ -1,0 +1,458 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[round,authoryear]{natbib}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage[svgnames]{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=DarkBlue, urlcolor=DarkBlue, citecolor=DarkBlue}
+
+\title{From measurement to training:\\
+  \large modelling learning with feedback for an EEG pattern-recognition
+  certification test}
+\author{Westover Lab}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The current CORTEX certification test is built on a signal-detection-theory
+(SDT) model in which each examinee is summarised by two parameters per
+task: a perceptual noise $\sigma$ (sensitivity, $1/\sigma$ is the skill)
+and a decision criterion $t$ (bias). Bayesian adaptive design
+(QUEST$+$-style) lets us \emph{estimate} $(\sigma,t)$ efficiently. In
+this note we summarise two internal design memos
+(\texttt{learning-theory1.md} and \texttt{learning-theory2.md}) that
+address the complementary problem: given $(\hat\sigma,\hat t)$ for a
+learner, what is the optimal sequence of cases (with feedback) to
+actively \emph{move} those parameters toward better values?
+The shift in viewpoint is that, in a training setting, $\sigma$ and $t$
+are no longer stationary unknowns but \emph{state variables}, and our
+job is to drive them. The design that emerges is a small,
+interpretable, posterior-driven policy that explicitly separates three
+training objectives, reuses the existing inference machinery, and
+exploits more structure than either the perceptual-learning or
+POMDP-teaching literatures use in isolation.
+\end{abstract}
+
+\section{The conceptual shift: assessment vs.\ training}
+\label{sec:shift}
+
+The existing CORTEX framework treats $(\sigma,t)$ as fixed unknowns
+and selects each next case to maximise expected information gain about
+the joint posterior. That is provably efficient for \emph{measurement},
+but it is the wrong objective for \emph{training}, where the learner's
+$(\sigma,t)$ are precisely the things we want to change.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & \textbf{Assessment} & \textbf{Training} \\
+\midrule
+$(\sigma,t)$ are \dots & stationary unknowns & state variables we want to move \\
+Item-selection objective & expected information gain & expected improvement in future performance \\
+Reward signal & posterior-variance reduction & $\Delta(-|t|),\;\Delta(-\sigma)$, retention \\
+Feedback role & none required & central; drives the dynamics \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A measurement-optimal stimulus is typically placed \emph{at} the
+criterion (uncertain by design); a training-optimal stimulus is
+typically placed at a different difficulty depending on which of three
+distinct learning sub-problems the learner currently has
+(Sec.~\ref{sec:threeproblems}).
+
+\section{Four (overlapping) literatures}
+\label{sec:lit}
+
+\paragraph{Adaptive psychophysics and computerised adaptive testing.}
+QUEST and QUEST$+$ \citep{watson1983quest,watson2017questplus} and
+item-response-theory CAT both maximise information about a fixed
+ability parameter; neither models the parameter as changing. They are
+the right tools for our \emph{measurement} sub-system and the wrong
+ones for a trainer.
+
+\paragraph{Psychophysics of perceptual learning.}
+Dosher and Lu's Augmented Hebbian Reweighting Model and its successors
+give a mechanistic, trial-by-trial account of how repeated practice
+reduces $\sigma$ (via channel reweighting, noise suppression, signal
+enhancement) and how feedback shifts $t$. The single most
+operationally useful empirical result, from
+\citet{aberg2012feedback} and earlier work by Herzog and colleagues,
+is that \textbf{block feedback primarily moves $\sigma$ while
+trial-by-trial feedback primarily moves $t$}, and that biased
+trial-wise feedback can be used to drive $t$ in a controllable
+direction.\footnote{We do \emph{not} propose to do this — see the
+caveats in Sec.~\ref{sec:caveats}.} The two parameters respond to
+different knobs and probably need different schedules.
+
+\paragraph{The 85\,\% rule for optimal training difficulty.}
+\citet{wilson202085percent} derive that for a broad class of
+stochastic-gradient-descent binary classifiers — and argue this
+generalises to humans on perceptual binary-decision tasks — the
+\emph{rate} of learning is maximised when training accuracy is held
+near $85\%$ (error rate $\approx 15.87\%$). This is a formal derivation
+of Vygotsky's zone of proximal development and Bjork's
+``desirable difficulty,'' and converges with established staircasing
+practice. Critically the $85\%$ refers to \emph{training} accuracy and
+\emph{not} test accuracy — exactly the distinction this note is
+about.
+
+\paragraph{Perceptual-learning systems in medical imaging.}
+The closest existing analog to what we want to build is the Kellman
+group's Perceptual-Adaptive Learning Module (PALM) family, scheduled by
+the ARTS algorithm (Adaptive Response-Time-based Sequencing,
+\citealp{mettler2011arts}), which prioritises categories by per-category
+accuracy, response time as a fluency proxy, and trials-since-last-
+presentation. \citet{kellman2024palm} is the first to integrate SDT
+into the pipeline: a running window $d'$ serves as retirement criterion
+and beats accuracy-based retirement on both immediate and delayed
+post-tests. As far as we can tell this is the only existing
+perceptual-learning system that unifies measurement, sequencing, and
+mastery in a single framework, and we borrow liberally from its
+framing.
+
+\paragraph{POMDP / Bayesian knowledge tracing.}
+The decision-theoretic ``right answer'' to optimal teaching is
+\citet{rafferty2016pomdp}: cast teaching as planning in a partially
+observable Markov decision process whose hidden state is the learner's
+knowledge state. This is the cleanest formal statement of our problem,
+but exact POMDP planning is heavy, and the standard formulations
+discretise mastery into binary states rather than maintaining a
+continuous posterior over $(\sigma,t)$. Spaced-repetition schedulers
+(SM-2, the Anki family) are simple heuristic approximations of this
+class and have strong empirical backing in medical education.
+
+\section{Why our problem has \emph{more} structure than any of the above}
+\label{sec:structure}
+
+The EEG-spike training problem is unusually well-conditioned because
+we already have:
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item a principled \emph{generative model} of expert behaviour
+        (a two-parameter probit with a lapse term);
+  \item a joint \emph{posterior} over $(\sigma,t)$ per examinee per
+        task, maintained by the CORTEX engine;
+  \item stimuli that live on a known, signed \emph{difficulty axis $s$}
+        (the latent SDT signal), not in a discrete skill-tag space.
+\end{enumerate}
+
+This means learning can be expressed as \emph{dynamics on the
+posterior-mean trajectory} $(\sigma_k, t_k)$ rather than as discrete
+mastery transitions. Discrete-state BKT / POMDP work does not exploit
+this; the Kellman/ARTS priority score does not either. Our trainer can
+do better because the generative model is richer.
+
+\section{The formal framework}
+\label{sec:framework}
+
+\paragraph{Latent state.} At trial $k$ the learner state for a given
+task is
+\[
+  \theta_k = (\sigma_k,\; t_k,\; \phi_k),
+\]
+where $\sigma_k$ is the perceptual noise, $t_k$ is the criterion, and
+$\phi_k$ collects optional variables (lapse rate, sub-type-specific
+skill offsets, fatigue).
+
+\paragraph{Observation model.} The existing SDT / probit model: for
+stimulus $s_k$ and rater state $\theta_k$,
+\[
+  y_k = \mathbf{1}\!\left[s_k + n_k > t_k\right],\qquad
+  n_k \sim \mathcal{N}(0,\sigma_k^2),
+\]
+with a small lapse mixture as in the live engine.
+
+\paragraph{Transition model (the learning dynamics).} A minimal
+mechanistic form, sufficient to start:
+\begin{align}
+  t_{k+1} &= t_k + \alpha_t\,g_t\!\bigl(s_k, y_k, \mathrm{fb}_k\bigr) + \xi_t,
+  \label{eq:tdyn}\\
+  \log\sigma_{k+1} &= \log\sigma_k + \alpha_\sigma\,g_\sigma\!\bigl(s_k, y_k, \mathrm{fb}_k\bigr) + \xi_\sigma.
+  \label{eq:sdyn}
+\end{align}
+Equation~\ref{eq:tdyn} is a Rescorla--Wagner-style criterion update
+driven by feedback ($\Delta t_k \propto -(y_k-\hat y_k)\alpha_t$: when
+the learner says ``yes'' and is wrong, push $t$ up; when they say
+``no'' and are wrong, push $t$ down). This is the standard
+SDT-criterion-learning model dating to \citet{kac1962criterion} and
+\citet{friedman1968criterion}, refined by \citet{stuttgen2011trial}.
+Equation~\ref{eq:sdyn} is a coarse one-parameter summary of the slower
+$\sigma$-trajectory, with an asymptotic-decay form
+\begin{equation}
+  \sigma_k = \sigma_\infty + (\sigma_0 - \sigma_\infty)\,
+  \exp\!\bigl(-k/\tau_\sigma\bigr)
+  \label{eq:sigmaschedule}
+\end{equation}
+serving as a useful prior on the learning curve.
+
+\paragraph{Reward.} A composite of the three things we actually care
+about:
+\begin{equation}
+  R_k \;=\; \beta_t \cdot \bigl(\,|t_{k-1}| - |t_k|\,\bigr)
+       \;+\; \beta_\sigma \cdot \bigl(\,\sigma_{k-1} - \sigma_k\,\bigr)
+       \;+\; \beta_r \cdot \mathrm{retention}_k.
+  \label{eq:reward}
+\end{equation}
+
+\paragraph{Optimal policy.} In principle,
+\[
+  s_k^\star = \arg\max_{s}\;
+    \mathbb{E}\!\left[\,\sum_{j > k} R_j \,\Big|\, \text{belief at }k,\; s_k = s\right],
+\]
+i.e.\ exact POMDP planning in the belief space over $\theta$. In
+practice we approximate this with the policy in Sec.~\ref{sec:policy}.
+
+\section{Three training sub-problems, three policies}
+\label{sec:threeproblems}
+
+The single most important conceptual point — one the existing
+literature has somewhat muddled — is that \emph{what the trainer should
+do depends on what is wrong with the learner}. There are three
+distinct objectives, each with a different ``optimal-stimulus'' rule.
+
+\paragraph{Bias correction (reduce $|t|$).}
+\textit{Fast, feedback-driven.} The Herzog/Aberg and recognition-memory
+literature \citep{han2009criterion} shows that $t$ is adjusted
+implicitly and rapidly in response to outcome feedback, even without
+the learner's awareness. The right intervention is to train at stimuli
+near the learner's current $\hat t_k$, with balanced sign, so that
+feedback is maximally informative about criterion placement. An
+unbalanced base rate would induce an opposite bias by accident.
+
+\paragraph{Skill acquisition (reduce $\sigma$).}
+\textit{Slow, many trials, classically stimulus-specific.} This is
+where the 85\,\% rule applies directly. The right intervention is to
+train at intermediate difficulty calibrated to the learner's
+\emph{current} psychometric function. For the unit-variance probit
+with lapse $\lambda \approx 0.025$ used in CORTEX, the $|s-\hat t_k|$
+that produces $\approx 85\%$ correct is
+\begin{equation}
+  |s - \hat t_k| \;\approx\; 1.04\,\hat\sigma_k.
+  \label{eq:eightyfive}
+\end{equation}
+Diversity across morphologies matters here — Sec.~\ref{sec:policy}
+returns to this.
+
+\paragraph{Retention and fluency.}
+\textit{Spaced, interleaved.} Spaced retrieval practice with feedback
+has strong support in medical education \citep{carpenter2022spacing}
+and especially in pattern-recognition contexts (radiology and
+histopathology). The right intervention is interleaved return-visits
+to previously mastered sub-categories on a roughly exponential spacing
+schedule (SM-2 / Anki-family).
+
+These three objectives demand different policies. A single-objective
+adaptive algorithm (QUEST$+$ for estimation, or a bare 85\,\%-rule
+staircase) will be wrong roughly two-thirds of the time.
+
+\section{A concrete proposal}
+\label{sec:proposal}
+
+The proposal is deliberately a small, interpretable policy that
+exploits the existing posterior rather than a full POMDP solve.
+
+\subsection{Learner-state model}
+Augment the existing $(\sigma,t)$ generative model with the
+learning-dynamics layer of Eqs.~\eqref{eq:tdyn}--\eqref{eq:sigmaschedule}.
+Estimate $\tau_\sigma$, $\sigma_\infty$, $\alpha_t$ per learner from
+their accumulated trial history; use empirical-Bayes priors derived
+from the pooled pilot cohort.
+
+\subsection{Item-selection policy}
+\label{sec:policy}
+On trial $k$, with posterior means $\hat\sigma_k, \hat t_k$ in hand:
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{Choose the mode.}
+    \begin{itemize}[leftmargin=*,itemsep=1pt]
+      \item \emph{Bias-correction mode} if $|\hat t_k|$ is large
+            relative to its posterior SD \emph{and} above a clinical
+            tolerance $t^\star$.
+      \item \emph{Skill-building mode} otherwise, as long as
+            $\hat\sigma_k$ is still decreasing (non-negligible
+            learning-curve slope from Eq.~\ref{eq:sigmaschedule}) and
+            above the target $\sigma^\star$.
+      \item \emph{Retention mode} otherwise (skill plateaued, bias
+            within tolerance).
+    \end{itemize}
+  \item \textbf{Sample $s_k$ accordingly.}
+    \begin{itemize}[leftmargin=*,itemsep=1pt]
+      \item Bias mode: $s_k$ near $\hat t_k$, with balanced sign.
+      \item Skill mode: $|s_k - \hat t_k| \approx 1.04\,\hat\sigma_k$
+            (Eq.~\ref{eq:eightyfive}); rotate through morphology
+            sub-types for diversity.
+      \item Retention mode: sample from previously seen difficulty
+            bins on a spaced schedule.
+    \end{itemize}
+  \item \textbf{Always give trial-wise veridical feedback.} The
+        correct answer plus a brief feature-based rationale
+        (annotations on the trace itself, in the style of the Kellman
+        ECG PALM). The feature explanation turns the trial into a
+        \emph{learning-to-see} episode rather than a pure
+        reinforcement episode.
+\end{enumerate}
+
+This is not a full POMDP solve but it exploits all the structure the
+generative model provides — more than the standard adaptive-learning
+literature does.
+
+\subsection{Stopping / mastery criterion}
+Retire the learner from a task — or graduate them to
+maintenance-spacing — when, jointly,
+\begin{equation}
+  \mathrm{SD}(\sigma) \le \delta_\sigma,\qquad
+  \hat\sigma \le \sigma^\star,\qquad
+  |\hat t| \le t^\star,
+\end{equation}
+for pre-specified targets. This is a Bayesian upgrade of the
+Kellman/Massey ``running-$d'$ window'' rule.
+
+\subsection{Suggested phased pipeline}
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{Phase 1 — Calibration.} 10--20 trials of the existing
+        QUEST$+$ design to seed $(\hat\sigma_0, \hat t_0)$.
+  \item \textbf{Phase 2 — Adaptive training.} At each trial, update
+        the posterior over $(\sigma,t)$, score candidate cases against
+        Eq.~\ref{eq:reward}, select per Sec.~\ref{sec:policy}.
+  \item \textbf{Phase 3 — Learn the learning model.} From accumulated
+        trial-by-trial data, fit a hierarchical model of how different
+        cases change $(\sigma,t)$ (identifying which cases reduce bias
+        fastest, which improve discrimination, and any sub-type-
+        specific learning effects). Use the fitted dynamics to
+        upgrade the policy from heuristic to contextual-bandit, and
+        eventually to a planned POMDP rollout.
+\end{enumerate}
+
+\section{Caveats}
+\label{sec:caveats}
+
+\paragraph{Stationarity assumption breaks during training.} The
+existing CORTEX posterior-update implicitly assumes $(\sigma,t)$ are
+fixed; during training they move. Three options: (a) reset the
+posterior per session and re-estimate from scratch; (b) explicitly
+model the dynamics and \emph{filter} (sequential Bayesian state-space
+filtering) rather than just accumulate; (c) assume within-session
+stationarity and reset between sessions. Option (b) is the most
+principled.
+
+\paragraph{Biased feedback is ethically off-limits.} Herzog showed
+that biased trial-wise feedback shifts the perceived identity of a
+stimulus — explicitly \emph{not} what we want in a clinical-skill
+trainer, where the learner must internalise the ground-truth label
+distribution. \textbf{Use veridical feedback only.} Influence $t$ via
+the distribution of stimuli sampled and the presented base rate, never
+by lying about correctness.
+
+\paragraph{Identifiability under joint motion.} If the learner
+improves quickly, a drop in error rate could reflect either $\sigma$
+shrinking or $t$ moving toward zero. The existing framework
+disentangles these via the stimulus-level response pattern, but it is
+worth verifying disentanglement still holds when both parameters move
+simultaneously. A small simulation study paralleling the existing
+measurement-side identifiability work would settle this.
+
+\paragraph{Near-threshold is optimal for measurement, not learning.}
+A trainer that simply re-uses the measurement-optimal stimulus
+placement will sit the learner at near-50\,\% performance — useful for
+estimating $t$, demoralising for learning. The 85\,\% rule and the
+Sec.~\ref{sec:policy} mode-switch exist precisely to avoid this trap.
+
+\section{Next steps}
+\label{sec:next}
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item Extend the existing CORTEX simulation harness with the
+        learning-dynamics model
+        (Eqs.~\ref{eq:tdyn}--\ref{eq:sigmaschedule}); verify joint
+        identifiability of $(\sigma_k, t_k)$ trajectories during
+        simulated training.
+  \item Benchmark the three-mode policy against simpler baselines —
+        method-of-constant-stimuli with feedback, a pure 85\,\%-rule
+        staircase, a pure threshold-tracking adaptive scheme — on
+        learning-curve metrics:
+        \begin{itemize}[leftmargin=*,itemsep=1pt]
+          \item trials to reach target $\sigma^\star$,
+          \item trials to reach $|t|\le t^\star$,
+          \item post-test performance at held-out difficulty bins,
+          \item retention at $\Delta t = 7$ and $30$ days.
+        \end{itemize}
+  \item Build a sibling app to CORTEX — same posterior, same
+        engine — that runs the trainer policy and delivers
+        feature-annotated feedback. Target form-factor: $\sim
+        15$~minutes per day, web or desktop bundle, same distribution
+        story as the current pilot.
+  \item Validate against real expert data: do measured $(\sigma,t)$
+        trajectories under the trainer actually follow the shapes
+        Eqs.~\ref{eq:tdyn}--\ref{eq:sigmaschedule} predict? Re-fit and
+        iterate.
+\end{enumerate}
+
+\section*{Source documents}
+This note synthesises \texttt{learning-theory1.md} and
+\texttt{learning-theory2.md} from \texttt{GithubRepos/ideal-test/docs/}.
+Treat that pair as the primary source; this LaTeX version exists to be
+a single shareable design memo with consistent notation and
+mathematics.
+
+\begin{thebibliography}{99}\small
+
+\bibitem[Aberg \& Herzog(2012)]{aberg2012feedback}
+Aberg, K.~C. and Herzog, M.~H. (2012).
+``Different types of feedback change decision criterion and sensitivity differently in perceptual learning,'' \emph{Journal of Vision}.
+
+\bibitem[Carpenter et al.(2022)]{carpenter2022spacing}
+Carpenter, S.~K. et~al. (2022).
+``The science of effective learning with spacing and retrieval practice,'' \emph{Nature Reviews Psychology}.
+
+\bibitem[Friedman et al.(1968)]{friedman1968criterion}
+Friedman, M.~P., Carterette, E.~C., and Anderson, N.~H. (1968).
+``Long-term probability learning with a random schedule of reinforcement,'' \emph{Journal of Experimental Psychology}.
+
+\bibitem[Han \& Dobbins(2009)]{han2009criterion}
+Han, S. and Dobbins, I.~G. (2009).
+``Examining recognition criterion rigidity during testing using a biased-feedback technique,'' \emph{Memory \& Cognition}.
+
+\bibitem[Kac(1962)]{kac1962criterion}
+Kac, M. (1962).
+``A note on learning signal detection,'' \emph{IRE Transactions on Information Theory}.
+
+\bibitem[Kellman et al.(2024)]{kellman2024palm}
+Kellman, P.~J., Jacoby, S., Massey, C.~M., and Krasne, S. (2024).
+``Connecting Adaptive Perceptual Learning and Signal Detection Theory in Skin Cancer Screening.''
+
+\bibitem[Mettler et al.(2011)]{mettler2011arts}
+Mettler, E., Massey, C.~M., and Kellman, P.~J. (2011, 2016).
+``A comparison of adaptive and fixed schedules of practice,'' \emph{Journal of Experimental Psychology: General}.
+
+\bibitem[Rafferty et al.(2016)]{rafferty2016pomdp}
+Rafferty, A.~N., Brunskill, E., Griffiths, T.~L., and Shafto, P. (2016).
+``Faster teaching via POMDP planning,'' \emph{Cognitive Science}.
+
+\bibitem[St\"uttgen et al.(2011)]{stuttgen2011trial}
+St\"uttgen, M.~C., Yildiz, A., and G\"unt\"urk\"un, O. (2011, 2013).
+Trial-by-trial criterion learning in signal detection.
+
+\bibitem[Watson \& Pelli(1983)]{watson1983quest}
+Watson, A.~B. and Pelli, D.~G. (1983).
+``QUEST: a Bayesian adaptive psychometric method,'' \emph{Perception \& Psychophysics}.
+
+\bibitem[Watson(2017)]{watson2017questplus}
+Watson, A.~B. (2017).
+``QUEST$+$: A general multidimensional Bayesian adaptive psychometric method,'' \emph{Journal of Vision}.
+
+\bibitem[Wilson et al.(2019)]{wilson202085percent}
+Wilson, R.~C., Shenhav, A., Straccia, M., and Cohen, J.~D. (2019).
+``The Eighty Five Percent Rule for optimal learning,'' \emph{Nature Communications}.
+
+\end{thebibliography}
+
+\end{document}
