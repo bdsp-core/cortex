@@ -21,13 +21,43 @@ import csv
 import datetime
 import json
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
 
 _REPO = Path(__file__).resolve().parent.parent
 CONFIG_PATH = _REPO / "cortex_config.yaml"
-SESSIONS_ROOT = _REPO / "results" / "sessions"
+
+
+def user_data_root() -> Path:
+    """Return the directory CORTEX should write per-session output to.
+
+    Dev runs (`python scripts/...`) write under <repo>/results/ — handy
+    for debugging from the working tree.
+
+    Frozen runs (PyInstaller-bundled .app/.exe) write under the user's
+    platform-appropriate app-data dir. The .app bundle itself is
+    read-only — both as a general principle and specifically under
+    macOS App Translocation, where downloaded unsigned bundles are run
+    from a temporary read-only path — so writing inside the bundle
+    aborts the first registration attempt.
+    """
+    if getattr(sys, "frozen", False):
+        if sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / "CORTEX"
+        if sys.platform == "win32":
+            base = os.environ.get("LOCALAPPDATA") or str(
+                Path.home() / "AppData" / "Local")
+            return Path(base) / "CORTEX"
+        # Linux / other Unix — XDG_DATA_HOME if set, else ~/.local/share
+        base = os.environ.get("XDG_DATA_HOME") or str(
+            Path.home() / ".local" / "share")
+        return Path(base) / "CORTEX"
+    return _REPO / "results"
+
+
+SESSIONS_ROOT = user_data_root() / "sessions"
 SCHEMA_VERSION = 1
 APP_VERSION = "cortex-internal-0.1"
 

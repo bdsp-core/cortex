@@ -1649,8 +1649,11 @@ class RegistrationPage(QWidget):
 
     @staticmethod
     def _save_row(row):
-        path = (Path(__file__).resolve().parent.parent / "results"
-                / "registrations.csv")
+        # Route to the platform's user-data dir when running from a
+        # frozen .app/.exe (the bundle is read-only — fatal under
+        # macOS App Translocation). Dev runs keep using <repo>/results/.
+        from cortex_storage import user_data_root  # local to avoid import cycle
+        path = user_data_root() / "registrations.csv"
         path.parent.mkdir(parents=True, exist_ok=True)
         is_new = not path.exists()
         with open(path, "a", newline="", encoding="utf-8") as fh:
