@@ -22,7 +22,7 @@ Nothing CORTEX-source-related is duplicated under cortex_app/.
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 
@@ -57,7 +57,11 @@ datas = [
     # bundle that ever loses the calibration/ tree still resolves the
     # Youden cut-scores. Cheap (4 KB), defensive.
     (str(REPO / 'cert_config.yaml'),           '.'),
-]
+] + collect_data_files('certifi')  # certifi CA bundle is loaded via
+                                   # importlib.resources by `requests` →
+                                   # invisible to the AST tracer. Without
+                                   # this, the dropbox HTTPS transport
+                                   # would fail at session finalize.
 
 binaries = []
 
@@ -66,12 +70,20 @@ hiddenimports = [
     # PyQt6 plugins
     'PyQt6.QtSvg',
     'PyQt6.QtPrintSupport',
-    # scipy submodules used at runtime
+    # scipy submodules used at runtime. engine/core.py + core_mcmc.py +
+    # auroc.py call scipy.stats.norm + scipy.special.{log_ndtr, logsumexp}
+    # during engine update — these go through cython-compiled .so files
+    # that scipy 1.13.x's bundled hook sometimes drops.
     'scipy.ndimage',
     'scipy.signal',
     'scipy.signal._signaltools',
     'scipy.signal._filter_design',
     'scipy.signal._fir_filter_design',
+    'scipy.special',
+    'scipy.special._ufuncs',
+    'scipy.special.cython_special',
+    'scipy.stats',
+    'scipy.stats._continuous_distns',
     # h5py inner pieces
     'h5py._hl',
     'h5py._hl.files',
@@ -80,9 +92,17 @@ hiddenimports = [
     # per-session collapse.mp4 / passfail.mp4 outputs)
     'matplotlib.backends.backend_agg',
     'matplotlib.backends.backend_svg',
-    # pyqtgraph
+    # pyqtgraph — the viewer uses pg.{ColorMap, ImageItem, PlotWidget,
+    # TextItem} (verified by grep against scripts/eeg_bank_viewer.py).
+    # pyqtgraph's package __init__ resolves these via lazy proxies that
+    # the AST tracer can miss; pin the concrete class modules.
     'pyqtgraph.graphicsItems',
     'pyqtgraph.graphicsItems.ViewBox',
+    'pyqtgraph.graphicsItems.ImageItem',
+    'pyqtgraph.graphicsItems.TextItem',
+    'pyqtgraph.widgets',
+    'pyqtgraph.widgets.PlotWidget',
+    'pyqtgraph.colormap',
     # cortex modules under repo's scripts/
     'cortex_engine_inputs',
     'cortex_policy',
