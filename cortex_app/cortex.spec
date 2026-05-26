@@ -11,9 +11,13 @@ Build:
     bash build_mac.sh         # produces dist/CORTEX.app + dist/CORTEX.dmg
     build_windows.bat         # produces dist\\CORTEX\\CORTEX.exe folder
 
-Inputs (must be present in cortex_app/ at build time):
-    cortex_config.yaml        # copy from cortex_config.yaml.template + fill
-    data/eeg_bank.h5          # run fetch_test_bank.sh
+Inputs (must be present in the REPO ROOT at build time):
+    cortex_config.yaml        # copy from cortex_config.example.yaml + fill
+    data/eeg_bank.h5          # run cortex_app/fetch_test_bank.sh
+
+All source / data / config lives at repo root — matches the layout
+Eli's scripts/build_internal_test_zip.py and runtime modules expect.
+Nothing CORTEX-source-related is duplicated under cortex_app/.
 """
 import sys
 from pathlib import Path
@@ -25,22 +29,23 @@ REPO = ROOT.parent                   # repo root
 
 # Files bundled into the app and unpacked alongside the entry script at
 # runtime. The viewer reads them via
-# Path(__file__).resolve().parent.parent / "data" / "eeg_bank.h5" etc.,
-# so they need to land at <unpack_root>/data/, <unpack_root>/engine/,
-# etc. — that's what the second tuple element controls.
+#   BANK_PATH = Path(__file__).resolve().parent.parent / "data" / "eeg_bank.h5"
+# and cortex_storage reads `_REPO / "cortex_config.yaml"` — both resolve
+# to (unpack_root)/data/ and (unpack_root)/ respectively. The second
+# tuple element is the in-bundle destination.
 datas = [
-    # the curated test bank (fetched by fetch_test_bank.sh)
-    (str(ROOT / 'data' / 'eeg_bank.h5'),       'data'),
+    # the curated test bank (fetched by fetch_test_bank.sh; gitignored)
+    (str(REPO / 'data' / 'eeg_bank.h5'),       'data'),
     # iiic_segment_signals.csv — read by session_controller for segment
-    # metadata; comes from the main repo's data/labels/
+    # metadata
     (str(REPO / 'data' / 'labels' / 'iiic_segment_signals.csv'),
                                                 'data/labels'),
     # logo asset used on the welcome / consent screens
     (str(REPO / 'data' / 'Brain_Data_Science_Platform.png'), 'data'),
     # local config carrying the (gitignored) Dropbox credentials
-    (str(ROOT / 'cortex_config.yaml'),         '.'),
+    (str(REPO / 'cortex_config.yaml'),         '.'),
     # frozen prior used by the engine for the live test
-    (str(ROOT / 'Sigma_l_fitted.npy'),         '.'),
+    (str(REPO / 'Sigma_l_fitted.npy'),         '.'),
     # engine + calibration packages (small, vendored verbatim)
     (str(REPO / 'engine'),                      'engine'),
     (str(REPO / 'calibration'),                 'calibration'),
@@ -70,21 +75,21 @@ hiddenimports = [
     # pyqtgraph
     'pyqtgraph.graphicsItems',
     'pyqtgraph.graphicsItems.ViewBox',
-    # cortex modules under cortex_app/scripts/
+    # cortex modules under repo's scripts/
     'cortex_engine_inputs',
     'cortex_policy',
     'cortex_render_videos',
     'cortex_storage',
     'session_controller',
-    # repo-side packages bundled via datas
+    # vendored packages bundled via datas
     'engine',
     'engine.core_mcmc',
     'engine.auroc',
 ]
 
 a = Analysis(
-    [str(ROOT / 'scripts' / 'eeg_bank_viewer.py')],
-    pathex=[str(ROOT / 'scripts'), str(REPO)],
+    [str(REPO / 'scripts' / 'eeg_bank_viewer.py')],
+    pathex=[str(REPO / 'scripts'), str(REPO)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -101,7 +106,6 @@ a = Analysis(
         'torch', 'torchvision', 'pytorch_lightning',
         'mne', 'neurokit2',
         'statsmodels',
-        # plotting alternatives not used by CORTEX itself
         'tornado',
     ],
     noarchive=False,
@@ -148,7 +152,6 @@ if sys.platform == 'darwin':
             'CFBundleName': 'CORTEX',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '12.0',
-            # CORTEX is a research instrument; mark accordingly.
             'NSHumanReadableCopyright': 'BDSP / Westover Lab',
         },
     )

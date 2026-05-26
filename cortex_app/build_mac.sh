@@ -8,16 +8,16 @@
 # Distribution: attach the .dmg as a GitHub Release asset. First-time
 # macOS users see a Gatekeeper warning because the .app is unsigned —
 # they right-click -> Open once and macOS remembers the approval. The
-# README points them to this workaround.
+# release notes point them to this workaround.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=== CORTEX build (macOS) ==="
 
 # --- preflight ------------------------------------------------------------
-# Python 3.11 specifically — matches what the bundled environment ran on,
-# avoids surprises across stdlib changes.
+# Python 3.11 specifically — matches what the bundled runtime targets.
 PY=""
 for cand in python3.11 python3 python; do
     if command -v "$cand" >/dev/null 2>&1; then
@@ -25,21 +25,26 @@ for cand in python3.11 python3 python; do
         if [ "$v" = "3.11" ]; then PY="$cand"; break; fi
     fi
 done
+# fall back to Homebrew location
+if [ -z "$PY" ] && [ -x /opt/homebrew/opt/python@3.11/bin/python3.11 ]; then
+    PY=/opt/homebrew/opt/python@3.11/bin/python3.11
+fi
 if [ -z "$PY" ]; then
     echo "ERROR: need Python 3.11 to build CORTEX (matches the runtime env)."
-    echo "Install from https://www.python.org/downloads/release/python-3119/"
+    echo "Install via Homebrew:  brew install python@3.11"
+    echo "Or from               https://www.python.org/downloads/release/python-3119/"
     exit 1
 fi
 echo "Using $($PY --version)"
 
-if [ ! -f cortex_config.yaml ]; then
-    echo "ERROR: cortex_app/cortex_config.yaml is missing."
-    echo "Copy cortex_config.yaml.template to cortex_config.yaml and fill"
-    echo "in the Dropbox credentials, then re-run this script."
+if [ ! -f "$REPO/cortex_config.yaml" ]; then
+    echo "ERROR: $REPO/cortex_config.yaml is missing."
+    echo "Copy cortex_config.example.yaml to cortex_config.yaml at the repo"
+    echo "root and fill in the Dropbox credentials, then re-run this script."
     exit 1
 fi
-if [ ! -f data/eeg_bank.h5 ]; then
-    echo "data/eeg_bank.h5 not found — fetching from S3 ..."
+if [ ! -f "$REPO/data/eeg_bank.h5" ]; then
+    echo "data/eeg_bank.h5 not found at the repo root — fetching from S3 ..."
     bash fetch_test_bank.sh
 fi
 
@@ -52,7 +57,7 @@ fi
 source build_venv/bin/activate
 echo "Installing build deps ..."
 pip install --quiet --upgrade pip
-pip install --quiet -r requirements-cortex.txt
+pip install --quiet -r "$REPO/requirements-cortex.txt"
 pip install --quiet pyinstaller
 
 # --- build ----------------------------------------------------------------

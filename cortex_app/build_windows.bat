@@ -9,6 +9,10 @@ REM attach the .zip as a GitHub Release asset. First-time Windows users
 REM may see a SmartScreen "Windows protected your PC" warning because
 REM the .exe is unsigned — they click "More info" then "Run anyway".
 cd /d "%~dp0"
+set SCRIPT_DIR=%~dp0
+pushd "%SCRIPT_DIR%.."
+set REPO=%CD%
+popd
 
 echo === CORTEX build (Windows) ===
 
@@ -22,17 +26,17 @@ if errorlevel 1 (
 )
 for /f "delims=" %%i in ('python --version') do echo Using %%i
 
-if not exist cortex_config.yaml (
-    echo ERROR: cortex_app\cortex_config.yaml is missing.
-    echo Copy cortex_config.yaml.template to cortex_config.yaml and fill
-    echo in the Dropbox credentials, then re-run this script.
+if not exist "%REPO%\cortex_config.yaml" (
+    echo ERROR: %REPO%\cortex_config.yaml is missing.
+    echo Copy cortex_config.example.yaml to cortex_config.yaml at the repo
+    echo root and fill in the Dropbox credentials, then re-run this script.
     pause
     exit /b 1
 )
-if not exist data\eeg_bank.h5 (
-    echo data\eeg_bank.h5 not found.
-    echo Run `bash fetch_test_bank.sh` from Git Bash or WSL, or copy the
-    echo file manually from s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5
+if not exist "%REPO%\data\eeg_bank.h5" (
+    echo data\eeg_bank.h5 not found at the repo root.
+    echo Run `bash fetch_test_bank.sh` from Git Bash or WSL, or copy from
+    echo   s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5
     pause
     exit /b 1
 )
@@ -44,7 +48,7 @@ if not exist build_venv (
 call build_venv\Scripts\activate.bat
 echo Installing build deps ...
 pip install --quiet --upgrade pip
-pip install --quiet -r requirements-cortex.txt
+pip install --quiet -r "%REPO%\requirements-cortex.txt"
 pip install --quiet pyinstaller
 
 echo Running PyInstaller ...
