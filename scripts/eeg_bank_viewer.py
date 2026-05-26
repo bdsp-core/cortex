@@ -53,8 +53,18 @@ from PyQt6.QtWidgets import (
 from scipy import signal as sig
 
 
-BANK_PATH = Path(__file__).resolve().parent.parent / "data" / "eeg_bank.h5"
-SPEC_PATH = Path(__file__).resolve().parent.parent / "data" / "eeg_bank_spec.h5"   # precomputed 10-min spectrograms
+# Frozen PyInstaller bundles: __file__ for the ENTRY script resolves to
+# <MEIPASS>/<entry-script-name>.py, so .parent.parent goes one level
+# ABOVE the data unpack root — into the .app's Contents/ rather than
+# Contents/Frameworks/. Anchor on sys._MEIPASS so bundled data files
+# resolve correctly. (Dev mode: __file__ is scripts/eeg_bank_viewer.py
+# and parent.parent is the repo root, which is what we want.)
+if getattr(sys, "frozen", False):
+    _REPO = Path(sys._MEIPASS)
+else:
+    _REPO = Path(__file__).resolve().parent.parent
+BANK_PATH = _REPO / "data" / "eeg_bank.h5"
+SPEC_PATH = _REPO / "data" / "eeg_bank_spec.h5"   # precomputed 10-min spectrograms
 
 
 # ──────────────────────── data helpers ────────────────────────

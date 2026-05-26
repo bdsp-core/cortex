@@ -46,8 +46,16 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
-_THIS_DIR = Path(__file__).resolve().parent
-_REPO = _THIS_DIR.parent
+# Frozen PyInstaller bundles: __file__ for PYZ-loaded modules does not
+# resolve to a real filesystem path whose parent is the scripts dir;
+# anchor on sys._MEIPASS so sys.path additions land in the data unpack
+# root where sibling modules live.
+if getattr(sys, "frozen", False):
+    _REPO = Path(sys._MEIPASS)
+    _THIS_DIR = _REPO / "scripts"
+else:
+    _THIS_DIR = Path(__file__).resolve().parent
+    _REPO = _THIS_DIR.parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
