@@ -1,0 +1,15 @@
+# Real config (ships secrets in the built binary — never commit).
+# Always create from cortex_config.yaml.template before building.
+cortex_config.yaml
+
+# Bundled test bank (~170 MB) — fetched from S3 by fetch_test_bank.sh.
+# Lives at s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5.
+data/
+
+# PyInstaller artifacts.
+build/
+dist/
+build_venv/
+.venv/
+__pycache__/
+*.pyc

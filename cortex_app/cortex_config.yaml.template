@@ -1,0 +1,30 @@
+# CORTEX internal test — distribution configuration TEMPLATE.
+#
+# Before building (build_mac.sh / build_windows.bat), copy this to
+# `cortex_config.yaml` in the same directory and fill in the values
+# below. The real cortex_config.yaml is gitignored so secrets never
+# land in git; the built .app/.exe bundles the file at build time.
+#
+# Two independent ways to deliver each completed session's result CSVs
+# to the PI. Configure either, both, or neither — results are always
+# kept locally under results/sessions/<session_id>/ regardless.
+
+# (1) synced_results_dir — a local folder that a Dropbox / Google Drive /
+#     iCloud desktop app syncs to the cloud. Leave empty to disable.
+synced_results_dir: ""
+
+# (2) dropbox — direct upload to Dropbox via the API (no desktop app
+#     needed on the test-taker's machine). See
+#     docs/CORTEX_DROPBOX_SETUP.md for how to create the scoped Dropbox
+#     app and obtain the refresh_token via cortex_dropbox_oauth.py.
+#
+#     WARNING: these credentials ship inside the distributed .app/.exe.
+#     Use an "App folder"-scoped Dropbox app with ONLY the
+#     files.content.write permission, so the token can do nothing but
+#     write into that one app folder.
+dropbox:
+  app_key: ""          # Dropbox app key (Settings tab)
+  app_secret: ""       # Dropbox app secret
+  refresh_token: ""    # from scripts/cortex_dropbox_oauth.py
+  access_token: ""     # LEGACY short-lived token (fallback only)
+  folder: "/results"   # destination path inside the Dropbox app folder
