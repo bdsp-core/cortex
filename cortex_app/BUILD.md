@@ -166,25 +166,60 @@ CLI alternative using `gh`:
 
 ## Release notes template
 
-> **CORTEX v1.0 — internal pilot**
->
-> Adaptive EEG certification test. Runs locally, uploads results
-> automatically to a secure Dropbox folder.
->
-> **Download:**
-> - macOS: `CORTEX-v1.0.dmg`
-> - Windows: `CORTEX-v1.0-windows.zip`
->
-> **First launch:**
-> - macOS: open the DMG, drag CORTEX to Applications, right-click
->   CORTEX → **Open** (only the first time — macOS remembers after).
-> - Windows: unzip, open the folder, double-click `CORTEX.exe`. If
->   SmartScreen warns, click "More info" → "Run anyway" once.
->
-> **Requirements:** macOS 12+ or Windows 10+. No Python install needed.
->
-> **Reporting bugs:** anything that crashes, looks wrong, or feels
-> slow — email the study team.
+The CI workflow (`.github/workflows/cortex-release.yml`) already
+populates the release body with the text below — keep both in sync if
+you edit it. The macOS instructions reflect the **Sequoia+** flow
+(Apple removed the inline right-click → Open workaround in Sequoia;
+users now have to authorize via System Settings).
+
+```markdown
+## CORTEX adaptive EEG certification test
+
+### Downloads
+- **macOS:** `CORTEX-mac.dmg` — see "Opening CORTEX on macOS" below
+- **Windows:** `CORTEX-windows.zip` — see "Opening CORTEX on Windows" below
+
+### Opening CORTEX on macOS
+
+CORTEX is not Apple-signed (this is an internal pilot, not a commercial app),
+so the **first launch needs one-time approval**. On macOS Sequoia and later,
+Apple removed the inline workaround — you have to authorize it from System
+Settings.
+
+1. Open the `.dmg` and drag **CORTEX** to **Applications**.
+2. Double-click **CORTEX** in Applications. macOS shows:
+   *"CORTEX Not Opened — Apple could not verify CORTEX is free of malware..."*
+   Click **Done**.
+3. Open **System Settings → Privacy & Security**. Scroll to the **Security**
+   section near the bottom.
+4. You'll see *"CORTEX was blocked to protect your Mac."* Click **Open Anyway**
+   (enter your password if prompted).
+5. Try opening **CORTEX** again. This time you get a new dialog *with* an
+   **Open** button — click **Open**.
+6. macOS remembers — no further warnings on subsequent launches.
+
+If you're comfortable with Terminal, this single command also works (skips
+steps 2–6):
+
+    xattr -d com.apple.quarantine /Applications/CORTEX.app
+
+### Opening CORTEX on Windows
+
+1. Extract the `.zip`, open the `CORTEX/` folder, double-click `CORTEX.exe`.
+2. If Windows SmartScreen warns *"Windows protected your PC"*, click
+   **More info** then **Run anyway**. (Only the first launch.)
+
+### Requirements
+
+macOS 12 (Monterey) or later, or Windows 10/11. No Python install needed —
+everything is bundled.
+
+### Reporting bugs
+
+Anything that crashes, looks visually wrong, is confusing, or feels slow —
+note it and email the study team. That feedback is the whole point of this
+internal round.
+```
 
 ## Why unsigned (and what it would take to sign)
 
