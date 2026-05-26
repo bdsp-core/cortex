@@ -40,7 +40,13 @@ from dataclasses import dataclass, field  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Frozen PyInstaller bundles: __file__ for a PYZ-loaded module does not
+# resolve to a real filesystem path whose parent.parent is the data unpack
+# root. sys._MEIPASS is set by the bootloader to that root.
+if getattr(sys, "frozen", False):
+    _REPO = sys._MEIPASS
+else:
+    _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for _p in (os.path.join(_REPO, "engine"), os.path.join(_REPO, "scripts"),
            _REPO):
     if _p not in sys.path:

@@ -33,7 +33,14 @@ import pandas as pd
 # engine/core_mcmc.py uses flat sibling imports (`from auroc import ...`),
 # so engine/ must be on sys.path before load_fitted_Sigma resolves — the
 # same path setup scripts/viz_smc_collapse.py uses.
-_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Frozen PyInstaller bundles: __file__ for a PYZ-loaded module does not
+# resolve to a real filesystem path whose parent.parent is the data unpack
+# root. sys._MEIPASS is set by the bootloader to that root; bundled datas
+# (engine/, data/, Sigma_l_fitted.npy, cortex_config.yaml) live under it.
+if getattr(sys, "frozen", False):
+    _REPO = sys._MEIPASS
+else:
+    _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ENGINE = os.path.join(_REPO, "engine")
 if _ENGINE not in sys.path:
     sys.path.insert(0, _ENGINE)
