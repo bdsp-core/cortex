@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# Download the curated test bank (~170 MB) from S3 and stage it where
-# the spec expects it: <repo>/data/eeg_bank.h5
+# Download the curated test bank (~170 MB) for local CORTEX builds and
+# stage it where the spec expects it: <repo>/data/eeg_bank.h5
 #
-# The bank is the same byte-for-byte file as s3://.../test_h5.h5 (100
-# IIIC + 100 spike cases, /iiic/<seg_id>/{eeg30s,sdata,sfreqs,stimes}
-# and /spike/<seg_id>/{eeg30s}). It's gitignored because it exceeds
-# GitHub's 100 MB hard per-file limit.
+# Source: the `build-data-v1` release on this repo. CI uses the same
+# release; we keep them in sync so a local build matches what CI ships.
+# No AWS interaction — just gh CLI with your normal GitHub auth.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 mkdir -p "$REPO/data"
 DEST="$REPO/data/eeg_bank.h5"
-URI="s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5"
-PROFILE="${AWS_PROFILE:-opendata}"
 
 if [ -f "$DEST" ]; then
     echo "Already present: $DEST"
@@ -21,6 +18,9 @@ if [ -f "$DEST" ]; then
     exit 0
 fi
 
-echo "Downloading $URI -> $DEST  (~170 MB)"
-aws --profile "$PROFILE" s3 cp "$URI" "$DEST"
+echo "Downloading eeg_bank.h5 from build-data-v1 release -> $DEST"
+gh release download build-data-v1 \
+    --repo bdsp-core/ilae-skill-certification-test-multi \
+    --pattern eeg_bank.h5 \
+    --dir "$REPO/data"
 ls -lh "$DEST"

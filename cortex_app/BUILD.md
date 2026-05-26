@@ -63,13 +63,11 @@ You also need two files in the **repo root** that are gitignored:
        # ONLY files.content.write permission).
 
 2. **`data/eeg_bank.h5`** — the curated 100 IIIC + 100 spike test bank
-   (~170 MB). Fetch from S3:
+   (~170 MB). Fetch from the repo's own `build-data-v1` release:
 
        cd cortex_app && bash fetch_test_bank.sh
 
-   That pulls `s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5`
-   into `data/eeg_bank.h5` at the repo root. Uses the `opendata`
-   read-only AWS profile.
+   No AWS needed — uses your normal `gh` CLI auth.
 
 ## Build for macOS
 
@@ -109,18 +107,26 @@ that:
 You don't need a Windows machine. You don't even need to run the local
 build. **Pushing a `cortex-v*` tag does everything.**
 
-### One-time setup: add three secrets
+### One-time setup: add ONE secret
 
 Go to **Settings → Secrets and variables → Actions → New repository
 secret** and add:
 
 | Secret name | Value |
 |---|---|
-| `AWS_ACCESS_KEY_ID` | access key for the `opendata` profile (read-only on `bdsp-opendata-credentialed`) |
-| `AWS_SECRET_ACCESS_KEY` | matching secret key |
 | `CORTEX_CONFIG_YAML` | paste the entire contents of your local `cortex_config.yaml` (the one with the Dropbox app_key / app_secret / refresh_token) |
 
-These only need to be set once; subsequent releases reuse them.
+That's it. No AWS keys needed.
+
+The 170 MB test bank lives as an asset on the `build-data-v1` release
+of this repo; CI pulls it via `gh release download` using the built-in
+`GITHUB_TOKEN`. End-users never touch S3 or the build-data release —
+the bank is fully embedded inside the .app/.exe by PyInstaller.
+
+To refresh the test bank for a new pilot wave: upload the new
+`eeg_bank.h5` as `build-data-v2`, then change the tag reference in
+[`.github/workflows/cortex-release.yml`](../.github/workflows/cortex-release.yml)
+(two `gh release download build-data-v1` lines).
 
 ### Cutting a release
 

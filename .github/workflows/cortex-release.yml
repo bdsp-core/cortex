@@ -8,11 +8,15 @@ name: CORTEX Release Build
 #   - pushing a tag like  cortex-v1.0,  cortex-v1.1,  cortex-v2.0
 #   - manually via the Actions UI ("Run workflow")
 #
-# Required repository secrets (Settings -> Secrets and variables ->
+# Build-time data dependency:
+#   data/eeg_bank.h5 (~170 MB) is fetched from the repo's own
+#   `build-data-v1` release using GITHUB_TOKEN (no external creds).
+#   To refresh the bank: upload the new file to a new release tag
+#   (build-data-v2, etc.) and bump the tag reference in the
+#   "Download test bank" step below. No AWS interaction in CI.
+#
+# Required repository secret (Settings -> Secrets and variables ->
 # Actions -> New repository secret):
-#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-#       -- credentials for the `opendata` profile (read-only on
-#          bdsp-opendata-credentialed). Used to fetch the test bank.
 #   CORTEX_CONFIG_YAML
 #       -- the full contents of cortex_config.yaml (with Dropbox
 #          app_key, app_secret, refresh_token filled in). CI writes
@@ -44,14 +48,15 @@ jobs:
           fi
           printf '%s' "$CORTEX_CONFIG_YAML" > cortex_config.yaml
 
-      - name: Configure AWS for the test-bank fetch
+      - name: Download test bank from build-data release
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          aws s3 cp s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5 data/eeg_bank.h5
+          gh release download build-data-v1 \
+              --repo ${{ github.repository }} \
+              --pattern eeg_bank.h5 \
+              --dir data/
 
       - name: Install build deps
         run: |
@@ -97,15 +102,16 @@ jobs:
           }
           Set-Content -Path cortex_config.yaml -Value $env:CORTEX_CONFIG_YAML -NoNewline
 
-      - name: Configure AWS for the test-bank fetch
+      - name: Download test bank from build-data release
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path data | Out-Null
-          aws s3 cp s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5 data/eeg_bank.h5
+          gh release download build-data-v1 `
+              --repo ${{ github.repository }} `
+              --pattern eeg_bank.h5 `
+              --dir data/
 
       - name: Install build deps
         run: |
