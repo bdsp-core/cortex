@@ -43,7 +43,15 @@ from pathlib import Path
 
 import numpy as np
 
-_REPO = Path(__file__).resolve().parent.parent
+# Frozen PyInstaller bundles: __file__ for a PYZ-loaded module does not
+# resolve to a real filesystem path whose parent.parent is the data unpack
+# root. sys._MEIPASS is set by the bootloader to that root; the bundled
+# calibration/cert_config.yaml (and the optional cert_config.yaml fallback)
+# live under it.
+if getattr(sys, "frozen", False):
+    _REPO = Path(sys._MEIPASS)
+else:
+    _REPO = Path(__file__).resolve().parent.parent
 
 # ── verdict labels ────────────────────────────────────────────────────────
 PASS = "PASS"
