@@ -34,10 +34,13 @@ Auto-invoked by ``cortex_storage.SessionRecorder.finalize()`` unless
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import matplotlib
@@ -237,9 +240,9 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     t0 = time.time()
     anim.save(str(out_path), writer=writer, dpi=DPI)
     plt.close(fig)
-    print(f"  collapse.mp4 rendered in {time.time() - t0:.1f}s "
-          f"({total / fps:.1f}s video, "
-          f"{os.path.getsize(out_path) / (1024 * 1024):.1f} MB)")
+    logger.info("collapse.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
+                time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
 
 
 # ────────────────────────── passfail renderer ───────────────────────────────
@@ -386,9 +389,9 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
     t0 = time.time()
     anim.save(str(out_path), writer=writer, dpi=DPI)
     plt.close(fig)
-    print(f"  passfail.mp4 rendered in {time.time() - t0:.1f}s "
-          f"({total / fps:.1f}s video, "
-          f"{os.path.getsize(out_path) / (1024 * 1024):.1f} MB)")
+    logger.info("passfail.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
+                time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
 
 
 # ────────────────────────── public entry points ─────────────────────────────

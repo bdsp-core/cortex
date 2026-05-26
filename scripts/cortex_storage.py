@@ -20,11 +20,14 @@ from __future__ import annotations
 import csv
 import datetime
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Frozen PyInstaller bundles: __file__ for a PYZ-loaded module does not
 # resolve to a real filesystem path whose parent.parent is the data unpack
@@ -67,6 +70,40 @@ def user_data_root() -> Path:
 SESSIONS_ROOT = user_data_root() / "sessions"
 SCHEMA_VERSION = 1
 APP_VERSION = "cortex-internal-0.1"
+
+_LOGGING_CONFIGURED = False
+
+
+def setup_logging():
+    """Configure CORTEX logging. Idempotent.
+
+    Always writes to ``user_data_root() / "cortex.log"`` so the bundled
+    .app/.exe has a recoverable record of Dropbox upload status, video
+    render outcome, and warnings — PyInstaller ``console=False`` Mac
+    bundles silence stdout, so without this the operator has no
+    visibility post-session.
+
+    In dev mode (``sys.frozen`` is False), also attaches a stderr
+    StreamHandler so the same messages still appear in the terminal.
+    """
+    global _LOGGING_CONFIGURED
+    if _LOGGING_CONFIGURED:
+        return
+    log_path = user_data_root() / "cortex.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handlers = [logging.FileHandler(log_path, mode="a", encoding="utf-8")]
+    if not getattr(sys, "frozen", False):
+        handlers.append(logging.StreamHandler())
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+        handlers=handlers,
+        force=True,
+    )
+    _LOGGING_CONFIGURED = True
+    logger.info("logging initialised; log_path=%s frozen=%s",
+                log_path, getattr(sys, "frozen", False))
 
 _TASK_CODES = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
@@ -195,15 +232,15 @@ def _dropbox_upload(cfg, csv_paths, _client=None):
         try:
             import dropbox  # noqa: F401  (presence check before _build)
         except ImportError:
-            print("  WARN: 'dropbox' package not installed — upload skipped "
-                  "(local CSVs retained). Run: pip install dropbox",
-                  flush=True)
+            logger.warning(
+                "'dropbox' package not installed — upload skipped "
+                "(local CSVs retained). Run: pip install dropbox")
             return
         try:
             client, mode = _build_dropbox_client(cfg)
-            print(f"  Dropbox client constructed ({mode} mode)", flush=True)
+            logger.info("Dropbox client constructed (%s mode)", mode)
         except Exception as e:                       # pragma: no cover
-            print(f"  WARN: Dropbox client init failed ({e})", flush=True)
+            logger.warning("Dropbox client init failed (%s)", e)
             return
     base = cfg.get("folder", "/results").strip("/")
     base = ("/" + base) if base else ""
@@ -213,10 +250,9 @@ def _dropbox_upload(cfg, csv_paths, _client=None):
             client.files_upload(p.read_bytes(), f"{base}/{p.name}")
             ok += 1
         except Exception as e:
-            print(f"  WARN: Dropbox upload of {p.name} failed ({e})",
-                  flush=True)
+            logger.warning("Dropbox upload of %s failed (%s)", p.name, e)
     if ok:
-        print(f"  uploaded {ok} result CSV(s) to Dropbox {base}/", flush=True)
+        logger.info("uploaded %d result CSV(s) to Dropbox %s/", ok, base)
 
 
 def _utc_now():
@@ -336,14 +372,13 @@ class SessionRecorder:
                 from cortex_render_videos import render_all
                 render_all(self.dir)
             except Exception as e:
-                print(f"  WARN: per-test-taker video render failed: {e}",
-                      flush=True)
+                logger.warning("per-test-taker video render failed: %s", e)
         if result is None or getattr(result, "aborted", False):
             return
         try:
             csv_paths = self._write_result_csvs(result, finished)
         except Exception as e:
-            print(f"  WARN: could not write result CSVs: {e}", flush=True)
+            logger.warning("could not write result CSVs: %s", e)
             return
         # (1) copy into a local cloud-synced folder, if configured
         if self.synced_dir is not None:
@@ -352,7 +387,7 @@ class SessionRecorder:
                 for p in csv_paths:
                     (self.synced_dir / p.name).write_bytes(p.read_bytes())
             except Exception as e:
-                print(f"  WARN: synced-folder copy failed: {e}", flush=True)
+                logger.warning("synced-folder copy failed: %s", e)
         # (2) upload directly to Dropbox, if configured
         if self.dropbox_cfg is not None:
             _dropbox_upload(self.dropbox_cfg, csv_paths)
@@ -407,7 +442,7 @@ class SessionRecorder:
                 delta_auroc=delta_val,
                 n_questions=int(result.n_questions))
         except Exception as e:
-            print(f"  WARN: could not write trajectory.npz: {e}", flush=True)
+            logger.warning("could not write trajectory.npz: %s", e)
 
     def _write_result_csvs(self, result, finished_utc):
         """Write the detail + summary CSVs into the session directory; return

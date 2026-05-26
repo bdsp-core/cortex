@@ -21,6 +21,7 @@ standalone validation report:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from collections import Counter
@@ -29,6 +30,8 @@ from dataclasses import dataclass
 import h5py
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # engine/core_mcmc.py uses flat sibling imports (`from auroc import ...`),
 # so engine/ must be on sys.path before load_fitted_Sigma resolves — the
@@ -171,7 +174,8 @@ def build_iiic_engine_inputs(verbose: bool = False) -> IIICEngineInputs:
     # any such segment. (Verified 0 of 100 today; kept as a defensive gate.)
     bad = man.index[man[sig_cols].isna().any(axis=1)].tolist()
     if bad:
-        print(f"  WARN: dropping {len(bad)} segs with NaN signals: {bad[:5]}")
+        logger.warning("dropping %d segs with NaN signals: %s",
+                       len(bad), bad[:5])
         man = man.drop(index=bad)
     if man.empty:
         raise RuntimeError("no usable IIIC segments after NaN filtering")

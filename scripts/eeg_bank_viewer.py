@@ -25,12 +25,15 @@ from __future__ import annotations
 import csv
 import datetime
 import json
+import logging
 import os
 import sys
 import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Allow concurrent read while bank builds are still writing.
 os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
@@ -544,8 +547,8 @@ class BankViewer(QMainWindow):
             try:
                 self.spec_file = h5py.File(SPEC_PATH, "r")
             except Exception as e:
-                print(f"  WARN: could not open spec file {SPEC_PATH}: {e}",
-                      flush=True)
+                logger.warning("could not open spec file %s: %s",
+                               SPEC_PATH, e)
                 self.spec_file = None
         self.controller = controller
         self.session_id = session_id
@@ -1800,6 +1803,13 @@ class ResultsScreen(QWidget):
 
 
 def main():
+    # Initialise CORTEX file-based logging first thing — PyInstaller
+    # `console=False` macOS bundles silence stdout, so without this any
+    # print() output (Dropbox status, MP4 render warnings, etc.) is
+    # invisible post-session. setup_logging() writes to
+    # ~/Library/Application Support/CORTEX/cortex.log.
+    from cortex_storage import setup_logging  # local to keep PYZ tracing clean
+    setup_logging()
     # Stop Qt's macOS Cmd/Ctrl swap so the physical Control key actually
     # produces Qt.Key.Key_Control (matching morgoth's behavior on
     # Linux/Windows). Must be set before QApplication is constructed.
