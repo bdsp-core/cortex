@@ -80,6 +80,13 @@ results/mode_a_auroc/
 # external. Defensive ignore so `git add data/` cannot accidentally
 # stage it. Canonical EEG source remains sibling-repo as documented.
 data/eeg_bank.h5
+# eeg_bank_spec.h5: full unified spec bank (~107 GB local; PHI-bearing
+# raw EEG arrays). Sourced from AWS s3://bdsp-... per data/SENSITIVE.md.
+# Defensive ignore — must NEVER be committed under any circumstances.
+data/eeg_bank_spec.h5
+# SN1_combined_v2.h5: external PHI-bearing spike-corpus EEG (D9).
+# Per data/SENSITIVE.md: stays external; never vendored.
+data/SN1_combined_v2.h5
 
 # IIIC test-set working dir (336 MB local; canonical bundle lives at
 # s3://bdsp-opendata-credentialed/eeg-test/test_h5.h5). The PHI-stripped
