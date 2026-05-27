@@ -1027,6 +1027,144 @@ Tag: `cortex-v1.1.2`. Test bank pinned at `build-data-v2`.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-27) — `cortex-v1.1.3` — sex-only demographic + engine-explainer MP4
+
+**Headline:** the participant form drops `gender_identity` (keeping
+`sex` as the canonical demographic field). A third per-session MP4
+(`engine_explainer.mp4`) renders alongside `collapse.mp4` and
+`passfail.mp4`, showing the differential-geometry framing of how the
+SMC engine picks the next best question — a rotating 3D posterior
+manifold, a 95%-credible-ellipse cloud with a "geodesic" mean-trail,
+and the engine's 1D info-gain landscape with the optimal-next-signal
+argmin marked.
+
+### Gender-identity field removed (`scripts/eeg_bank_viewer.py`)
+
+v1.1.1/v1.1.2 added a SAGER-style separate `gender_identity` dropdown
+on page 3 of the wizard. v1.1.3 drops it — `sex` is the analytic
+field of interest for the credentialing dataset, and a second
+gender-identity dropdown added intake friction without proportional
+analytic value. The `_GENDER` constant, the `f_gender` widget, the
+form row, and the `gender_identity` entry in the persisted CSV are
+all removed.
+
+**Schema migration is now version-aware.** The single
+`REGISTRATION_FIELDS_V2` constant in v1.1.1/v1.1.2 is split into
+three frozen historical snapshots (`_REGISTRATION_FIELDS_V1`,
+`_REGISTRATION_FIELDS_V2`) plus the new canonical current alias
+`REGISTRATION_FIELDS` (which points at `REGISTRATION_FIELDS_V3` —
+the 19-column v1.1.3 schema). `RegistrationPage._save_row` detects
+the on-disk header version and rotates v1 → `registrations.v1.csv.bak`,
+v2 → `registrations.v2.csv.bak`, anything else →
+`registrations.legacy.csv.bak`. The earlier collision-incrementing
+suffix logic is preserved. New tests cover both v1→v3 and v2→v3
+rotation paths.
+
+`cortex_storage._summary_row` drops the `gender_identity` column from
+the uploaded summary CSV. `CONSENT_VERSION` bumped to
+`"v1.1.3-placeholder"` (still placeholder pending IRB amendment).
+
+### Engine-explainer MP4 (`scripts/render_engine_explainer.py` — new)
+
+A third per-session MP4 (`engine_explainer.mp4`) auto-renders into
+the session directory during `SessionRecorder.finalize()` (alongside
+`collapse.mp4` and `passfail.mp4`), and is also exposed as a
+standalone library + CLI for reuse in methodology figures, talks,
+or off-line replay of any session directory:
+
+    .venv/bin/python scripts/render_engine_explainer.py <session_dir>
+
+The video cycles through all K=6 IIIC tasks sequentially. For each
+task block, three panels:
+
+  * **Top-left — rotating 3D posterior manifold.** Weighted 2D
+    histogram of the particle cloud over (t_k, ℓ_k) rendered as a
+    plasma-colormap surface. Camera azimuth rotates per frame for
+    the 3D feel. Manifold contracts visibly over trials as more
+    data tightens the posterior.
+  * **Top-right — 2D overhead cloud + 95% credible ellipse.**
+    Posterior cloud projected to (t_k, ℓ_k); the ellipse's principal
+    axis is the steepest-uncertainty direction (the "Riemannian
+    gradient" the engine descends). A trail of past posterior means
+    shows the **geodesic** the cloud has traced through parameter
+    space so far.
+  * **Bottom — 1D info-gain landscape.** The score curve
+    `engine.core_mcmc._expected_loss_vec(state, k, signals)` over a
+    dense 61-point signal grid. Argmin is the optimal next-item
+    signal level (the engine's "gradient-descent step" in question
+    space). A small marker rolls from the current frame's posterior
+    mean toward the argmin to make the descent visually explicit.
+
+**Pure replay — no engine instrumentation.** The renderer
+reconstructs the engine `state` dict from each saved trial's
+particle cloud and re-calls `_expected_loss_vec`. The engine's
+runtime path is untouched — Phase-6 invariants (`LAPSE_RATE=0.025`,
+`LOGIT_TO_PROBIT=1/1.7`, byte-equivalent `fit_sdt_per_domain` md5)
+remain intact and no drift-guard tests need re-validation.
+
+**Defaults**: 24 fps, 30 trials per task, 0.8s end-of-task hold →
+~12 sec video, ~5 MB, ~60 s wall on a default machine for a
+realistic 60-trial session. Tunable via `fps`, `trials_per_task`,
+`hold_seconds` kwargs / CLI flags. ffmpeg comes from imageio-ffmpeg
+(introduced in v1.1.2) so the binary is portable across mac / win /
+linux without a system ffmpeg install.
+
+**Independent failure budget.** `SessionRecorder.finalize()` wraps
+each renderer in its own try/except so a crash in `render_all`
+(collapse + passfail) does not suppress `render_engine_explainer`
+and vice versa. Tested by
+`test_finalize_render_failures_are_independent`.
+
+**Aborted sessions skip the explainer** for the same reason
+`render_all` does — the partial trajectory isn't worth the render
+time. Tested.
+
+### Tests
+
+  * `tests/test_cortex_viewer.py`:
+    - `test_registration_csv_schema_v3` — header is V3, gender_identity
+      column is absent; `f_gender` widget is gone.
+    - `test_registration_schema_migration_rotates_v1_csv` — pre-
+      v1.1.1 CSV header rotates to `registrations.v1.csv.bak`.
+    - `test_registration_schema_migration_rotates_v2_csv` — new
+      for v1.1.3: v1.1.1/v1.1.2 CSV header rotates to
+      `registrations.v2.csv.bak` (proves the version-aware migration
+      names backups by what was actually on disk).
+  * `tests/test_cortex_storage.py`:
+    - Updated to drop `gender_identity` from the demographic-flow
+      test (and to ASSERT it's absent from the summary).
+  * `tests/test_render_engine_explainer.py` (new, 9 tests):
+    - Pure-math: weighted mean/cov recovery, ellipse closure +
+      centering, zero-weight-cloud defensive path, frame-plan cycle.
+    - End-to-end: tiny synthetic session renders a valid MP4
+      (verified via ffprobe through the bundled imageio-ffmpeg
+      binary).
+    - Zero-trials guard: empty session is a clean no-op, not a
+      crash.
+    - Cortex finalize wiring: both renderers called, independent
+      failure budgets, aborted-session skip.
+
+### PyInstaller spec
+
+`'render_engine_explainer'` added to `hiddenimports` so the frozen
+bundle picks up the new module. No additional `datas` /
+`collect_data_files` calls needed — the renderer depends only on
+matplotlib (already vendored) + the engine package (already vendored)
++ imageio-ffmpeg (already vendored via v1.1.2).
+
+### Bundle version
+
+`cortex_app/cortex.spec` `CFBundleShortVersionString`
+`'1.1.2'` → `'1.1.3'`. Test bank unchanged at `build-data-v2`. AD6
+strictness unchanged from v1.1.0–v1.1.2 (`N_MIN=15`, `ALPHA=0.10`;
+production target `ALPHA=0.05` deferred to v1.2.0). No engine,
+deployment, calibration, or `cert_config.yaml` changes —
+Phase-6 invariants intact.
+
+Tag: `cortex-v1.1.3`. Test bank pinned at `build-data-v2`.
+
+---
+
 ## ▶ CURRENT STATE (read this first)
 
 - **Paper 1 = the Multi-AUROC Precision Protocol (Mode-A).**  A per-examinee
