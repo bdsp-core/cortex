@@ -100,10 +100,12 @@ def test_render_videos_false_skips_render(tmp_path):
 
 # ── renderer failure does not break finalize() ──────────────────────────
 def test_render_failure_does_not_break_finalize(tmp_path, monkeypatch,
-                                                 capsys):
+                                                 caplog):
     """If the renderer raises (missing ffmpeg, bad data, anything), the
     rest of finalize() must still complete and emit a warning. The other
-    artifacts must still be produced."""
+    artifacts must still be produced. The warning goes through
+    cortex_storage's logger (not stdout) — assert against caplog records."""
+    import logging
     import cortex_render_videos as cv
 
     def _boom(session_dir):
@@ -118,10 +120,13 @@ def test_render_failure_does_not_break_finalize(tmp_path, monkeypatch,
         render_videos=True)
     rec.write_trial(_telemetry(0), _gui(0))
     rec.write_trial(_telemetry(1), _gui(1))
-    rec.finalize(_result(n=2))
+    with caplog.at_level(logging.WARNING, logger="cortex_storage"):
+        rec.finalize(_result(n=2))
     rec.close()
-    captured = capsys.readouterr()
-    assert "video render failed" in captured.out
+    warnings = [r for r in caplog.records
+                if "video render failed" in r.getMessage()]
+    assert warnings, ("expected a 'video render failed' warning from "
+                      "cortex_storage; got: " + str(caplog.records))
     # finalize() continued past the render block — certificate + npz still on disk
     assert (rec.dir / "certificate.json").exists()
     assert (rec.dir / "trajectory.npz").exists()
