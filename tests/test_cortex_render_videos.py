@@ -79,6 +79,38 @@ def test_renderer_module_imports():
     assert hasattr(cv, "main")
 
 
+# ── v1.1.2: imageio-ffmpeg supplies the binary, no system ffmpeg req ────
+def test_imageio_ffmpeg_resolves_binary():
+    """imageio-ffmpeg is a pinned requirement (v1.1.2) so the binary
+    path must resolve at import time and be set on matplotlib's
+    rcParams BEFORE FFMpegWriter is constructed."""
+    import cortex_render_videos as cv
+    assert cv.FFMPEG_EXE is not None, (
+        "FFMPEG_EXE was not set at module import — imageio_ffmpeg "
+        "may be missing from the venv. Install with: "
+        ".venv/bin/python -m pip install imageio-ffmpeg")
+    assert Path(cv.FFMPEG_EXE).exists(), (
+        f"ffmpeg binary at {cv.FFMPEG_EXE} doesn't exist on disk")
+    import matplotlib
+    assert matplotlib.rcParams["animation.ffmpeg_path"] == cv.FFMPEG_EXE
+
+
+def test_imageio_ffmpeg_binary_executable():
+    """The bundled ffmpeg binary must actually run — guards against
+    a corrupt wheel install or a misnamed binary."""
+    import subprocess
+    import cortex_render_videos as cv
+    if cv.FFMPEG_EXE is None:
+        pytest.skip("imageio_ffmpeg not installed")
+    result = subprocess.run([cv.FFMPEG_EXE, "-version"],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, (
+        f"ffmpeg -version exited {result.returncode}\n"
+        f"stderr: {result.stderr[:500]}")
+    assert "ffmpeg version" in result.stdout.lower(), (
+        f"unexpected ffmpeg -version output: {result.stdout[:200]}")
+
+
 # ── render_videos=False suppresses rendering ────────────────────────────
 def test_render_videos_false_skips_render(tmp_path):
     rec = cs.SessionRecorder(

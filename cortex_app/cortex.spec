@@ -74,6 +74,20 @@ datas = [
                                    # this, the dropbox HTTPS transport
                                    # would fail at session finalize.
 
+# v1.1.2: bundle imageio-ffmpeg's per-platform ffmpeg binary so MP4
+# rendering (collapse.mp4 / passfail.mp4) works on clinician machines
+# without a system ffmpeg install. The binary lives inside the wheel
+# at imageio_ffmpeg/binaries/ — collect_data_files picks it up
+# regardless of the platform-specific filename
+# (ffmpeg-linux-x86_64-v7.0.2, ffmpeg-macos-aarch64-v7.0.2,
+# ffmpeg-win-x86_64-v7.0.2.exe, etc.). The wheel ships only ONE
+# binary per platform, so the .dmg / .zip / .tar.gz each gain
+# ~25-80 MB. License note: imageio-ffmpeg's bundled ffmpeg is
+# GPL-licensed (includes libx264); CORTEX is CC BY-NC 4.0 and
+# shells out to ffmpeg as a separate executable (mere aggregation,
+# not linking) — compatible. See README / LICENSE attribution.
+datas += collect_data_files('imageio_ffmpeg', include_py_files=False)
+
 binaries = []
 
 # Hidden imports that PyInstaller's static analysis can miss.
@@ -103,6 +117,10 @@ hiddenimports = [
     # per-session collapse.mp4 / passfail.mp4 outputs)
     'matplotlib.backends.backend_agg',
     'matplotlib.backends.backend_svg',
+    # imageio_ffmpeg — v1.1.2 cross-platform ffmpeg shipping. Python
+    # module is small (~10 KB); the platform binary is staged via
+    # collect_data_files('imageio_ffmpeg') in datas above.
+    'imageio_ffmpeg',
     # pyqtgraph — the viewer uses pg.{ColorMap, ImageItem, PlotWidget,
     # TextItem} (verified by grep against scripts/eeg_bank_viewer.py).
     # pyqtgraph's package __init__ resolves these via lazy proxies that

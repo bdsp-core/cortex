@@ -45,9 +45,44 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+
+# v1.1.2: point matplotlib at the imageio-ffmpeg-bundled ffmpeg binary
+# BEFORE FFMpegWriter is constructed. imageio-ffmpeg ships per-platform
+# ffmpeg binaries (~25 MB Linux, ~75 MB mac/win) inside its wheel, so
+# MP4 rendering works on clinician machines without a system ffmpeg
+# install. Falls back to system ffmpeg (PATH) when imageio_ffmpeg is
+# unavailable — preserves dev-machine behaviour and avoids a hard
+# dependency at module-import time.
+FFMPEG_EXE: str | None = None
+try:
+    import imageio_ffmpeg as _iif
+    FFMPEG_EXE = _iif.get_ffmpeg_exe()
+    matplotlib.rcParams["animation.ffmpeg_path"] = FFMPEG_EXE
+except Exception as _e:                          # noqa: BLE001
+    # logger isn't initialised yet at import time; defer the warning
+    # until first render_all() call (see _ensure_ffmpeg_logged).
+    _FFMPEG_IMPORT_ERROR: Exception | None = _e
+else:
+    _FFMPEG_IMPORT_ERROR = None
+
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+
+
+def _ensure_ffmpeg_logged():
+    """One-shot logger emit on first render so the cortex.log records
+    whether MP4 frames are using the bundled or system ffmpeg path."""
+    if getattr(_ensure_ffmpeg_logged, "_done", False):
+        return
+    if FFMPEG_EXE:
+        logger.info("ffmpeg via imageio_ffmpeg: %s", FFMPEG_EXE)
+    else:
+        logger.warning(
+            "imageio_ffmpeg unavailable (%s); falling back to system "
+            "ffmpeg on PATH. MP4 render will fail if no ffmpeg is "
+            "installed.", _FFMPEG_IMPORT_ERROR)
+    _ensure_ffmpeg_logged._done = True
 
 # Frozen PyInstaller bundles: __file__ for PYZ-loaded modules does not
 # resolve to a real filesystem path whose parent is the scripts dir;
@@ -399,6 +434,7 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
 def render_all(session_dir) -> dict:
     """Render both videos into the session directory. Returns a dict
     mapping artifact name → Path. Idempotent — overwrites existing files."""
+    _ensure_ffmpeg_logged()
     sd = Path(session_dir)
     session = _load_session(sd)
     out = {

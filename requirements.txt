@@ -24,6 +24,7 @@ openpyxl==3.1.5            # ref repo: reads centaur_iiic_expert_labels.xlsx
 # --- visualization ---
 matplotlib==3.9.2
 seaborn==0.13.2            # ref repo: manuscript / deployment figures
+imageio-ffmpeg==0.6.0      # CORTEX MP4 renderer — per-platform ffmpeg in wheel
 
 # --- posterior-calibration diagnostics (methodology repo: SBC, coverage) ---
 arviz==0.19.0
