@@ -56,12 +56,17 @@ class FakeController(QObject):
 
 
 def _result(aborted=False, n=42, stop="delta_reached"):
+    """v1.1.2 ResultsScreen reads verdicts + ℓ̂/θ̂/π rather than AUROC,
+    so the stub carries the AD6-policy outputs too."""
     return SimpleNamespace(
         task_codes=list(TASK_CODES), n_questions=n, stop_reason=stop,
         delta_auroc=0.15, aborted=aborted,
         final_auroc_mean=np.array([0.91, 0.84, 0.78, 0.66, 0.72, 0.80]),
         final_auroc_hw=np.array([0.10, 0.12, 0.14, 0.13, 0.11, 0.12]),
-        final_t_mean=np.zeros(6), final_l_mean=np.full(6, 0.4))
+        final_t_mean=np.zeros(6), final_l_mean=np.full(6, 0.4),
+        verdicts=["PASS"] * 6,
+        policy_diagnostics={"pi": [0.97] * 6, "mcse": [0.01] * 6,
+                            "R": [0.7] * 6, "ess": 500.0})
 
 
 @pytest.fixture(scope="session")
@@ -80,7 +85,15 @@ def _labels(widget):
     return [w.text() for w in widget.findChildren(QLabel)]
 
 
-def test_results_screen_builds(qapp):
+def test_results_screen_builds(qapp, monkeypatch):
+    """v1.1.2 surface: per-task PASS/FAIL/REFER verdict with
+    threshold-relative skill narrative; no agreement-with-reference
+    line; no AUROC point estimates on the main panel (still in the
+    summary CSV for analysis)."""
+    # Stub the ℓ* loader so the test doesn't require a cert_config on disk.
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
     screen = ev.ResultsScreen(_result(), n_correct=30, n_answered=42)
     try:
         texts = _labels(screen)
@@ -88,9 +101,21 @@ def test_results_screen_builds(qapp):
         assert any("42 recordings reviewed" in t for t in texts)
         for lbl in ("Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"):
             assert lbl in texts
-        assert "0.91" in texts                      # AUROC point estimate
-        assert any("Agreement with the reference label" in t for t in texts)
+        # v1.1.2 contract: agreement / accuracy line is gone, AUROC
+        # number is no longer on the main panel.
+        assert not any("Agreement with the reference label" in t
+                       for t in texts), (
+            "v1.1.2 removed the agreement-with-reference-label line "
+            "from the results screen (still in the summary CSV).")
+        assert "0.91" not in texts, (
+            "v1.1.2 removed the AUROC point-estimate column from the "
+            "main panel — replaced with PASS/FAIL/REFER verdicts.")
+        # v1.1.2 additions: clinician-friendly verdict label appears
+        assert any("Pass" in t for t in texts)
         assert screen.close_btn.text() == "CLOSE"
+        # Details panel is collapsed by default
+        assert screen._details_panel.isHidden() is True
+        assert "Show technical details" in screen.details_btn.text()
     finally:
         screen.deleteLater()
         qapp.processEvents()

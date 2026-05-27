@@ -302,6 +302,146 @@ def test_registration_schema_migration_rotates_old_csv(
     assert old_header == legacy_header
 
 
+# ─────── v1.1.2: ResultsScreen — verdicts, narrative, details panel ───────
+
+def _synthetic_result(verdicts=None, l_mean=None, t_mean=None, pi=None):
+    """SessionResult stub with K=6 IIIC tasks + optional verdicts + π."""
+    from types import SimpleNamespace
+    import numpy as np
+    codes = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]
+    return SimpleNamespace(
+        task_codes=codes,
+        n_questions=42,
+        stop_reason="all_resolved",
+        final_auroc_mean=np.full(6, 0.82),
+        final_auroc_hw=np.full(6, 0.10),
+        final_l_mean=np.array(l_mean if l_mean is not None
+                              else [0.85, 0.45, 0.30, 0.60, 0.42, 0.70]),
+        final_t_mean=np.array(t_mean if t_mean is not None
+                              else [0.05, -0.20, 0.35, 0.00, -0.05, 0.15]),
+        verdicts=verdicts if verdicts is not None else [
+            "PASS", "REFER_BORDERLINE", "FAIL",
+            "PASS", "REFER_UNINFORMATIVE", "PASS"],
+        policy_diagnostics={"pi": pi if pi is not None
+                            else [0.98, 0.55, 0.02, 0.96, 0.40, 0.97],
+                            "mcse": [0.01] * 6, "R": [0.7] * 6,
+                            "ess": 500.0},
+        delta_auroc=None,
+        seed=42, selection="adaptive", n_particles=200, trials=[],
+        served_seg_ids=[], aborted=False)
+
+
+def test_results_screen_skill_narrative_function():
+    """Pure-function check — the skill narrative branches on (ℓ̂, ℓ*)
+    with a 0.05 'near threshold' band."""
+    f = ev.ResultsScreen._skill_narrative
+    text, _ = f(0.85, 0.42)
+    assert "Above threshold by 0.43" == text
+    text, _ = f(0.21, 0.42)
+    assert "Below threshold by 0.21" == text
+    text, _ = f(0.44, 0.42)
+    assert "Near the passing threshold" == text
+    text, _ = f(None, 0.42)
+    assert "not estimated" in text.lower()
+    text, _ = f(0.5, None)            # threshold load failed
+    assert "ℓ̂ = +0.50" in text
+
+
+def test_results_screen_bias_narrative_function():
+    """Pure-function check — bias narrative branches on |θ̂| with
+    direction inverted (negative θ̂ = liberal/over-calls)."""
+    f = ev.ResultsScreen._bias_narrative
+    text, _ = f(0.05)
+    assert "near neutral" in text.lower()
+    text, _ = f(0.15)
+    assert "slight" in text.lower() and "conservative" in text.lower()
+    text, _ = f(0.40)
+    assert "strong" in text.lower() and "conservative" in text.lower()
+    text, _ = f(-0.15)
+    assert "slight" in text.lower() and "liberal" in text.lower()
+    text, _ = f(-0.40)
+    assert "strong" in text.lower() and "liberal" in text.lower()
+
+
+def test_results_screen_renders_verdicts(qapp, monkeypatch):
+    """ResultsScreen builds the per-task verdict table with clinician-
+    friendly labels; the details panel starts hidden."""
+    # Stub load_ell_star_iiic so the test doesn't need cert_config on disk.
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    result = _synthetic_result()
+    screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
+    try:
+        # Verdict labels appear somewhere in the screen's child QLabels
+        all_text = " | ".join(
+            w.text() for w in screen.findChildren(__import__(
+                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
+        assert "Pass" in all_text
+        assert "Did not pass" in all_text
+        assert "Refer (borderline)" in all_text
+        assert "Refer (need more data)" in all_text
+        # Threshold-relative skill narratives
+        assert "Above threshold by 0.43" in all_text   # sz: 0.85 vs 0.42
+        assert "Below threshold by 0.12" in all_text   # gpd: 0.30 vs 0.42
+        # Bias narratives
+        assert "Strong conservative" in all_text       # gpd: θ=+0.35
+        # The agreement-with-reference-label line is GONE
+        assert "Agreement with" not in all_text
+        # Details panel starts hidden, toggles on, toggles off. Use
+        # isHidden() which reflects the explicit setVisible() state
+        # regardless of whether the parent window has been shown
+        # (Qt's isVisible() returns False until the top-level window
+        # is on screen — which is why _toggle_details internally uses
+        # isHidden() too, otherwise a second click would never hide).
+        assert screen._details_panel.isHidden() is True
+        assert "Show" in screen.details_btn.text()
+        screen._toggle_details()
+        assert screen._details_panel.isHidden() is False
+        assert "Hide" in screen.details_btn.text()
+        screen._toggle_details()
+        assert screen._details_panel.isHidden() is True
+        assert "Show" in screen.details_btn.text()
+        # Raw posterior numbers are present once shown
+        all_text_now = " | ".join(
+            w.text() for w in screen.findChildren(__import__(
+                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
+        assert "0.850" in all_text_now                  # ℓ̂ for sz
+        assert "0.420" in all_text_now                  # ℓ* for any row
+        assert "+0.350" in all_text_now or "+0.35" in all_text_now  # θ̂ for gpd
+        assert "0.980" in all_text_now                  # π for sz
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
+def test_results_screen_handles_missing_threshold(qapp, monkeypatch):
+    """If cert_config.yaml is missing / malformed, load_ell_star_iiic
+    raises — the screen must still render with skill ℓ̂ shown but no
+    threshold-relative narrative."""
+    import cortex_policy as cp
+
+    def _boom(codes, **kw):
+        raise FileNotFoundError("cert_config.yaml not found")
+    monkeypatch.setattr(cp, "load_ell_star_iiic", _boom)
+    result = _synthetic_result()
+    screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
+    try:
+        all_text = " | ".join(
+            w.text() for w in screen.findChildren(__import__(
+                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
+        # Verdicts still shown
+        assert "Pass" in all_text
+        # Fallback narrative shows raw ℓ̂ without 'Above/Below threshold'
+        assert "Above threshold" not in all_text
+        assert "Below threshold" not in all_text
+        # Raw ℓ̂ surfaced via the fallback
+        assert "ℓ̂ = +0.85" in all_text
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
 def test_registration_wizard_advances_through_pages(qapp, monkeypatch):
     """Clicking NEXT on page 1 advances to page 2; NEXT on page 2
     advances to page 3 — but only if validators pass."""

@@ -2046,8 +2046,26 @@ class RegistrationPage(QWidget):
 
 
 class ResultsScreen(QWidget):
-    """Terminal results screen — per-IIIC-task AUROC estimates + 95% CI,
-    shown when the adaptive session completes. CORTEX aesthetic."""
+    """Terminal results screen — per-IIIC-task PASS/FAIL/REFER verdict
+    with a one-line skill+bias narrative and a collapsible 'technical
+    details' grid showing the raw ℓ̂, ℓ*, θ̂, and pass-mass π values.
+
+    Layout (v1.1.2):
+      heading: "Assessment Complete"
+      sub:     "N recordings reviewed. <stop reason>"
+      verdict table (6 rows, 2 lines each):
+        TASK    VERDICT          NARRATIVE (skill + bias)
+      [ Show technical details ▾ ]  (toggles the details grid below)
+      details grid (hidden by default):
+        TASK  VERDICT  ℓ̂      ℓ*     θ̂      π
+        + caption explaining the symbols.
+      footer: "Your responses have been recorded."
+      [ CLOSE ]
+
+    `n_correct` and `n_answered` are accepted for back-compat with the
+    BankViewer call site but no longer rendered; per-trial agreement
+    is still recorded in cortex.log + the summary CSV for analysis.
+    """
 
     _TASK_LABELS = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
                     "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
@@ -2057,20 +2075,45 @@ class ResultsScreen(QWidget):
         "bank_exhausted": "All available recordings were reviewed.",
         "aborted": "The assessment ended early.",
     }
+    # Clinician-friendly verdict labels. Underlying state constants
+    # (PASS / FAIL / REFER_BORDERLINE / REFER_UNINFORMATIVE / PENDING)
+    # stay in cortex_policy + the persisted CSV/JSON — only the display
+    # label is softened here.
+    _VERDICT_LABEL = {
+        "PASS": "Pass",
+        "FAIL": "Did not pass",
+        "REFER_BORDERLINE": "Refer (borderline)",
+        "REFER_UNINFORMATIVE": "Refer (need more data)",
+        "PENDING": "—",
+    }
+    _VERDICT_COLOR = {
+        "PASS": "#7ed391",                  # soft green
+        "FAIL": "#d8806a",                  # soft red-orange
+        "REFER_BORDERLINE": "#d4b169",      # soft amber
+        "REFER_UNINFORMATIVE": "#9aa0ab",   # muted grey
+        "PENDING": "#5c606a",
+    }
 
     def __init__(self, result, n_correct, n_answered):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"ResultsScreen {{ background-color: {_PAGE_BG}; }}")
 
+        # Load per-task Youden thresholds for the narrative + details
+        # panel. Failure here (missing cert_config, malformed entry)
+        # is non-fatal — we drop the threshold context but still show
+        # the verdict + raw ℓ̂/θ̂.
+        codes = list(getattr(result, "task_codes", []) or [])
+        self._ell_star = self._safe_load_ell_star(codes)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.addStretch(2)
+        root.addStretch(1)
 
         heading = QLabel("Assessment Complete")
         heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hf = QFont()
-        hf.setPointSize(30)
+        hf.setPointSize(28)
         hf.setWeight(QFont.Weight.DemiBold)
         hf.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
         heading.setFont(hf)
@@ -2082,29 +2125,39 @@ class ResultsScreen(QWidget):
         sub = QLabel(f"{n_q} recordings reviewed.   {stop}")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sf = QFont()
-        sf.setPointSize(13)
+        sf.setPointSize(12)
         sub.setFont(sf)
         sub.setStyleSheet("color: #aab0ba; background: transparent;")
-        root.addSpacing(14)
+        root.addSpacing(10)
         root.addWidget(sub)
 
-        root.addSpacing(34)
-        root.addLayout(_hcenter(self._build_task_table(result)))
+        root.addSpacing(22)
+        root.addLayout(_hcenter(self._build_verdict_table(result)))
 
-        if n_answered:
-            pct = 100.0 * n_correct / n_answered
-            acc_text = (f"Agreement with the reference label:   "
-                        f"{pct:.0f}%   ({n_correct} of {n_answered})")
-        else:
-            acc_text = ""
-        acc = QLabel(acc_text)
-        acc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        acf = QFont()
-        acf.setPointSize(12)
-        acc.setFont(acf)
-        acc.setStyleSheet("color: #868b96; background: transparent;")
-        root.addSpacing(24)
-        root.addWidget(acc)
+        # Collapsible details panel — hidden by default. The button text
+        # toggles between "Show / Hide technical details".
+        self._details_panel = self._build_details_panel(result)
+        self._details_panel.setVisible(False)
+        self.details_btn = QPushButton("Show technical details ▾")
+        self.details_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.details_btn.setFixedHeight(28)
+        df = QFont()
+        df.setPointSize(10)
+        self.details_btn.setFont(df)
+        self.details_btn.setStyleSheet(
+            "QPushButton { color: #9aa0ab; background: transparent;"
+            " border: none; padding: 4px 10px; }"
+            " QPushButton:hover { color: #eef1f5; }")
+        self.details_btn.clicked.connect(self._toggle_details)
+        root.addSpacing(14)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self.details_btn)
+        row.addStretch(1)
+        root.addLayout(row)
+
+        root.addSpacing(6)
+        root.addWidget(self._details_panel)
 
         foot = QLabel("Your responses have been recorded.")
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2112,7 +2165,7 @@ class ResultsScreen(QWidget):
         ff.setPointSize(11)
         foot.setFont(ff)
         foot.setStyleSheet("color: #5c606a; background: transparent;")
-        root.addSpacing(30)
+        root.addSpacing(22)
         root.addWidget(foot)
 
         self.close_btn = QPushButton("CLOSE")
@@ -2121,54 +2174,194 @@ class ResultsScreen(QWidget):
         self.close_btn.setFont(_btn_font())
         self.close_btn.setStyleSheet(_BTN_CSS)
         self.close_btn.clicked.connect(lambda: self.window().close())
-        root.addSpacing(20)
+        root.addSpacing(16)
         root.addLayout(_hcenter(self.close_btn))
-        root.addStretch(3)
+        root.addStretch(2)
 
-    def _build_task_table(self, result):
-        """A 6-row grid — task label, AUROC point estimate, 95% CI."""
+    @staticmethod
+    def _safe_load_ell_star(codes):
+        """Return [ℓ*_k] for the given task codes, or [None]*K if the
+        config cannot be loaded. Non-fatal — keeps the screen visible
+        even when cert_config is missing / malformed."""
+        if not codes:
+            return []
+        try:
+            from cortex_policy import load_ell_star_iiic
+            return list(load_ell_star_iiic(codes))
+        except Exception as e:                       # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "ResultsScreen: could not load ℓ* thresholds (%s); "
+                "narrative will omit threshold context.", e)
+            return [None] * len(codes)
+
+    @staticmethod
+    def _cell(text, color, size, bold=False,
+              align=Qt.AlignmentFlag.AlignLeft):
+        lbl = QLabel(text)
+        f = QFont()
+        f.setPointSize(size)
+        if bold:
+            f.setWeight(QFont.Weight.DemiBold)
+        lbl.setFont(f)
+        lbl.setStyleSheet(f"color: {color}; background: transparent;")
+        lbl.setAlignment(align | Qt.AlignmentFlag.AlignVCenter)
+        return lbl
+
+    @staticmethod
+    def _skill_narrative(l_hat, l_star):
+        """One-clause skill summary: 'Above/Below threshold by 0.XX' or
+        'Near the passing threshold'. Returns ('text', color)."""
+        if l_hat is None:
+            return ("Skill not estimated", "#9aa0ab")
+        if l_star is None:
+            return (f"Skill estimate ℓ̂ = {l_hat:+.2f}", "#dde0e6")
+        diff = float(l_hat) - float(l_star)
+        if abs(diff) < 0.05:
+            return ("Near the passing threshold", "#d4b169")
+        if diff >= 0.05:
+            return (f"Above threshold by {diff:.2f}", "#7ed391")
+        return (f"Below threshold by {abs(diff):.2f}", "#d8806a")
+
+    @staticmethod
+    def _bias_narrative(t_hat):
+        """One-clause bias summary: 'liberal' = over-calls (θ̂<0),
+        'conservative' = under-calls (θ̂>0). Returns ('text', color)."""
+        if t_hat is None:
+            return ("", "#9aa0ab")
+        a = abs(float(t_hat))
+        if a < 0.10:
+            return ("Bias near neutral", "#aab0ba")
+        direction = ("liberal (over-calls)" if float(t_hat) < 0
+                     else "conservative (under-calls)")
+        strength = "Slight" if a < 0.25 else "Strong"
+        return (f"{strength} {direction}", "#aab0ba")
+
+    def _build_verdict_table(self, result):
+        """Per-task table: TASK | VERDICT (colored) | NARRATIVE (2 lines:
+        skill summary above bias summary)."""
         codes = list(getattr(result, "task_codes", []) or [])
-        am = getattr(result, "final_auroc_mean", None)
-        ah = getattr(result, "final_auroc_hw", None)
-        am = [] if am is None else list(am)
-        ah = [] if ah is None else list(ah)
-
-        def _cell(text, color, size, bold=False,
-                  align=Qt.AlignmentFlag.AlignLeft):
-            lbl = QLabel(text)
-            f = QFont()
-            f.setPointSize(size)
-            if bold:
-                f.setWeight(QFont.Weight.DemiBold)
-            lbl.setFont(f)
-            lbl.setStyleSheet(f"color: {color}; background: transparent;")
-            lbl.setAlignment(align | Qt.AlignmentFlag.AlignVCenter)
-            return lbl
+        verdicts = list(getattr(result, "verdicts", None) or [])
+        lm = getattr(result, "final_l_mean", None)
+        tm = getattr(result, "final_t_mean", None)
+        lm = [] if lm is None else list(lm)
+        tm = [] if tm is None else list(tm)
 
         box = QWidget()
-        box.setFixedWidth(440)
+        box.setFixedWidth(700)
         grid = QGridLayout(box)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(26)
-        grid.setVerticalSpacing(10)
-        right = Qt.AlignmentFlag.AlignRight
-        grid.addWidget(_cell("TASK", "#6b7280", 9, True), 0, 0)
-        grid.addWidget(_cell("AUROC", "#6b7280", 9, True, right), 0, 1)
-        grid.addWidget(_cell("95% CI", "#6b7280", 9, True, right), 0, 2)
+        grid.setHorizontalSpacing(28)
+        grid.setVerticalSpacing(14)
+        grid.addWidget(self._cell("TASK", "#6b7280", 9, True), 0, 0)
+        grid.addWidget(self._cell("RESULT", "#6b7280", 9, True), 0, 1)
+        grid.addWidget(self._cell("SKILL & BIAS", "#6b7280", 9, True), 0, 2)
         for i, code in enumerate(codes):
             label = self._TASK_LABELS.get(code, code)
-            grid.addWidget(_cell(label, "#dde0e6", 13), i + 1, 0)
-            if i < len(am):
-                a = float(am[i])
-                grid.addWidget(_cell(f"{a:.2f}", "#eef1f5", 13, True, right),
-                               i + 1, 1)
-                if i < len(ah):
-                    hw = float(ah[i])
-                    lo, hi = max(0.0, a - hw), min(1.0, a + hw)
-                    grid.addWidget(
-                        _cell(f"[{lo:.2f}, {hi:.2f}]", "#aab0ba", 12,
-                              False, right), i + 1, 2)
+            grid.addWidget(self._cell(label, "#dde0e6", 13, True),
+                           i + 1, 0)
+            # Verdict cell — clinician-friendly label, color-coded
+            v = verdicts[i] if i < len(verdicts) else "PENDING"
+            v_text = self._VERDICT_LABEL.get(v, v)
+            v_color = self._VERDICT_COLOR.get(v, self._VERDICT_COLOR["PENDING"])
+            grid.addWidget(self._cell(v_text, v_color, 13, True),
+                           i + 1, 1)
+            # Narrative cell — two stacked lines (skill + bias)
+            l_hat = float(lm[i]) if i < len(lm) else None
+            t_hat = float(tm[i]) if i < len(tm) else None
+            l_star = (self._ell_star[i] if i < len(self._ell_star) else None)
+            skill_text, skill_color = self._skill_narrative(l_hat, l_star)
+            bias_text, bias_color = self._bias_narrative(t_hat)
+            narrative = QWidget()
+            nv = QVBoxLayout(narrative)
+            nv.setContentsMargins(0, 0, 0, 0)
+            nv.setSpacing(2)
+            nv.addWidget(self._cell(skill_text, skill_color, 12))
+            if bias_text:
+                nv.addWidget(self._cell(bias_text, bias_color, 10))
+            grid.addWidget(narrative, i + 1, 2)
         return box
+
+    def _build_details_panel(self, result):
+        """Compact grid of raw posterior numbers: TASK | VERDICT | ℓ̂ |
+        ℓ* | θ̂ | π. Hidden by default; toggled via the details button."""
+        codes = list(getattr(result, "task_codes", []) or [])
+        verdicts = list(getattr(result, "verdicts", None) or [])
+        lm = getattr(result, "final_l_mean", None)
+        tm = getattr(result, "final_t_mean", None)
+        lm = [] if lm is None else list(lm)
+        tm = [] if tm is None else list(tm)
+        # π_k (posterior P(ℓ̂ > ℓ*)) is the AD6-policy quantity; available
+        # only when the session ran under AD6 (otherwise dict is None).
+        pd = getattr(result, "policy_diagnostics", None) or {}
+        pi = list(pd.get("pi") or []) if isinstance(pd, dict) else []
+
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(0, 0, 0, 0)
+        pv.setSpacing(8)
+
+        grid_box = QWidget()
+        grid_box.setFixedWidth(700)
+        grid = QGridLayout(grid_box)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(6)
+        right = Qt.AlignmentFlag.AlignRight
+        # Headers — small uppercase grey
+        for col, (text, align) in enumerate((
+            ("TASK", Qt.AlignmentFlag.AlignLeft),
+            ("VERDICT", Qt.AlignmentFlag.AlignLeft),
+            ("ℓ̂", right), ("ℓ*", right),
+            ("θ̂", right), ("π", right),
+        )):
+            grid.addWidget(self._cell(text, "#6b7280", 9, True, align),
+                           0, col)
+        for i, code in enumerate(codes):
+            grid.addWidget(self._cell(code, "#dde0e6", 11), i + 1, 0)
+            v = verdicts[i] if i < len(verdicts) else "PENDING"
+            grid.addWidget(self._cell(v, "#aab0ba", 10), i + 1, 1)
+            l_hat = lm[i] if i < len(lm) else None
+            t_hat = tm[i] if i < len(tm) else None
+            l_star = self._ell_star[i] if i < len(self._ell_star) else None
+            pi_k = pi[i] if i < len(pi) else None
+            grid.addWidget(self._cell(
+                f"{l_hat:.3f}" if l_hat is not None else "—",
+                "#eef1f5", 11, False, right), i + 1, 2)
+            grid.addWidget(self._cell(
+                f"{l_star:.3f}" if l_star is not None else "—",
+                "#aab0ba", 11, False, right), i + 1, 3)
+            grid.addWidget(self._cell(
+                f"{t_hat:+.3f}" if t_hat is not None else "—",
+                "#eef1f5", 11, False, right), i + 1, 4)
+            grid.addWidget(self._cell(
+                f"{pi_k:.3f}" if pi_k is not None else "—",
+                "#eef1f5", 11, False, right), i + 1, 5)
+        pv.addLayout(_hcenter(grid_box))
+
+        cap = QLabel(
+            "ℓ̂ — posterior skill estimate · ℓ* — Youden-optimal passing "
+            "threshold · θ̂ — bias (positive = conservative; negative = "
+            "liberal) · π — posterior P(ℓ̂ > ℓ*).")
+        cap.setWordWrap(True)
+        cap.setFixedWidth(700)
+        cf = QFont()
+        cf.setPointSize(9)
+        cap.setFont(cf)
+        cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cap.setStyleSheet("color: #767b87; background: transparent;")
+        pv.addLayout(_hcenter(cap))
+        return panel
+
+    def _toggle_details(self):
+        # Use isHidden() — reflects the explicit setVisible() state
+        # regardless of whether the top-level window is shown.
+        # isVisible() returns False whenever the parent isn't on
+        # screen, which would make this toggle stick in "show" mode.
+        will_show = self._details_panel.isHidden()
+        self._details_panel.setVisible(will_show)
+        self.details_btn.setText(
+            "Hide technical details ▴" if will_show
+            else "Show technical details ▾")
 
 
 def main():
