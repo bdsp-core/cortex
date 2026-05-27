@@ -134,8 +134,85 @@ jobs:
           name: CORTEX-windows
           path: cortex_app/dist/CORTEX-windows.zip
 
+  build-linux:
+    # Pin to ubuntu-22.04 (glibc 2.35) — NOT ubuntu-latest. PyInstaller
+    # binaries are dynamically linked against the build machine's glibc;
+    # the resulting binary requires glibc >= the build version on the
+    # user's machine. 2.35 covers Ubuntu 22.04+, Debian 12+, Fedora 36+,
+    # RHEL 9+, Arch (rolling). Building on a newer Ubuntu would break
+    # users on those slightly-older distros.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Qt6 system libraries
+        # PyQt6 wheels bundle Qt itself but link against host Xlib/xcb
+        # libraries at runtime. PyInstaller copies what it can detect via
+        # ldd into the bundle, but only if the libs are present on the
+        # build host. This list is the standard "what does Qt 6 need on
+        # Linux" set; safe to install all of them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libegl1 \
+            libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-render0 \
+            libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libfontconfig1 libdbus-1-3
+
+      - name: Stage cortex_config.yaml from secret
+        env:
+          CORTEX_CONFIG_YAML: ${{ secrets.CORTEX_CONFIG_YAML }}
+        run: |
+          if [ -z "$CORTEX_CONFIG_YAML" ]; then
+            echo "ERROR: secret CORTEX_CONFIG_YAML is not set"; exit 1
+          fi
+          printf '%s' "$CORTEX_CONFIG_YAML" > cortex_config.yaml
+
+      - name: Download test bank from build-data release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data
+          gh release download build-data-v1 \
+              --repo ${{ github.repository }} \
+              --pattern eeg_bank.h5 \
+              --dir data/
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-cortex.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          cd cortex_app
+          pyinstaller --clean --noconfirm cortex.spec
+
+      - name: Tar Linux build
+        # tar.gz mirrors the .zip / .dmg pattern of the other two runners.
+        # Use a deterministic top-level "CORTEX/" so the user can extract
+        # and immediately `./CORTEX/CORTEX` regardless of cwd.
+        run: |
+          cd cortex_app/dist
+          tar czf CORTEX-linux-x86_64.tar.gz CORTEX
+
+      - name: Upload Linux tar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORTEX-linux
+          path: cortex_app/dist/CORTEX-linux-x86_64.tar.gz
+
   release:
-    needs: [build-mac, build-windows]
+    needs: [build-mac, build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/cortex-v')
     permissions:
@@ -153,6 +230,12 @@ jobs:
           name: CORTEX-windows
           path: artifacts/
 
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CORTEX-linux
+          path: artifacts/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -160,12 +243,14 @@ jobs:
           files: |
             artifacts/CORTEX-mac.dmg
             artifacts/CORTEX-windows.zip
+            artifacts/CORTEX-linux-x86_64.tar.gz
           body: |
             ## CORTEX adaptive EEG certification test
 
             ### Downloads
             - **macOS:** `CORTEX-mac.dmg` — see "Opening CORTEX on macOS" below
             - **Windows:** `CORTEX-windows.zip` — see "Opening CORTEX on Windows" below
+            - **Linux:** `CORTEX-linux-x86_64.tar.gz` — see "Opening CORTEX on Linux" below
 
             ### Opening CORTEX on macOS
 
@@ -189,9 +274,27 @@ jobs:
             1. Extract the `.zip`, open the `CORTEX/` folder, double-click `CORTEX.exe`.
             2. If Windows SmartScreen warns *"Windows protected your PC"*, click **More info** then **Run anyway**. (Only the first launch.)
 
+            ### Opening CORTEX on Linux
+
+            1. Extract the tarball:
+
+               ```
+               tar xzf CORTEX-linux-x86_64.tar.gz
+               ```
+
+            2. Run the launcher:
+
+               ```
+               ./CORTEX/CORTEX
+               ```
+
+               (Or open the `CORTEX/` folder in your file manager and double-click the `CORTEX` executable — most desktop environments will run it as a binary on first double-click.)
+
+            The Linux build is x86_64 only. The MP4 visualisation render requires `ffmpeg` on your `$PATH` — install with `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora/RHEL), or `sudo pacman -S ffmpeg` (Arch). Without it, sessions still complete cleanly; the per-test-taker collapse / pass-fail videos won't be generated.
+
             ### Requirements
 
-            macOS 12 (Monterey) or later, or Windows 10/11. No Python install needed — everything is bundled.
+            macOS 12 (Monterey) or later, or Windows 10/11, or Linux with glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+). No Python install needed — everything is bundled.
 
             ### Reporting bugs
 
