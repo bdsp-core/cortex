@@ -1860,16 +1860,21 @@ def main():
         reg.continue_btn.setText("LOADING…")
         app.processEvents()                  # let the button repaint first
         from cortex_engine_inputs import build_iiic_engine_inputs
-        from session_controller import SessionController, N_PARTICLES
+        from session_controller import (
+            SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT)
         from cortex_storage import SessionRecorder
         inputs = build_iiic_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
         # engine pool, so the engine never re-serves the practice segment.
         tutorial_sid = inputs.all_seg_ids[0]
         engine_inputs = inputs.without([tutorial_sid])
-        # capture_clouds=True so the session can write trajectory.npz.
+        # v1.1.0: hard cap at MAX_QUESTIONS_DEFAULT — keeps the live-test
+        # runway decoupled from bank size so future bank growth doesn't
+        # implicitly lengthen the test. capture_clouds=True so the session
+        # writes trajectory.npz.
         controller = SessionController(engine_inputs, reg.session_id,
-                                       capture_clouds=True)
+                                       capture_clouds=True,
+                                       max_questions=MAX_QUESTIONS_DEFAULT)
         # Record which termination policy actually drives this session —
         # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
         # legacy/audit paths — so participant.json reflects what stopped
@@ -1879,6 +1884,7 @@ def main():
             {"n_iiic_segments": len(engine_inputs.all_seg_ids),
              "policy": type(controller.session.policy).__name__,
              "n_particles": N_PARTICLES,
+             "max_questions": MAX_QUESTIONS_DEFAULT,
              "tutorial_seg_id": int(tutorial_sid)})
         win = BankViewer(controller, reg.session_id, tutorial_sid, recorder)
         # Install app-wide event filter so combo boxes don't swallow arrow

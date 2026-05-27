@@ -80,6 +80,9 @@ results/mode_a_auroc/
 # external. Defensive ignore so `git add data/` cannot accidentally
 # stage it. Canonical EEG source remains sibling-repo as documented.
 data/eeg_bank.h5
+# Backup of v1 bank kept locally during v1.1.0 transition (D9: same PHI).
+data/eeg_bank_v1_backup.h5
+data/eeg_bank_v2.h5
 # eeg_bank_spec.h5: full unified spec bank (~107 GB local; PHI-bearing
 # raw EEG arrays). Sourced from AWS s3://bdsp-... per data/SENSITIVE.md.
 # Defensive ignore — must NEVER be committed under any circumstances.

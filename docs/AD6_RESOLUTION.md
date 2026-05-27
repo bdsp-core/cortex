@@ -37,17 +37,25 @@ parameter is independently OC-calibratable via `scripts/run_oc_validation.py`.
 
 ## Internal-test override (2026-05-22)
 
-**Two parameters in `scripts/cortex_policy.py` are currently set to
-internal-test calibrations, NOT the panel-derived production defaults:**
+**v1.1.0 update (2026-05-27).** Settings have been advanced toward
+production. Current values in `scripts/cortex_policy.py`:
 
-  * `DEFAULT_N_MIN` is **6** (production: 15)
-  * `DEFAULT_ALPHA` is **0.30** (production: 0.05)
+  * `DEFAULT_N_MIN` = **15** (= production target) — reachable now that
+    the bank is 300 IIIC segments (50/task on average)
+  * `DEFAULT_ALPHA` = **0.10** (production target: 0.05) — calibration
+    midpoint between the v1.0 internal-test override (0.30) and the
+    panel-derived production target (0.05). v1.1.0 is a calibration
+    trial to characterise pass/refer/fail rates at this strictness
+    before committing to α=0.05 in v1.2.0.
 
-Both are deliberate overrides scoped to the 100-segment IIIC internal-test
-bank, intended to validate the algorithm's end-to-end mechanics
-(verdict assignment + `all_resolved` early-exit) on a bank too small to
-support production-grade thresholds. Production defaults must be
-restored before pushing to the public live test.
+**v1.0 historical (for reference):** Earlier internal-test overrides
+were `DEFAULT_N_MIN=6` and `DEFAULT_ALPHA=0.30`, scoped to the
+100-segment IIIC bank, intended to validate the algorithm's end-to-end
+mechanics (verdict assignment + `all_resolved` early-exit) on a bank
+too small to support production-grade thresholds. The v1.0 audit
+(`results/audit/selection_audit.md`) found that 0/13 raters reached
+AUROC half-width < 0.05 in 100 questions — the override gave the
+all-resolved early-exit path a chance to fire.
 
 ### Why the override
 

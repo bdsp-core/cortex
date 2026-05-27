@@ -4,7 +4,7 @@ Assembles the K=6 IIIC inputs the SMC particle-cloud engine
 (engine/core_mcmc.py) needs to drive a live adaptive certification
 session, from artifacts already in the repo — no calibration campaign:
 
-  * the 100 IIIC segments in   data/eeg_bank.h5          (the test bank)
+  * the 300 IIIC segments in   data/eeg_bank.h5          (the v1.1.0 test bank)
   * per-task signals from      data/labels/iiic_segment_signals.csv
   * the K=6 fitted prior from  Sigma_l_fitted.npy
 

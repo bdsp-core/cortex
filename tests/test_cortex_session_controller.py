@@ -65,7 +65,9 @@ def test_dedup_no_segment_served_twice(inputs):
 
 
 def test_bank_exhaustion_is_capped(inputs):
-    """The 100-segment bank caps the test — it cannot exceed bank size."""
+    """The bank size caps the test — it cannot exceed bank size. Bank-
+    size-agnostic so future expansions (v1.1.0 300 segs, future 500+)
+    do not need a test bump."""
     sess = sc.CortexSession(inputs, session_id="t-cap", n_particles=200,
                             seed=3, delta_auroc=0.0)
     res = sess.run(_const_y_source(1))
@@ -111,8 +113,12 @@ def test_delta_stop_mechanism(inputs):
 
 
 def test_native_delta_bank_exhausts(inputs):
-    """Documents the Phase-A finding: delta=0.05 is NOT reachable within the
-    100-segment IIIC bank — a clearly-pass rater runs the bank to exhaustion."""
+    """Phase-A finding (originally on the 100-segment bank): delta=0.05
+    AUROC half-width is not reachable for a 0.6-skill rater within the
+    bank. On the v1.1.0 300-segment bank this still bank-exhausts —
+    a 0.6 rater is not strong enough to hit hw<0.05 even with 300
+    questions across 6 tasks. The assertion is on the stop_reason +
+    the n_questions equalling the bank size (whatever it is)."""
     K = len(inputs.task_codes)
     y_src = sc.make_simulated_y_source(np.zeros(K), np.full(K, 0.6), seed=0)
     sess = sc.CortexSession(inputs, session_id="t-exhaust",

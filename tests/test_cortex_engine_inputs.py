@@ -30,10 +30,11 @@ def inputs():
     return cei.build_iiic_engine_inputs()
 
 
-def test_build_returns_100_iiic_segments(inputs):
-    assert len(inputs.manifest) == 100
+def test_build_returns_v1_1_bank_size(inputs):
+    """v1.1.0 bank is 300 IIIC segments (50 per class). v1 was 100."""
+    assert len(inputs.manifest) == 300
     assert inputs.manifest.index.name == "seg_id"
-    assert len(inputs.all_seg_ids) == 100
+    assert len(inputs.all_seg_ids) == 300
 
 
 def test_six_tasks_in_canonical_order(inputs):
@@ -59,15 +60,18 @@ def test_as_engine_arrays_full_bank(inputs):
     bs, bsd, bseg = inputs.as_engine_arrays()
     assert len(bs) == len(bsd) == len(bseg) == 6
     for k in range(6):
-        assert len(bs[k]) == len(bsd[k]) == len(bseg[k]) == 100
+        # bank-size-agnostic so a future expansion doesn't need a test bump
+        n_bank = len(bseg[k])
+        assert n_bank == len(bs[k]) == len(bsd[k])
         assert not np.isnan(bs[k]).any()
         assert np.all(bsd[k] > 0)
 
 
 def test_as_engine_arrays_subset_dedup(inputs):
-    keep = inputs.all_seg_ids[:99]
+    n_take = len(inputs.all_seg_ids) - 1                # one off the bank
+    keep = inputs.all_seg_ids[:n_take]
     bs, bsd, bseg = inputs.as_engine_arrays(keep)
-    assert all(len(a) == 99 for a in bs)
+    assert all(len(a) == n_take for a in bs)
     assert list(bseg[0]) == keep
 
 

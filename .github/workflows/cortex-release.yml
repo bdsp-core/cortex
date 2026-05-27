@@ -10,7 +10,7 @@ name: CORTEX Release Build
 #
 # Build-time data dependency:
 #   data/eeg_bank.h5 (~170 MB) is fetched from the repo's own
-#   `build-data-v1` release using GITHUB_TOKEN (no external creds).
+#   `build-data-v2` release using GITHUB_TOKEN (no external creds).
 #   To refresh the bank: upload the new file to a new release tag
 #   (build-data-v2, etc.) and bump the tag reference in the
 #   "Download test bank" step below. No AWS interaction in CI.
@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          gh release download build-data-v1 \
+          gh release download build-data-v2 \
               --repo ${{ github.repository }} \
               --pattern eeg_bank.h5 \
               --dir data/
@@ -121,7 +121,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path data | Out-Null
-          gh release download build-data-v1 `
+          gh release download build-data-v2 `
               --repo ${{ github.repository }} `
               --pattern eeg_bank.h5 `
               --dir data/
@@ -194,7 +194,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          gh release download build-data-v1 \
+          gh release download build-data-v2 \
               --repo ${{ github.repository }} \
               --pattern eeg_bank.h5 \
               --dir data/

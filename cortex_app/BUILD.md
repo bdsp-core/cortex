@@ -62,8 +62,8 @@ You also need two files in the **repo root** that are gitignored:
        # refresh_token (use an "App folder"-scoped Dropbox app with
        # ONLY files.content.write permission).
 
-2. **`data/eeg_bank.h5`** — the curated 100 IIIC + 100 spike test bank
-   (~170 MB). Fetch from the repo's own `build-data-v1` release:
+2. **`data/eeg_bank.h5`** — the curated 300 IIIC + 100 spike test bank
+   (~450 MB; v1.1.0). Fetch from the repo's own `build-data-v2` release:
 
        cd cortex_app && bash fetch_test_bank.sh
 

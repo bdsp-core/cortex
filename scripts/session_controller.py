@@ -62,9 +62,15 @@ from cortex_policy import default_policy_for  # noqa: E402
 
 # ── engine hyperparameters (the methodology config — viz_smc_collapse.py) ──
 N_PARTICLES = 600
-# delta=0.15 is the CORTEX internal-test stop target, PI-confirmed
-# 2026-05-22. The Paper-1 methodology delta=0.05 is unreachable in the
-# 100-segment IIIC bank (audit: 0/13 raters) — see results/audit/.
+# v1.1.0: live-test hard cap. Independent of bank size so a future
+# bank expansion (500/1000 segs) doesn't implicitly lengthen the test.
+# CortexSession honours min(MAX_QUESTIONS_DEFAULT, bank_size) — the
+# bank-size floor preserves audit/OC scripts that pass max_questions=None
+# (==bank_size). Only the live test path (eeg_bank_viewer.main) passes
+# this constant explicitly.
+MAX_QUESTIONS_DEFAULT = 300
+# delta=0.15 is the legacy DeltaStop target (Mode-A / methodology path).
+# AD6Policy (production) does not use delta. See docs/AD6_RESOLUTION.md.
 DELTA_AUROC = 0.15
 N_MH_STEPS = 15
 ESS_THRESHOLD_FRAC = 0.5

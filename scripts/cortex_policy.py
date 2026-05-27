@@ -17,8 +17,9 @@ Three policies ship:
                           REFER_BORDERLINE  (gate open, π_k stayed in band)
                           REFER_UNINFORMATIVE  (gate never opened — the
                                              one-vs-rest degeneracy case)
-                       Session stops when all 6 tasks are RESOLVED, or the
-                       100-segment bank is exhausted.
+                       Session stops when all 6 tasks are RESOLVED, the
+                       MAX_QUESTIONS_DEFAULT (300, v1.1.0) cap is hit, or
+                       the bank is exhausted.
                        This is the unanimous output of a four-expert
                        independent derivation panel — see
                        docs/AD6_RESOLUTION.md.
@@ -63,16 +64,20 @@ REFER_UNINFORMATIVE = "REFER_UNINFORMATIVE"
 # Default rule parameters — middle-of-range from the four-expert panel
 # (each one is independently OC-calibratable in the harness; see
 # scripts/run_oc_validation.py).
-DEFAULT_N_MIN = 6         # INTERNAL-TEST OVERRIDE — production default is 15.
-                          # See docs/AD6_RESOLUTION.md "Internal-test override"
-                          # before pushing to production.
+#
+# v1.1.0 calibration-trial settings (2026-05-27, against the 300-IIIC
+# bank). N_min is now at the panel-derived production value of 15 —
+# reachable in expectation at 300/6 ≈ 50 q/task. ALPHA is the midpoint
+# between the v1.0 internal-test override (0.30) and the panel-derived
+# production target (0.05) — gives a calibration run before committing
+# to 0.05 in v1.2.0. See docs/AD6_RESOLUTION.md "v1.1.0 strictness
+# upgrade" for the rationale and OC implications.
+DEFAULT_N_MIN = 15        # v1.1.0: was 6 (internal-test override) under
+                          # the 100-segment bank; production panel target.
 DEFAULT_R_STAR = 0.30     # info-gate: SD(ℓ_k) must contract ≥ ~16% from prior
-DEFAULT_ALPHA = 0.30      # INTERNAL-TEST OVERRIDE — production default is 0.05.
-                          # Widens PASS/FAIL bands so borderline tasks resolve
-                          # within the 100-segment bank, exercising the
-                          # all_resolved early-exit path. See
-                          # docs/AD6_RESOLUTION.md "Internal-test override"
-                          # before pushing to production.
+DEFAULT_ALPHA = 0.10      # v1.1.0: was 0.30 (internal-test override).
+                          # Production panel target is 0.05; 0.10 is a
+                          # calibration midpoint before committing to it.
 DEFAULT_Z = 2.0           # MC-error buffer (engine's existing Z_BUFFER)
 
 
