@@ -115,6 +115,7 @@ hiddenimports = [
     'pyqtgraph.widgets.PlotWidget',
     'pyqtgraph.colormap',
     # cortex modules under repo's scripts/
+    'cortex_diagnostics',
     'cortex_engine_inputs',
     'cortex_policy',
     'cortex_render_videos',
@@ -210,7 +211,7 @@ if sys.platform == 'darwin':
         name='CORTEX.app',
         bundle_identifier='org.bdsp-core.cortex',
         info_plist={
-            'CFBundleShortVersionString': '1.0.8',
+            'CFBundleShortVersionString': '1.0.9',
             'CFBundleName': 'CORTEX',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '12.0',

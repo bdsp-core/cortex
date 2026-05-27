@@ -104,6 +104,10 @@ cortex_config.yaml
 # Per-session test-taker results — PHI (names, emails, responses).
 results/sessions/
 results/registrations.csv
+# Local copies of crash-dump diagnostic JSONs (also uploaded to Dropbox
+# /debugging-incidents/). Dev runs leave them under results/diagnostics/;
+# frozen bundles use user_data_root()/diagnostics/ — both are local-only.
+results/diagnostics/
 # Ad-hoc / manually-copied session artifacts also carry PHI — never commit.
 first-test-csv-results/
 

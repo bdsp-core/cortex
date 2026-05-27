@@ -1810,6 +1810,13 @@ def main():
     # ~/Library/Application Support/CORTEX/cortex.log.
     from cortex_storage import setup_logging  # local to keep PYZ tracing clean
     setup_logging()
+    # Install the diagnostic excepthook BEFORE constructing QApplication so
+    # any failure during Qt setup, engine-input load, or session start
+    # ships a JSON diagnostic to Dropbox (same auth path as result CSVs).
+    # Dev runs skip the upload unless CORTEX_DIAG_UPLOAD=1; frozen bundles
+    # always upload. The original traceback is preserved either way.
+    from cortex_diagnostics import install_excepthook
+    install_excepthook()
     # Stop Qt's macOS Cmd/Ctrl swap so the physical Control key actually
     # produces Qt.Key.Key_Control (matching morgoth's behavior on
     # Linux/Windows). Must be set before QApplication is constructed.
