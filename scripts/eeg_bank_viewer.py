@@ -1533,12 +1533,95 @@ class ConsentPage(QWidget):
         return page
 
 
-class RegistrationPage(QWidget):
-    """Participant registration form. `commit()` validates the entry and
-    appends it to results/registrations.csv; `continue_btn` advances."""
+# --- Registration constants (module-level: imported by tests / smoke) ----
 
-    _EXPERTISE = ["— select —", "Medical student", "Resident", "Nurse",
-                  "Fellow", "Neurologist", "Epileptologist", "Other"]
+# CONSENT_VERSION is stamped on every registration row so cohort splits
+# remain reproducible across IRB-language revisions. Bump on consent change.
+CONSENT_VERSION = "v1.1.1-placeholder"
+# IRB_PROTOCOL_ID is intentionally blank until the public-release IRB
+# amendment lands. data/SENSITIVE.md lists the internal-use IRBs.
+IRB_PROTOCOL_ID = ""
+
+# Required fields gate Continue on each wizard page. _EXPERTISE order is
+# stable — cortex_smoke.py:open_registration relies on index 4 == Fellow.
+_EXPERTISE = ["— select —", "Medical student", "Resident", "Nurse",
+              "Fellow", "Neurologist", "Epileptologist", "Other"]
+_SEX = ["— select —", "Male", "Female", "Prefer not to say"]
+_GENDER = ["Prefer not to say", "Man", "Woman", "Non-binary",
+           "Prefer to self-describe"]
+_YEARS_EEG = ["— select —", "0–4", "5–9", "10–14", "15–19", "20–24",
+              "25–29", "30+"]
+_EEG_VOLUME = ["— select —", "Fewer than 5", "5–20", "21–50", "51–100",
+               "More than 100"]
+_PRACTICE = ["— select —", "Academic medical center", "Community hospital",
+             "Tele-EEG service", "Private practice",
+             "Training only / not yet in practice", "Other"]
+_COLOR_VISION = ["Prefer not to say", "Normal color vision",
+                 "Red–green deficiency", "Blue–yellow deficiency", "Unsure"]
+_CONFIDENCE = ["Prefer not to say",
+               "1 — Very low", "2", "3", "4 — Moderate", "5", "6",
+               "7 — Very high"]
+_PRIOR_TEST = ["Prefer not to say", "No", "Yes", "Unsure"]
+# Short curated country list — broad geographic coverage for v1.1.1.
+# Expand to full ISO 3166 once the dataset volume warrants it.
+_COUNTRY = ["Prefer not to say", "United States", "Canada", "Mexico",
+            "Brazil", "United Kingdom", "Ireland", "Germany", "France",
+            "Italy", "Spain", "Netherlands", "Sweden", "Switzerland",
+            "Israel", "Saudi Arabia", "United Arab Emirates", "South Africa",
+            "India", "China", "Japan", "South Korea", "Singapore",
+            "Australia", "New Zealand", "Other"]
+# NIH categories with MENA pilot category (Federal Register 2024 OMB SPD 15).
+_RACE = ["Prefer not to say", "American Indian or Alaska Native", "Asian",
+         "Black or African American", "Hispanic or Latino/a/x",
+         "Middle Eastern or North African",
+         "Native Hawaiian or Pacific Islander", "White", "More than one",
+         "Other"]
+
+# CSV schema for registrations.csv (v2). Used by tests and by the
+# schema-migration step in _save_row.
+REGISTRATION_FIELDS_V2 = [
+    "session_id", "timestamp_utc", "consent_version", "irb_protocol_id",
+    "eligibility_confirmed",
+    # Identity
+    "name", "age", "email",
+    # Clinical background
+    "institution", "expertise", "practice_setting",
+    "years_reading_eeg", "eeg_volume_per_month",
+    "self_rated_confidence", "color_vision", "prior_test_taken",
+    # Demographics
+    "sex", "gender_identity", "country", "race_ethnicity",
+]
+
+
+def _is_dropdown_set(combo: QComboBox) -> bool:
+    """A QComboBox whose first item is the '— select —' sentinel counts as
+    'set' only if the user picked a later entry."""
+    if combo.count() == 0:
+        return False
+    first = combo.itemText(0)
+    if first.startswith("—"):
+        return combo.currentIndex() > 0
+    return True
+
+
+class RegistrationPage(QWidget):
+    """Three-page participant-registration wizard. `commit()` validates
+    the entry and appends it to results/registrations.csv;
+    `continue_btn` (the page-3 advance button) hands control to the
+    viewer once `commit()` returns True.
+
+    Class-level API kept stable for the outer flow in
+    eeg_bank_viewer.run() and for cortex_smoke / tests:
+      - .continue_btn  : the final 'CONTINUE' button (page 3)
+      - .commit()      : validates pages 1–3 and writes the CSV row
+      - .registration  : the saved dict (read by SessionRecorder)
+      - .session_id    : UUID4 generated at commit
+      - .f_name, .f_email, .f_age, .f_inst, .f_expertise : preserved
+        widget handles used by cortex_smoke.py / tests
+    """
+
+    _EXPERTISE = _EXPERTISE  # back-compat: tests / smoke refer to this
+
     _FIELD_CSS = (
         "QLineEdit { background-color: #15171c; color: #dde0e6;"
         " border: 1px solid #3a3d45; border-radius: 0px; padding: 4px 8px; }"
@@ -1551,20 +1634,96 @@ class RegistrationPage(QWidget):
         " QComboBox QAbstractItemView { background-color: #15171c;"
         " color: #dde0e6; selection-background-color: #2c2f36; }"
     )
+    _CHECK_CSS = (
+        "QCheckBox { color: #dde0e6; background: transparent; }"
+        " QCheckBox::indicator { width: 18px; height: 18px;"
+        " border: 1px solid #5a5f6b; background: #15171c; }"
+        " QCheckBox::indicator:checked { background: #4a7bd6;"
+        " border-color: #4a7bd6; }"
+    )
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("CORTEX")
-        self.resize(980, 660)
+        self.resize(980, 720)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
             f"RegistrationPage {{ background-color: {_PAGE_BG}; }}")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.addStretch(2)
+        # Build per-page widgets first so their handles are available
+        # to validation + commit regardless of which page is showing.
+        self._build_widgets()
 
-        heading = QLabel("Participant Information")
+        # Stacked container: page 1 → page 2 → page 3.
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._build_page1_identity())
+        self._stack.addWidget(self._build_page2_clinical())
+        self._stack.addWidget(self._build_page3_demographics())
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._stack)
+
+        # Wire navigation. Continue/Back live on each page; commit fires
+        # only on the page-3 advance.
+        self._next1_btn.clicked.connect(self._advance_from_page1)
+        self._next2_btn.clicked.connect(self._advance_from_page2)
+        self._back2_btn.clicked.connect(
+            lambda: self._stack.setCurrentIndex(0))
+        self._back3_btn.clicked.connect(
+            lambda: self._stack.setCurrentIndex(1))
+
+    # ---- widget construction ------------------------------------------
+
+    def _build_widgets(self):
+        # Page 1 — eligibility + identity (required: gate + name + email).
+        self.f_eligibility = QCheckBox(
+            "I am a healthcare professional or student in a "
+            "clinical/research role.")
+        self.f_eligibility.setStyleSheet(self._CHECK_CSS)
+        self.f_name = QLineEdit()
+        self.f_email = QLineEdit()
+        self.f_age = QLineEdit()
+        for w in (self.f_name, self.f_email, self.f_age):
+            w.setFixedHeight(34)
+            w.setStyleSheet(self._FIELD_CSS)
+
+        # Page 2 — clinical background (most fields required).
+        self.f_inst = QLineEdit()
+        self.f_inst.setFixedHeight(34)
+        self.f_inst.setStyleSheet(self._FIELD_CSS)
+        self.f_expertise = self._make_combo(_EXPERTISE)
+        self.f_practice = self._make_combo(_PRACTICE)
+        self.f_years_eeg = self._make_combo(_YEARS_EEG)
+        self.f_eeg_volume = self._make_combo(_EEG_VOLUME)
+        self.f_confidence = self._make_combo(_CONFIDENCE)
+        self.f_color_vision = self._make_combo(_COLOR_VISION)
+        self.f_prior_test = self._make_combo(_PRIOR_TEST)
+
+        # Page 3 — demographics (all optional with 'Prefer not to say').
+        self.f_sex = self._make_combo(_SEX)
+        self.f_gender = self._make_combo(_GENDER)
+        self.f_country = self._make_combo(_COUNTRY)
+        self.f_race = self._make_combo(_RACE)
+
+    def _make_combo(self, items):
+        c = QComboBox()
+        c.addItems(items)
+        c.setFixedHeight(34)
+        c.setStyleSheet(self._COMBO_CSS)
+        return c
+
+    # ---- page layouts -------------------------------------------------
+
+    def _page_chrome(self, title, step_text):
+        """Returns (page_widget, root_layout, msg_label).
+        Builds the heading + step indicator common to all three pages."""
+        page = QWidget()
+        root = QVBoxLayout(page)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addStretch(1)
+
+        heading = QLabel(title)
         heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hf = QFont()
         hf.setPointSize(26)
@@ -1574,14 +1733,27 @@ class RegistrationPage(QWidget):
         heading.setStyleSheet("color: #eef1f5; background: transparent;")
         root.addWidget(heading)
 
-        self.f_name = QLineEdit()
-        self.f_age = QLineEdit()
-        self.f_gender = QLineEdit()
-        self.f_inst = QLineEdit()
-        self.f_email = QLineEdit()
-        self.f_creds = QLineEdit()
-        self.f_expertise = QComboBox()
-        self.f_expertise.addItems(self._EXPERTISE)
+        step = QLabel(step_text)
+        step.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sf = QFont()
+        sf.setPointSize(10)
+        step.setFont(sf)
+        step.setStyleSheet("color: #767b87; background: transparent;")
+        root.addSpacing(6)
+        root.addWidget(step)
+
+        msg = QLabel("")
+        msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mf = QFont()
+        mf.setPointSize(11)
+        msg.setFont(mf)
+        msg.setStyleSheet("color: #d8806a; background: transparent;")
+        return page, root, msg
+
+    def _build_page1_identity(self):
+        page, root, msg = self._page_chrome(
+            "Participant Information", "Step 1 of 3 · Eligibility & identity")
+        self._msg1 = msg
 
         form_box = QWidget()
         form_box.setFixedWidth(470)
@@ -1590,37 +1762,137 @@ class RegistrationPage(QWidget):
         form.setContentsMargins(0, 0, 0, 0)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         for label_text, field in (
-            ("Name", self.f_name), ("Age", self.f_age),
-            ("Gender", self.f_gender),
-            ("Institutional affiliation", self.f_inst),
-            ("Email", self.f_email), ("Expertise", self.f_expertise),
-            ("Credentials", self.f_creds),
+            ("Name", self.f_name),
+            ("Email", self.f_email),
+            ("Age (optional)", self.f_age),
         ):
-            field.setFixedHeight(34)
-            field.setStyleSheet(
-                self._COMBO_CSS if isinstance(field, QComboBox)
-                else self._FIELD_CSS)
             form.addRow(self._flabel(label_text), field)
+
         root.addSpacing(26)
         root.addLayout(_hcenter(form_box))
-
-        self.msg = QLabel("")
-        self.msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mf = QFont()
-        mf.setPointSize(11)
-        self.msg.setFont(mf)
-        self.msg.setStyleSheet("color: #d8806a; background: transparent;")
+        root.addSpacing(20)
+        elig_row = QHBoxLayout()
+        elig_row.addStretch(1)
+        elig_row.addWidget(self.f_eligibility)
+        elig_row.addStretch(1)
+        root.addLayout(elig_row)
         root.addSpacing(10)
-        root.addWidget(self.msg)
-
+        root.addWidget(msg)
         root.addSpacing(16)
+
+        self._next1_btn = QPushButton("NEXT")
+        for b in (self._next1_btn,):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFixedSize(220, 50)
+            b.setFont(_btn_font())
+            b.setStyleSheet(_BTN_CSS)
+        root.addLayout(_hcenter(self._next1_btn))
+        root.addStretch(2)
+        return page
+
+    def _build_page2_clinical(self):
+        page, root, msg = self._page_chrome(
+            "Participant Information", "Step 2 of 3 · Clinical background")
+        self._msg2 = msg
+
+        form_box = QWidget()
+        form_box.setFixedWidth(520)
+        form = QFormLayout(form_box)
+        form.setSpacing(11)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        for label_text, field in (
+            ("Institutional affiliation (optional)", self.f_inst),
+            ("Expertise", self.f_expertise),
+            ("Practice setting", self.f_practice),
+            ("Years reading EEG", self.f_years_eeg),
+            ("EEGs read per month", self.f_eeg_volume),
+            ("Self-rated EEG-reading confidence (optional)",
+             self.f_confidence),
+            ("Color vision (optional)", self.f_color_vision),
+            ("Have you taken this test before? (optional)",
+             self.f_prior_test),
+        ):
+            form.addRow(self._flabel(label_text), field)
+
+        root.addSpacing(20)
+        root.addLayout(_hcenter(form_box))
+        root.addSpacing(10)
+        root.addWidget(msg)
+        root.addSpacing(14)
+
+        self._back2_btn = QPushButton("BACK")
+        self._next2_btn = QPushButton("NEXT")
+        nav = QHBoxLayout()
+        nav.addStretch(1)
+        for b in (self._back2_btn, self._next2_btn):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFixedSize(180, 50)
+            b.setFont(_btn_font())
+            b.setStyleSheet(_BTN_CSS)
+        nav.addWidget(self._back2_btn)
+        nav.addSpacing(18)
+        nav.addWidget(self._next2_btn)
+        nav.addStretch(1)
+        root.addLayout(nav)
+        root.addStretch(1)
+        return page
+
+    def _build_page3_demographics(self):
+        page, root, msg = self._page_chrome(
+            "Participant Information", "Step 3 of 3 · Demographics (optional)")
+        self._msg3 = msg
+        # _msg is the public-facing message label that pre-wizard tests
+        # used; alias it to the page-3 message so commit() errors show up.
+        self.msg = msg
+
+        sub = QLabel(
+            "These fields support equity and generalizability analyses. "
+            "Every option includes 'Prefer not to say'.")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setWordWrap(True)
+        sub.setFixedWidth(580)
+        subf = QFont(); subf.setPointSize(10)
+        sub.setFont(subf)
+        sub.setStyleSheet("color: #9aa0ab; background: transparent;")
+        root.addSpacing(12)
+        root.addLayout(_hcenter(sub))
+
+        form_box = QWidget()
+        form_box.setFixedWidth(470)
+        form = QFormLayout(form_box)
+        form.setSpacing(13)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        for label_text, field in (
+            ("Sex", self.f_sex),
+            ("Gender identity", self.f_gender),
+            ("Country of practice", self.f_country),
+            ("Race / ethnicity", self.f_race),
+        ):
+            form.addRow(self._flabel(label_text), field)
+        root.addSpacing(22)
+        root.addLayout(_hcenter(form_box))
+        root.addSpacing(10)
+        root.addWidget(msg)
+        root.addSpacing(14)
+
+        self._back3_btn = QPushButton("BACK")
         self.continue_btn = QPushButton("CONTINUE")
-        self.continue_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.continue_btn.setFixedSize(220, 50)
-        self.continue_btn.setFont(_btn_font())
-        self.continue_btn.setStyleSheet(_BTN_CSS)
-        root.addLayout(_hcenter(self.continue_btn))
-        root.addStretch(3)
+        nav = QHBoxLayout()
+        nav.addStretch(1)
+        for b in (self._back3_btn, self.continue_btn):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFixedSize(180, 50)
+            b.setFont(_btn_font())
+            b.setStyleSheet(_BTN_CSS)
+        nav.addWidget(self._back3_btn)
+        nav.addSpacing(18)
+        nav.addWidget(self.continue_btn)
+        nav.addStretch(1)
+        root.addLayout(nav)
+        root.addStretch(1)
+        return page
 
     @staticmethod
     def _flabel(text):
@@ -1631,34 +1903,113 @@ class RegistrationPage(QWidget):
         lbl.setStyleSheet("color: #9aa0ab; background: transparent;")
         return lbl
 
+    # ---- page-by-page validation --------------------------------------
+
+    def _validate_page1(self):
+        if not self.f_name.text().strip():
+            return "Please enter your name."
+        if not self.f_email.text().strip():
+            return "Please enter your email."
+        if "@" not in self.f_email.text() or "." not in self.f_email.text():
+            return "Please enter a valid email address."
+        if not self.f_eligibility.isChecked():
+            return ("Please confirm you are a healthcare professional "
+                    "or student.")
+        return None
+
+    def _validate_page2(self):
+        if not _is_dropdown_set(self.f_expertise):
+            return "Please select your expertise."
+        if not _is_dropdown_set(self.f_practice):
+            return "Please select your practice setting."
+        if not _is_dropdown_set(self.f_years_eeg):
+            return "Please select your years reading EEG."
+        if not _is_dropdown_set(self.f_eeg_volume):
+            return "Please select how many EEGs you read per month."
+        return None
+
+    def _validate_page3(self):
+        # Page 3 fields are all optional (every dropdown defaults to a
+        # "Prefer not to say" / first-item answer). Nothing to gate on.
+        return None
+
+    def _advance_from_page1(self):
+        err = self._validate_page1()
+        if err:
+            self._msg1.setText(err)
+            return
+        self._msg1.setText("")
+        self._stack.setCurrentIndex(1)
+
+    def _advance_from_page2(self):
+        err = self._validate_page2()
+        if err:
+            self._msg2.setText(err)
+            return
+        self._msg2.setText("")
+        self._stack.setCurrentIndex(2)
+
+    # ---- commit (page-3 advance) --------------------------------------
+
     def commit(self):
-        """Validate + save the registration. Returns True on success."""
-        name = self.f_name.text().strip()
-        email = self.f_email.text().strip()
-        if not name or not email:
-            self.msg.setText("Please enter at least your name and email.")
-            return False
+        """Re-validate all pages, build the schema-v2 row, persist it.
+        Returns True on success; on failure, surfaces the error on the
+        relevant page's message label."""
+        # Re-validate in case the user bypassed the wizard (e.g., tests
+        # that call commit() directly without clicking through).
+        for idx, (label, validator) in enumerate((
+            (self._msg1, self._validate_page1),
+            (self._msg2, self._validate_page2),
+            (self._msg3, self._validate_page3),
+        )):
+            err = validator()
+            if err:
+                self._stack.setCurrentIndex(idx)
+                label.setText(err)
+                return False
+
         self.session_id = str(uuid.uuid4())
-        row = {
-            "session_id": self.session_id,
-            "timestamp_utc": datetime.datetime.now(
-                datetime.timezone.utc).isoformat(timespec="seconds"),
-            "name": name,
-            "age": self.f_age.text().strip(),
-            "gender": self.f_gender.text().strip(),
-            "institution": self.f_inst.text().strip(),
-            "email": email,
-            "expertise": (self.f_expertise.currentText()
-                          if self.f_expertise.currentIndex() > 0 else ""),
-            "credentials": self.f_creds.text().strip(),
-        }
+        row = self._build_row()
         self.registration = row          # handed to the SessionRecorder
         try:
             self._save_row(row)
         except Exception as e:
-            self.msg.setText(f"Could not save registration: {e}")
+            self._msg3.setText(f"Could not save registration: {e}")
             return False
         return True
+
+    def _build_row(self):
+        def _combo_val(combo):
+            # Treat the "— select —" sentinel as empty.
+            if combo.count() and combo.itemText(0).startswith("—") \
+                    and combo.currentIndex() == 0:
+                return ""
+            return combo.currentText()
+
+        return {
+            "session_id": self.session_id,
+            "timestamp_utc": datetime.datetime.now(
+                datetime.timezone.utc).isoformat(timespec="seconds"),
+            "consent_version": CONSENT_VERSION,
+            "irb_protocol_id": IRB_PROTOCOL_ID,
+            "eligibility_confirmed": "yes"
+                if self.f_eligibility.isChecked() else "no",
+            "name": self.f_name.text().strip(),
+            "age": self.f_age.text().strip(),
+            "email": self.f_email.text().strip(),
+            "institution": self.f_inst.text().strip(),
+            "expertise": _combo_val(self.f_expertise),
+            "practice_setting": _combo_val(self.f_practice),
+            "years_reading_eeg": _combo_val(self.f_years_eeg),
+            "eeg_volume_per_month": _combo_val(self.f_eeg_volume),
+            "self_rated_confidence": _combo_val(self.f_confidence),
+            "color_vision": _combo_val(self.f_color_vision),
+            "prior_test_taken": _combo_val(self.f_prior_test),
+            "sex": _combo_val(self.f_sex),
+            "gender_identity": _combo_val(self.f_gender),
+            "country": _combo_val(self.f_country),
+            "race_ethnicity": _combo_val(self.f_race),
+        }
 
     @staticmethod
     def _save_row(row):
@@ -1668,9 +2019,27 @@ class RegistrationPage(QWidget):
         from cortex_storage import user_data_root  # local to avoid import cycle
         path = user_data_root() / "registrations.csv"
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Schema migration: if the existing file's header doesn't match
+        # REGISTRATION_FIELDS_V2, rotate to a .v1.bak so we don't append
+        # mismatched rows (DictWriter doesn't validate against an
+        # existing header — silent column drift is the failure mode).
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8", newline="") as rh:
+                    existing_header = next(csv.reader(rh), [])
+            except StopIteration:
+                existing_header = []
+            if existing_header != REGISTRATION_FIELDS_V2:
+                bak = path.with_suffix(".v1.csv.bak")
+                # Don't overwrite an earlier rotation.
+                i = 1
+                while bak.exists():
+                    bak = path.with_suffix(f".v1.csv.bak{i}")
+                    i += 1
+                path.rename(bak)
         is_new = not path.exists()
         with open(path, "a", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=list(row.keys()))
+            w = csv.DictWriter(fh, fieldnames=REGISTRATION_FIELDS_V2)
             if is_new:
                 w.writeheader()
             w.writerow(row)

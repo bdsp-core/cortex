@@ -155,17 +155,180 @@ def test_session_complete_sets_result(viewer):
     assert not win._awaiting_answer
 
 
+def _fill_required(reg):
+    """Set the minimum fields required to pass the v1.1.1 wizard
+    validation. Page 3 (demographics) is fully optional."""
+    reg.f_name.setText("Test User")
+    reg.f_email.setText("test@example.com")
+    reg.f_eligibility.setChecked(True)
+    reg.f_expertise.setCurrentIndex(4)      # "Fellow"
+    reg.f_practice.setCurrentIndex(1)       # "Academic medical center"
+    reg.f_years_eeg.setCurrentIndex(1)      # "0–4"
+    reg.f_eeg_volume.setCurrentIndex(2)     # "5–20"
+
+
 def test_registration_generates_session_id(qapp, monkeypatch):
     captured = {}
     monkeypatch.setattr(ev.RegistrationPage, "_save_row",
                         staticmethod(lambda row: captured.update(row)))
     reg = ev.RegistrationPage()
     try:
-        reg.f_name.setText("Test User")
-        reg.f_email.setText("test@example.com")
+        _fill_required(reg)
         assert reg.commit() is True
         assert isinstance(reg.session_id, str) and len(reg.session_id) >= 32
         assert captured["session_id"] == reg.session_id
+        # schema-v2 columns must all be present in the persisted row
+        for col in ev.REGISTRATION_FIELDS_V2:
+            assert col in captured, f"missing {col} in registration row"
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+
+def test_registration_blocks_without_eligibility(qapp, monkeypatch):
+    """The eligibility checkbox is a hard gate on page 1 — commit must
+    fail (and surface a page-1 error) until the user opts in."""
+    monkeypatch.setattr(ev.RegistrationPage, "_save_row",
+                        staticmethod(lambda row: None))
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        reg.f_eligibility.setChecked(False)
+        assert reg.commit() is False
+        # commit should snap the wizard back to page 1 with an error
+        assert reg._stack.currentIndex() == 0
+        assert "healthcare professional" in reg._msg1.text().lower()
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+
+def test_registration_requires_sex_dropdowns(qapp, monkeypatch):
+    """Page-2 required dropdowns (sex, years EEG, EEG volume, practice
+    setting, expertise) must be set or commit fails."""
+    monkeypatch.setattr(ev.RegistrationPage, "_save_row",
+                        staticmethod(lambda row: None))
+    for missing_field in ("f_expertise", "f_practice",
+                          "f_years_eeg", "f_eeg_volume"):
+        reg = ev.RegistrationPage()
+        try:
+            _fill_required(reg)
+            getattr(reg, missing_field).setCurrentIndex(0)
+            assert reg.commit() is False, \
+                f"commit should fail when {missing_field} is unset"
+            assert reg._stack.currentIndex() == 1
+        finally:
+            reg.deleteLater()
+            qapp.processEvents()
+
+
+def test_registration_csv_schema_v2(qapp, tmp_path, monkeypatch):
+    """The persisted CSV header must equal REGISTRATION_FIELDS_V2 exactly
+    (downstream analysis joins on these column names)."""
+    import cortex_storage as cs
+    monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
+
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        # Pick non-default page-3 answers so we exercise the optional cols.
+        reg.f_sex.setCurrentIndex(1)            # "Male"
+        reg.f_gender.setCurrentIndex(1)         # "Man"
+        reg.f_country.setCurrentIndex(1)        # "United States"
+        reg.f_race.setCurrentIndex(7)           # "White"
+        assert reg.commit() is True
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+    import csv as _csv
+    with open(tmp_path / "registrations.csv", encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(fh))
+        fh.seek(0)
+        header = next(_csv.reader(fh))
+    assert header == ev.REGISTRATION_FIELDS_V2
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["name"] == "Test User"
+    assert r["sex"] == "Male"
+    assert r["race_ethnicity"] == "White"
+    assert r["consent_version"] == ev.CONSENT_VERSION
+    assert r["eligibility_confirmed"] == "yes"
+
+
+def test_registration_schema_migration_rotates_old_csv(
+        qapp, tmp_path, monkeypatch):
+    """If an existing registrations.csv has a non-v2 header, _save_row
+    must rotate it to .v1.csv.bak rather than appending mismatched rows.
+    This prevents silent column drift when a user upgrades from a
+    pre-v1.1.1 build."""
+    import cortex_storage as cs
+    monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
+
+    # Seed a pre-v1.1.1 CSV with the legacy schema.
+    legacy_path = tmp_path / "registrations.csv"
+    legacy_header = ["session_id", "timestamp_utc", "name", "age",
+                     "gender", "institution", "email", "expertise",
+                     "credentials"]
+    with open(legacy_path, "w", encoding="utf-8", newline="") as fh:
+        import csv as _csv
+        w = _csv.writer(fh)
+        w.writerow(legacy_header)
+        w.writerow(["old-sid", "2020-01-01T00:00:00+00:00",
+                    "Old User", "30", "M", "Old Inst",
+                    "old@example.com", "Fellow", "ABPN"])
+
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        assert reg.commit() is True
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+    # New file at the canonical path has the v2 header + one new row.
+    import csv as _csv
+    with open(legacy_path, encoding="utf-8") as fh:
+        header = next(_csv.reader(fh))
+        rows = list(_csv.DictReader(open(legacy_path, encoding="utf-8")))
+    assert header == ev.REGISTRATION_FIELDS_V2
+    assert len(rows) == 1
+    assert rows[0]["name"] == "Test User"
+    # Legacy file rotated, not overwritten.
+    bak = tmp_path / "registrations.v1.csv.bak"
+    assert bak.exists()
+    with open(bak, encoding="utf-8") as fh:
+        old_header = next(_csv.reader(fh))
+    assert old_header == legacy_header
+
+
+def test_registration_wizard_advances_through_pages(qapp, monkeypatch):
+    """Clicking NEXT on page 1 advances to page 2; NEXT on page 2
+    advances to page 3 — but only if validators pass."""
+    monkeypatch.setattr(ev.RegistrationPage, "_save_row",
+                        staticmethod(lambda row: None))
+    reg = ev.RegistrationPage()
+    try:
+        assert reg._stack.currentIndex() == 0
+        # Page 1 unfilled — NEXT should keep us on page 1
+        reg._advance_from_page1()
+        assert reg._stack.currentIndex() == 0
+        # Fill page 1 fields + eligibility, NEXT should advance
+        reg.f_name.setText("Test User")
+        reg.f_email.setText("test@example.com")
+        reg.f_eligibility.setChecked(True)
+        reg._advance_from_page1()
+        assert reg._stack.currentIndex() == 1
+        # Page 2 unfilled — NEXT should keep us on page 2
+        reg._advance_from_page2()
+        assert reg._stack.currentIndex() == 1
+        # Fill page 2 dropdowns, NEXT should advance to page 3
+        reg.f_expertise.setCurrentIndex(4)
+        reg.f_practice.setCurrentIndex(1)
+        reg.f_years_eeg.setCurrentIndex(1)
+        reg.f_eeg_volume.setCurrentIndex(2)
+        reg._advance_from_page2()
+        assert reg._stack.currentIndex() == 2
     finally:
         reg.deleteLater()
         qapp.processEvents()

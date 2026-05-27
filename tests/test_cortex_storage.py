@@ -147,6 +147,56 @@ def test_synced_csvs_on_clean_completion(tmp_path):
     assert "auroc_sz" in srow
 
 
+def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):
+    """v1.1.1 expanded the summary row with demographic + clinical-
+    background columns from the RegistrationPage so the uploaded data
+    is mineable. Verify they're present and populated when supplied."""
+    rich_participant = dict(PARTICIPANT)
+    rich_participant.update({
+        "practice_setting": "Academic medical center",
+        "years_reading_eeg": "10–14", "eeg_volume_per_month": "21–50",
+        "self_rated_confidence": "5", "color_vision": "Normal color vision",
+        "prior_test_taken": "No", "sex": "Female",
+        "gender_identity": "Woman", "country": "United States",
+        "race_ethnicity": "White", "consent_version": "v1.1.1-placeholder",
+        "irb_protocol_id": "",
+    })
+    rec = cs.SessionRecorder(
+        "sess-test", rich_participant,
+        {"delta_auroc": 0.15, "n_particles": 600},
+        sessions_root=tmp_path / "sessions",
+        synced_dir=tmp_path / "synced",
+        dropbox_cfg=None, render_videos=False)
+    rec.write_trial(_telemetry(0), _gui(0))
+    rec.finalize(_result(aborted=False, n=1))
+    rec.close()
+    summary = list((tmp_path / "synced").glob("*_summary.csv"))
+    srow = list(csv.DictReader(open(summary[0])))[0]
+    for col, want in (
+        ("practice_setting", "Academic medical center"),
+        ("years_reading_eeg", "10–14"),
+        ("eeg_volume_per_month", "21–50"),
+        ("sex", "Female"), ("gender_identity", "Woman"),
+        ("country", "United States"), ("race_ethnicity", "White"),
+        ("consent_version", "v1.1.1-placeholder"),
+    ):
+        assert srow[col] == want, f"{col}: got {srow[col]!r}, want {want!r}"
+
+
+def test_summary_csv_back_compat_missing_demographics(tmp_path):
+    """When the participant dict lacks the v1.1.1 fields (pre-upgrade
+    callers), the summary row must still write — empty strings, not
+    KeyError or crash."""
+    rec = _recorder(tmp_path, synced=True)            # legacy PARTICIPANT
+    rec.write_trial(_telemetry(0), _gui(0))
+    rec.finalize(_result(aborted=False, n=1))
+    rec.close()
+    summary = list((tmp_path / "synced").glob("*_summary.csv"))
+    srow = list(csv.DictReader(open(summary[0])))[0]
+    assert srow["sex"] == "" and srow["country"] == ""
+    assert srow["consent_version"] == ""
+
+
 def test_aborted_session_no_synced_csv(tmp_path):
     rec = _recorder(tmp_path, synced=True)
     rec.write_trial(_telemetry(0), _gui(0))

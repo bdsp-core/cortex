@@ -96,9 +96,15 @@ def main():
 
     def open_registration():
         reg = ev.RegistrationPage()
+        # Page 1 — identity + eligibility (all required to advance).
         reg.f_name.setText("Smoke Tester")
         reg.f_email.setText("smoke@example.com")
-        reg.f_expertise.setCurrentIndex(4)        # "Fellow"
+        reg.f_eligibility.setChecked(True)
+        # Page 2 — clinical background (4 dropdowns required to advance).
+        reg.f_expertise.setCurrentIndex(4)            # "Fellow"
+        reg.f_practice.setCurrentIndex(1)             # Academic medical center
+        reg.f_years_eeg.setCurrentIndex(1)            # "0–4"
+        reg.f_eeg_volume.setCurrentIndex(2)           # "5–20"
 
         def go():
             if reg.commit():

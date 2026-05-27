@@ -474,11 +474,17 @@ class SessionRecorder:
         n_correct = sum(1 for t in self._trials if t.get("is_correct"))
         rts = [t["reaction_time_ms"] for t in self._trials
                if t.get("reaction_time_ms") is not None]
+        # Surface demographic + clinical-background fields from the
+        # RegistrationPage row into the uploaded summary so the data is
+        # mineable globally (registrations.csv stays local-only).
+        # Missing keys default to "" — back-compatible with pre-v1.1.1
+        # participant dicts that don't carry the new fields.
+        p = self.participant
         row = {
             "session_id": self.session_id,
             "participant_name": name,
-            "expertise": self.participant.get("expertise", ""),
-            "institution": self.participant.get("institution", ""),
+            "expertise": p.get("expertise", ""),
+            "institution": p.get("institution", ""),
             "started_utc": self._started_utc,
             "finished_utc": finished_utc,
             "n_questions": n,
@@ -486,6 +492,19 @@ class SessionRecorder:
             "accuracy": round(n_correct / n, 4) if n else None,
             "mean_rt_ms": round(float(np.mean(rts)), 1) if rts else None,
             "delta_auroc": getattr(result, "delta_auroc", None),
+            # v1.1.1 mineable demographic fields
+            "practice_setting": p.get("practice_setting", ""),
+            "years_reading_eeg": p.get("years_reading_eeg", ""),
+            "eeg_volume_per_month": p.get("eeg_volume_per_month", ""),
+            "self_rated_confidence": p.get("self_rated_confidence", ""),
+            "color_vision": p.get("color_vision", ""),
+            "prior_test_taken": p.get("prior_test_taken", ""),
+            "sex": p.get("sex", ""),
+            "gender_identity": p.get("gender_identity", ""),
+            "country": p.get("country", ""),
+            "race_ethnicity": p.get("race_ethnicity", ""),
+            "consent_version": p.get("consent_version", ""),
+            "irb_protocol_id": p.get("irb_protocol_id", ""),
         }
         codes = list(getattr(result, "task_codes", _TASK_CODES) or _TASK_CODES)
         am = _as_list(getattr(result, "final_auroc_mean", None))
