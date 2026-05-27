@@ -227,23 +227,32 @@ state dynamics below have something to interact with.
 \label{sec:gt}
 
 The criterion is updated each trial by a Rescorla--Wagner-style
-prediction-error rule. Let
+\textbf{prediction-error} rule, where the prediction is the learner's
+model-implied probability of saying ``yes'' (continuous) and the
+outcome is the ground-truth label (binary). Let
 \begin{equation}
-  \delta_k \;\equiv\; y_k - y_k^{\star}
-  \quad \in \quad \{-1, 0, +1\}
+  \hat y_k \;\equiv\; Z(y_k = 1 \mid \theta_k, s_k)
+  \;=\; (1 - 2\lambda_k)\,\Phi\!\bigl((s_k - t_k)/\sigma_k\bigr) + \lambda_k
+  \label{eq:yhat}
+\end{equation}
+be the predicted probability (Eq.~\ref{eq:obs} re-read as a function
+of state), and define the \textbf{(soft) outcome prediction error}
+\begin{equation}
+  \delta_k \;\equiv\; \hat y_k - y_k^{\star}
+  \;\in\; [-1, +1],
   \label{eq:delta}
 \end{equation}
-be the \textbf{outcome prediction error} on trial $k$, where
-$y_k^{\star}$ is the ground-truth label revealed by the feedback
-$\mathrm{fb}_k$. Three cases:
+where $y_k^{\star} \in \{0, 1\}$ is the ground-truth label revealed
+by feedback $\mathrm{fb}_k$. Sign interpretation:
 \begin{itemize}[leftmargin=*,itemsep=1pt]
-  \item $\delta_k = +1$: false alarm. Learner said yes; correct
-        answer was no. The criterion is too liberal — raise it.
-  \item $\delta_k = -1$: miss. Learner said no; correct answer was
-        yes. The criterion is too conservative — lower it.
-  \item $\delta_k = 0$: correct. No update.
+  \item $\delta_k > 0$: predicted yes more strongly than warranted.
+        The criterion is too liberal — raise it.
+  \item $\delta_k < 0$: predicted yes less strongly than warranted.
+        The criterion is too conservative — lower it.
+  \item $\delta_k \approx 0$: prediction matched the truth. Small
+        update.
 \end{itemize}
-This gives
+The update is
 \begin{equation}
   \boxed{\;
     t_{k+1} \;=\; t_k + \alpha_t\,\delta_k + \xi_{t,k},
@@ -251,25 +260,88 @@ This gives
   \;}
   \label{eq:tdyn}
 \end{equation}
-i.e.\ Eq.~\eqref{eq:tdyn} with the explicit form $g_t(s_k, y_k,
-\mathrm{fb}_k) = \delta_k$.
+i.e.\ $g_t(s_k, y_k^{\star}, \theta_k) = \delta_k = \hat y_k -
+y_k^{\star}$.
+
+\paragraph{Why the soft form (derivation from cross-entropy).}
+Equation~\ref{eq:delta} is the proper Rescorla--Wagner update:
+continuous prediction minus binary outcome. It is also — up to
+absorption of a positive multiplier into $\alpha_t$ — the gradient
+of cross-entropy loss with respect to $t$. If the learner is
+implicitly performing stochastic gradient descent on
+\[
+  L_k(t) \;=\; -y_k^{\star}\log\hat y_k(t)
+              \;-\; (1 - y_k^{\star})\log\bigl(1 - \hat y_k(t)\bigr),
+\]
+then a short calculation gives
+\begin{equation}
+  \frac{\partial L_k}{\partial t}
+  \;=\; -\,\frac{(1 - 2\lambda_k)\,\phi(z_k)/\sigma_k}
+                {\hat y_k\,(1 - \hat y_k)}
+        \;\bigl(\hat y_k - y_k^{\star}\bigr),
+  \qquad z_k = \frac{s_k - t_k}{\sigma_k},
+  \label{eq:cegradient}
+\end{equation}
+so $\Delta t \propto +(\hat y_k - y_k^{\star})$ with the multiplier
+$(1{-}2\lambda)\phi(z)/[\sigma\,\hat y(1{-}\hat y)]$ absorbed into the
+per-learner rate $\alpha_t$. Under this rule \emph{every} trial
+contributes: large updates on confident errors, small updates on
+confident-correct trials, intermediate updates on near-threshold
+correct trials. The implausible prediction of a strictly binary rule
+— that a 51\,\%-confident correct ``yes'' produces zero criterion
+shift — is avoided.
+
+\paragraph{Hard-error form as a special case.}
+An older SDT-criterion-learning tradition
+\citep{kac1962criterion,friedman1968criterion,stuttgen2011trial} uses
+instead the \emph{hard} prediction error
+\begin{equation}
+  \delta_k^{\mathrm{hard}}
+  \;\equiv\; y_k - y_k^{\star}
+  \;\in\; \{-1, 0, +1\},
+  \label{eq:deltahard}
+\end{equation}
+which fires only on errors. This is what Eq.~\ref{eq:delta} reduces
+to if we replace the model-implied probability $\hat y_k$ with the
+learner's binary response $y_k$ — equivalently, if the learner has
+introspective access only to their own categorical choice and not to
+its underlying probability. Because $y_k \sim \mathrm{Bernoulli}(\hat
+y_k)$, the hard form is an \emph{unbiased} but noisier estimator of
+the soft form:
+\begin{equation}
+  \mathbb{E}\!\bigl[\,y_k - y_k^{\star} \mid \theta_k, s_k, y_k^{\star}\bigr]
+  \;=\; \hat y_k - y_k^{\star}.
+  \label{eq:hard-unbiased}
+\end{equation}
+The two formulations therefore have the same expected dynamics but
+differ in trial-level variance, and — more interestingly — they make
+different qualitative predictions on confident-correct vs.\
+near-threshold-correct trials. Which one better describes real
+learners is an empirical question (and is identifiable from
+training-trial data once we have any). We take the soft form as the
+default for everything below; the hard form is the natural ablation
+baseline for the validation in Sec.~\ref{sec:next}.
 
 \paragraph{Parameter glossary for Eq.~\ref{eq:tdyn}.}
 \begin{description}[leftmargin=2.2em,style=nextline,itemsep=1pt]
   \item[$\alpha_t \ge 0$.] Criterion learning rate, in units of the
     perceptual axis (the same units as $s$ and $t$). Estimated
     per-learner; empirical-Bayes prior from the pooled pilot cohort.
-    Typical magnitudes from the SDT-criterion-learning literature
-    \citep{stuttgen2011trial} place $\alpha_t$ between $0.05$ and
-    $0.2$.
+    Under the soft form, $\alpha_t$ absorbs the $(1{-}2\lambda)\phi/
+    [\sigma\,\hat y(1{-}\hat y)]$ scaling of Eq.~\ref{eq:cegradient}.
+    Plausible magnitudes lie in $[0.05, 0.5]$; the corresponding
+    hard-form rate \citep{stuttgen2011trial} is comparable but
+    applies only on the subset of trials with $y_k \neq y_k^{\star}$,
+    so produces a noisier trajectory with the same expectation
+    (Eq.~\ref{eq:hard-unbiased}).
   \item[$\xi_{t,k}$.] Trial-level process noise with variance $q_t^2$;
     accounts for criterion fluctuation not captured by the
     deterministic R--W update (attention, mood, drift). Acts as the
     state-space-filtering noise that prevents the posterior from
     collapsing prematurely (see Sec.~\ref{sec:belief}).
-  \item[$\delta_k$.] As in Eq.~\ref{eq:delta}: the only thing that
-    drives $t$ is being wrong, and the direction of the move is set
-    by the direction of the error.
+  \item[$\delta_k$.] Soft prediction error in $[-1, +1]$
+    (Eq.~\ref{eq:delta}); reduces to the hard form
+    (Eq.~\ref{eq:deltahard}) under the introspection assumption above.
 \end{description}
 
 \subsection{Transition kernel: skill dynamics $g_\sigma$}
