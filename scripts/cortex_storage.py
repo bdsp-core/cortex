@@ -500,7 +500,6 @@ class SessionRecorder:
             "color_vision": p.get("color_vision", ""),
             "prior_test_taken": p.get("prior_test_taken", ""),
             "sex": p.get("sex", ""),
-            "gender_identity": p.get("gender_identity", ""),
             "country": p.get("country", ""),
             "race_ethnicity": p.get("race_ethnicity", ""),
             "consent_version": p.get("consent_version", ""),

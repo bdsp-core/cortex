@@ -157,8 +157,9 @@ def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):
         "years_reading_eeg": "10–14", "eeg_volume_per_month": "21–50",
         "self_rated_confidence": "5", "color_vision": "Normal color vision",
         "prior_test_taken": "No", "sex": "Female",
-        "gender_identity": "Woman", "country": "United States",
-        "race_ethnicity": "White", "consent_version": "v1.1.1-placeholder",
+        # v1.1.3: gender_identity dropped — confirm absence in summary too.
+        "country": "United States",
+        "race_ethnicity": "White", "consent_version": "v1.1.3-placeholder",
         "irb_protocol_id": "",
     })
     rec = cs.SessionRecorder(
@@ -176,11 +177,13 @@ def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):
         ("practice_setting", "Academic medical center"),
         ("years_reading_eeg", "10–14"),
         ("eeg_volume_per_month", "21–50"),
-        ("sex", "Female"), ("gender_identity", "Woman"),
+        ("sex", "Female"),
         ("country", "United States"), ("race_ethnicity", "White"),
-        ("consent_version", "v1.1.1-placeholder"),
+        ("consent_version", "v1.1.3-placeholder"),
     ):
         assert srow[col] == want, f"{col}: got {srow[col]!r}, want {want!r}"
+    # v1.1.3: gender_identity column should be ABSENT from the summary.
+    assert "gender_identity" not in srow
 
 
 def test_summary_csv_back_compat_missing_demographics(tmp_path):

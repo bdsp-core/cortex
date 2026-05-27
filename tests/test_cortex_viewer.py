@@ -177,9 +177,11 @@ def test_registration_generates_session_id(qapp, monkeypatch):
         assert reg.commit() is True
         assert isinstance(reg.session_id, str) and len(reg.session_id) >= 32
         assert captured["session_id"] == reg.session_id
-        # schema-v2 columns must all be present in the persisted row
-        for col in ev.REGISTRATION_FIELDS_V2:
+        # All v1.1.3 schema columns must be present in the persisted row.
+        for col in ev.REGISTRATION_FIELDS:
             assert col in captured, f"missing {col} in registration row"
+        # gender_identity was removed in v1.1.3 — must NOT appear.
+        assert "gender_identity" not in captured
     finally:
         reg.deleteLater()
         qapp.processEvents()
@@ -222,9 +224,10 @@ def test_registration_requires_sex_dropdowns(qapp, monkeypatch):
             qapp.processEvents()
 
 
-def test_registration_csv_schema_v2(qapp, tmp_path, monkeypatch):
-    """The persisted CSV header must equal REGISTRATION_FIELDS_V2 exactly
-    (downstream analysis joins on these column names)."""
+def test_registration_csv_schema_v3(qapp, tmp_path, monkeypatch):
+    """The persisted CSV header must equal REGISTRATION_FIELDS (v3) exactly
+    (downstream analysis joins on these column names). v1.1.3 dropped
+    gender_identity — confirm it's absent."""
     import cortex_storage as cs
     monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
 
@@ -233,9 +236,11 @@ def test_registration_csv_schema_v2(qapp, tmp_path, monkeypatch):
         _fill_required(reg)
         # Pick non-default page-3 answers so we exercise the optional cols.
         reg.f_sex.setCurrentIndex(1)            # "Male"
-        reg.f_gender.setCurrentIndex(1)         # "Man"
         reg.f_country.setCurrentIndex(1)        # "United States"
         reg.f_race.setCurrentIndex(7)           # "White"
+        # v1.1.3: f_gender no longer exists on the page.
+        assert not hasattr(reg, "f_gender"), \
+            "f_gender widget should be gone in v1.1.3"
         assert reg.commit() is True
     finally:
         reg.deleteLater()
@@ -246,7 +251,8 @@ def test_registration_csv_schema_v2(qapp, tmp_path, monkeypatch):
         rows = list(_csv.DictReader(fh))
         fh.seek(0)
         header = next(_csv.reader(fh))
-    assert header == ev.REGISTRATION_FIELDS_V2
+    assert header == ev.REGISTRATION_FIELDS
+    assert "gender_identity" not in header
     assert len(rows) == 1
     r = rows[0]
     assert r["name"] == "Test User"
@@ -256,24 +262,18 @@ def test_registration_csv_schema_v2(qapp, tmp_path, monkeypatch):
     assert r["eligibility_confirmed"] == "yes"
 
 
-def test_registration_schema_migration_rotates_old_csv(
+def test_registration_schema_migration_rotates_v1_csv(
         qapp, tmp_path, monkeypatch):
-    """If an existing registrations.csv has a non-v2 header, _save_row
-    must rotate it to .v1.csv.bak rather than appending mismatched rows.
-    This prevents silent column drift when a user upgrades from a
-    pre-v1.1.1 build."""
+    """A v1 (pre-v1.1.1) header on disk must be rotated to
+    registrations.v1.csv.bak — not have v3 rows appended to it."""
     import cortex_storage as cs
     monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
 
-    # Seed a pre-v1.1.1 CSV with the legacy schema.
     legacy_path = tmp_path / "registrations.csv"
-    legacy_header = ["session_id", "timestamp_utc", "name", "age",
-                     "gender", "institution", "email", "expertise",
-                     "credentials"]
     with open(legacy_path, "w", encoding="utf-8", newline="") as fh:
         import csv as _csv
         w = _csv.writer(fh)
-        w.writerow(legacy_header)
+        w.writerow(ev._REGISTRATION_FIELDS_V1)
         w.writerow(["old-sid", "2020-01-01T00:00:00+00:00",
                     "Old User", "30", "M", "Old Inst",
                     "old@example.com", "Fellow", "ABPN"])
@@ -286,20 +286,56 @@ def test_registration_schema_migration_rotates_old_csv(
         reg.deleteLater()
         qapp.processEvents()
 
-    # New file at the canonical path has the v2 header + one new row.
     import csv as _csv
     with open(legacy_path, encoding="utf-8") as fh:
         header = next(_csv.reader(fh))
         rows = list(_csv.DictReader(open(legacy_path, encoding="utf-8")))
-    assert header == ev.REGISTRATION_FIELDS_V2
+    assert header == ev.REGISTRATION_FIELDS
     assert len(rows) == 1
     assert rows[0]["name"] == "Test User"
-    # Legacy file rotated, not overwritten.
     bak = tmp_path / "registrations.v1.csv.bak"
     assert bak.exists()
     with open(bak, encoding="utf-8") as fh:
-        old_header = next(_csv.reader(fh))
-    assert old_header == legacy_header
+        assert next(_csv.reader(fh)) == ev._REGISTRATION_FIELDS_V1
+
+
+def test_registration_schema_migration_rotates_v2_csv(
+        qapp, tmp_path, monkeypatch):
+    """A v2 (v1.1.1 / v1.1.2) header on disk must be rotated to
+    registrations.v2.csv.bak — new for v1.1.3 since the upgrade path
+    now spans more than one schema bump."""
+    import cortex_storage as cs
+    monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
+
+    legacy_path = tmp_path / "registrations.csv"
+    with open(legacy_path, "w", encoding="utf-8", newline="") as fh:
+        import csv as _csv
+        w = _csv.writer(fh)
+        w.writerow(ev._REGISTRATION_FIELDS_V2)
+        w.writerow(["old-sid", "2026-05-26T00:00:00+00:00",
+                    "v1.1.1-placeholder", "", "yes",
+                    "Old User", "33", "old@example.com", "MGH",
+                    "Fellow", "Academic medical center", "10–14", "21–50",
+                    "5", "Normal color vision", "No",
+                    "Female", "Woman", "United States", "White"])
+
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        assert reg.commit() is True
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+    import csv as _csv
+    with open(legacy_path, encoding="utf-8") as fh:
+        header = next(_csv.reader(fh))
+    assert header == ev.REGISTRATION_FIELDS
+    bak = tmp_path / "registrations.v2.csv.bak"
+    assert bak.exists(), \
+        "v2-header CSV must rotate to .v2.csv.bak (not .v1 or .legacy)"
+    with open(bak, encoding="utf-8") as fh:
+        assert next(_csv.reader(fh)) == ev._REGISTRATION_FIELDS_V2
 
 
 # ─────── v1.1.2: ResultsScreen — verdicts, narrative, details panel ───────

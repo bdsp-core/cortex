@@ -1537,7 +1537,7 @@ class ConsentPage(QWidget):
 
 # CONSENT_VERSION is stamped on every registration row so cohort splits
 # remain reproducible across IRB-language revisions. Bump on consent change.
-CONSENT_VERSION = "v1.1.1-placeholder"
+CONSENT_VERSION = "v1.1.3-placeholder"
 # IRB_PROTOCOL_ID is intentionally blank until the public-release IRB
 # amendment lands. data/SENSITIVE.md lists the internal-use IRBs.
 IRB_PROTOCOL_ID = ""
@@ -1547,8 +1547,10 @@ IRB_PROTOCOL_ID = ""
 _EXPERTISE = ["— select —", "Medical student", "Resident", "Nurse",
               "Fellow", "Neurologist", "Epileptologist", "Other"]
 _SEX = ["— select —", "Male", "Female", "Prefer not to say"]
-_GENDER = ["Prefer not to say", "Man", "Woman", "Non-binary",
-           "Prefer to self-describe"]
+# v1.1.3: gender_identity field removed (sex is the canonical
+# demographic; the SAGER two-field convention was over-scoped for
+# the credentialing dataset's analytic needs). REGISTRATION_FIELDS_V2
+# kept frozen below for schema-migration detection.
 _YEARS_EEG = ["— select —", "0–4", "5–9", "10–14", "15–19", "20–24",
               "25–29", "30+"]
 _EEG_VOLUME = ["— select —", "Fewer than 5", "5–20", "21–50", "51–100",
@@ -1577,9 +1579,31 @@ _RACE = ["Prefer not to say", "American Indian or Alaska Native", "Asian",
          "Native Hawaiian or Pacific Islander", "White", "More than one",
          "Other"]
 
-# CSV schema for registrations.csv (v2). Used by tests and by the
-# schema-migration step in _save_row.
-REGISTRATION_FIELDS_V2 = [
+# CSV schema for registrations.csv. The canonical "current" name is
+# REGISTRATION_FIELDS (always points at the most recent version);
+# version-numbered constants are kept as frozen legacy snapshots so
+# _save_row's migration logic can name the .bak file by the version
+# that was on disk.
+#
+# History:
+#   V1 — pre-v1.1.1, 9 columns (name + 6 free-text fields).
+#   V2 — v1.1.1 / v1.1.2, 20 columns (wizard intake + gender_identity).
+#   V3 — v1.1.3+, 19 columns (gender_identity dropped; sex retained).
+_REGISTRATION_FIELDS_V1 = [
+    "session_id", "timestamp_utc",
+    "name", "age", "gender", "institution", "email", "expertise",
+    "credentials",
+]
+_REGISTRATION_FIELDS_V2 = [
+    "session_id", "timestamp_utc", "consent_version", "irb_protocol_id",
+    "eligibility_confirmed",
+    "name", "age", "email",
+    "institution", "expertise", "practice_setting",
+    "years_reading_eeg", "eeg_volume_per_month",
+    "self_rated_confidence", "color_vision", "prior_test_taken",
+    "sex", "gender_identity", "country", "race_ethnicity",
+]
+REGISTRATION_FIELDS_V3 = [
     "session_id", "timestamp_utc", "consent_version", "irb_protocol_id",
     "eligibility_confirmed",
     # Identity
@@ -1588,9 +1612,17 @@ REGISTRATION_FIELDS_V2 = [
     "institution", "expertise", "practice_setting",
     "years_reading_eeg", "eeg_volume_per_month",
     "self_rated_confidence", "color_vision", "prior_test_taken",
-    # Demographics
-    "sex", "gender_identity", "country", "race_ethnicity",
+    # Demographics (gender_identity removed v1.1.3)
+    "sex", "country", "race_ethnicity",
 ]
+# Canonical "always-current" alias. New code should import this name;
+# version-suffixed constants are for migration / historical reference.
+REGISTRATION_FIELDS = REGISTRATION_FIELDS_V3
+
+# Migration: detect which legacy schema a non-current header matches
+# so the .bak filename names the version that was rotated.
+_LEGACY_SCHEMAS = (("v2", _REGISTRATION_FIELDS_V2),
+                   ("v1", _REGISTRATION_FIELDS_V1))
 
 
 def _is_dropdown_set(combo: QComboBox) -> bool:
@@ -1701,8 +1733,9 @@ class RegistrationPage(QWidget):
         self.f_prior_test = self._make_combo(_PRIOR_TEST)
 
         # Page 3 — demographics (all optional with 'Prefer not to say').
+        # v1.1.3: gender_identity dropped; sex retained as the canonical
+        # demographic field.
         self.f_sex = self._make_combo(_SEX)
-        self.f_gender = self._make_combo(_GENDER)
         self.f_country = self._make_combo(_COUNTRY)
         self.f_race = self._make_combo(_RACE)
 
@@ -1866,7 +1899,6 @@ class RegistrationPage(QWidget):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         for label_text, field in (
             ("Sex", self.f_sex),
-            ("Gender identity", self.f_gender),
             ("Country of practice", self.f_country),
             ("Race / ethnicity", self.f_race),
         ):
@@ -2006,7 +2038,6 @@ class RegistrationPage(QWidget):
             "color_vision": _combo_val(self.f_color_vision),
             "prior_test_taken": _combo_val(self.f_prior_test),
             "sex": _combo_val(self.f_sex),
-            "gender_identity": _combo_val(self.f_gender),
             "country": _combo_val(self.f_country),
             "race_ethnicity": _combo_val(self.f_race),
         }
@@ -2020,26 +2051,35 @@ class RegistrationPage(QWidget):
         path = user_data_root() / "registrations.csv"
         path.parent.mkdir(parents=True, exist_ok=True)
         # Schema migration: if the existing file's header doesn't match
-        # REGISTRATION_FIELDS_V2, rotate to a .v1.bak so we don't append
-        # mismatched rows (DictWriter doesn't validate against an
-        # existing header — silent column drift is the failure mode).
+        # REGISTRATION_FIELDS (the canonical current schema), rotate
+        # it to a versioned .bak file. We name the backup by the
+        # schema version that was actually on disk (v1, v2, or
+        # 'legacy' for an unrecognised header), so an upgrade chain
+        # stays auditable. DictWriter doesn't validate against an
+        # existing header — silent column drift is the failure mode
+        # without this guard.
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8", newline="") as rh:
                     existing_header = next(csv.reader(rh), [])
             except StopIteration:
                 existing_header = []
-            if existing_header != REGISTRATION_FIELDS_V2:
-                bak = path.with_suffix(".v1.csv.bak")
+            if existing_header != REGISTRATION_FIELDS:
+                ver = "legacy"
+                for tag, fields in _LEGACY_SCHEMAS:
+                    if existing_header == fields:
+                        ver = tag
+                        break
+                bak = path.with_suffix(f".{ver}.csv.bak")
                 # Don't overwrite an earlier rotation.
                 i = 1
                 while bak.exists():
-                    bak = path.with_suffix(f".v1.csv.bak{i}")
+                    bak = path.with_suffix(f".{ver}.csv.bak{i}")
                     i += 1
                 path.rename(bak)
         is_new = not path.exists()
         with open(path, "a", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=REGISTRATION_FIELDS_V2)
+            w = csv.DictWriter(fh, fieldnames=REGISTRATION_FIELDS)
             if is_new:
                 w.writeheader()
             w.writerow(row)
