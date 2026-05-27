@@ -552,6 +552,160 @@ Methodology repo + PI deployment repo merged into one shippable repo
 
 ---
 
+## ▶ CORTEX click-to-run app (2026-05-26) — `cortex-v1.0` → `cortex-v1.0.5` — SHIPPED
+
+PyInstaller-bundled standalone test-taker app distributed via GitHub
+Releases as `CORTEX-mac.dmg` (~308 MB) and `CORTEX-windows.zip`
+(~319 MB). Zero Python install required for end users; clinicians
+download, double-click, Gatekeeper "Open Anyway" once, run. Build
+infra: `.github/workflows/cortex-release.yml` triggers on `cortex-v*`
+tags, fetches the test bank from the `build-data-v1` release (no AWS
+deps in CI), stages `cortex_config.yaml` from the
+`CORTEX_CONFIG_YAML` repository secret, runs PyInstaller against
+`cortex_app/cortex.spec` on parallel macOS + Windows runners, and
+attaches both artifacts to a new GitHub Release. Complementary to
+`scripts/build_internal_test_zip.py` (bash-launcher zip for users
+willing to install Python 3.11 themselves).
+
+Six iterations on 2026-05-26 — each a CI build + ship + test cycle.
+Bug surface mostly: PyInstaller's static AST tracer cannot see
+dynamic / lazy / pickle-driven imports, and macOS `console=False`
+bundles redirect stdout to /dev/null.
+
+- **v1.0.0** (initial) — PyInstaller scaffold under `cortex_app/`
+  (`cortex.spec`, `build_mac.sh`, `build_windows.bat`,
+  `fetch_test_bank.sh`, `BUILD.md`). Dedup pass at commit `a102ec5`
+  removed duplicated engine source under `cortex_app/scripts/`;
+  spec points at repo-root `scripts/` / `engine/` / `Sigma_l_fitted.npy`
+  as the single source of truth.
+
+- **v1.0.1** — fix: registration write into the read-only `.app`
+  bundle under macOS App Translocation (downloaded unsigned bundles
+  run from a temporary `/private/var/folders/.../AppTranslocation/...`
+  path that is read-only). Added `cortex_storage.user_data_root()`
+  to route per-session output to the platform-appropriate user-data
+  dir when `sys.frozen`: `~/Library/Application Support/CORTEX/`
+  (macOS), `%LOCALAPPDATA%\CORTEX\` (Windows),
+  `$XDG_DATA_HOME/CORTEX/` (Linux). Dev runs still write to
+  `<repo>/results/`.
+
+- **v1.0.2** — fix: `ModuleNotFoundError: No module named 'core_mcmc'`
+  at session start. `_REPO = Path(__file__).parent.parent` doesn't
+  resolve to the data unpack root in PyInstaller — PYZ-module
+  `__file__` is a synthetic path inside the archive, and the entry
+  script's `__file__` is `<MEIPASS>/<entry>.py` whose `parent.parent`
+  is one level ABOVE MEIPASS. Anchored `_REPO` on `sys._MEIPASS`
+  when `sys.frozen` in `cortex_engine_inputs.py`,
+  `session_controller.py`, `cortex_storage.py`.
+
+- **v1.0.3** — fix: `ModuleNotFoundError: 'numpy._core'` on
+  `load_fitted_Sigma()`. `Sigma_l_fitted.npy`'s pickle references
+  `numpy._core.multiarray._reconstruct` (a numpy 2.x compat path);
+  numpy 1.26.4 ships a 7-module `numpy/_core/` shim package that
+  forwards to `numpy.core.*` lazily — invisible to the AST tracer.
+  Parallel PhD-level audit (two independent agents in isolated
+  worktrees) synthesized into:
+    * `collect_submodules('numpy._core')` + explicit pin list
+      (Agent A + Agent B converged)
+    * `collect_data_files('certifi')` — Dropbox HTTPS via `requests`
+      loads the CA bundle via `importlib.resources` (Agent A only;
+      Agent B's probe didn't make HTTPS calls)
+    * `pyqtgraph.{graphicsItems.ImageItem, graphicsItems.TextItem,
+      widgets.PlotWidget, colormap}` — concrete classes used by the
+      viewer (Agent A only; Agent B didn't drive GUI init)
+    * `scipy.special.cython_special` + `scipy.special._ufuncs` +
+      `scipy.stats._continuous_distns` — defensive coverage for
+      engine particle-update calls (Agent A only)
+    * `yaml` / `_yaml` / `dropbox` + `collect_submodules('dropbox')`
+      — explicit, defensive (both agents)
+    * `cert_config.yaml` bundle-root fallback for
+      `cortex_policy.load_ell_star_iiic`'s `alt = _REPO / "cert_config.yaml"`
+      branch (Agent B)
+    * Latent v1.0.1-pattern bug fix in `cortex_policy.py:_REPO`
+      (Agent B; would have crashed AD6Policy construction once
+      `numpy._core` was unblocked). Agent B empirically built the
+      bundle locally with PyInstaller 6.20 + numpy 1.26.4 and ran a
+      console probe that loaded Sigma + AD6Policy + dropbox + yaml +
+      matplotlib + eeg_bank.h5 inside the frozen bundle: ALL CHECKS
+      PASSED. v1.0.3 mac build first failed at the
+      `actions/upload-artifact@v4` step (transient GitHub Actions
+      storage hiccup); re-running failed jobs via API succeeded.
+
+- **v1.0.4** — fix: `FileNotFoundError` at `BankViewer.__init__`
+  opening `data/eeg_bank.h5`. Entry-script `__file__` in PyInstaller
+  one-folder mode resolves to `<MEIPASS>/eeg_bank_viewer.py`, so
+  `Path(__file__).parent.parent` goes ONE LEVEL ABOVE the data
+  unpack root (resolved to `/Applications/CORTEX.app/Contents/`
+  rather than `Contents/Frameworks/`). Same `sys._MEIPASS` gate
+  applied to `BANK_PATH` / `SPEC_PATH` in `eeg_bank_viewer.py`;
+  defensive same fix in `cortex_render_videos.py` `_THIS_DIR` /
+  `_REPO`. Verified end-to-end: session creates the user-data dir,
+  writes `participant.json` + `trials.jsonl` + `events.jsonl` +
+  `certificate.json` + `trajectory.npz` + two CSVs.
+
+- **v1.0.5** — feature: file-based logging. macOS `.app` bundles
+  built with `console=False` send stdout to /dev/null at the
+  bootloader, even when launched from a shell. Sessions in v1.0.4
+  ran clean but the operator had zero post-session visibility into
+  Dropbox upload status, MP4 render outcome, or warnings (only
+  uncaught tracebacks survived via `sys.excepthook`'s low-level
+  syscalls). Added `cortex_storage.setup_logging()` — idempotent,
+  `FileHandler` on `user_data_root() / "cortex.log"` always,
+  `StreamHandler` on stderr in dev (`sys.frozen=False`). Called from
+  `eeg_bank_viewer.main()` first thing before `QApplication`
+  construction. Migrated 13 `print()` sites across
+  `cortex_storage.py`, `cortex_render_videos.py`,
+  `cortex_engine_inputs.py`, `eeg_bank_viewer.py` to
+  `logger.{info, warning}`. `logging.basicConfig(force=True)` also
+  captures stdlib loggers (`matplotlib.animation`, `dropbox`,
+  `matplotlib.font_manager`) for free.
+
+**Empirical verification (v1.0.5, 99-trial session through bank
+exhaustion):**
+
+```
+17:10:15 INFO cortex_storage: logging initialised; frozen=True
+17:13:33 WARNING matplotlib.font_manager: building the font cache (first run)
+17:13:39 INFO matplotlib.animation: MovieWriter._run: ffmpeg ... collapse.mp4
+17:13:48 INFO cortex_render_videos: collapse.mp4 rendered in 8.5s (4.8s video, 0.7 MB)
+17:13:56 INFO cortex_render_videos: passfail.mp4 rendered in 8.6s (4.8s video, 0.2 MB)
+17:13:56 INFO cortex_storage: Dropbox client constructed (refresh-token mode)
+17:13:57 INFO dropbox: Refreshing access token.
+17:13:57 INFO dropbox: Request to files/upload
+17:13:58 INFO cortex_storage: uploaded 2 result CSV(s) to Dropbox /results/
+```
+
+Result: 99 trials, `stop_reason=bank_exhausted`, 20/99 correct
+(20.2%), one PASS verdict (`lrda`: AUROC 0.907 ± 0.037), MP4 render
+✓ (system ffmpeg available), Dropbox upload ✓ (refresh-token mode +
+access-token refresh + 2× `files/upload`).
+
+**Known issues, deferred (NOT blocking v1.0.5):**
+
+- **AD6 calibration overrides still active.** `scripts/cortex_policy.py`
+  ships `DEFAULT_N_MIN = 6` + `DEFAULT_ALPHA = 0.30` (internal-test
+  settings, panel-derived production values are 15 + 0.05). Documented
+  in `docs/AD6_RESOLUTION.md` "Internal-test override (2026-05-22)".
+  Must revert before any push to the public 10k bank. No CI gate
+  enforces this today.
+- **ffmpeg not bundled.** MP4 renderer uses
+  `matplotlib.animation.FFMpegWriter` which shells out to system
+  `ffmpeg`. Dev machines (Homebrew) succeed; clinician machines
+  without ffmpeg log `WARNING cortex_storage: per-test-taker video
+  render failed: ...` and skip MP4 production (session itself
+  completes cleanly). To fix: bundle a static `ffmpeg` binary in
+  `binaries=` and point `matplotlib.rcParams['animation.ffmpeg_path']`
+  at it (~80 MB to the .dmg).
+- **Eli's `scripts/build_internal_test_zip.py` bash-launcher path
+  remains** as the complementary distribution for tech-comfortable
+  users with Python 3.11 already installed.
+
+Tags (annotated; each triggered `cortex-release.yml` CI): `cortex-v1.0`,
+`cortex-v1.0.1`, `cortex-v1.0.2`, `cortex-v1.0.3`, `cortex-v1.0.4`,
+`cortex-v1.0.5`. Test bank pinned at `build-data-v1`.
+
+---
+
 ## ▶ CURRENT STATE (read this first)
 
 - **Paper 1 = the Multi-AUROC Precision Protocol (Mode-A).**  A per-examinee
