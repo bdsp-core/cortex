@@ -48,14 +48,25 @@ datas = [
     (str(REPO / 'cortex_config.yaml'),         '.'),
     # frozen prior used by the engine for the live test
     (str(REPO / 'Sigma_l_fitted.npy'),         '.'),
-    # engine + calibration packages (small, vendored verbatim)
+    # engine package — vendored verbatim. 180 KB total; cheap to ship the
+    # whole tree. Includes diagnostics.py + core_mcmc_brute_k.py +
+    # engine_mode_b.py + variants/ which are NOT exercised by the CORTEX
+    # runtime path (CortexSession uses Mode-A SMC adaptive only), but
+    # core_mcmc.py has lazy `from diagnostics import ...` and
+    # `from core_mcmc_brute_k import ...` guarded by callback / method
+    # kwargs — keeping the whole tree is the safe choice.
     (str(REPO / 'engine'),                      'engine'),
-    (str(REPO / 'calibration'),                 'calibration'),
-    # cortex_policy.load_ell_star_iiic() reads calibration/cert_config.yaml
-    # (already shipped via the calibration/ tree above) and falls back to a
-    # bundle-root copy of cert_config.yaml. Ship that fallback so a stripped
-    # bundle that ever loses the calibration/ tree still resolves the
-    # Youden cut-scores. Cheap (4 KB), defensive.
+    # calibration: the runtime needs ONLY cert_config.yaml (read by
+    # cortex_policy.load_ell_star_iiic). The wholesale include of the
+    # `calibration/` tree in v1.0..1.0.5 dragged in 38 MB of dev-only
+    # NUTS posterior .npz files under calibration/joint/ that are never
+    # opened at runtime — plus the calibration orchestrator scripts
+    # (_run_youden_joint.py, cli.py), the CALIBRATION_PROVENANCE.md, and
+    # the youden_ell_star.json archival output. All dropped in v1.0.6.
+    (str(REPO / 'calibration' / 'cert_config.yaml'),  'calibration'),
+    # cortex_policy.load_ell_star_iiic() also has a fallback path that
+    # reads a bundle-root copy of cert_config.yaml. Ship that fallback
+    # (4 KB defensive insurance for the alt-path branch).
     (str(REPO / 'cert_config.yaml'),           '.'),
 ] + collect_data_files('certifi')  # certifi CA bundle is loaded via
                                    # importlib.resources by `requests` →
@@ -199,7 +210,7 @@ if sys.platform == 'darwin':
         name='CORTEX.app',
         bundle_identifier='org.bdsp-core.cortex',
         info_plist={
-            'CFBundleShortVersionString': '1.0.5',
+            'CFBundleShortVersionString': '1.0.6',
             'CFBundleName': 'CORTEX',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '12.0',
