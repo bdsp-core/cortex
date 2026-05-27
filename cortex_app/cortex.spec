@@ -138,6 +138,7 @@ hiddenimports = [
     'cortex_policy',
     'cortex_render_videos',
     'cortex_storage',
+    'render_engine_explainer',                # v1.1.3 third MP4 renderer
     'session_controller',
     # vendored packages bundled via datas
     'engine',

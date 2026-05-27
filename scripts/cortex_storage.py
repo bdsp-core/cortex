@@ -373,6 +373,13 @@ class SessionRecorder:
                 render_all(self.dir)
             except Exception as e:
                 logger.warning("per-test-taker video render failed: %s", e)
+            # v1.1.3: engine-explainer MP4 — independent failure budget
+            # so a problem in one render path can't suppress the other.
+            try:
+                from render_engine_explainer import render_engine_explainer
+                render_engine_explainer(self.dir)
+            except Exception as e:
+                logger.warning("engine_explainer render failed: %s", e)
         if result is None or getattr(result, "aborted", False):
             return
         try:
