@@ -891,6 +891,142 @@ Tag: `cortex-v1.1.1`. Test bank pinned at `build-data-v2`.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-27) — `cortex-v1.1.2` — verdict-first results screen + cross-platform MP4
+
+**Headline:** the post-session results screen now shows a per-task
+PASS / FAIL / REFER verdict with a one-line skill+bias narrative and
+a collapsible technical-details panel, replacing the agreement-with-
+reference accuracy line that the methodology had moved past. MP4
+renders (`collapse.mp4` + `passfail.mp4`) now produce on any platform
+without a system ffmpeg install thanks to `imageio-ffmpeg`. No
+engine, deployment, calibration, or `cert_config.yaml` changes —
+Phase-6 invariants intact; v13 calibration unchanged.
+
+### Results screen rewrite (`scripts/eeg_bank_viewer.py:ResultsScreen`)
+
+The methodology evolved past per-trial agreement as a certification
+quantity (Phase 3/4); the AD6 termination policy decides PASS / FAIL
+/ REFER per task from the posterior pass-mass π_k. The v1.0–v1.1.1
+screen still rendered AUROC point estimates + an
+agreement-with-reference summary, neither of which mapped to the
+AD6 verdict. The v1.1.2 layout:
+
+  * **Verdict table** (1 row per task): clinician-friendly label
+    (PASS → "Pass"; FAIL → "Did not pass"; REFER_BORDERLINE →
+    "Refer (borderline)"; REFER_UNINFORMATIVE → "Refer (need more
+    data)") colour-coded (soft green / soft red / amber / grey) with
+    a two-line narrative beside it:
+       — *Above / Below threshold by 0.XX* (or *Near the passing
+         threshold* when |ℓ̂ − ℓ\*| < 0.05) — the threshold-relative
+         skill summary, driven by `cortex_policy.load_ell_star_iiic`.
+       — *Slight / Strong* {liberal | conservative} bias — driven
+         by the sign + magnitude of θ̂ (negative ⇒ liberal /
+         over-calls; positive ⇒ conservative / under-calls; |θ̂|
+         < 0.10 ⇒ "Bias near neutral").
+  * **Collapsible technical-details panel** (hidden by default;
+    toggled by a "Show / Hide technical details" button): compact
+    grid showing the raw posterior numbers — TASK | VERDICT | ℓ̂ |
+    ℓ\* | θ̂ | π — with a caption explaining each symbol.
+  * **Agreement-with-reference line removed.** Per-trial accuracy is
+    still tallied in `BankViewer._on_trial_done`, written to
+    `cortex.log`, and persisted in the per-session summary CSV
+    (`accuracy` + `n_questions` columns) — only the user-facing
+    screen surface dropped it.
+  * **AUROC + 95% CI columns removed** from the main panel. The
+    AUROC point estimate / half-width remain in the engine result
+    (`final_auroc_mean` / `final_auroc_hw`) and the summary CSV; the
+    main panel is now strictly the AD6-verdict view, with the raw
+    ℓ̂ / θ̂ / π behind the details toggle for transparency.
+  * Class-level API preserved (`close_btn`; `ResultsScreen(result,
+    n_correct, n_answered)` constructor signature) so the
+    `BankViewer._on_session_complete` call site at line 953 works
+    unchanged. `n_correct` / `n_answered` are accepted but no
+    longer rendered.
+
+Threshold loader degrades gracefully: if `calibration/cert_config.yaml`
+is missing / malformed (e.g., a partial install), the screen logs a
+WARNING and falls back to a raw "ℓ̂ = ±X.XX" narrative without the
+threshold-relative context — the verdict + bias still render.
+
+### Cross-platform MP4 generation (`scripts/cortex_render_videos.py`)
+
+The CHANGELOG v1.0.5 close-out flagged "ffmpeg not bundled" as a
+deferred issue: clinician machines without a system ffmpeg install
+saw a WARNING in `cortex.log` and the session completed without
+MP4s. v1.1.2 resolves this by adopting `imageio-ffmpeg` (v0.6.0
+pinned), whose wheel ships per-platform ffmpeg binaries
+(~25 MB Linux, ~75 MB macOS / Windows) inside
+`imageio_ffmpeg/binaries/`. At module-import time
+`cortex_render_videos` resolves the binary via
+`imageio_ffmpeg.get_ffmpeg_exe()` and points
+`matplotlib.rcParams["animation.ffmpeg_path"]` at it BEFORE any
+`FFMpegWriter` is constructed. A `_ensure_ffmpeg_logged()` one-shot
+emits an INFO line to `cortex.log` on the first render so the
+binary path is auditable post-session.
+
+Fallback path is preserved: if `imageio_ffmpeg` is unavailable at
+import (dev clones without the venv populated, or an interpreter
+running the script outside the bundle), the module falls back to
+the system ffmpeg on PATH and logs a WARNING. So existing dev
+workflows keep working.
+
+**PyInstaller integration** (`cortex_app/cortex.spec`):
+`collect_data_files('imageio_ffmpeg', include_py_files=False)`
+appended to `datas`; `'imageio_ffmpeg'` added to `hiddenimports`.
+The wheel ships ONE binary per platform, so each release artifact
+gains the corresponding ~25–80 MB.
+
+**License**: `imageio-ffmpeg`'s bundled ffmpeg is GPL-licensed (it
+includes libx264). CORTEX is CC BY-NC 4.0 and shells out to ffmpeg
+as a separate executable (mere aggregation, not linking), which is
+compatible. The spec carries an inline attribution comment.
+
+### Dependency pin
+
+`imageio-ffmpeg==0.6.0` added to `requirements.txt`,
+`requirements-cortex.txt`, and `pyproject.toml` (so
+`test_phase0_skeleton.py::test_requirements_and_pyproject_pins_are_consistent`
+stays green).
+
+### Tests
+
+  * `tests/test_cortex_render_videos.py::test_imageio_ffmpeg_resolves_binary`
+    — `cv.FFMPEG_EXE` is non-None and points at an extant file;
+    `matplotlib.rcParams["animation.ffmpeg_path"]` matches it.
+  * `tests/test_cortex_render_videos.py::test_imageio_ffmpeg_binary_executable`
+    — `subprocess.run([FFMPEG_EXE, "-version"])` exits 0 with
+    "ffmpeg version" in stdout. Catches a corrupt wheel install.
+  * `tests/test_cortex_viewer.py::test_results_screen_skill_narrative_function`
+    + `test_results_screen_bias_narrative_function` — pure-function
+    coverage of the threshold-relative skill text and the
+    sign-aware bias text across the band breakpoints.
+  * `tests/test_cortex_viewer.py::test_results_screen_renders_verdicts`
+    — instantiates `ResultsScreen` with a synthetic result + stubbed
+    `load_ell_star_iiic`; asserts all four verdict labels are
+    present, the threshold-relative narrative is present, the
+    agreement line is GONE, and the details toggle is bidirectional
+    (a v1.1.1 toggle bug — `isVisible()` always returned False until
+    the parent window was shown, which would have stuck the toggle
+    in "show" mode — was caught by the bidirectional check and
+    fixed via `isHidden()`).
+  * `tests/test_cortex_viewer.py::test_results_screen_handles_missing_threshold`
+    — graceful degradation when `cert_config.yaml` is absent.
+  * `tests/test_cortex_results_screen.py::test_results_screen_builds`
+    updated for the v1.1.2 contract (asserts the removed AUROC /
+    agreement strings are absent; clinician-friendly verdict label
+    is present; details panel collapsed by default).
+
+### Bundle version
+
+`cortex_app/cortex.spec` `CFBundleShortVersionString`
+`'1.1.1'` → `'1.1.2'`. Test bank unchanged at `build-data-v2`
+(300 IIIC + 100 spike). AD6 strictness unchanged from v1.1.0/v1.1.1
+(`N_MIN=15`, `ALPHA=0.10`).
+
+Tag: `cortex-v1.1.2`. Test bank pinned at `build-data-v2`.
+
+---
+
 ## ▶ CURRENT STATE (read this first)
 
 - **Paper 1 = the Multi-AUROC Precision Protocol (Mode-A).**  A per-examinee
