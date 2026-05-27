@@ -69,13 +69,27 @@ echo "=== build done ==="
 echo "App bundle: dist/CORTEX.app"
 
 # --- DMG -------------------------------------------------------------------
+# Bundle into a staging directory so the mounted DMG shows BOTH the .app
+# and a /Applications shortcut at the top level — the canonical
+# drag-to-Applications interface every Mac user recognises. Without
+# this, users tend to double-click the .app from inside the mounted
+# DMG, which triggers macOS App Translocation: macOS copies the app to
+# a read-only temp dir, runs it from there, and CACHES that copy by
+# source-path hash — so updates from later releases launched the same
+# way silently re-run the cached old code. Forcing drag-to-Applications
+# sidesteps the whole class of problem.
 if command -v hdiutil >/dev/null 2>&1; then
-    rm -f dist/CORTEX.dmg
-    echo "Creating DMG ..."
+    STAGING=dist/CORTEX-dmg-staging
+    rm -rf "$STAGING" dist/CORTEX.dmg
+    mkdir -p "$STAGING"
+    cp -R dist/CORTEX.app "$STAGING/"
+    ln -s /Applications "$STAGING/Applications"
+    echo "Creating DMG (with Applications drag-target) ..."
     hdiutil create -volname "CORTEX" \
-        -srcfolder dist/CORTEX.app \
+        -srcfolder "$STAGING" \
         -ov -format UDZO \
         dist/CORTEX.dmg
+    rm -rf "$STAGING"
     echo "DMG ready:  dist/CORTEX.dmg"
 fi
 

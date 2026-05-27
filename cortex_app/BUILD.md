@@ -183,23 +183,33 @@ users now have to authorize via System Settings).
 
 CORTEX is not Apple-signed (this is an internal pilot, not a commercial app),
 so the **first launch needs one-time approval**. On macOS Sequoia and later,
-Apple removed the inline workaround — you have to authorize it from System
-Settings.
+Apple removed the inline "Open Anyway" button from the warning dialog — you
+have to authorize it from System Settings.
 
-1. Open the `.dmg` and drag **CORTEX** to **Applications**.
-2. Double-click **CORTEX** in Applications. macOS shows:
-   *"CORTEX Not Opened — Apple could not verify CORTEX is free of malware..."*
-   Click **Done**.
-3. Open **System Settings → Privacy & Security**. Scroll to the **Security**
+**You MUST drag CORTEX to /Applications first — don't double-click it inside
+the disk-image window.** macOS quietly runs apps launched from a downloaded
+location in a read-only "translocated" copy and *caches* that copy, so a
+buggy old version can keep getting re-run even after you download a fixed
+update. Installing to /Applications avoids the whole class of problem.
+
+1. Double-click `CORTEX-mac.dmg` to open it. A window appears with **CORTEX**
+   on the left and an **Applications** shortcut on the right.
+2. **Drag the CORTEX icon onto the Applications shortcut.** Don't double-click
+   CORTEX inside this window.
+3. Eject the disk image (Finder → arrow next to "CORTEX" in the sidebar).
+   Open **Applications**, double-click **CORTEX**.
+4. macOS shows *"CORTEX Not Opened — Apple could not verify CORTEX is free of
+   malware..."* Click **Done**.
+5. Open **System Settings → Privacy & Security**. Scroll to the **Security**
    section near the bottom.
-4. You'll see *"CORTEX was blocked to protect your Mac."* Click **Open Anyway**
+6. You'll see *"CORTEX was blocked to protect your Mac."* Click **Open Anyway**
    (enter your password if prompted).
-5. Try opening **CORTEX** again. This time you get a new dialog *with* an
-   **Open** button — click **Open**.
-6. macOS remembers — no further warnings on subsequent launches.
+7. Try opening **CORTEX** from /Applications again. This time you get a new
+   dialog *with* an **Open** button — click **Open**.
+8. macOS remembers — no further warnings on subsequent launches.
 
-If you're comfortable with Terminal, this single command also works (skips
-steps 2–6):
+If you're comfortable with Terminal, this single command run after dragging
+to /Applications also works (skips steps 4–7):
 
     xattr -d com.apple.quarantine /Applications/CORTEX.app
 
