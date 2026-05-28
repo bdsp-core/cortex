@@ -1165,6 +1165,156 @@ Tag: `cortex-v1.1.3`. Test bank pinned at `build-data-v2`.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-27) — `cortex-v1.1.4` — visualizations opt-in + background-thread finalize
+
+**Headline:** the post-session ~3-minute UI freeze caused by the v1.1.3
+MP4 renders is gone. Visualizations are now an explicit opt-in
+question on the registration form, and `SessionRecorder.finalize()`
+runs on a background thread so the participant sees an immediate
+"Thank you, computing your results" page after the last question
+regardless of which path they chose.
+
+### The v1.1.3 UX problem
+
+v1.1.3 shipped three per-session MP4s (`collapse.mp4`,
+`passfail.mp4`, `engine_explainer.mp4`) that auto-rendered on
+`SessionRecorder.finalize()`. The renders ran synchronously on the
+GUI thread, freezing the UI for ~3 minutes between the last question
+and the `ResultsScreen` swap. Participants would close the window
+thinking the app had crashed.
+
+### v1.1.4 fix — three changes
+
+**1. Opt-in question on the registration form.** Page 3 of the
+wizard gains a new dropdown:
+
+>  Generate personalized visualizations?
+>     • "No — faster results"  (default)
+>     • "Yes — generate visualizations (2-3 min)"
+
+The default is **No**: silent participants take the fast path. Only
+explicit opt-in triggers the renders. Value is persisted to
+`registrations.csv` + the per-session summary CSV as
+`wants_visualizations` for downstream analysis (who opts in / out
+becomes a known covariate).
+
+A new module-level helper `is_opt_in_for_visualizations(reg_row)`
+centralises the truthiness check so the dropdown label format can
+change without scattering string comparisons across the codebase.
+
+**2. `SessionRecorder.render_videos` wired to the opt-in
+preference.** `eeg_bank_viewer.py:2484` now passes
+`render_videos=is_opt_in_for_visualizations(reg.registration)` to
+the recorder constructor. Opt-out → recorder's existing
+`render_videos=False` skip path (proven by
+`test_render_videos_false_skips_render`) → no MP4 calls at all,
+finalize completes in ~1 sec. Opt-in → all three MP4s render as
+before, ~3 min total. The plumbing-level skip already existed; v1.1.4
+adds the user-facing preference that controls it.
+
+**3. Background-thread finalize + `ComputingResultsPage`
+transition.** `BankViewer._on_session_complete` no longer calls
+`recorder.finalize` synchronously. Instead:
+
+  * Immediately swaps the central widget to `ComputingResultsPage`
+    (new class) — "Thank you for participating" + a busy-chase
+    `QProgressBar` + dynamic subtitle copy chosen by opt-in path
+    (opt-in: "Computing your results and generating personalized
+    visualizations. This takes 2 to 3 minutes."; opt-out: "Computing
+    your results. This will take just a few seconds.").
+  * Spawns `_FinalizeWorker` (`QObject` + `QThread`) that calls
+    `recorder.finalize(result)` off the GUI thread. The recorder is
+    a plain Python object (no Qt internals); finalize() does file
+    I/O + matplotlib Agg renders — both thread-safe.
+  * When the worker emits `finished(result)`, the main thread swaps
+    `ComputingResultsPage` → `ResultsScreen` via
+    `_on_finalize_done`.
+  * On `failed(err_msg)`, the main thread logs + still shows
+    `ResultsScreen` so the participant gets a verdict even when
+    persistence partially failed.
+
+`ResultsScreen` is unchanged.
+
+If the participant closes the window before the worker finishes
+(opt-in path, ~3 min), the daemon thread keeps writing until done
+— partial / no MP4 acceptable, won't crash. The `ComputingResultsPage`
+footer reads "Please do not close this window."
+
+### Schema migration V3 → V4
+
+The single `wants_visualizations` column addition required a schema
+bump. `REGISTRATION_FIELDS_V3` is now frozen alongside V2 and V1;
+`REGISTRATION_FIELDS_V4` is the new canonical (20 columns);
+`REGISTRATION_FIELDS` alias points at V4. The version-aware
+migration in `RegistrationPage._save_row` rotates a V3-header file
+to `registrations.v3.csv.bak` (new path; complements the v1→v3
+and v2→v3 rotations from v1.1.3).
+
+`CONSENT_VERSION` bumped `"v1.1.3-placeholder"` →
+`"v1.1.4-placeholder"`. `cortex_storage._summary_row` continues to
+flow the demographic columns (now including `wants_visualizations`
+implicitly via the participant dict) into the uploaded summary CSV.
+
+### Tests (full sweep: 379 pass / 0 fail / 11 skipped)
+
+  * `tests/test_cortex_viewer.py`:
+    - `test_registration_csv_schema_v4` — renamed from `_v3`; asserts
+      the new `wants_visualizations` column is present and that an
+      opt-in row produces an `is_opt_in_for_visualizations()` True.
+    - `test_registration_default_opts_out_of_visualizations` — silent
+      participant ⇒ default "No" persisted; opt-in helper returns
+      False.
+    - `test_registration_schema_migration_rotates_v3_csv` — new
+      v1.1.4 migration path: V3-header file rotates to
+      `registrations.v3.csv.bak`.
+    - `test_computing_results_page_opt_out_text` /
+      `test_computing_results_page_opt_in_text` — direct render of
+      `ComputingResultsPage`; opt-out has "few seconds" copy, opt-in
+      has "2 to 3 minutes" copy; spinner is indeterminate; opt_in
+      attribute matches the constructor arg.
+  * `tests/test_cortex_results_screen.py`:
+    - `test_session_complete_swaps_to_results` updated to drain the
+      `QTimer.singleShot(0)` path used when there's no recorder.
+    - `test_session_complete_shows_computing_page_first` — new:
+      asserts `ComputingResultsPage` is shown BEFORE finalize
+      completes (via a stub recorder that sleeps 250ms in
+      finalize()), then waits up to 5s for the background worker to
+      emit and verify the swap to `ResultsScreen`.
+    - `test_session_complete_opt_out_path_shows_fast_copy` — new:
+      opt-out recorder's `ComputingResultsPage` carries the
+      "few seconds" copy, not the "2 to 3 minutes" copy.
+  * `tests/test_cortex_storage.py`:
+    - `CONSENT_VERSION` expectations bumped `"v1.1.3-placeholder"`
+      → `"v1.1.4-placeholder"` in both summary-CSV tests.
+
+### Bundle version
+
+`cortex_app/cortex.spec` `CFBundleShortVersionString`
+`'1.1.3'` → `'1.1.4'`. Test bank unchanged at `build-data-v2`. AD6
+strictness unchanged from v1.1.0–v1.1.3 (`N_MIN=15`, `ALPHA=0.10`).
+No engine, deployment, calibration, or `cert_config.yaml` changes
+— Phase-6 invariants intact.
+
+### What v1.1.3 cohort sees on upgrade
+
+Participants who took v1.1.3 sessions had `wants_visualizations`
+implicit (always on). v1.1.4 marks them as a separate cohort via
+the `consent_version="v1.1.4-placeholder"` stamp + the new
+`wants_visualizations` column. Analysis pipelines can join on
+session_id + filter by `consent_version` to compare cohorts.
+
+### Deferred (carried from prior releases)
+
+  * IRB amendment for `CONSENT_VERSION` + race/ethnicity + country
+    + the new `wants_visualizations` field before public deployment.
+  * LICENSE / README ffmpeg-GPL attribution (v1.1.2).
+  * Plaintext PII (`participant_name` + email) in summary CSV.
+  * 11 Dependabot vulnerabilities on the default branch.
+
+Tag: `cortex-v1.1.4`. Test bank pinned at `build-data-v2`.
+
+---
+
 ## ▶ CURRENT STATE (read this first)
 
 - **Paper 1 = the Multi-AUROC Precision Protocol (Mode-A).**  A per-examinee
