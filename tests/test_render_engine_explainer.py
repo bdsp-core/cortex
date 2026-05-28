@@ -114,6 +114,40 @@ def test_weighted_mean_cov_2d_handles_zero_weight_sum():
     assert np.isfinite(mu).all() and np.isfinite(cov).all()
 
 
+def test_v1_1_5_default_timing_hits_60_seconds():
+    """v1.1.5 spec: defaults must produce a ~60 sec video across the
+    six IIIC tasks for a typical T≥60 session. The combo is FPS=10,
+    TRIALS_PER_TASK=60, HOLD_SECONDS_PER_TASK=4.0 → per task block
+    = 60 + 40 = 100 frames; total = 600 frames; duration = 60.0 s."""
+    assert ree.FPS == 10
+    assert ree.TRIALS_PER_TASK == 60
+    assert ree.HOLD_SECONDS_PER_TASK == 4.0
+    for T in (60, 100, 300):
+        fpt, total, _ = ree._frame_plan(
+            n_trials=T, n_tasks=6, fps=ree.FPS,
+            trials_per_task=ree.TRIALS_PER_TASK,
+            hold_seconds=ree.HOLD_SECONDS_PER_TASK)
+        assert fpt == 100, f"T={T}: fpt should be 100, got {fpt}"
+        assert total == 600, f"T={T}: total frames should be 600"
+        assert abs(total / ree.FPS - 60.0) < 0.01, \
+            f"T={T}: duration {total / ree.FPS:.2f} s, want 60.0"
+
+
+def test_v1_1_5_short_sessions_proportionally_shorter():
+    """Sessions shorter than TRIALS_PER_TASK render proportionally
+    shorter videos rather than padding to 60 s — each trial is shown
+    1:1 and the per-task hold stays constant."""
+    fpt, total, _ = ree._frame_plan(
+        n_trials=20, n_tasks=6, fps=ree.FPS,
+        trials_per_task=ree.TRIALS_PER_TASK,
+        hold_seconds=ree.HOLD_SECONDS_PER_TASK)
+    assert fpt == 20 + 40                # all 20 trials + hold
+    assert total == fpt * 6
+    duration_s = total / ree.FPS
+    assert 35.0 < duration_s < 40.0, \
+        f"short session should be ~36 s, got {duration_s:.1f}"
+
+
 def test_frame_plan_cycles_through_all_tasks():
     fpt, total, at = ree._frame_plan(n_trials=30, n_tasks=6,
                                       fps=24, trials_per_task=20,

@@ -558,6 +558,104 @@ def test_results_screen_renders_verdicts(qapp, monkeypatch):
         qapp.processEvents()
 
 
+def test_results_screen_show_folder_button_hidden_when_no_session_dir(
+        qapp, monkeypatch):
+    """Pre-v1.1.5 callers (and test fixtures) construct ResultsScreen
+    without session_dir → the new 'Show results folder' button must
+    not appear on the screen."""
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    result = _synthetic_result()
+    screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
+    try:
+        assert hasattr(screen, "show_folder_btn")
+        assert screen.show_folder_btn.isHidden() is True
+        # CLOSE button still present + visible
+        assert hasattr(screen, "close_btn")
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
+def test_results_screen_show_folder_button_dispatches_to_os(
+        qapp, tmp_path, monkeypatch):
+    """When session_dir is supplied, clicking the button must
+    invoke the OS file manager via subprocess.Popen with the right
+    command for sys.platform. Mock subprocess.Popen to record the
+    call without actually spawning."""
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    # Create a real dir so the existence check passes.
+    sd = tmp_path / "session-uuid"
+    sd.mkdir()
+
+    calls = []
+
+    class _FakePopen:
+        def __init__(self, cmd, **kw):
+            calls.append((list(cmd), kw))
+
+    monkeypatch.setattr(ev.subprocess, "Popen", _FakePopen)
+
+    result = _synthetic_result()
+    screen = ev.ResultsScreen(result, n_correct=20, n_answered=42,
+                               session_dir=sd)
+    try:
+        # show_folder_btn now visible (isHidden() reflects
+        # setVisible(True); the True/False state is reliable even
+        # when the parent window isn't shown).
+        assert hasattr(screen, "show_folder_btn")
+        assert screen.show_folder_btn.isHidden() is False
+        screen.show_folder_btn.click()
+        assert calls, "subprocess.Popen was not called"
+        cmd, _ = calls[0]
+        # Path must be the session dir — the heart of the v1.1.5
+        # 'this session, not the parent sessions/ root' decision.
+        assert cmd[-1] == str(sd)
+        # Per-platform dispatch
+        import sys as _sys
+        if _sys.platform == "darwin":
+            assert cmd[0] == "open"
+        elif _sys.platform == "win32":
+            assert cmd[0] == "explorer"
+        else:
+            assert cmd[0] == "xdg-open"
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
+def test_results_screen_show_folder_button_no_op_when_dir_missing(
+        qapp, tmp_path, monkeypatch):
+    """Defensive: if the session_dir was deleted between session-end
+    and button click (e.g., participant cleared the folder manually),
+    the click should log + no-op rather than crash."""
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    # session_dir that does NOT exist
+    sd = tmp_path / "deleted-session-uuid"
+    calls = []
+    monkeypatch.setattr(
+        ev.subprocess, "Popen",
+        lambda *a, **kw: calls.append(a))
+
+    result = _synthetic_result()
+    screen = ev.ResultsScreen(result, n_correct=20, n_answered=42,
+                               session_dir=sd)
+    try:
+        # Button is still visible (we constructed with session_dir).
+        # Click ⇒ early-return because dir doesn't exist; no Popen.
+        screen.show_folder_btn.click()
+        assert not calls, ("Popen should NOT be called when the "
+                           "session dir is missing")
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
 def test_results_screen_handles_missing_threshold(qapp, monkeypatch):
     """If cert_config.yaml is missing / malformed, load_ell_star_iiic
     raises — the screen must still render with skill ℓ̂ shown but no

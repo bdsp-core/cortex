@@ -98,10 +98,23 @@ DOMAIN_TITLES = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
 T_LIM = (-3.0, 3.0)
 L_LIM = (-2.0, 3.0)
 SIGNAL_GRID_FINE = np.linspace(-2.8, 2.8, 61)   # smoother than engine's 11
-FPS = 24
 DPI = 110
-TRIALS_PER_TASK = 30        # cap per task block so total stays reasonable
-HOLD_SECONDS_PER_TASK = 0.8
+# v1.1.5: slowed playback to target ~60 sec total runtime across the 6
+# IIIC tasks. v1.1.3-v1.1.4 ran at 24 fps × 30 trials × 0.8 s hold for
+# ~12 sec total — too quick for a viewer to absorb the manifold +
+# ellipse + score-curve story. New defaults make each task block
+# 10 sec at 10 fps (60 trial frames + 40 hold frames per task), and
+# the camera rotation per real-time second halves (1.5°/frame × 10 fps
+# = 15°/s vs 36°/s previously). Render wall-time roughly doubles.
+#
+# For a session of T questions:
+#   - T < 60 : all trials shown 1:1; per task = T + 40 hold frames.
+#              Video shorter than 60 s (proportional to T).
+#   - T ≥ 60 : trials sub-sampled to 60 with step = T // 60; per task
+#              = 60 + 40 = 100 frames = 10 sec; total = 60 sec.
+FPS = 10
+TRIALS_PER_TASK = 60        # cap per task block so total stays ~60 s
+HOLD_SECONDS_PER_TASK = 4.0
 
 
 # ─── pure-math helpers (no Qt, no engine instrumentation) ─────────────

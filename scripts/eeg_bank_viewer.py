@@ -27,6 +27,7 @@ import datetime
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -1001,8 +1002,16 @@ class BankViewer(QMainWindow):
         self._show_results(self.session_result)
 
     def _show_results(self, result):
+        # v1.1.5: hand the session dir to ResultsScreen so its
+        # "Show results folder" button can open the right path.
+        # getattr-with-None default: handles the no-recorder path
+        # (test fixtures, audit paths) AND test stub recorders that
+        # don't model the full SessionRecorder surface. ResultsScreen
+        # hides the button when session_dir is None.
+        session_dir = getattr(self.recorder, "dir", None)
         self.setCentralWidget(
-            ResultsScreen(result, self._n_correct, self._n_answered))
+            ResultsScreen(result, self._n_correct, self._n_answered,
+                          session_dir=session_dir))
 
     def _on_session_failed(self, msg):
         """Slot for SessionController.sessionFailed."""
@@ -2369,10 +2378,17 @@ class ResultsScreen(QWidget):
         "PENDING": "#5c606a",
     }
 
-    def __init__(self, result, n_correct, n_answered):
+    def __init__(self, result, n_correct, n_answered, session_dir=None):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"ResultsScreen {{ background-color: {_PAGE_BG}; }}")
+
+        # v1.1.5: session-output directory (where CORTEX wrote the
+        # MP4s + CSVs + certificate.json). When set, a "Show results
+        # folder" button appears next to CLOSE and opens this dir in
+        # the native file manager. None ⇒ button is hidden, matches
+        # the pre-v1.1.5 constructor contract.
+        self._session_dir = Path(session_dir) if session_dir else None
 
         # Load per-task Youden thresholds for the narrative + details
         # panel. Failure here (missing cert_config, malformed entry)
@@ -2443,15 +2459,71 @@ class ResultsScreen(QWidget):
         root.addSpacing(22)
         root.addWidget(foot)
 
+        # v1.1.5: button row — [Show results folder]  [CLOSE]. The
+        # "Show results folder" button is hidden when session_dir is
+        # None (back-compat with tests + the no-recorder fast path)
+        # so the screen still shows just CLOSE when there's no folder
+        # to point at.
+        self.show_folder_btn = QPushButton("SHOW RESULTS FOLDER")
+        self.show_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.show_folder_btn.setFixedSize(240, 48)
+        self.show_folder_btn.setFont(_btn_font())
+        self.show_folder_btn.setStyleSheet(_BTN_CSS)
+        self.show_folder_btn.clicked.connect(self._open_session_folder)
+        self.show_folder_btn.setVisible(self._session_dir is not None)
+
         self.close_btn = QPushButton("CLOSE")
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_btn.setFixedSize(200, 48)
         self.close_btn.setFont(_btn_font())
         self.close_btn.setStyleSheet(_BTN_CSS)
         self.close_btn.clicked.connect(lambda: self.window().close())
+
         root.addSpacing(16)
-        root.addLayout(_hcenter(self.close_btn))
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_row.addWidget(self.show_folder_btn)
+        btn_row.addSpacing(18)
+        btn_row.addWidget(self.close_btn)
+        btn_row.addStretch(1)
+        root.addLayout(btn_row)
         root.addStretch(2)
+
+    def _open_session_folder(self):
+        """Open the per-session output dir in the OS file manager.
+        Dispatches by sys.platform; logs + no-ops if the folder is
+        missing (defensive — shouldn't happen on a finalized
+        session, but a participant clicking after manual file
+        deletion shouldn't crash the app)."""
+        if self._session_dir is None:
+            return
+        path = self._session_dir
+        if not path.is_dir():
+            logging.getLogger(__name__).warning(
+                "ResultsScreen: cannot open results folder — %s "
+                "does not exist", path)
+            return
+        try:
+            if sys.platform == "darwin":
+                cmd = ["open", str(path)]
+            elif sys.platform == "win32":
+                # Windows Explorer accepts the path as positional;
+                # os.startfile would also work but subprocess is
+                # uniform with the other platforms and easier to
+                # mock in tests.
+                cmd = ["explorer", str(path)]
+            else:
+                # Linux / *BSD — XDG handler dispatches to the
+                # configured file manager (Nautilus / Dolphin / etc.).
+                cmd = ["xdg-open", str(path)]
+            # check=False: don't raise if the file manager exits
+            # nonzero (some return 1 for "already open"). Don't
+            # capture output — let the user see file-manager errors
+            # in the spawning terminal during dev runs.
+            subprocess.Popen(cmd, close_fds=True)
+        except Exception as e:                          # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "ResultsScreen: open-results-folder failed: %s", e)
 
     @staticmethod
     def _safe_load_ell_star(codes):
