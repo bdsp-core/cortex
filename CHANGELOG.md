@@ -1315,6 +1315,139 @@ Tag: `cortex-v1.1.4`. Test bank pinned at `build-data-v2`.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-28) — `cortex-v1.1.5` — show-results-folder button + engine-explainer slowdown
+
+**Headline:** two UX-only changes. (1) `ResultsScreen` now has a
+"SHOW RESULTS FOLDER" button next to CLOSE that opens the
+per-session output directory in the OS file manager — solves the
+"where are my MP4s?" discoverability problem reported by a v1.1.3
+test taker. (2) `engine_explainer.mp4` defaults retuned so the
+video runs ~60 seconds across the six IIIC tasks (was ~12 s);
+each frame is now visible long enough to absorb the manifold +
+ellipse + score-curve story.
+
+### Diagnostic context
+
+A v1.1.3 test taker reported their MP4s "had no content" when
+opened. Investigation confirmed the files were valid H.264
+(extracted frames showed correct content); the actual issue was
+**Ubuntu Totem's default install lacking H.264 codecs** — the
+file plays fine in VLC / mpv / a Totem with `gstreamer1.0-libav`
+installed. Files live at the OS-blessed per-user data dir
+(`~/.local/share/CORTEX/sessions/<uuid>/` on Linux,
+`~/Library/Application Support/CORTEX/sessions/<uuid>/` on macOS,
+`%LOCALAPPDATA%\CORTEX\sessions\<uuid>\` on Windows) — chosen for
+macOS App-Translocation read-only constraints (the v1.0.1 fix
+explained at `cortex_storage.user_data_root:49-54`). Moving
+storage into the app-install location would re-break that, so
+v1.1.5 instead adds a discoverability button.
+
+### 1. SHOW RESULTS FOLDER button (`scripts/eeg_bank_viewer.py`)
+
+`ResultsScreen.__init__` gains an optional `session_dir=None`
+kwarg. When set:
+
+  - A second button ("SHOW RESULTS FOLDER", 240×48 px) appears
+    LEFT of CLOSE in the bottom button row.
+  - Click → `subprocess.Popen([opener, str(session_dir)])` where
+    `opener` is `open` (macOS) / `explorer` (Windows) /
+    `xdg-open` (Linux/*BSD). Per-platform dispatch by
+    `sys.platform`.
+  - Opens the **session subfolder only** (not the
+    `sessions/` root), so a shared-machine participant sees only
+    their own files — no risk of seeing past participants' data.
+  - Defensive: if the session dir no longer exists (manual
+    deletion), the click logs + no-ops rather than crashing.
+
+`BankViewer._show_results` plumbs the session_dir from
+`self.recorder.dir` via `getattr(self.recorder, "dir", None)` so
+no-recorder fast paths and test stubs without a `.dir` attribute
+still work. ResultsScreen with `session_dir=None` hides the
+button — keeps the pre-v1.1.5 constructor contract for the 5
+existing test fixtures that don't pass it.
+
+Bundle / install location explicitly NOT changed. See `cortex_storage.
+user_data_root:43-67` for the rationale (macOS App Translocation
+read-only constraint, Windows Program Files admin requirement,
+Linux portability).
+
+### 2. engine_explainer.mp4 slowdown (`scripts/render_engine_explainer.py`)
+
+New module-level defaults:
+
+  FPS = 10                    (was 24)
+  TRIALS_PER_TASK = 60        (was 30)
+  HOLD_SECONDS_PER_TASK = 4.0 (was 0.8)
+
+Per task block: 60 trial frames + 40 hold frames = 100 frames =
+10 sec. Total across 6 tasks: 600 frames = exactly 60.00 sec at
+10 fps. Verified end-to-end with a synthetic T=60 session:
+`Duration: 00:01:00.00, 10 fps, 1210×770 H.264`. For sessions
+with T<60 trials the video shortens proportionally (T=20 → ~36 s)
+rather than padding.
+
+Side effects:
+  - Camera rotation per real-time second halves (1.5°/frame ×
+    10 fps = 15°/s vs 36°/s previously) — more contemplative,
+    matches the slower per-frame display rate.
+  - Render wall-time roughly doubles (~63s → ~122s on a default
+    machine for a T=60 session). On the opt-in path (already
+    accepting 2-3 min per [[v1.1.4]]) this is well within
+    budget — total render is now ~152s = ~2.5 min including
+    collapse + passfail.
+  - File size grows (5 MB → 21 MB) due to ~2× the frame count
+    at the same bitrate. Stays local — never uploaded to
+    Dropbox.
+
+Pure fps reduction alone (e.g., dropping to fps=4.9 to hit 60s
+with the v1.1.4 frame count) would have looked too jerky.
+Combining fps reduction with more frames + longer hold
+preserves smoothness while hitting the 60s target.
+
+### Tests (full sweep: 385 pass / 0 fail / 11 skipped)
+
+  * `tests/test_cortex_viewer.py` (3 new):
+    - `test_results_screen_show_folder_button_hidden_when_no_session_dir`
+      — pre-v1.1.5 callers (no `session_dir`) get the button
+      hidden; CLOSE still works.
+    - `test_results_screen_show_folder_button_dispatches_to_os` —
+      with session_dir set, the button is visible; click invokes
+      `subprocess.Popen` with the platform-correct opener
+      (`open` / `explorer` / `xdg-open`) and the session
+      subfolder path. Mocked subprocess.
+    - `test_results_screen_show_folder_button_no_op_when_dir_missing`
+      — defensive: a deleted-since session_dir → click is a
+      logged no-op, no Popen call.
+  * `tests/test_render_engine_explainer.py` (2 new):
+    - `test_v1_1_5_default_timing_hits_60_seconds` — module
+      constants pinned to FPS=10 / TRIALS_PER_TASK=60 / HOLD=4.0;
+      `_frame_plan(T, 6, ...)` produces exactly 600 frames =
+      60.00 sec for T ∈ {60, 100, 300}.
+    - `test_v1_1_5_short_sessions_proportionally_shorter` —
+      T=20 session yields ~36 s (60 frames + 40 hold per task,
+      6 tasks @ 10 fps), proving short sessions shrink rather
+      than padding.
+
+### Bundle version
+
+`cortex_app/cortex.spec` `CFBundleShortVersionString`
+`'1.1.4'` → `'1.1.5'`. Test bank unchanged at `build-data-v2`.
+AD6 strictness unchanged from v1.1.0-v1.1.4 (`N_MIN=15`,
+`ALPHA=0.10`). No engine, deployment, calibration, or
+`cert_config.yaml` changes — Phase-6 invariants intact.
+
+### Deferred (carried from prior releases)
+
+  - IRB amendment for `CONSENT_VERSION` + race/ethnicity +
+    country + `wants_visualizations` before public deployment.
+  - LICENSE / README ffmpeg-GPL attribution (v1.1.2).
+  - Plaintext PII in summary CSV → Dropbox.
+  - 11 Dependabot vulnerabilities on the default branch.
+
+Tag: `cortex-v1.1.5`. Test bank pinned at `build-data-v2`.
+
+---
+
 ## ▶ CURRENT STATE (read this first)
 
 - **Paper 1 = the Multi-AUROC Precision Protocol (Mode-A).**  A per-examinee
