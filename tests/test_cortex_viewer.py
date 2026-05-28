@@ -224,10 +224,11 @@ def test_registration_requires_sex_dropdowns(qapp, monkeypatch):
             qapp.processEvents()
 
 
-def test_registration_csv_schema_v3(qapp, tmp_path, monkeypatch):
-    """The persisted CSV header must equal REGISTRATION_FIELDS (v3) exactly
-    (downstream analysis joins on these column names). v1.1.3 dropped
-    gender_identity — confirm it's absent."""
+def test_registration_csv_schema_v4(qapp, tmp_path, monkeypatch):
+    """The persisted CSV header must equal REGISTRATION_FIELDS (v4) exactly
+    (downstream analysis joins on these column names). v1.1.4 added
+    wants_visualizations as a session preference; gender_identity
+    (dropped in v1.1.3) stays absent."""
     import cortex_storage as cs
     monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
 
@@ -241,6 +242,9 @@ def test_registration_csv_schema_v3(qapp, tmp_path, monkeypatch):
         # v1.1.3: f_gender no longer exists on the page.
         assert not hasattr(reg, "f_gender"), \
             "f_gender widget should be gone in v1.1.3"
+        # v1.1.4: opt INTO visualizations so we exercise the non-default
+        # value in the persisted row.
+        reg.f_visualizations.setCurrentIndex(1)  # "Yes — generate ..."
         assert reg.commit() is True
     finally:
         reg.deleteLater()
@@ -253,6 +257,7 @@ def test_registration_csv_schema_v3(qapp, tmp_path, monkeypatch):
         header = next(_csv.reader(fh))
     assert header == ev.REGISTRATION_FIELDS
     assert "gender_identity" not in header
+    assert "wants_visualizations" in header
     assert len(rows) == 1
     r = rows[0]
     assert r["name"] == "Test User"
@@ -260,6 +265,30 @@ def test_registration_csv_schema_v3(qapp, tmp_path, monkeypatch):
     assert r["race_ethnicity"] == "White"
     assert r["consent_version"] == ev.CONSENT_VERSION
     assert r["eligibility_confirmed"] == "yes"
+    assert r["wants_visualizations"].lower().startswith("yes")
+    assert ev.is_opt_in_for_visualizations(r) is True
+
+
+def test_registration_default_opts_out_of_visualizations(
+        qapp, tmp_path, monkeypatch):
+    """Silent participant ⇒ wants_visualizations defaults to 'No'.
+    This is the v1.1.4 fast path that fixes the 3-min wait."""
+    import cortex_storage as cs
+    monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        # Do NOT touch f_visualizations — it should default to index 0
+        # ("No — faster results").
+        assert reg.commit() is True
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+    import csv as _csv
+    with open(tmp_path / "registrations.csv", encoding="utf-8") as fh:
+        rows = list(_csv.DictReader(fh))
+    assert rows[0]["wants_visualizations"].lower().startswith("no")
+    assert ev.is_opt_in_for_visualizations(rows[0]) is False
 
 
 def test_registration_schema_migration_rotates_v1_csv(
@@ -336,6 +365,84 @@ def test_registration_schema_migration_rotates_v2_csv(
         "v2-header CSV must rotate to .v2.csv.bak (not .v1 or .legacy)"
     with open(bak, encoding="utf-8") as fh:
         assert next(_csv.reader(fh)) == ev._REGISTRATION_FIELDS_V2
+
+
+def test_registration_schema_migration_rotates_v3_csv(
+        qapp, tmp_path, monkeypatch):
+    """A v3 (v1.1.3) header on disk must be rotated to
+    registrations.v3.csv.bak — new for v1.1.4 since the upgrade path
+    now spans three schema bumps. The v1→v3 and v2→v3 paths from
+    v1.1.3 are exercised separately above."""
+    import cortex_storage as cs
+    monkeypatch.setattr(cs, "user_data_root", lambda: tmp_path)
+
+    legacy_path = tmp_path / "registrations.csv"
+    with open(legacy_path, "w", encoding="utf-8", newline="") as fh:
+        import csv as _csv
+        w = _csv.writer(fh)
+        w.writerow(ev._REGISTRATION_FIELDS_V3)
+        w.writerow(["old-sid", "2026-05-27T00:00:00+00:00",
+                    "v1.1.3-placeholder", "", "yes",
+                    "Old User", "33", "old@example.com", "MGH",
+                    "Fellow", "Academic medical center",
+                    "10–14", "21–50",
+                    "5", "Normal color vision", "No",
+                    "Female", "United States", "White"])
+
+    reg = ev.RegistrationPage()
+    try:
+        _fill_required(reg)
+        assert reg.commit() is True
+    finally:
+        reg.deleteLater()
+        qapp.processEvents()
+
+    import csv as _csv
+    with open(legacy_path, encoding="utf-8") as fh:
+        header = next(_csv.reader(fh))
+    assert header == ev.REGISTRATION_FIELDS
+    bak = tmp_path / "registrations.v3.csv.bak"
+    assert bak.exists(), \
+        "v3-header CSV must rotate to .v3.csv.bak (not .v2 or .legacy)"
+    with open(bak, encoding="utf-8") as fh:
+        assert next(_csv.reader(fh)) == ev._REGISTRATION_FIELDS_V3
+
+
+# ─────── v1.1.4: ComputingResultsPage + background finalize ───────
+
+def test_computing_results_page_opt_out_text(qapp):
+    """Opt-out path shows the fast-results copy."""
+    page = ev.ComputingResultsPage(opt_in=False)
+    try:
+        from PyQt6.QtWidgets import QLabel
+        texts = [w.text() for w in page.findChildren(QLabel)]
+        joined = " ".join(texts)
+        assert any("Thank you for participating" in t for t in texts)
+        assert "few seconds" in joined
+        # opt-in copy must NOT appear
+        assert "2 to 3 minutes" not in joined
+        assert page.opt_in is False
+        # Spinner is indeterminate (min == max == 0)
+        assert page.spinner.minimum() == 0
+        assert page.spinner.maximum() == 0
+    finally:
+        page.deleteLater()
+        qapp.processEvents()
+
+
+def test_computing_results_page_opt_in_text(qapp):
+    """Opt-in path shows the 2-3 min advisory."""
+    page = ev.ComputingResultsPage(opt_in=True)
+    try:
+        from PyQt6.QtWidgets import QLabel
+        texts = [w.text() for w in page.findChildren(QLabel)]
+        joined = " ".join(texts)
+        assert "2 to 3 minutes" in joined
+        assert "few seconds" not in joined
+        assert page.opt_in is True
+    finally:
+        page.deleteLater()
+        qapp.processEvents()
 
 
 # ─────── v1.1.2: ResultsScreen — verdicts, narrative, details panel ───────

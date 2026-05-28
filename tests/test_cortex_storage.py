@@ -159,7 +159,7 @@ def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):
         "prior_test_taken": "No", "sex": "Female",
         # v1.1.3: gender_identity dropped — confirm absence in summary too.
         "country": "United States",
-        "race_ethnicity": "White", "consent_version": "v1.1.3-placeholder",
+        "race_ethnicity": "White", "consent_version": "v1.1.4-placeholder",
         "irb_protocol_id": "",
     })
     rec = cs.SessionRecorder(
@@ -179,7 +179,7 @@ def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):
         ("eeg_volume_per_month", "21–50"),
         ("sex", "Female"),
         ("country", "United States"), ("race_ethnicity", "White"),
-        ("consent_version", "v1.1.3-placeholder"),
+        ("consent_version", "v1.1.4-placeholder"),
     ):
         assert srow[col] == want, f"{col}: got {srow[col]!r}, want {want!r}"
     # v1.1.3: gender_identity column should be ABSENT from the summary.

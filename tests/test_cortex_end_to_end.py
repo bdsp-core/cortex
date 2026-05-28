@@ -86,8 +86,19 @@ def test_full_pipeline_end_to_end(tmp_path):
     assert result.n_questions == N_QUESTIONS
     assert not result.aborted
 
-    app.processEvents()
-    assert isinstance(win.centralWidget(), ev.ResultsScreen)
+    # v1.1.4: finalize runs on a background thread; BankViewer shows
+    # ComputingResultsPage immediately after session-complete and
+    # swaps to ResultsScreen only when the worker emits finished.
+    # Spin the event loop until the swap happens (or fail after 30s).
+    swap_deadline = time.time() + 30.0
+    while time.time() < swap_deadline:
+        app.processEvents()
+        if isinstance(win.centralWidget(), ev.ResultsScreen):
+            break
+        time.sleep(0.02)
+    assert isinstance(win.centralWidget(), ev.ResultsScreen), (
+        "background-thread finalize did not swap ComputingResultsPage "
+        "→ ResultsScreen within 30s")
 
     # every artifact present + well-formed
     sdir = recorder.dir

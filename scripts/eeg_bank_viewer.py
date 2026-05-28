@@ -45,13 +45,16 @@ for _v in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
 import h5py
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt, QEvent, QTimer, QRect, QPoint
+from PyQt6.QtCore import (
+    Qt, QEvent, QTimer, QRect, QPoint, QThread, QObject, pyqtSignal,
+    pyqtSlot,
+)
 from PyQt6.QtGui import (QColor, QFont, QFontDatabase, QPainter, QPainterPath,
                          QPen, QPixmap)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QComboBox, QFrame, QPushButton, QLabel, QCheckBox, QSplitter,
-    QGridLayout, QLineEdit, QFormLayout, QStackedWidget
+    QGridLayout, QLineEdit, QFormLayout, QStackedWidget, QProgressBar,
 )
 from scipy import signal as sig
 
@@ -937,18 +940,67 @@ class BankViewer(QMainWindow):
             self.recorder.write_trial(telemetry, gui)
 
     def _on_session_complete(self, result):
-        """Slot for SessionController.sessionComplete — finalize storage and
-        swap in the terminal results screen."""
+        """Slot for SessionController.sessionComplete.
+
+        v1.1.4: finalize() runs on a background thread (_FinalizeWorker)
+        so the UI stays responsive while files are written + (if the
+        participant opted in to visualizations) the slow MP4s render.
+        ComputingResultsPage is shown IMMEDIATELY to acknowledge the
+        test ending; ResultsScreen swaps in once the worker emits
+        `finished`.
+
+        Pre-v1.1.4 the finalize was synchronous and the GUI was frozen
+        for ~3 minutes on the opt-in path."""
         self._awaiting_answer = False
         self._session_over = True
         self.session_result = result
-        if self.recorder is not None:
-            try:
-                self.recorder.finalize(result)
-            except Exception as e:
-                print(f"  WARN: recorder.finalize failed: {e}", flush=True)
         if getattr(result, "aborted", False):
-            return                       # window is closing — no results screen
+            return                       # window is closing — no transition
+
+        opt_in = False
+        if self.recorder is not None:
+            opt_in = bool(getattr(self.recorder, "render_videos", False))
+        # Show the transition page first, then yield so it paints
+        # before we spin up the worker thread (avoids a brief blank
+        # frame on slow machines).
+        self.setCentralWidget(ComputingResultsPage(opt_in=opt_in))
+        QApplication.processEvents()
+
+        if self.recorder is None:
+            # No recorder ⇒ nothing to finalize; transition straight
+            # through to results on the next event-loop tick.
+            QTimer.singleShot(0, lambda: self._show_results(result))
+            return
+
+        self._fin_thread = QThread(self)
+        self._fin_worker = _FinalizeWorker(self.recorder, result)
+        self._fin_worker.moveToThread(self._fin_thread)
+        self._fin_thread.started.connect(self._fin_worker.run)
+        self._fin_worker.finished.connect(self._on_finalize_done)
+        self._fin_worker.failed.connect(self._on_finalize_failed)
+        # Tear the thread down once the worker emits either terminal.
+        self._fin_worker.finished.connect(self._fin_thread.quit)
+        self._fin_worker.failed.connect(self._fin_thread.quit)
+        self._fin_thread.finished.connect(self._fin_worker.deleteLater)
+        self._fin_thread.finished.connect(self._fin_thread.deleteLater)
+        self._fin_thread.start()
+
+    @pyqtSlot(object)
+    def _on_finalize_done(self, result):
+        """Worker emitted success — swap to ResultsScreen on the GUI
+        thread."""
+        self._show_results(result)
+
+    @pyqtSlot(str)
+    def _on_finalize_failed(self, err_msg):
+        """Worker raised — log + still show results so the participant
+        gets a verdict even when persistence partially failed."""
+        logging.getLogger(__name__).warning(
+            "background finalize failed: %s; showing results anyway",
+            err_msg)
+        self._show_results(self.session_result)
+
+    def _show_results(self, result):
         self.setCentralWidget(
             ResultsScreen(result, self._n_correct, self._n_answered))
 
@@ -1537,7 +1589,7 @@ class ConsentPage(QWidget):
 
 # CONSENT_VERSION is stamped on every registration row so cohort splits
 # remain reproducible across IRB-language revisions. Bump on consent change.
-CONSENT_VERSION = "v1.1.3-placeholder"
+CONSENT_VERSION = "v1.1.4-placeholder"
 # IRB_PROTOCOL_ID is intentionally blank until the public-release IRB
 # amendment lands. data/SENSITIVE.md lists the internal-use IRBs.
 IRB_PROTOCOL_ID = ""
@@ -1564,6 +1616,14 @@ _CONFIDENCE = ["Prefer not to say",
                "1 — Very low", "2", "3", "4 — Moderate", "5", "6",
                "7 — Very high"]
 _PRIOR_TEST = ["Prefer not to say", "No", "Yes", "Unsure"]
+# v1.1.4: per-session preference — controls whether the post-session
+# MP4 renders (collapse / passfail / engine_explainer, ~3 min total)
+# run at all. Default is "No" (fast path) per the v1.1.3 feedback that
+# the 3-min render time blocked participants from seeing their
+# results. Opt-in is the only path that triggers the renders; opt-out
+# skips them entirely (no MP4 files produced in the session dir).
+_VISUALIZATIONS = ["No — faster results",
+                   "Yes — generate visualizations (2-3 min)"]
 # Short curated country list — broad geographic coverage for v1.1.1.
 # Expand to full ISO 3166 once the dataset volume warrants it.
 _COUNTRY = ["Prefer not to say", "United States", "Canada", "Mexico",
@@ -1588,7 +1648,8 @@ _RACE = ["Prefer not to say", "American Indian or Alaska Native", "Asian",
 # History:
 #   V1 — pre-v1.1.1, 9 columns (name + 6 free-text fields).
 #   V2 — v1.1.1 / v1.1.2, 20 columns (wizard intake + gender_identity).
-#   V3 — v1.1.3+, 19 columns (gender_identity dropped; sex retained).
+#   V3 — v1.1.3, 19 columns (gender_identity dropped; sex retained).
+#   V4 — v1.1.4+, 20 columns (+ wants_visualizations session preference).
 _REGISTRATION_FIELDS_V1 = [
     "session_id", "timestamp_utc",
     "name", "age", "gender", "institution", "email", "expertise",
@@ -1603,7 +1664,16 @@ _REGISTRATION_FIELDS_V2 = [
     "self_rated_confidence", "color_vision", "prior_test_taken",
     "sex", "gender_identity", "country", "race_ethnicity",
 ]
-REGISTRATION_FIELDS_V3 = [
+_REGISTRATION_FIELDS_V3 = [
+    "session_id", "timestamp_utc", "consent_version", "irb_protocol_id",
+    "eligibility_confirmed",
+    "name", "age", "email",
+    "institution", "expertise", "practice_setting",
+    "years_reading_eeg", "eeg_volume_per_month",
+    "self_rated_confidence", "color_vision", "prior_test_taken",
+    "sex", "country", "race_ethnicity",
+]
+REGISTRATION_FIELDS_V4 = [
     "session_id", "timestamp_utc", "consent_version", "irb_protocol_id",
     "eligibility_confirmed",
     # Identity
@@ -1614,15 +1684,27 @@ REGISTRATION_FIELDS_V3 = [
     "self_rated_confidence", "color_vision", "prior_test_taken",
     # Demographics (gender_identity removed v1.1.3)
     "sex", "country", "race_ethnicity",
+    # Session preferences (v1.1.4)
+    "wants_visualizations",
 ]
 # Canonical "always-current" alias. New code should import this name;
 # version-suffixed constants are for migration / historical reference.
-REGISTRATION_FIELDS = REGISTRATION_FIELDS_V3
+REGISTRATION_FIELDS = REGISTRATION_FIELDS_V4
 
 # Migration: detect which legacy schema a non-current header matches
 # so the .bak filename names the version that was rotated.
-_LEGACY_SCHEMAS = (("v2", _REGISTRATION_FIELDS_V2),
+_LEGACY_SCHEMAS = (("v3", _REGISTRATION_FIELDS_V3),
+                   ("v2", _REGISTRATION_FIELDS_V2),
                    ("v1", _REGISTRATION_FIELDS_V1))
+
+
+def is_opt_in_for_visualizations(reg_row) -> bool:
+    """Return True if the participant opted in to the slow per-session
+    MP4 renders (v1.1.4). Centralised so the dropdown's label format
+    can change without scattering string comparisons across the
+    codebase. Missing / unknown value ⇒ opt-out (the default)."""
+    val = (reg_row.get("wants_visualizations") or "").lower()
+    return val.startswith("yes")
 
 
 def _is_dropdown_set(combo: QComboBox) -> bool:
@@ -1738,6 +1820,10 @@ class RegistrationPage(QWidget):
         self.f_sex = self._make_combo(_SEX)
         self.f_country = self._make_combo(_COUNTRY)
         self.f_race = self._make_combo(_RACE)
+        # v1.1.4 — per-session preference. Default index 0 = "No" so
+        # silent participants take the fast path; only those who
+        # explicitly opt in wait the 2-3 min for visualizations.
+        self.f_visualizations = self._make_combo(_VISUALIZATIONS)
 
     def _make_combo(self, items):
         c = QComboBox()
@@ -1901,6 +1987,8 @@ class RegistrationPage(QWidget):
             ("Sex", self.f_sex),
             ("Country of practice", self.f_country),
             ("Race / ethnicity", self.f_race),
+            ("Generate personalized visualizations?",
+             self.f_visualizations),
         ):
             form.addRow(self._flabel(label_text), field)
         root.addSpacing(22)
@@ -2040,6 +2128,10 @@ class RegistrationPage(QWidget):
             "sex": _combo_val(self.f_sex),
             "country": _combo_val(self.f_country),
             "race_ethnicity": _combo_val(self.f_race),
+            # v1.1.4 — the f_visualizations combo has no "— select —"
+            # sentinel so _combo_val always returns one of the two
+            # explicit options; never "".
+            "wants_visualizations": self.f_visualizations.currentText(),
         }
 
     @staticmethod
@@ -2083,6 +2175,149 @@ class RegistrationPage(QWidget):
             if is_new:
                 w.writeheader()
             w.writerow(row)
+
+
+# ── v1.1.4: background-thread finalize + computing-results landing ──
+
+class _FinalizeWorker(QObject):
+    """QObject worker that runs SessionRecorder.finalize() off the GUI
+    thread so the ComputingResultsPage stays interactive (spinner
+    animates, window can be moved) while finalize does its file I/O
+    and — if the participant opted in — the slow MP4 renders.
+
+    The recorder is a plain Python object (no Qt internals) so calling
+    its methods from a non-GUI thread is safe. Matplotlib's Agg
+    backend (used by cortex_render_videos + render_engine_explainer)
+    is also thread-safe.
+
+    Signals:
+      finished(object) — emitted on success; payload is the original
+                         SessionResult so the main thread can hand it
+                         to ResultsScreen.
+      failed(str)      — emitted on exception; payload is the error
+                         message for logging. ResultsScreen still
+                         renders (partial data is better than none).
+    """
+    finished = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, recorder, result):
+        super().__init__()
+        self._recorder = recorder
+        self._result = result
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            if self._recorder is not None:
+                self._recorder.finalize(self._result)
+        except Exception as e:                          # noqa: BLE001
+            logging.getLogger(__name__).exception(
+                "background finalize failed")
+            self.failed.emit(str(e))
+            return
+        self.finished.emit(self._result)
+
+
+class ComputingResultsPage(QWidget):
+    """Brief transition screen shown between the last question and
+    ResultsScreen. v1.1.4: the heavy MP4 renders now run on a
+    background thread (_FinalizeWorker); this page is the
+    user-visible 'please wait' covering that time. Always shown
+    regardless of opt-in so the participant gets a clean
+    acknowledgement of the test ending — just for a much shorter
+    time on the fast (opt-out) path.
+
+    Layout:
+      heading: 'Thank you for participating.'
+      sub:     dynamic by opt-in:
+                opt-in → 'Computing your results and generating
+                          personalized visualizations (this takes
+                          2-3 minutes).'
+                opt-out → 'Computing your results — this will take
+                          just a few seconds.'
+      spinner: QProgressBar in indeterminate mode (busy chase
+               animation; no exact-progress signals needed from the
+               worker)
+      footer:  'Please don't close this window.'
+
+    Class-level API: `.opt_in: bool` (read-only after construction)
+    and the inherited QWidget surface. No buttons — closing is up to
+    the user via the window decorations; the worker daemon will keep
+    running if they do, so partial / no MP4 output is the failure
+    mode (not a crash).
+    """
+
+    _PB_CSS = (
+        "QProgressBar { background-color: #15171c; border: 1px solid"
+        " #3a3d45; border-radius: 0px; height: 10px; }"
+        " QProgressBar::chunk { background-color: #7ed391; }"
+    )
+
+    def __init__(self, opt_in: bool):
+        super().__init__()
+        self.opt_in = bool(opt_in)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
+            f"ComputingResultsPage {{ background-color: {_PAGE_BG}; }}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addStretch(2)
+
+        heading = QLabel("Thank you for participating.")
+        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hf = QFont()
+        hf.setPointSize(28)
+        hf.setWeight(QFont.Weight.DemiBold)
+        hf.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1)
+        heading.setFont(hf)
+        heading.setStyleSheet("color: #eef1f5; background: transparent;")
+        root.addWidget(heading)
+
+        if self.opt_in:
+            sub_text = ("Computing your results and generating "
+                        "personalized visualizations.\n"
+                        "This takes 2 to 3 minutes.")
+        else:
+            sub_text = ("Computing your results.\n"
+                        "This will take just a few seconds.")
+        sub = QLabel(sub_text)
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setWordWrap(True)
+        sub.setFixedWidth(640)
+        sf = QFont()
+        sf.setPointSize(13)
+        sub.setFont(sf)
+        sub.setStyleSheet("color: #aab0ba; background: transparent;")
+        root.addSpacing(18)
+        row = QHBoxLayout()
+        row.addStretch(1); row.addWidget(sub); row.addStretch(1)
+        root.addLayout(row)
+
+        # Indeterminate QProgressBar = busy-chase animation. setMinimum
+        # = setMaximum = 0 turns off the percentage display and turns
+        # on the moving 'chunk' Qt renders by default.
+        self.spinner = QProgressBar()
+        self.spinner.setMinimum(0)
+        self.spinner.setMaximum(0)
+        self.spinner.setTextVisible(False)
+        self.spinner.setFixedSize(420, 10)
+        self.spinner.setStyleSheet(self._PB_CSS)
+        root.addSpacing(34)
+        row2 = QHBoxLayout()
+        row2.addStretch(1); row2.addWidget(self.spinner); row2.addStretch(1)
+        root.addLayout(row2)
+
+        foot = QLabel("Please do not close this window.")
+        foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ff = QFont()
+        ff.setPointSize(10)
+        foot.setFont(ff)
+        foot.setStyleSheet("color: #5c606a; background: transparent;")
+        root.addSpacing(28)
+        root.addWidget(foot)
+        root.addStretch(3)
 
 
 class ResultsScreen(QWidget):
@@ -2481,13 +2716,20 @@ def main():
         # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
         # legacy/audit paths — so participant.json reflects what stopped
         # the session, not a stale module constant.
+        # v1.1.4: visualizations are opt-in (default off). When the
+        # participant opted out at registration, render_videos=False
+        # makes finalize() skip the 3 MP4 renders entirely (~3 min
+        # saved). When opted in, render_videos=True triggers all
+        # three renders on the background-finalize worker so the
+        # ComputingResultsPage covers the wait.
         recorder = SessionRecorder(
             reg.session_id, reg.registration,
             {"n_iiic_segments": len(engine_inputs.all_seg_ids),
              "policy": type(controller.session.policy).__name__,
              "n_particles": N_PARTICLES,
              "max_questions": MAX_QUESTIONS_DEFAULT,
-             "tutorial_seg_id": int(tutorial_sid)})
+             "tutorial_seg_id": int(tutorial_sid)},
+            render_videos=is_opt_in_for_visualizations(reg.registration))
         win = BankViewer(controller, reg.session_id, tutorial_sid, recorder)
         # Install app-wide event filter so combo boxes don't swallow arrow
         # keys / Ctrl before we see them.

@@ -130,13 +130,120 @@ def test_results_screen_handles_no_answers(qapp):
 
 
 def test_session_complete_swaps_to_results(qapp, iiic_segs):
+    """No-recorder fast path: ComputingResultsPage shows then transitions
+    to ResultsScreen on the next event-loop tick."""
     fake = FakeController()
     win = ev.BankViewer(fake, "test-results", iiic_segs[0])
     try:
         fake.sessionComplete.emit(_result(aborted=False))
         qapp.processEvents()
+        qapp.processEvents()    # drain the QTimer.singleShot(0) too
         assert win._session_over is True
         assert isinstance(win.centralWidget(), ev.ResultsScreen)
+    finally:
+        win.close()
+        win.deleteLater()
+        qapp.processEvents()
+
+
+def test_session_complete_shows_computing_page_first(qapp, iiic_segs):
+    """v1.1.4: BankViewer must show ComputingResultsPage immediately on
+    session-complete, BEFORE finalize runs. This is the user-visible
+    'please wait' covering the background-thread finalize."""
+    from types import SimpleNamespace
+
+    class _SlowRecorder:
+        """Recorder stub whose finalize() blocks long enough that the
+        ComputingResultsPage is observable before transition."""
+        render_videos = True
+        participant = {"name": "Slow", "wants_visualizations":
+                       "Yes — generate visualizations (2-3 min)"}
+        finalize_called = False
+
+        def write_trial(self, *_a, **_kw):
+            pass
+
+        def finalize(self, result):
+            import time
+            time.sleep(0.25)               # 250ms — observable in tests
+            self.finalize_called = True
+
+        def close(self):
+            pass
+
+    fake = FakeController()
+    rec = _SlowRecorder()
+    win = ev.BankViewer(fake, "test-computing", iiic_segs[0], rec)
+    try:
+        fake.sessionComplete.emit(_result(aborted=False))
+        qapp.processEvents()
+        # Immediately after the emit drain, the page must be the
+        # transition page, NOT the ResultsScreen — the worker thread
+        # is still in its 250ms sleep.
+        assert isinstance(win.centralWidget(), ev.ComputingResultsPage)
+        assert win.centralWidget().opt_in is True
+        # Spin the event loop until either the swap happens or we
+        # time out at 5s. Each spin yields ~10ms.
+        import time as _t
+        deadline = _t.time() + 5.0
+        while _t.time() < deadline:
+            qapp.processEvents()
+            if isinstance(win.centralWidget(), ev.ResultsScreen):
+                break
+            _t.sleep(0.02)
+        assert isinstance(win.centralWidget(), ev.ResultsScreen), \
+            "Worker never emitted finished; ResultsScreen swap " \
+            "did not occur within 5s"
+        assert rec.finalize_called, \
+            "finalize() was never called on the background thread"
+    finally:
+        win.close()
+        win.deleteLater()
+        qapp.processEvents()
+
+
+def test_session_complete_opt_out_path_shows_fast_copy(qapp, iiic_segs):
+    """Opt-out recorder ⇒ ComputingResultsPage shows the 'few seconds'
+    copy (not the 2-3 min copy)."""
+
+    class _FastRecorder:
+        render_videos = False
+        participant = {"wants_visualizations": "No — faster results"}
+
+        def write_trial(self, *_a, **_kw):
+            pass
+
+        def finalize(self, result):
+            import time
+            time.sleep(0.1)
+
+        def close(self):
+            pass
+
+    fake = FakeController()
+    win = ev.BankViewer(fake, "test-fast", iiic_segs[0], _FastRecorder())
+    try:
+        fake.sessionComplete.emit(_result(aborted=False))
+        qapp.processEvents()
+        page = win.centralWidget()
+        assert isinstance(page, ev.ComputingResultsPage)
+        assert page.opt_in is False
+        from PyQt6.QtWidgets import QLabel
+        joined = " ".join(w.text() for w in page.findChildren(QLabel))
+        assert "few seconds" in joined
+        assert "2 to 3 minutes" not in joined
+        # Spin until the worker emits + the thread quits, so the
+        # finally block doesn't tear down the BankViewer while the
+        # background thread is still mid-finalize (avoids a
+        # "wrapped C/C++ object of type _FinalizeWorker has been
+        # deleted" race on slow CI).
+        import time as _t
+        deadline = _t.time() + 5.0
+        while _t.time() < deadline:
+            qapp.processEvents()
+            if isinstance(win.centralWidget(), ev.ResultsScreen):
+                break
+            _t.sleep(0.02)
     finally:
         win.close()
         win.deleteLater()

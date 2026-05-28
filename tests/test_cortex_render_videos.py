@@ -139,10 +139,17 @@ def test_render_failure_does_not_break_finalize(tmp_path, monkeypatch,
     cortex_storage's logger (not stdout) — assert against caplog records."""
     import logging
     import cortex_render_videos as cv
+    import render_engine_explainer as ree
 
-    def _boom(session_dir):
+    def _boom(session_dir, **_kw):
         raise RuntimeError("simulated render failure")
     monkeypatch.setattr(cv, "render_all", _boom)
+    # v1.1.3 hook in cortex_storage.finalize calls render_engine_explainer
+    # too — patch it to also raise so this test stays focused on the
+    # failure-budget independence claim. Without this patch the real
+    # render runs (~60s + matplotlib state leak across the test session,
+    # which has tripped a GC abort in pytest's process).
+    monkeypatch.setattr(ree, "render_engine_explainer", _boom)
 
     rec = cs.SessionRecorder(
         "sess-boom", PARTICIPANT,
