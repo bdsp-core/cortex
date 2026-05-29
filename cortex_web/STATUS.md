@@ -145,9 +145,9 @@ python cortex_web/scripts/prepare_web_bundle.py --version v1.1-local \
    sets not ported); **Palatino face** not bundled (CSS stack only).
 5. **Strong examinee takes ~259 q on the 300 pool** — expected (adaptive
    exploration with 50/class); a bigger pool shortens this.
-6. **No browser-automation (Playwright) test** of the click-through — the flow
-   is verified by build + unit tests + a live-uvicorn API round-trip, not a
-   headless UI run.
+6. *(resolved)* A headless-Chrome click-through now exists: `npm run ui-smoke`
+   drives landing→login→consent→registration→tutorial→viewer→keyboard-answering
+   in real Chrome (Playwright). Still no visual/pixel diff vs the desktop.
 
 ## Recently done (this session)
 - Per-session stratified 500-sampler (`sampleSession.ts`) + posterior

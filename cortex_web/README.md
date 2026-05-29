@@ -76,9 +76,16 @@ python -m server.admin export-results  --out results/                   # one JS
 ## Tests
 
 ```bash
-npm test                                  # engine validation (45) — statistically vs the Python engine
-python -m pytest server/test_server.py    # backend (11) — security + full API round-trip
+npm test                                  # vitest: engine (45) + frontend unit (9)
+python -m pytest server/test_server.py    # backend (13) — security + full API round-trip
+npm run ui-smoke                          # headless-Chrome click-through of the whole flow
 ```
+
+`ui-smoke` boots the server, mints a participant, and drives real Chrome
+through landing → login → consent → registration → tutorial → viewer →
+keyboard answering (via Playwright + the already-installed system Chrome).
+Playwright is a dev dependency; it does not download a browser
+(`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install` if a fresh install tries to).
 
 ## Data bundle
 
