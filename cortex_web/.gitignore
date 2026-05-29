@@ -15,4 +15,17 @@ public/bundle/
 .env
 .env.local
 
+# Backend runtime artifacts: SQLite DB + WAL/SHM sidecars, the JWT signing
+# secret, exported credentials/results, Python caches. Never commit
+# participant credentials or results.
+server/*.db
+server/*.db-wal
+server/*.db-shm
+server/.jwt_secret
+server/.venv/
+**/__pycache__/
+*.pyc
+codes.csv
+results/
+
 .DS_Store
