@@ -80,8 +80,10 @@ def fig_aggregate_savings():
     ax.set_title(f"Population draws ~ N(0,Σ)  (N={len(cp)})")
     ax.legend()
 
-    fig.suptitle("Aggregate pass/fail: exploiting the cross-task correlation "
-                 "reaches the decision in fewer questions", fontweight="bold")
+    fig.suptitle("Aggregate pass/fail: at the fitted r_ℓ=0.37, modeling the "
+                 "correlation does NOT reduce questions-to-decision on the "
+                 "realistic population\n(ECDFs overlap; correlated faster in "
+                 "only ~1/3 of real raters)", fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(OUT / "fig1_aggregate_savings.png", bbox_inches="tight")
     plt.close(fig)
@@ -114,8 +116,10 @@ def fig_calibration():
         ax.set_ylabel("rate")
         ax.set_title(name)
         ax.legend()
-    fig.suptitle("Aggregate decision quality — correlation is better calibrated "
-                 "(fewer wrong / over-confident verdicts)", fontweight="bold")
+    fig.suptitle("Aggregate decision quality — aggressively exploiting "
+                 "r_ℓ=0.37 (low per-task floor) slightly INCREASES wrong and "
+                 "over-confident verdicts (cross-task extrapolation error)",
+                 fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(OUT / "fig2_calibration.png", bbox_inches="tight")
     plt.close(fig)
@@ -142,7 +146,9 @@ def fig_concordance():
     ax.set_xlabel("candidate skill spread across tasks  (SD of per-task margin;\n"
                   "low = concordant / uniformly skilled)")
     ax.set_ylabel("questions saved by correlation\n(independent − correlated)")
-    ax.set_title("Correlation pays off most for concordant candidates")
+    ax.set_title("Saving vs concordance — near zero across the board on real "
+                 "raters\n(the real population sits near the cut, where neither "
+                 "approach resolves fast)")
     ax.legend()
     fig.colorbar(sc, label="skill spread")
     fig.tight_layout()
@@ -162,8 +168,8 @@ def fig_pertask_vs_aggregate():
                     label=f"{lbl} (median {np.median(arr):.0f})")
         ax.set_xlabel("total questions"); ax.set_ylabel("fraction of raters")
         ax.set_title(title); ax.legend()
-    fig.suptitle("Where correlation helps: little for per-task all-resolve "
-                 "(r_ℓ=0.37), clearly for the aggregate verdict",
+    fig.suptitle("At r_ℓ=0.37 neither target benefits on the real population: "
+                 "per-task all-resolve and aggregate ECDFs both ~overlap",
                  fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     fig.savefig(OUT / "fig4_pertask_vs_aggregate.png", bbox_inches="tight")
@@ -178,8 +184,9 @@ def fig_concordant_sweep():
     ax.plot(g.index, g["correlated"], "-o", color=C_CORR, label="correlated")
     ax.set_xlabel("candidate's common skill level ℓ (all tasks equal)")
     ax.set_ylabel("questions to aggregate decision")
-    ax.set_title("Concordant candidates: correlation reaches the aggregate\n"
-                 "verdict in far fewer questions at clear pass/fail levels")
+    ax.set_title("Mechanism check (concordant candidates): correlation helps "
+                 "ONLY at\nclearly pass/fail levels; in the borderline band both "
+                 "hit the cap")
     ax.axvspan(0.35, 0.55, color="0.6", alpha=0.15, label="≈ℓ* (borderline)")
     ax.legend()
     fig.tight_layout()
