@@ -7,6 +7,126 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.0` — Phase-9 K=7 unified joint hierarchical ground-up release (internal-test cohort)
+
+Closes Phase 9 — the K=6 → K=7 ground-up rebuild that adds spike-vs-no-spike
+as the 7th unified task alongside the 6 IIIC pattern_classes. Phase-9
+methodology shift: **modular Bayesian inference** (Plummer 2015) — joint
+posterior over per-segment latent signals `s_j` only, with per-rater
+parameters `c_j` / `d_j` cut via byte-verbatim two-stage SDT fits. SVI
+becomes the production inference path; NUTS retained for validation only.
+
+Full close-out: `docs/PHASE9_CLOSEOUT.md`.
+
+### Six layers shipped (48/48 tests pass)
+
+* **Layer 1** — Joint K=7 SVI for 7 tasks under V_B variant (Gate A applied;
+  Gate B reverted). 7× `*_k7_B_posterior.npz`; ~25 min wall-time on 2×
+  A4500 with `chain_method='vectorized'`. NUTS dropped from primary path
+  after Phase-3.5 Kong-crowd-dominance multi-modal posterior diagnosed.
+* **Layer 2** — `assemble_outputs_k7.py` → `data/labels/segment_signals.csv`
+  (89,138 segs × 7-task signals). Replaces `iiic_segment_signals.csv` as
+  the canonical per-segment signal source.
+* **Layer 3** — `build_engine_inputs_k7.py` → `sdt_fits_k7.csv` (D2-pinned
+  per-rater parameters) + `MANIFEST.json` + `cross_domain_matrix.npy`.
+* **Layer 4** — `run_youden_calibration_k7.py` + `emit_cert_config_v14.py`:
+  uniform CV-top-14 Youden across all 7 tasks. Headline: min J = 0.6493,
+  mean J = 0.7818. 5 of 6 IIIC ℓ\* byte-stable vs v13; sz + spike change
+  by documented amount (cross-task expert panel + 70/30→CV-top-14 spike
+  methodology). Appends `ell_star_unified_v14` to `cert_config.yaml`.
+* **Layer 5** — `build_sigma_l_k7.py` → `Σ_l_fitted_k7.npy` from
+  D2-preserved two-stage per-rater fits (1,949 raters; matches K=6 v13
+  precedent). Fixed pre-flight from joint-posterior to two-stage source
+  (consistency with V_B's modular cut).
+* **Layer 6a** — CORTEX K=7 code + UI + 350-seg internal bank:
+  - `scripts/cortex_engine_inputs_k7.py` + `cortex_policy_k7.py` (default
+    ℓ\* block → `ell_star_unified_v14`)
+  - `scripts/eeg_bank_viewer.py` family-aware UI: spike → 2-button Yes/No
+    + `eeg10s` renderer (128 Hz, 10 s); IIIC → 6-button + `eeg30s`
+    unchanged. Engine `_y_source` contract preserved byte-equivalently.
+  - `data/eeg_bank.h5` rebuilt at 350 segs (50 calibrated SN1 spike + 300
+    IIIC). K=6 bank preserved as `data/eeg_bank_v1.1.0_legacy.h5`.
+  - `ResultsScreen` extended to K=7 (`_TASK_LABELS` + `_safe_load_ell_star`).
+* **Layer 6b** — production-bank infrastructure (deployment deferred):
+  - `scripts/build_cortex_bank_k7_production.py` — strict filter
+    (morgoth1_recompute + (20,6000) shape); 36,771-seg production-pool
+    target; ~43 GB at full build; 91.6% IIIC coverage after strict filter
+    documented in MANIFEST.
+  - `scripts/cortex_session_bank_fetch.py` — deterministic per-session
+    sampler (sha256(session_id) seed); stratified by V_B `s_mean_<task>`;
+    `BankBackend` interface (LocalBackend works; HTTPBackend placeholder).
+  - `cortex_app/cortex_offline_fallback.h5` (1.14 GB; 970 segs stratified)
+    + manifest — built for testing.
+
+### v1.2.0 release packaging (this commit)
+
+* **AD6 stop-policy defaults RECALIBRATED** for the K=7 350-seg internal
+  bank — sim-driven, not panel-derived:
+  * `DEFAULT_N_MIN`  `15` → `12`
+  * `DEFAULT_ALPHA` `0.10` → `0.25`
+  * `DEFAULT_R_STAR` unchanged at `0.30`
+  Selected by `sim_v1_2_0/run_ad6_sweep.py` from a 500-session sweep
+  over {NMIN×ALPHA} = 4×5 grid. Achieves median **188 trials** (target
+  200; bank is 350 → 53.7% utilization, 46% selector headroom),
+  **76% all_resolved** rate. Engine quits early (~110 trials) for
+  confident-skill raters, runs long for borderline (ℓ=+0.5 hits the
+  300-cap in ~60% of sessions) — correct adaptive behavior. Full
+  analysis: `results/sim_v1_2_0/report.md`. Sim infrastructure lives in
+  `sim_v1_2_0/` and is removable with one `rm -rf` (zero runtime code
+  modified).
+* **Bank delivery:** the 350-seg K=7 internal bank ships bundled in the
+  PyInstaller installer (same fetch path as v1.1.5; new GitHub-release
+  tag `build-data-v3-k7` when published).
+* **Per-session fetch default lowered** `200` → `60` (`per_task`):
+  empirical AD6 settings (now NMIN=12, ALPHA=0.25) produce median ~27
+  asks/task; 60 gives 2× choice margin while keeping session download
+  at ~500 MB (bandwidth-friendly for internal Dropbox).
+* **Dropbox folder** `/results` → `/results/v1.2.0`: v1.2.0 cohort
+  recordings logically isolated from v1.1.5. Same Dropbox app key +
+  refresh_token + secret as v1.1.5 (no new OAuth flow needed).
+* **`cortex.spec` `CFBundleShortVersionString`** `1.1.5` → `1.2.0`.
+
+### K=6 vs K=7 head-to-head (50 matched-seed synthetic raters)
+
+* K=7 wall time: **1.41× K=6** at recommended ship params (NMIN=12,
+  ALPHA=0.25) — sub-linear scaling for the added 7th task.
+* K=7 median session length: **151 trials** vs K=6 median **131
+  trials** (+15%).
+* K=7 AUROC half-width: median **0.099** vs K=6 median **0.094** —
+  essentially the same per-task precision; K=7 just tracks one more
+  task.
+* K=7 PASS rate for borderline rater (ℓ=+0.5): **64%** vs K=6 **38%** —
+  K=7's joint hierarchical posterior pools cross-task evidence under
+  the modular Bayesian inference framing, reaching confident verdicts
+  on borderline cases that K=6 left as REFER_BORDERLINE. Expected
+  behavior; not a regression.
+
+### Utilization analysis (per `docs/PHASE9_CLOSEOUT.md` §3)
+
+```
+Production pool:      36,771 segs       (full filtered production pool;
+                                          v1.2.0 ships ~350 internally)
+Per-session fetch:       420 segs (1.14%)  (60/task × 7; ~500 MB)
+Per-session asked:       210 segs (50.0%)  (median; AD6 production settings)
+Net pool consumption:  ~0.57% per session
+Pair-wise overlap:     ~0.5% per session pair
+```
+
+### What's deferred (operational, not methodology)
+
+* Full 38K production-bank build (~3-4 h compute on the workstation).
+* Cloud backend choice + HTTPBankBackend implementation (~30 LOC).
+* Production manifest URL → `cortex_cloud_config.yaml`.
+* v1.3.0 will wire cloud-fetch live once these operational items land.
+
+### Tests
+
+`tests/test_phase9_layer6b.py` — 10 new tests for build + fetch
+infrastructure (schema, determinism, balance, e2e, manifest). Phase-9
+suite total: **48/48 PASS**.
+
+---
+
 ## ▶ UNIFIED MERGE (2026-05-18) — Phases 0–8 COMPLETE — v1.0.0-rc1 SHIPPED
 
 Methodology repo + PI deployment repo merged into one shippable repo

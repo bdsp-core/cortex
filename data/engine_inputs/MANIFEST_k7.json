@@ -1,0 +1,46 @@
+{
+  "generated": "2026-05-29T19:37:57.534595+00:00",
+  "phase": 9,
+  "K": 7,
+  "variant": "B",
+  "true_producer": "scripts/build_engine_inputs_k7.py \u2014 concatenates v13 byte-verbatim two-stage IIIC sdt_fits + spike sdt_fits (D2 invariant). V_B joint posterior NPZs are consumed by Layer 2 (assemble_outputs_k7.py) for s_j; per-rater (\u03c3\u0302, \u03b8\u0302) come from the byte-verbatim two-stage path per Phase-3.5 decoupling.",
+  "sdt_fits_k7_rows": 16765,
+  "cross_domain_rater_matrix_k7_rows": 29,
+  "k7_domains": [
+    "spike",
+    "sz",
+    "lpd",
+    "gpd",
+    "lrda",
+    "grda",
+    "iic"
+  ],
+  "data_labels_provenance": {
+    "labels_csv_sha256": "f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b",
+    "raters_csv_sha256": "bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f",
+    "labels_csv_path": "data/labels/labels.csv",
+    "raters_csv_path": "data/labels/raters.csv",
+    "v13_iiic_sdt_fits_sha256": "5925c5691435693038ed36dc32407cd8f64de67ddc2f96fe0098783c4a4fcdd0",
+    "v13_spike_sdt_fits_sha256": "e6bbd78bb4b32a0519864eeab7b549bc6d328c4d7028fdb12fe471abd38e6d0c"
+  },
+  "k7_joint_posterior_sha256": {
+    "spike": "5c5bf53860f6a75b7398643f10db3a87f320dd5e14cbc63c24a923ac203dfeba",
+    "sz": "5682d64801c7d189a40b4fee9bcd1c87a1ab38fe4fb8172b000b3e990446a60e",
+    "lpd": "b201c5510e86276c0c552dbd801d826940d9e2172c8840f4c9dff2630f8ecdf0",
+    "gpd": "8d101c8a45f69088d3f04141aaf32e9ed6d214d29adc94fb6395a687b9aefbd9",
+    "lrda": "03681b31de325aa4e0d08618eb5035e93a49867516ac3bb04c0ebd91d7ae3291",
+    "grda": "37c6c21fa2b7cf4805069975ae7f8b115eaf318d067e1fb1d16a12088c621337",
+    "iic": "30225f692be233a93850357765a9efb0b0c9e500fb932e00307e12fe393612ca"
+  },
+  "assemble_outputs_sha256": {
+    "segment_signals": "97a6127af6c0a0fc33d0e37c35bd228786a61a435b8f9b0213dc9a28a5849791",
+    "s_j_table_k7": "fb7c1e41f203624c8aa72a0de577bfddd78882770790cc9f25b80a930b3a345a",
+    "joint_per_rater_sidecar": "43b24b6aa70c846d689e5ddc43a8436bbdf1f3a558894b1c33ca9011cd9f82d3",
+    "assemble_summary_k7": "0644ce93a0aa52d2f7f3bc2d32fc40744acd6ed6ab0d0dc399658b288350e9bf"
+  },
+  "k7_artifacts_sha256": {
+    "sdt_fits_k7.csv": "c0a261b2d184c40d3605ec3c041e2d744aaba9bc8bb27dc85b0a9a2604263a54",
+    "cross_domain_rater_matrix_k7.csv": "7a91f86fe5865c40f29b51bda1617465ae607376c63fff92e2922030c47b68c4"
+  },
+  "phase35_decoupling_preserved": "V_B follows Phase-3.5 cert_config.yaml:278-283 \u2014 joint posterior used for s_j ONLY; per-rater fits remain byte-verbatim two-stage. D2 invariant (md5 pin on fit_sdt_per_domain.py) preserved."
+}

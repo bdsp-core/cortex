@@ -376,3 +376,117 @@ ell_star_unified_v13:
           \ is robust to the \u03B4_Centaur modelling choice. AUROC power-deflation magnitude is honestly\
           \ small in the favourable regime and bounded. No power/E[N] claim ships without citing these\
           \ artifacts."
+
+# ── Phase 9 cert_config v14: K=7 uniform CV-top-14 Youden ────────
+# Source: pipeline/reference_calibration/youden_ell_star_k7.json
+# (sha256: 1f1ae089299d45a05eff4c1fe9756cd7f850a5cc697d658ed9db3c7bb9a98a0c)
+# Generated: 2026-05-29T19:45:45+00:00
+#
+# Phase-9 Layer 4 output. Uniform CV-top-14 Youden across all 7 tasks
+# (replaces v13's spike-specific 70/30 TRAIN methodology with the same
+# non-circular cross-task panel selection used for IIIC).
+#
+# Overall: min J = 0.6493; mean J = 0.7818
+# (v13 baseline: min J = 0.372, mean J = 0.521)
+
+ell_star_unified_v14:
+  method: youden_index_cv_top_N_k7
+  panel_size_N: 14
+  bootstrap_n: 2000
+  seed: 42
+  sigma_floor: 0.025
+  candidate_pool: 'cross_domain_rater_matrix_k7.csv (29 raters: 29 Q2-locked + spike fits joined by canonical name)'
+  source_sha256: 1f1ae089299d45a05eff4c1fe9756cd7f850a5cc697d658ed9db3c7bb9a98a0c
+  phase: 9
+  K: 7
+  generated_utc: 2026-05-29T19:45:45+00:00
+  description: |
+    Uniform CV-top-14 Youden across spike + 6 IIIC tasks.
+    For each held-out task k, expert panel = top-N candidates by
+    mean ell over OTHER 6 tasks (5 other IIIC + spike for IIIC tasks;
+    6 IIIC for spike). Non-circular by construction.
+    Replaces v13's spike-special-case 70/30 TRAIN methodology;
+    matches K=6 v13 ell* exactly on 5 of 6 IIIC tasks (lpd, gpd,
+    lrda, grda, iic — panel byte-stable). sz panel updates due to
+    spike's inclusion in cross-task expert score (J 0.47 → 0.73).
+    spike methodology changes from 70/30 TRAIN to CV-top-14
+    (J 0.37 → 0.65).
+  tasks:
+    combined_spike:
+      task_code: spike
+      ell_star: 0.3251213139414513
+      sigma_star: 0.7224397063175242
+      youden_J: 0.6493470562195662
+      ci_low_2_5: 0.1064823161754105
+      ci_high_97_5: 0.3479169849457960
+      n_expert: 9
+      n_non_expert: 2008
+      expert_ell_mean: 0.4100009781611287
+      non_expert_ell_mean: -0.0613456081496801
+    sparcnet_sz:
+      task_code: sz
+      ell_star: 0.2559949138064387
+      sigma_star: 0.7741459062381588
+      youden_J: 0.7344573234984194
+      ci_low_2_5: 0.2548312163028760
+      ci_high_97_5: 0.4943151973565994
+      n_expert: 14
+      n_non_expert: 1898
+      expert_ell_mean: 0.6289604310414190
+      non_expert_ell_mean: -0.0914186239959209
+    sparcnet_lpd:
+      task_code: lpd
+      ell_star: 0.5337430687087749
+      sigma_star: 0.5864058990382910
+      youden_J: 0.8664864864864865
+      ci_low_2_5: 0.5190228181077238
+      ci_high_97_5: 0.6450279327255053
+      n_expert: 14
+      n_non_expert: 1850
+      expert_ell_mean: 0.7646784869102404
+      non_expert_ell_mean: -0.1669267751567622
+    sparcnet_gpd:
+      task_code: gpd
+      ell_star: 0.3297002787536504
+      sigma_star: 0.7191392424440423
+      youden_J: 0.8215859030837004
+      ci_low_2_5: 0.3196295091374305
+      ci_high_97_5: 0.5414047773963915
+      n_expert: 14
+      n_non_expert: 1816
+      expert_ell_mean: 0.6431387721985599
+      non_expert_ell_mean: -0.1504135676181872
+    sparcnet_lrda:
+      task_code: lrda
+      ell_star: 0.4792595265871899
+      sigma_star: 0.6192417541376783
+      youden_J: 0.8069414316702820
+      ci_low_2_5: 0.4726468885638582
+      ci_high_97_5: 0.5515777166657198
+      n_expert: 13
+      n_non_expert: 1844
+      expert_ell_mean: 0.6810426571061013
+      non_expert_ell_mean: -0.0138456823722818
+    sparcnet_grda:
+      task_code: grda
+      ell_star: 0.4864510172880300
+      sigma_star: 0.6148044573343967
+      youden_J: 0.7794279427942794
+      ci_low_2_5: 0.4754582665928328
+      ci_high_97_5: 0.6758662494732010
+      n_expert: 14
+      n_non_expert: 1818
+      expert_ell_mean: 0.7403155141054790
+      non_expert_ell_mean: 0.0242663013608623
+    sparcnet_iic:
+      task_code: iic
+      ell_star: 0.4418131962513707
+      sigma_star: 0.6428697147121428
+      youden_J: 0.8141304347826087
+      ci_low_2_5: 0.4356709405652662
+      ci_high_97_5: 0.5828415397808995
+      n_expert: 14
+      n_non_expert: 1840
+      expert_ell_mean: 0.7138492605529919
+      non_expert_ell_mean: -0.0530074259874197
+

@@ -72,12 +72,31 @@ REFER_UNINFORMATIVE = "REFER_UNINFORMATIVE"
 # production target (0.05) — gives a calibration run before committing
 # to 0.05 in v1.2.0. See docs/AD6_RESOLUTION.md "v1.1.0 strictness
 # upgrade" for the rationale and OC implications.
-DEFAULT_N_MIN = 15        # v1.1.0: was 6 (internal-test override) under
-                          # the 100-segment bank; production panel target.
+#
+# v1.2.0 calibration (2026-05-29) against the 350-seg K=7 internal bank.
+# Selected by sim_v1_2_0/ — see results/sim_v1_2_0/report.md for the
+# 500-session sweep. Target: median ~200 trials on the 350-seg K=7 bank
+# (57% utilization, 43% selector headroom). Achieved median 188 with
+# 76% all_resolved at the values below. The engine quits early
+# (~110 trials) at confident-skill extremes and runs long at borderline
+# skill (ℓ=+0.5 hits the 300-cap in ~60% of sessions) — correct
+# adaptive behavior verified.
+#
+# History of (N_MIN, ALPHA):
+#   v1.0   — N_MIN=6,  ALPHA=0.30  (internal-test override; 100-seg bank)
+#   v1.1.0 — N_MIN=15, ALPHA=0.10  (panel-target strictness mid-point;
+#                                    300-IIIC bank)
+#   v1.2.0 — N_MIN=12, ALPHA=0.25  (sim_v1_2_0 calibration on 350-seg
+#                                    K=7 bank; THIS RELEASE)
+#   v2.0   — TBD; panel-target production strictness is ALPHA=0.05; the
+#            switch depends on full-cohort OC sims at production
+#            n_particles=600.
+DEFAULT_N_MIN = 12        # v1.2.0: was 15 — sim_v1_2_0 calibration
+                          # selected this from {8, 10, 12, 15}.
 DEFAULT_R_STAR = 0.30     # info-gate: SD(ℓ_k) must contract ≥ ~16% from prior
-DEFAULT_ALPHA = 0.10      # v1.1.0: was 0.30 (internal-test override).
-                          # Production panel target is 0.05; 0.10 is a
-                          # calibration midpoint before committing to it.
+DEFAULT_ALPHA = 0.25      # v1.2.0: was 0.10 — sim_v1_2_0 calibration
+                          # selected this from {0.15, 0.20, 0.25, 0.30,
+                          # 0.35} for the 200-trial median target.
 DEFAULT_Z = 2.0           # MC-error buffer (engine's existing Z_BUFFER)
 
 

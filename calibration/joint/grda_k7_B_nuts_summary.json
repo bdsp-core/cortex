@@ -1,0 +1,59 @@
+{
+  "task": "grda",
+  "variant": "B",
+  "phase": 9,
+  "K": 7,
+  "n_obs": 962467,
+  "n_seg": 69806,
+  "n_rater": 2369,
+  "n_src": 6,
+  "n_tier": 7,
+  "tiers": [
+    "borderline",
+    "experienced",
+    "expert",
+    "novice",
+    "other",
+    "unknown",
+    "untiered"
+  ],
+  "subsample": null,
+  "method": "nuts",
+  "nuts": {
+    "warmup": 1500,
+    "samples": 1500,
+    "chains": 4
+  },
+  "wall_s": 15699.1,
+  "gauge_invariance_max_abs_dp": 1.7578537141460515e-06,
+  "convergence": {
+    "method": "nuts",
+    "rhat_max": {
+      "s_j": 2.1087069511413574,
+      "ell": 1.9668835401535034,
+      "t": 1.867330551147461
+    }
+  },
+  "scale_anchor_segs": 6691,
+  "loc_anchor_segs": 5000,
+  "lapse_lambda_fixed": 0.025,
+  "per_source_log_gamma_mean": [
+    0.0,
+    1.3763927221298218,
+    -0.4694557785987854,
+    0.3262558579444885,
+    4.769067287445068,
+    1.2360872030258179
+  ],
+  "src_names": [
+    "centaur_2025_iiic",
+    "centaur_iiic_expert",
+    "iiic_crowdsourcing:kong2025:crowd",
+    "iiic_crowdsourcing:kong2025:expert",
+    "pd_rda_profiler",
+    "sparcnet50K"
+  ],
+  "s_id_mean_over_loc_anchor": -1.5258788677030566e-09,
+  "s_id_std_over_scale_anchor": 1.0,
+  "pos_rate": 0.14951681460247468
+}

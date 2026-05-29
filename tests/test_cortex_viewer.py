@@ -107,10 +107,13 @@ def test_select_then_confirm(viewer):
     assert win._selected_choice == 3
     assert win._answer_changes == 1
     win._confirm_answer()
-    assert fake.submitted == [3]
+    # Phase-9 K=7 contract: IIIC button index i → engine raw = i + 1
+    # (spike=0 occupies engine task slot 0; IIIC tasks shift to k ∈ {1..6}).
+    # Button 3 (LRDA) → raw 4 (matches engine task k=4=lrda).
+    assert fake.submitted == [4]
     assert len(win.gui_trial_log) == 1
     rec = win.gui_trial_log[0]
-    assert rec["response_raw"] == 3
+    assert rec["response_raw"] == 4
     assert rec["response_label"] == "LRDA"
     assert rec["answer_changes"] == 1
     assert isinstance(rec["reaction_time_ms"], float)
@@ -129,7 +132,8 @@ def test_awaiting_answer_guard(viewer):
     win._select_answer(5)
     win._confirm_answer()
     assert len(win.gui_trial_log) == 1
-    assert fake.submitted == [2]
+    # Phase-9 K=7 contract: IIIC button 2 (GPD) → raw 3 (engine task k=3=gpd).
+    assert fake.submitted == [3]
 
 
 def test_interaction_trace_records_actions(viewer):
@@ -510,8 +514,14 @@ def test_results_screen_renders_verdicts(qapp, monkeypatch):
     """ResultsScreen builds the per-task verdict table with clinician-
     friendly labels; the details panel starts hidden."""
     # Stub load_ell_star_iiic so the test doesn't need cert_config on disk.
+    # Phase-9 K=7: ResultsScreen now imports load_ell_star_k7 from
+    # cortex_policy_k7 (Layer 6a change). Patch both sources so the test
+    # works regardless of how ResultsScreen resolves the loader at call time.
     import cortex_policy as cp
+    import cortex_policy_k7 as cp_k7
     monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    monkeypatch.setattr(cp_k7, "load_ell_star_k7",
                         lambda codes, **kw: [0.42] * len(codes))
     result = _synthetic_result()
     screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
@@ -563,8 +573,14 @@ def test_results_screen_show_folder_button_hidden_when_no_session_dir(
     """Pre-v1.1.5 callers (and test fixtures) construct ResultsScreen
     without session_dir → the new 'Show results folder' button must
     not appear on the screen."""
+    # Phase-9 K=7: ResultsScreen now imports load_ell_star_k7 from
+    # cortex_policy_k7 (Layer 6a change). Patch both sources so the test
+    # works regardless of how ResultsScreen resolves the loader at call time.
     import cortex_policy as cp
+    import cortex_policy_k7 as cp_k7
     monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    monkeypatch.setattr(cp_k7, "load_ell_star_k7",
                         lambda codes, **kw: [0.42] * len(codes))
     result = _synthetic_result()
     screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
@@ -584,8 +600,14 @@ def test_results_screen_show_folder_button_dispatches_to_os(
     invoke the OS file manager via subprocess.Popen with the right
     command for sys.platform. Mock subprocess.Popen to record the
     call without actually spawning."""
+    # Phase-9 K=7: ResultsScreen now imports load_ell_star_k7 from
+    # cortex_policy_k7 (Layer 6a change). Patch both sources so the test
+    # works regardless of how ResultsScreen resolves the loader at call time.
     import cortex_policy as cp
+    import cortex_policy_k7 as cp_k7
     monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    monkeypatch.setattr(cp_k7, "load_ell_star_k7",
                         lambda codes, **kw: [0.42] * len(codes))
     # Create a real dir so the existence check passes.
     sd = tmp_path / "session-uuid"
@@ -632,8 +654,14 @@ def test_results_screen_show_folder_button_no_op_when_dir_missing(
     """Defensive: if the session_dir was deleted between session-end
     and button click (e.g., participant cleared the folder manually),
     the click should log + no-op rather than crash."""
+    # Phase-9 K=7: ResultsScreen now imports load_ell_star_k7 from
+    # cortex_policy_k7 (Layer 6a change). Patch both sources so the test
+    # works regardless of how ResultsScreen resolves the loader at call time.
     import cortex_policy as cp
+    import cortex_policy_k7 as cp_k7
     monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    monkeypatch.setattr(cp_k7, "load_ell_star_k7",
                         lambda codes, **kw: [0.42] * len(codes))
     # session_dir that does NOT exist
     sd = tmp_path / "deleted-session-uuid"
@@ -657,14 +685,17 @@ def test_results_screen_show_folder_button_no_op_when_dir_missing(
 
 
 def test_results_screen_handles_missing_threshold(qapp, monkeypatch):
-    """If cert_config.yaml is missing / malformed, load_ell_star_iiic
+    """If cert_config.yaml is missing / malformed, load_ell_star_k7
     raises — the screen must still render with skill ℓ̂ shown but no
     threshold-relative narrative."""
+    # Phase-9 K=7: patch BOTH loaders so the test covers both paths.
     import cortex_policy as cp
+    import cortex_policy_k7 as cp_k7
 
     def _boom(codes, **kw):
         raise FileNotFoundError("cert_config.yaml not found")
     monkeypatch.setattr(cp, "load_ell_star_iiic", _boom)
+    monkeypatch.setattr(cp_k7, "load_ell_star_k7", _boom)
     result = _synthetic_result()
     screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
     try:

@@ -1,0 +1,520 @@
+{
+  "phase": 9,
+  "K": 7,
+  "thresholds": {
+    "G1_drift_metric": "p95_abs_drift",
+    "G1_p95_drift": 0.1,
+    "G2_cohen_d": 0.5,
+    "G3_sz_j_informational": 0.089,
+    "G4_spike_corr": 0.95,
+    "G2_exempt_variants": [
+      "B"
+    ]
+  },
+  "per_task": {
+    "spike": {
+      "skipped": "no variants present"
+    },
+    "sz": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 3.4454350468603514,
+          "mean_abs_drift": 0.07247829079442038,
+          "p95_abs_drift": 0.16428650915543352
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -1.0603254661367196,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": 0.05429652487688075,
+        "g3_above_v13_baseline": false,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 3.4326102286302564,
+          "mean_abs_drift": 0.031085051786357516,
+          "p95_abs_drift": 0.08963249251420638
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": -1.2551973655718287,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": 0.08503914350634534,
+        "g3_above_v13_baseline": false,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 3.4048369228565214,
+          "mean_abs_drift": 0.10109034313848664,
+          "p95_abs_drift": 0.16567300636955298
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -1.1051823523979503,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": 0.10291252823723562,
+        "g3_above_v13_baseline": true,
+        "all_pass": false
+      }
+    },
+    "lpd": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.35933524372440184,
+          "mean_abs_drift": 0.04369165507905378,
+          "p95_abs_drift": 0.11378359793291626
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -0.5403477292230219,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.622687280155603,
+          "mean_abs_drift": 0.0007527841366822636,
+          "p95_abs_drift": 0.00224791467841135
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": -0.4508680251133369,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 2.384445905698706,
+          "mean_abs_drift": 0.05269331614767713,
+          "p95_abs_drift": 0.14408612253616343
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": 0.04129480049764677,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      }
+    },
+    "gpd": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 1.4244613051398194,
+          "mean_abs_drift": 0.04207381570197548,
+          "p95_abs_drift": 0.10903412106078339
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -0.31528721904474605,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 1.2582175135232239,
+          "mean_abs_drift": 0.001032132918025568,
+          "p95_abs_drift": 0.0025189220815063917
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": -0.3304772297454673,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 2.484665035806824,
+          "mean_abs_drift": 0.04889206713090221,
+          "p95_abs_drift": 0.1479132249760826
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": 0.22137905750714623,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      }
+    },
+    "lrda": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.3160149529534473,
+          "mean_abs_drift": 0.047476265170094026,
+          "p95_abs_drift": 0.12218651917022019
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -0.16228575568256295,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.0733618736230468,
+          "mean_abs_drift": 0.0007743636199665538,
+          "p95_abs_drift": 0.0024988874673858574
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": -0.3336476002514764,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 2.327364265924536,
+          "mean_abs_drift": 0.04604043448294399,
+          "p95_abs_drift": 0.18901529136841871
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -0.08304792039642815,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      }
+    },
+    "grda": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.9525952037167815,
+          "mean_abs_drift": 0.044813139517528536,
+          "p95_abs_drift": 0.1169596686651207
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": 0.2543842016464775,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 1.2986431121686035,
+          "mean_abs_drift": 0.0010910601694841813,
+          "p95_abs_drift": 0.0034111663997345165
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": 0.09231224482906428,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 1.9763054847577148,
+          "mean_abs_drift": 0.040377377776244935,
+          "p95_abs_drift": 0.1472913325771789
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": 0.36801103676958286,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      }
+    },
+    "iic": {
+      "A": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.37853600831393663,
+          "mean_abs_drift": 0.04923503471768531,
+          "p95_abs_drift": 0.13103779405875737
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -1.161717767785829,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      },
+      "B": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 0.28366118669848117,
+          "mean_abs_drift": 0.001153334391836457,
+          "p95_abs_drift": 0.0025304556098327685
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": true,
+        "g2_expert_vs_crowd_cohen_d": -1.0287793887879781,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "g2_exempt": true,
+        "all_pass": true
+      },
+      "C": {
+        "present": true,
+        "g1_s_j_drift": {
+          "n_overlap": 69806,
+          "max_abs_drift": 2.839976191458862,
+          "mean_abs_drift": 0.07411577234550491,
+          "p95_abs_drift": 0.14781466129749143
+        },
+        "g1_metric": "p95_abs_drift",
+        "g1_pass": false,
+        "g2_expert_vs_crowd_cohen_d": -0.8888912738407042,
+        "g2_pass": false,
+        "g2_expert_tiers_present": [
+          "experienced",
+          "expert"
+        ],
+        "g2_crowd_tiers_present": [
+          "novice",
+          "untiered"
+        ],
+        "g3_sz_youden_j": null,
+        "g3_above_v13_baseline": null,
+        "all_pass": false
+      }
+    }
+  },
+  "winner_per_task": {
+    "sz": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    },
+    "lpd": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    },
+    "gpd": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    },
+    "lrda": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    },
+    "grda": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    },
+    "iic": {
+      "winner": "B",
+      "passing_variants": [
+        "B"
+      ],
+      "reason": "passes all gates; tiebreak by drift\u2192cohen_d\u2192sz_J"
+    }
+  },
+  "global_winner": "B",
+  "global_winner_reason": "variant B wins 6/7 tasks",
+  "winner_counts": {
+    "A": 0,
+    "B": 6,
+    "C": 0
+  }
+}

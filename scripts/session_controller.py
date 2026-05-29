@@ -57,8 +57,15 @@ from core_mcmc import (  # noqa: E402
     simulate_response, _expected_loss_vec)
 from auroc import (  # noqa: E402
     auroc_mean_from_particles_hier, auroc_halfwidths_hier)
-from cortex_engine_inputs import build_iiic_engine_inputs  # noqa: E402
-from cortex_policy import default_policy_for  # noqa: E402
+from cortex_engine_inputs_k7 import build_k7_engine_inputs  # noqa: E402
+from cortex_policy_k7 import default_policy_for_k7  # noqa: E402
+
+# Phase-9 K=7: K=7 wins by default. Module remains K-agnostic via
+# inputs.task_codes; the build_k7 loader supplies 7 tasks (spike + 6 IIIC).
+# Back-compat aliases preserve the old names for callers that haven't
+# migrated; the underlying loader is K=7 either way.
+build_iiic_engine_inputs = build_k7_engine_inputs   # back-compat alias
+default_policy_for = default_policy_for_k7          # back-compat alias
 
 # ── engine hyperparameters (the methodology config — viz_smc_collapse.py) ──
 N_PARTICLES = 600

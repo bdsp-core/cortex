@@ -1,0 +1,50 @@
+{
+  "task": "spike",
+  "variant": "B",
+  "phase": 9,
+  "K": 7,
+  "n_obs": 964206,
+  "n_seg": 19332,
+  "n_rater": 2551,
+  "n_src": 3,
+  "n_tier": 4,
+  "tiers": [
+    "experienced",
+    "expert",
+    "novice",
+    "untiered"
+  ],
+  "subsample": null,
+  "method": "nuts",
+  "nuts": {
+    "warmup": 1500,
+    "samples": 1500,
+    "chains": 4
+  },
+  "wall_s": 14565.7,
+  "gauge_invariance_max_abs_dp": 1.6911518106732526e-06,
+  "convergence": {
+    "method": "nuts",
+    "rhat_max": {
+      "s_j": 57.05439758300781,
+      "ell": 45.07587814331055,
+      "t": 82.42179870605469
+    }
+  },
+  "scale_anchor_segs": 13140,
+  "loc_anchor_segs": 4033,
+  "lapse_lambda_fixed": 0.025,
+  "per_source_log_gamma_mean": [
+    0.0,
+    -0.173401340842247,
+    0.14896874129772186
+  ],
+  "src_names": [
+    "sn1_combined_v2:bonobo_only",
+    "sn1_combined_v2:fabio_spikeed",
+    "sn1_combined_v2:sn1"
+  ],
+  "s_id_mean_over_loc_anchor": -1.5133934994082665e-08,
+  "s_id_std_over_scale_anchor": 1.0,
+  "pos_rate": 0.6461886775232678
+}

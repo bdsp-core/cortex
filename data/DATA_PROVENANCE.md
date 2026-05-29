@@ -166,3 +166,50 @@ Mode-A / Mode-B suite on `sdt_fits.csv` + `tests/
 test_phase5_engine_inputs.py`; the nonexistent `consolidated/` is
 dropped from the Phase-5 gate. (The §2/§5 "Phase 5 regenerates"
 wording above is retained for history but is superseded by this §6.)
+
+## 7. Nature Medicine readiness audit (2026-05-28) — data-structure tour + gaps
+
+A reviewer-grade audit was executed 2026-05-28 targeting a Nature Medicine
+submission. Findings live at `docs/NATURE_MEDICINE_AUDIT.md` with file:line
+references throughout. **For an end-to-end tour of the data structures
+documented in this file (corpus tables, calibration intermediates, engine
+inputs, deployment prior, replay artefacts, curated banks) + the data-side
+gaps for Nature Medicine submission, read `docs/NATURE_MEDICINE_AUDIT.md §3`.**
+
+Data-side findings (summarised; full details in audit doc §6):
+
+- **Single-institution clustering (E1).** All 5 datasets trace to the
+  MGH / BIDMC / Harvard / Yale circle under IRBs BIDMC 2016P000058 and
+  MGH 2013P001024. No external US-academic, VA, community-hospital, or
+  international site contributes signals.
+- **Patient demographics nearly absent (E2).** Sex 4.2 %, age 16.4 %,
+  race/ethnicity 0 %, comorbidity 0 %, ICU/EMU/outpatient setting 0 %,
+  etiology 0 %, encephalopathy grade 0 %. Forecloses fairness analyses
+  without backfill from BDSP source records under IRB amendment.
+- **Pediatric-heavy spike substrate (E3).** Where age is recorded
+  (n=15,670), median 16–21 y; **51 % pediatric** vs adult-ICU deployment
+  framing.
+- **No site_id in segments.csv (E4).** Forecloses site-disjoint CV.
+- **Cross-dataset label-comparability never validated (E5).** 5 datasets
+  used different annotation protocols; no anchor-segment study; no
+  bridge analysis.
+- **Centaur IED panel (5,000 segs, 643 raters) not in K=7 banks (E6).**
+  Either implicit Paper-2 carry or undocumented gap.
+- **Rater-pool fragmentation (E7).** 2,872 spike-only + 2,047 IIIC-only
+  + only 322 with both; median 54 segs/IIIC and 69 spike — bank
+  exhaustion drives ≈50 % of REFER verdicts at floor=10.
+
+Five Tier-1 actions on data integrity (`docs/NATURE_MEDICINE_AUDIT.md §9`)
+do not require new acquisition and close all four §4 (integrity / leakage)
+gaps and three of six §5 (methodology) gaps:
+
+| T1.# | Title | Effort |
+|---|---|---|
+| T1.1 | Pin v13 ℓ\* numerically in test suite | 30 min |
+| T1.2 | Leakage-aware ℓ\* sensitivity rerun (replay-disjoint calibration) | 1–2 days |
+| T1.3 | Run `scripts/run_lapse_sensitivity.py` on unified corpus | minutes |
+| T1.4 | Brier + CITL + reliability diagrams per task | 4–6 hours |
+| T1.5 | Formal hypothesis test for replay-vs-Bernoulli | 1–2 days |
+
+OPEN_DECISIONS items 6–15 carry the Nature Medicine deltas
+(`docs/OPEN_DECISIONS.md`).

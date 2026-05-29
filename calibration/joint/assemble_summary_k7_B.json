@@ -1,0 +1,26 @@
+{
+  "phase": 9,
+  "K": 7,
+  "variant": "B",
+  "param_mapping": "sigma=exp(-ell), theta=-t",
+  "uniform_collapse": "{bipd,birds}->other (Phase-3 erratum fix; IIIC only)",
+  "spike_binary_filter": "value in {'0','1'} only; centaur_2025_ied excluded",
+  "joint_per_rater_decoupled": "V_B per Phase-3.5: joint fit serves s_j+s_sd only; per-rater (sigma,theta) come from byte-verbatim two-stage at data/engine_inputs/sdt_fits.csv + sdt_fits.spike.csv (D2 preserved)",
+  "outputs": {
+    "joint_per_rater_sidecar": "calibration/joint/joint_per_rater_params_k7_B.csv",
+    "s_j_table": "calibration/joint/s_j_table_k7_B.csv",
+    "segment_signals": "data/labels/segment_signals.csv"
+  },
+  "n_sidecar_rows": 16765,
+  "n_s_table_rows": 438168,
+  "n_segments_in_signals": 89138,
+  "tasks": [
+    "spike",
+    "sz",
+    "lpd",
+    "gpd",
+    "lrda",
+    "grda",
+    "iic"
+  ]
+}

@@ -40,4 +40,7 @@ dropbox:
   app_secret: ""            # PREFERRED for Confidential apps (the default)
   refresh_token: ""         # PREFERRED: from scripts/cortex_dropbox_oauth.py
   access_token: ""          # LEGACY: short-lived sl.u.AG… token (fallback)
-  folder: "/results"        # destination path inside the Dropbox app folder
+  folder: "/results/v1.2.0" # destination path inside the Dropbox app folder.
+                            # v1.2.0 internal-test cohort writes here so it
+                            # is logically isolated from v1.1.5 (/results/).
+                            # Use /results/v2.0/ for the public-release cohort.

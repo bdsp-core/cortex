@@ -847,19 +847,38 @@ class BankViewer(QMainWindow):
     # IIIC pattern-class options on keys 1-6 — order matches the engine's
     # IIIC task list (sz, lpd, gpd, lrda, grda, iic).
     _IIIC_OPTIONS = ["Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"]
+    # Phase-9 K=7: spike Yes/No options on keys 1-2.
+    _SPIKE_OPTIONS = ["Yes (spike present)", "No (no spike)"]
 
     def _refresh_answer_panel(self):
-        """Reset the 6 IIIC answer buttons to an unselected state."""
+        """Reset the answer buttons based on the current segment family:
+        spike → 2 buttons (Yes/No), IIIC → 6 buttons (pattern-class)."""
+        family = getattr(self, "_cur_family", "iiic")
+        if family == "spike":
+            options = self._SPIKE_OPTIONS
+        else:
+            options = self._IIIC_OPTIONS
+        n_opt = len(options)
         for i, btn in enumerate(self.answer_buttons):
             btn.set_flash(False)
-            btn.setText(f"{i + 1}  ·  {self._IIIC_OPTIONS[i]}")
-            btn.setVisible(True)
+            if i < n_opt:
+                btn.setText(f"{i + 1}  ·  {options[i]}")
+                btn.setVisible(True)
+            else:
+                btn.setText("")
+                btn.setVisible(False)
 
     # ─────────────── engine-driven question flow ───────────────
 
     def show_item(self, item):
         """Slot for SessionController.itemReady — render the engine's chosen
-        IIIC segment and arm the answer panel for a fresh question."""
+        segment and arm the answer panel.
+
+        Phase-9 K=7: dispatch the answer-panel and EEG renderer on the
+        segment's family (spike vs iiic) via the controller's K=7 inputs.
+        Spike segments → Yes/No (2-button) UI + 10s EEG; IIIC segments
+        → 6-button pattern-class UI + 30s EEG (unchanged from K=6).
+        """
         self._cur_trial = int(item["trial_index"])
         self._cur_seg = int(item["seg_id"])
         self._cur_k = int(item["task_k"])
@@ -868,7 +887,14 @@ class BankViewer(QMainWindow):
         self._interaction = []
         self._awaiting_answer = True
         self.confirm_btn.setEnabled(False)
-        self._render(self._cur_seg, "iiic")
+        # Phase-9 K=7: determine the family from the engine's K=7 inputs.
+        # The K=7 inputs expose .family(seg_id) → "spike" | "iiic".
+        try:
+            self._cur_family = self.controller.inputs.family(self._cur_seg)
+        except Exception:
+            # Back-compat: pre-K=7 inputs default to IIIC.
+            self._cur_family = "iiic"
+        self._render(self._cur_seg, self._cur_family)
         # Start the reaction-time clock AFTER the segment has painted.
         self._rt_t0 = None
         QTimer.singleShot(0, self._start_rt_clock)
@@ -885,9 +911,13 @@ class BankViewer(QMainWindow):
             "action": action, "detail": detail})
 
     def _select_answer(self, choice):
-        """Select (highlight) an IIIC option without advancing. The choice
-        can be changed freely until Confirm; each change is counted."""
-        if not self._awaiting_answer or choice >= len(self._IIIC_OPTIONS):
+        """Select (highlight) an answer option without advancing. Validates
+        the choice against the current family's option count (2 for spike;
+        6 for IIIC). The choice can be changed freely until Confirm."""
+        family = getattr(self, "_cur_family", "iiic")
+        options = (self._SPIKE_OPTIONS if family == "spike"
+                   else self._IIIC_OPTIONS)
+        if not self._awaiting_answer or choice >= len(options):
             return
         if self._selected_choice is not None and self._selected_choice != choice:
             self._answer_changes += 1
@@ -895,24 +925,48 @@ class BankViewer(QMainWindow):
         for i, btn in enumerate(self.answer_buttons):
             btn.set_flash(i == choice)
         self.confirm_btn.setEnabled(True)
-        self._log_interaction("select", self._IIIC_OPTIONS[choice])
+        self._log_interaction("select", options[choice])
 
     def _confirm_answer(self):
-        """Commit the selected answer — record the per-question GUI metadata
-        and hand the raw 6-way choice to the engine."""
+        """Commit the selected answer — record per-question GUI metadata
+        and hand the family-appropriate raw value to the engine.
+
+        Phase-9 K=7 raw-value mapping (preserves the existing _y_source
+        contract `int(raw == k)` in session_controller.EngineWorker):
+
+          IIIC family — engine asks task k ∈ {1..6} (sz, lpd, gpd, lrda,
+            grda, iic in the K=7 task list). User clicks button i ∈ {0..5}
+            (Seizure, LPD, GPD, LRDA, GRDA, Other). Raw = i + 1 so that
+            i==0→raw=1==k(sz) iff user-said-seizure and engine-asked-sz.
+
+          Spike family — engine asks task k = 0 (spike). User clicks
+            button 0 (Yes) or 1 (No). Raw = 0 (Yes → matches k=0 → y=1)
+            or raw = -1 (No → does not match k=0 → y=0).
+        """
         if not self._awaiting_answer or self._selected_choice is None:
             return
         rt_ms = (round((time.perf_counter() - self._rt_t0) * 1000.0, 1)
                  if self._rt_t0 is not None else None)
         choice = self._selected_choice
+        family = getattr(self, "_cur_family", "iiic")
+        if family == "spike":
+            options = self._SPIKE_OPTIONS
+            # Yes → 0 (matches engine task k=0); No → -1 (never matches)
+            raw = 0 if choice == 0 else -1
+        else:
+            options = self._IIIC_OPTIONS
+            # IIIC button i ∈ {0..5} → engine task k ∈ {1..6} (spike=0 takes slot 0)
+            raw = choice + 1
         self._awaiting_answer = False
         self.confirm_btn.setEnabled(False)
         self.gui_trial_log.append({
             "trial_index": self._cur_trial,
             "seg_id": self._cur_seg,
             "task_k": self._cur_k,
-            "response_raw": choice,
-            "response_label": self._IIIC_OPTIONS[choice],
+            "family": family,
+            "response_button": choice,
+            "response_raw": raw,
+            "response_label": options[choice],
             "reaction_time_ms": rt_ms,
             "answer_changes": self._answer_changes,
             "montage": self.montage_box.currentText(),
@@ -924,7 +978,7 @@ class BankViewer(QMainWindow):
             "interaction": list(self._interaction),
         })
         self.seg_info_lbl.setText("Selecting the next recording…")
-        self.controller.submit_answer(choice)
+        self.controller.submit_answer(raw)
 
     def _on_trial_done(self, telemetry):
         """Slot for SessionController.trialDone — merge the engine telemetry
@@ -1021,18 +1075,31 @@ class BankViewer(QMainWindow):
 
     def _render(self, sid, domain):
         """Load + draw an arbitrary bank segment. Also used for the
-        tutorial example, which is not part of the test set."""
+        tutorial example, which is not part of the test set.
+
+        Phase-9 K=7: auto-detect EEG dataset name + sampling rate based on
+        family. IIIC segments use `eeg30s` (20, 6000) @ 200 Hz (unchanged);
+        spike segments use `eeg10s` (20, 1281) @ 128 Hz per the SN1 spike-
+        paper methodology (Jing et al — 10s windows at 128 Hz × 20 ch).
+        """
         self._cur_sid = sid
         self._cur_domain = domain
         try:
             grp = self.bank[f"{domain}/{sid}"]
-            dset = grp["eeg30s"]
+            # K=7 spike family stores `eeg10s` (10s @ 128 Hz); IIIC family
+            # stores `eeg30s` (30s @ 200 Hz). Auto-detect on the dataset name.
+            if "eeg10s" in grp:
+                dset = grp["eeg10s"]
+                fs_default = 128.0
+            else:
+                dset = grp["eeg30s"]
+                fs_default = 200.0
             self.data = np.asarray(dset, dtype=np.float32)
         except Exception as e:
             print(f"  WARN: seg {sid} unreadable ({e}); skipping", flush=True)
             self.data = None
             return
-        self.fs = float(dset.attrs.get("fs_hz", 200.0))
+        self.fs = float(dset.attrs.get("fs_hz", fs_default))
         ch_attr = dset.attrs.get("channel_names")
         if ch_attr is not None:
             self.channel_names = [b.decode("utf-8", errors="ignore") if isinstance(b, (bytes, np.bytes_)) else str(b)
@@ -2351,8 +2418,9 @@ class ResultsScreen(QWidget):
     is still recorded in cortex.log + the summary CSV for analysis.
     """
 
-    _TASK_LABELS = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
-                    "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
+    _TASK_LABELS = {"spike": "Spike", "sz": "Seizure", "lpd": "LPD",
+                    "gpd": "GPD", "lrda": "LRDA", "grda": "GRDA",
+                    "iic": "Other"}
     _STOP_TEXT = {
         "all_resolved": "Each category reached a final assessment.",
         "delta_reached": "Skill was estimated to the target precision.",
@@ -2529,12 +2597,17 @@ class ResultsScreen(QWidget):
     def _safe_load_ell_star(codes):
         """Return [ℓ*_k] for the given task codes, or [None]*K if the
         config cannot be loaded. Non-fatal — keeps the screen visible
-        even when cert_config is missing / malformed."""
+        even when cert_config is missing / malformed.
+
+        Phase-9 K=7: defaults to cortex_policy_k7.load_ell_star_k7 which
+        reads the K=7 cert_config v14 block (`ell_star_unified_v14`,
+        7 tasks). Falls back to the K=6 loader if the K=7 loader cannot
+        be imported (back-compat with K=6 builds)."""
         if not codes:
             return []
         try:
-            from cortex_policy import load_ell_star_iiic
-            return list(load_ell_star_iiic(codes))
+            from cortex_policy_k7 import load_ell_star_k7
+            return list(load_ell_star_k7(codes))
         except Exception as e:                       # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "ResultsScreen: could not load ℓ* thresholds (%s); "

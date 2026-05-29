@@ -1,0 +1,46 @@
+{
+  "task": "spike",
+  "variant": "B",
+  "phase": 9,
+  "K": 7,
+  "n_obs": 964206,
+  "n_seg": 19332,
+  "n_rater": 2551,
+  "n_src": 3,
+  "n_tier": 4,
+  "tiers": [
+    "experienced",
+    "expert",
+    "non_expert",
+    "novice"
+  ],
+  "subsample": null,
+  "method": "svi",
+  "nuts": {
+    "warmup": 1500,
+    "samples": 1500,
+    "chains": 4
+  },
+  "wall_s": 177.1,
+  "gauge_invariance_max_abs_dp": 2.2748885775136785e-07,
+  "convergence": {
+    "method": "svi",
+    "note": "SVI: R\u0302 not applicable; s_sd variance-calibrated vs NUTS-subsample downstream"
+  },
+  "scale_anchor_segs": 13140,
+  "loc_anchor_segs": 4033,
+  "lapse_lambda_fixed": 0.025,
+  "per_source_log_gamma_mean": [
+    0.0,
+    -0.23020589351654053,
+    -0.26729652285575867
+  ],
+  "src_names": [
+    "sn1_combined_v2:bonobo_only",
+    "sn1_combined_v2:fabio_spikeed",
+    "sn1_combined_v2:sn1"
+  ],
+  "s_id_mean_over_loc_anchor": 7.566967497041333e-09,
+  "s_id_std_over_scale_anchor": 1.0,
+  "pos_rate": 0.6461886775232678
+}

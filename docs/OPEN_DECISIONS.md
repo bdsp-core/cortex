@@ -196,6 +196,187 @@ Paper-2 / post-acceptance carry. The Centaur 4-expert n is small;
 broader external validation would require additional data
 acquisition.
 
+## 6. Replay/calibration cohort overlap (Nature Medicine audit, 2026-05-28)
+
+**Status**: 🔴 OPEN — flagged by the Nature Medicine readiness audit (Pipeline
+G1; Biostat G1; EEG Gap 6 convergent). See `docs/NATURE_MEDICINE_AUDIT.md §4.G1`.
+
+The Phase-7 D6 real-rater replay headline cohort (n=21) substantially
+overlaps the calibration panels used to set ℓ\*: **16 of 21 replay raters
+are in the 29-rater Q2-locked candidate pool**, and **8–9 of the 14 raters
+in each domain's CV-Youden expert panel are also in the 21-rater replay
+cohort**. The 70/30 split inside `step_g` is over the σ-pool, not over
+rater identity — raters in TRAIN can appear in the replay cohort.
+
+**Implication.** The +43 % to +1154 % replay-vs-Bernoulli headline contrast
+uses overlapping individuals for calibration AND for replay measurement;
+the magnitude of confounding is unquantified. Item 3 above (D7
+independent-panel reproducibility) is related but does not address the
+specific replay/calibration overlap.
+
+**For v1.0 acceptance review.** Decide whether to (a) run a leakage-aware
+sensitivity rerun (re-run `step_f` with the 21-rater replay cohort masked
+out of the candidate pool, regenerate per-domain ℓ\*, re-evaluate the
+replay headline, report the contrast next to the current headline; NATURE
+MEDICINE AUDIT T1.2; 1–2 days), (b) accept the overlap with explicit
+manuscript acknowledgement, or (c) defer to Paper 2.
+
+## 7. cert_config v13 ℓ\* values not numerically pinned (engineering integrity)
+
+**Status**: 🔴 OPEN — flagged by the Nature Medicine readiness audit
+(Pipeline G4 unique). See `docs/NATURE_MEDICINE_AUDIT.md §4.G4`.
+
+The seven `ell_star_unified_v13` values in `calibration/cert_config.yaml:58-112`
+— the clinical decision boundary for every PASS/FAIL verdict — are not
+pinned numerically in any of the 282 tests. A hand-edit of the YAML would
+pass CI silently.
+
+**For v1.0 acceptance review.** Add `test_v13_ell_star_pinned()` to
+`tests/test_phase3_calibration.py` pinning the 7 values to 1e-12 (NATURE
+MEDICINE AUDIT T1.1; 30 min; no D-decision risk). Trivial close.
+
+## 8. Engine vs deployment Σ are different priors
+
+**Status**: 🟡 PARTIAL — flagged by the Nature Medicine readiness audit
+(Pipeline G5 unique). See `docs/NATURE_MEDICINE_AUDIT.md §4.G5`.
+
+The Mode-A Paper-1 engine reads `engine_paths.SIGMA_L` (symlink to the 6×6
+frozen 15-rater-era artifact at repo root) and applies a matched-mean
+compound-symmetry approximation to K=7 at runtime. The deployment Laplace +
+EKF reads a fresh 14×14 PI block fit from `data/deployment_prior/Sigma.csv`.
+The two engines use **different** priors.
+
+Documented in code (`engine/core_mcmc.py:35-40`, `engine_paths.py:14-17`)
+but not gated by any test — a reviewer asking "are the priors the same?"
+gets "no."
+
+**For v1.0 acceptance review.** Decide whether to (a) re-fit Sigma_l at K=7
+from `data/labels/fits_hier_block`, ship as `Sigma_l_fitted_k7.npy`, update
+engine paths, regenerate Paper-1 figures (NATURE MEDICINE AUDIT T2.7;
+med effort; Paper-1 figures regenerate; re-run Phase-2 byte-equivalence
+suite at new prior); or (b) accept the K=6→K=7 CS approximation and
+document the cross-engine prior difference in the manuscript supplement.
+
+## 9. No formal hypothesis test for the D6 replay headline
+
+**Status**: 🔴 OPEN — flagged by the Nature Medicine readiness audit
+(Biostat G2/R1). See `docs/NATURE_MEDICINE_AUDIT.md §5.B1`.
+`docs/PHASE7_REPLAY_HEADLINE.md:209-212` explicitly defers a formal
+hypothesis-test layer "if a reviewer asks for it" — Nature Medicine
+reviewer 2 will ask.
+
+**For v1.0 acceptance review.** Add `pipeline/replay/statistical_tests.py`:
+mixed-effects `verdict ~ arm + (1|rater) + (1|task) + (arm|rater)`; paired
+McNemar per task; Wilcoxon signed-rank on per-cell AUROC differences;
+Hodges-Lehmann estimator; multiple-comparison adjustment table. (NATURE
+MEDICINE AUDIT T1.5; 1–2 days; no D-decision risk.)
+
+## 10. Calibration of probabilistic outputs absent
+
+**Status**: 🔴 OPEN — TRIPOD+AI mandatory; flagged by the Nature Medicine
+readiness audit (Biostat G7/R2; TRIPOD #15/Rec 2; Psychom Rec 7
+convergent). See `docs/NATURE_MEDICINE_AUDIT.md §5.B2`.
+
+No Brier score, calibration-in-the-large, expected calibration error,
+calibration slope, or reliability diagrams anywhere in the codebase
+(except SBC Bonferroni for Bayesian posterior coverage — a different
+sense of calibration). TRIPOD+AI Item 15 currently MISSING.
+
+**For v1.0 acceptance review.** Add `pipeline/replay/calibration_metrics.py`
+computing per-task Brier + CITL + slope + reliability diagram + ECE +
+Integrated Calibration Index on the 14,823 replay cells. (NATURE MEDICINE
+AUDIT T1.4; 4–6 hours; no D-decision risk.)
+
+## 11. Subgroup / fairness analyses absent
+
+**Status**: 🟡 PARTIAL — feasible-now subgroup analyses exist on existing
+data; full fairness analysis is data-gated. Flagged by the Nature Medicine
+readiness audit (TRIPOD #19/Rec 3; EEG Rec 5/6 convergent). See
+`docs/NATURE_MEDICINE_AUDIT.md §5.B4 + §6.E2`.
+
+Feasible NOW on existing data (no acquisition): per-task PASS rate by
+expertise tier (174 / 163 / 47 / 1,244 / 740 / 465 in raters.csv); per-task
+PASS rate by self-reported `years_eeg` (n=289); spike PASS rate by patient
+age band (n=15,670 with age) and sex (n=3,966 with sex).
+
+Not feasible without new acquisition: race / ethnicity (n=0); comorbidity
+/ etiology (n=0); ICU / EMU / outpatient setting (n=0); site-level
+fairness (no `site_id` in segments.csv).
+
+**For v1.0 acceptance review.** (a) Run the feasible subgroup analyses
+(NATURE MEDICINE AUDIT T1.7; 2–3 hours); (b) backfill demographics from
+BDSP source records under IRB amendment (T2.2; high effort; unlocks
+race/etiology fairness); (c) explicit "data not collected" limitation
+statement (T1.10) per TRIPOD+AI.
+
+## 12. Decision-curve analysis absent
+
+**Status**: 🔴 OPEN — Nature Medicine clinical-AI standard since 2019
+(Vickers et al. BMJ); flagged by the Nature Medicine readiness audit
+(TRIPOD #20/Rec 4; Psychom Rec 6 convergent). See
+`docs/NATURE_MEDICINE_AUDIT.md §5.B5`.
+
+Youden-J implies symmetric FP/FN cost; clinical EEG has highly asymmetric
+costs (false-positive "seizure" → AED low-risk; false-negative seizure →
+missed status high-risk). DCA net-benefit grid expected for any
+clinical-AI / decision-support paper.
+
+**For v1.0 acceptance review.** Run net-benefit grid at `pass_p × fail_p`
+on the 21-rater replay arm with asymmetric cost; report cost-weighted
+threshold `ℓ*_α` for `α ∈ {0.3, 0.5, 0.7}` alongside Youden-optimal
+`ℓ*_J = 0.5`. (NATURE MEDICINE AUDIT T1.8; 6 hours; no D-decision risk —
+the Youden-J ℓ\* remains the v1.0 ship value.)
+
+## 13. Multiple-testing burden across 7 tasks × 21 raters
+
+**Status**: 🔴 OPEN — flagged by the Nature Medicine readiness audit
+(Biostat G8/R3 unique). See `docs/NATURE_MEDICINE_AUDIT.md §5.B3`.
+
+Per-candidate FWER under the per-task `pass_p = 0.95` rule is
+`1 − 0.95⁷ ≈ 0.30`. `mode_b_legacy.stop_thresh_sidak: 0.9915` exists for
+the retired Mode-B path; the live deployment doesn't use it.
+
+**For v1.0 acceptance review.** Document explicitly that the per-task
+certificates policy (Item 1 above) is the FWER-resolving choice — each
+task is its own certificate; downstream consumers (credentialing boards,
+study sites) apply their own roll-up rule with their own α. Add
+`docs/MULTIPLE_TESTING.md` formalising this. (NATURE MEDICINE AUDIT T1.6;
+0.5 day; no D-decision risk.)
+
+## 14. Pre-registration is retroactive
+
+**Status**: 🔴 OPEN — flagged by the Nature Medicine readiness audit
+(TRIPOD #4/Rec 1 unique; `docs/PHASE7_CLOSEOUT.md:243-271` already
+admits). See `docs/NATURE_MEDICINE_AUDIT.md §5.B7`.
+
+Phase-7 sub-5 carved out four "implicit bounds" retrospectively (engine
+drift-guard, both engines run, honest pilot caveats, no regression). For
+Nature Medicine, a registered protocol is expected.
+
+**For v1.0 acceptance review.** Retroactively register the v1.0 acceptance
+protocol on OSF using TRIPOD-AI + SPIRIT-AI templates, citing 2026-05-18
+as the Phase-7 design lock and 2026-05-19 as the headline run. Be
+explicit that this is retrospective. Prospectively register the CORTEX
+live-deployment cohort on ClinicalTrials.gov BEFORE candidate enrollment.
+(NATURE MEDICINE AUDIT T1.9; 1 day; no D-decision risk.)
+
+## 15. Lapse-sensitivity sweep never run on unified corpus
+
+**Status**: 🔴 OPEN — extremely cheap to close; flagged by the Nature
+Medicine readiness audit (Psychom Rec 1; Biostat R8 convergent). See
+`docs/NATURE_MEDICINE_AUDIT.md §5.B6`.
+
+`scripts/run_lapse_sensitivity.py` exists with Wichmann–Hill λ_true ∈
+{0.01, 0.025, 0.05, 0.10} grid and a coded acceptance criterion
+(|AUROC excess bias| ≤ 0.02). `results/phase2_validation/` is empty —
+the sweep has never been run on the unified corpus. The "λ = 0.025 is
+robust" claim has no current empirical support in this repo.
+
+**For v1.0 acceptance review.** Run `python scripts/run_lapse_sensitivity.py`
+on the unified corpus; quote `worst_excess_bias` in Methods. (NATURE
+MEDICINE AUDIT T1.3; minutes of compute; no D-decision risk.) This is
+the single most likely reviewer-1-round ask.
+
 ## Decision tracking
 
 | # | Decision | Status | Owner | Target |
@@ -205,6 +386,16 @@ acquisition.
 | 3 | ℓ\* independent-panel reproducibility | 🟡 Partial (ordinal done) | Phase-3 carry | acceptance |
 | 4 | Bias-warning channel | 🔴 Open | v1.0 review | acceptance / Paper 2 |
 | 5 | Split-half reliability + external cohort | 🔴 Open (split-half OK; external TBD) | v1.0 review | acceptance / Paper 2 |
+| **6** | **Replay/calibration cohort overlap** | 🔴 Open | NatMed audit (2026-05-28) | acceptance |
+| **7** | **cert_config v13 ℓ\* numerically unpinned** | 🔴 Open (trivial close) | NatMed audit (2026-05-28) | acceptance |
+| **8** | **Engine vs deployment Σ different priors** | 🟡 Partial (documented in code, not gated) | NatMed audit (2026-05-28) | acceptance |
+| **9** | **No formal hypothesis test for D6 headline** | 🔴 Open | NatMed audit (2026-05-28) | acceptance |
+| **10** | **Calibration of probabilistic outputs absent** | 🔴 Open (TRIPOD+AI mandatory) | NatMed audit (2026-05-28) | acceptance |
+| **11** | **Subgroup / fairness analyses absent** | 🟡 Partial (feasible-now subset done; full data-gated) | NatMed audit (2026-05-28) | acceptance / Paper 2 |
+| **12** | **Decision-curve analysis absent** | 🔴 Open | NatMed audit (2026-05-28) | acceptance |
+| **13** | **Multiple-testing burden** | 🔴 Open (doc-only close) | NatMed audit (2026-05-28) | acceptance |
+| **14** | **Pre-registration retroactive** | 🔴 Open (OSF retrospective + CORTEX prospective) | NatMed audit (2026-05-28) | acceptance |
+| **15** | **Lapse-sensitivity sweep never run on unified corpus** | 🔴 Open (trivial close) | NatMed audit (2026-05-28) | acceptance |
 
 ## Relation to the merge plan
 

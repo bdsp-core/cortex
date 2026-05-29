@@ -1,0 +1,67 @@
+# Phase 9 Layer 6b — CORTEX cloud bank configuration template.
+#
+# Copy to `cortex_cloud_config.yaml` and fill in the actual cloud endpoints
+# when Eli picks a cloud backend (deferred per Layer-6b Q3). The
+# scripts/cortex_session_bank_fetch.py reads this file at session start.
+#
+# Three deployment modes, listed by preference:
+#
+#   (1) HTTPS object store (S3 / GCS / Azure Blob / public bucket)
+#       - bank_url:     direct URL to the production bank (large single h5)
+#                       or a directory prefix for per-segment files
+#       - manifest_url: direct URL to MANIFEST.json (small, ~22 MB)
+#       Requires the cloud to support either HTTP byte-range requests
+#       (single h5 case) or per-file fetching (directory prefix case).
+#
+#   (2) Local mirror (for CORTEX kiosk deployments without internet)
+#       - bank_path:     local filesystem path to eeg_bank_production.h5
+#       - manifest_path: local filesystem path to MANIFEST.json
+#       Standard for installed kiosks; the bank is staged once during
+#       installation and is read directly per session.
+#
+#   (3) Offline-only fallback (no cloud, no local mirror)
+#       The CORTEX app will detect no `cortex_cloud_config.yaml` and fall
+#       back to the bundled offline fallback at
+#       cortex_app/cortex_offline_fallback.h5 (built by
+#       build_cortex_bank_k7_production.py --mode fallback).
+
+# ──────────────────────────────────────────────────────────────────────────
+# Phase 9 deployed config (uncomment ONE block when cloud backend is chosen):
+# ──────────────────────────────────────────────────────────────────────────
+
+# # (1) Public S3 bucket:
+# manifest_url: https://bdsp-cortex-bank.s3.us-east-1.amazonaws.com/MANIFEST.json
+# bank_url:     https://bdsp-cortex-bank.s3.us-east-1.amazonaws.com/eeg_bank_production.h5
+#
+# # (1b) Dropbox shared link (alternative to S3):
+# manifest_url: https://www.dropbox.com/scl/fi/.../MANIFEST.json?dl=1
+# bank_url:     https://www.dropbox.com/scl/fi/.../eeg_bank_production.h5?dl=1
+#
+# # (2) Local mirror on a kiosk:
+# manifest_path: /opt/cortex/production_bank/MANIFEST.json
+# bank_path:     /opt/cortex/production_bank/eeg_bank_production.h5
+
+# ──────────────────────────────────────────────────────────────────────────
+# Per-session sampling parameters (apply to all modes):
+# ──────────────────────────────────────────────────────────────────────────
+
+# Number of segments to draw PER TASK per session (× 7 tasks total).
+# v1.2.0 default 60 → 420 segs/session ≈ 500 MB cloud download.
+# Empirical median asks per task at AD6 production settings (N_MIN=15,
+# ALPHA=0.10) is ~30; per_task=60 gives ~2× choice margin for the
+# adaptive selector. Raise to 200 for v2.0 public release when cloud
+# CDN bandwidth is unconstrained.
+per_task: 60
+
+# Random-stratification strata count for the per-session sample.
+# Each task is split into N_STRATA quantiles of its V_B s_mean signal;
+# per_task/N_STRATA segs are drawn from each stratum.
+n_strata: 10
+
+# ──────────────────────────────────────────────────────────────────────────
+# Offline fallback (always present; ships with CORTEX installer):
+# ──────────────────────────────────────────────────────────────────────────
+
+# Path inside the installer to the offline fallback bundle. Used when the
+# cloud is unreachable AND no local mirror is configured.
+offline_fallback_path: cortex_app/cortex_offline_fallback.h5

@@ -1,0 +1,508 @@
+{
+  "svi_results": [
+    {
+      "task": "spike",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 0,
+      "wall_s": 179.0,
+      "returncode": 0,
+      "stdout_tail": [
+        "[spike V_B] N=964,206 S=19,332 R=2,551 src=3 tiers=['experienced', 'expert', 'novice', 'untiered'] pos_rate=0.646 scale_anchor=13140 loc_anchor=4033 gpu=0",
+        "[spike V_B] SVI 40000 steps ELBO_tail=338299.4  loss[0]=1203375.2",
+        "[spike V_B] done 177.3s  method=svi  gauge|\u0394p|=1.9e-07  conv=svi  s\u0304_loc=7.566967497041333e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:20:08.977558: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "spike",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "sz",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 1,
+      "wall_s": 198.3,
+      "returncode": 0,
+      "stdout_tail": [
+        "[sz V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.196 scale_anchor=6691 loc_anchor=5000 gpu=1",
+        "[sz V_B] SVI 40000 steps ELBO_tail=273024.0  loss[0]=1348847.2",
+        "[sz V_B] done 196.1s  method=svi  gauge|\u0394p|=3.9e-07  conv=svi  s\u0304_loc=3.051757735406113e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:20:08.960634: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "sz",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "lpd",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 0,
+      "wall_s": 202.4,
+      "returncode": 0,
+      "stdout_tail": [
+        "[lpd V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.158 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[lpd V_B] SVI 40000 steps ELBO_tail=310257.5  loss[0]=1352332.6",
+        "[lpd V_B] done 200.7s  method=svi  gauge|\u0394p|=2.1e-07  conv=svi  s\u0304_loc=3.8146971692576415e-10  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:23:07.147014: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "lpd",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "gpd",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 1,
+      "wall_s": 196.4,
+      "returncode": 0,
+      "stdout_tail": [
+        "[gpd V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.150 scale_anchor=6691 loc_anchor=5000 gpu=1",
+        "[gpd V_B] SVI 40000 steps ELBO_tail=277292.2  loss[0]=1366397.4",
+        "[gpd V_B] done 194.5s  method=svi  gauge|\u0394p|=2.5e-07  conv=svi  s\u0304_loc=1.2207030941624453e-08  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:23:26.454111: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "gpd",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "lrda",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 0,
+      "wall_s": 203.4,
+      "returncode": 0,
+      "stdout_tail": [
+        "[lrda V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.135 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[lrda V_B] SVI 40000 steps ELBO_tail=294187.8  loss[0]=1382446.8",
+        "[lrda V_B] done 201.6s  method=svi  gauge|\u0394p|=3.2e-07  conv=svi  s\u0304_loc=-3.433227480087453e-09  sd_scale=0.9999999403953552  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:26:29.452979: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "lrda",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "grda",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 1,
+      "wall_s": 195.9,
+      "returncode": 0,
+      "stdout_tail": [
+        "[grda V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.150 scale_anchor=6691 loc_anchor=5000 gpu=1",
+        "[grda V_B] SVI 40000 steps ELBO_tail=289793.6  loss[0]=1389300.5",
+        "[grda V_B] done 194.2s  method=svi  gauge|\u0394p|=4.0e-07  conv=svi  s\u0304_loc=-6.484985437538171e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:26:43.020169: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "grda",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    },
+    {
+      "task": "iic",
+      "variant": "B",
+      "method": "svi",
+      "gpu": 0,
+      "wall_s": 200.3,
+      "returncode": 0,
+      "stdout_tail": [
+        "[iic V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.212 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[iic V_B] SVI 40000 steps ELBO_tail=337907.3  loss[0]=1328944.0",
+        "[iic V_B] done 198.6s  method=svi  gauge|\u0394p|=4.4e-07  conv=svi  s\u0304_loc=4.1961669694501325e-09  sd_scale=0.9999999403953552  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:29:52.948266: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "iic",
+        "--variant",
+        "B",
+        "--method",
+        "svi",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000"
+      ]
+    }
+  ],
+  "nuts_results": [
+    {
+      "task": "spike",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 0,
+      "wall_s": 14568.6,
+      "returncode": 0,
+      "stdout_tail": [
+        "[spike V_B] N=964,206 S=19,332 R=2,551 src=3 tiers=['experienced', 'expert', 'novice', 'untiered'] pos_rate=0.646 scale_anchor=13140 loc_anchor=4033 gpu=0",
+        "[spike V_B] done 14565.7s  method=nuts  gauge|\u0394p|=1.7e-06  conv=nuts  s\u0304_loc=-1.5133934994082665e-08  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 15:33:13.529597: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "spike",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "sz",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 1,
+      "wall_s": 15739.0,
+      "returncode": 1,
+      "stdout_tail": [
+        "[sz V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.196 scale_anchor=6691 loc_anchor=5000 gpu=1"
+      ],
+      "stderr_tail": [
+        "             ^^^^^^",
+        "  File \"/data/eli-work/repos/ilae-skill-certification-test-multi/pipeline/joint_calibration/fit_joint_k7.py\", line 241, in main",
+        "    assert max_dev < 1e-5, (",
+        "           ^^^^^^^^^^^^^^",
+        "AssertionError: GAUGE TRANSFORM NOT LIKELIHOOD-INVARIANT (max |\u0394p|=1.48e-04 \u2265 1e-5)"
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "sz",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "lpd",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 0,
+      "wall_s": 16132.4,
+      "returncode": 0,
+      "stdout_tail": [
+        "[lpd V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.158 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[lpd V_B] done 16127.5s  method=nuts  gauge|\u0394p|=2.4e-07  conv=nuts  s\u0304_loc=3.433227480087453e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 19:36:01.868185: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "lpd",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "gpd",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 1,
+      "wall_s": 15719.0,
+      "returncode": 0,
+      "stdout_tail": [
+        "[gpd V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.150 scale_anchor=6691 loc_anchor=5000 gpu=1",
+        "[gpd V_B] done 15714.0s  method=nuts  gauge|\u0394p|=8.5e-06  conv=nuts  s\u0304_loc=1.5258788677030566e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-28 19:55:32.181360: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "gpd",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "lrda",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 0,
+      "wall_s": 15987.7,
+      "returncode": 0,
+      "stdout_tail": [
+        "[lrda V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.135 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[lrda V_B] done 15982.8s  method=nuts  gauge|\u0394p|=4.9e-07  conv=nuts  s\u0304_loc=-1.4495849853801701e-08  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-29 00:04:54.256256: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "lrda",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "grda",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 1,
+      "wall_s": 15704.1,
+      "returncode": 0,
+      "stdout_tail": [
+        "[grda V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.150 scale_anchor=6691 loc_anchor=5000 gpu=1",
+        "[grda V_B] done 15699.1s  method=nuts  gauge|\u0394p|=1.8e-06  conv=nuts  s\u0304_loc=-1.5258788677030566e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-29 00:17:31.289467: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "grda",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "1",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    },
+    {
+      "task": "iic",
+      "variant": "B",
+      "method": "nuts",
+      "gpu": 0,
+      "wall_s": 15978.8,
+      "returncode": 0,
+      "stdout_tail": [
+        "[iic V_B] N=962,467 S=69,806 R=2,369 src=6 tiers=['borderline', 'experienced', 'expert', 'novice', 'other', 'unknown', 'untiered'] pos_rate=0.212 scale_anchor=6691 loc_anchor=5000 gpu=0",
+        "[iic V_B] done 15973.6s  method=nuts  gauge|\u0394p|=2.4e-07  conv=nuts  s\u0304_loc=8.392333938900265e-09  sd_scale=1.0  \u2192 /data/eli-work/repos/ilae-skill-certification-test-multi/calibration/joint"
+      ],
+      "stderr_tail": [
+        "2026-05-29 04:31:21.956299: W external/xla/xla/service/gpu/nvptx_compiler.cc:836] The NVIDIA driver's CUDA version is 12.5 which is older than the PTX compiler version (12.9.86). Because the driver is older than the PTX compiler version, XLA is disabling parallel compilation, which may slow down compilation. You should update your NVIDIA driver or use the NVIDIA-provided CUDA forward compatibility packages."
+      ],
+      "cmd": [
+        "/data/eli-work/repos/ilae-skill-certification-test-multi/.venv/bin/python",
+        "-m",
+        "pipeline.joint_calibration.fit_joint_k7",
+        "--task",
+        "iic",
+        "--variant",
+        "B",
+        "--method",
+        "nuts",
+        "--gpu",
+        "0",
+        "--seed",
+        "0",
+        "--svi-steps",
+        "40000",
+        "--warmup",
+        "1500",
+        "--samples",
+        "1500",
+        "--chains",
+        "4"
+      ]
+    }
+  ],
+  "wall_s": 63452.65390205383,
+  "winner": "B"
+}
