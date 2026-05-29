@@ -70,19 +70,21 @@ LABELS_CSV = REPO / "data" / "labels" / "labels.csv"
 SIGNALS_CSV = REPO / "data" / "labels" / "iiic_segment_signals.csv"
 
 IIIC_CLASSES = ["seizure", "lpd", "gpd", "lrda", "grda", "other"]
-PER_CLASS_TARGET = 50                              # 50 × 6 = 300
+PER_CLASS_TARGET = 50                              # default; override --per-class
 RNG_SEED = 42
 SCHEMA_VERSION = "2"
 
 
-def _check_inputs() -> None:
+def _check_inputs(spec_file: Path) -> None:
     """Verify all source files exist before doing any expensive work."""
-    for path in (V1_BANK, SPEC_FILE, LABELS_CSV, SIGNALS_CSV):
+    for path in (V1_BANK, spec_file, LABELS_CSV, SIGNALS_CSV):
         if not path.exists():
             raise SystemExit(
                 f"Required input missing: {path}\n"
                 "  This script expects all four source files to be local.\n"
-                "  Check data/SENSITIVE.md for retrieval instructions.")
+                "  The ~100 GB spec payload (eeg_bank_spec.h5) lives on the\n"
+                "  external SSD; mount it or pass --spec PATH. See\n"
+                "  data/SENSITIVE.md for retrieval instructions.")
 
 
 def load_v1_iiic() -> dict:
@@ -158,8 +160,8 @@ def spec_segments_with_full_iiic(spec_path: Path,
 def sample_new_iiic(plurality: dict, n_raters: dict,
                     full_payload_ids: set[int],
                     already_in_v1: set[int],
-                    rng) -> dict:
-    """Per class, pick (PER_CLASS_TARGET - n_already) new segs from the
+                    rng, per_class: int) -> dict:
+    """Per class, pick (per_class - n_already) new segs from the
     pool. Quality bias: rank by n_raters DESC, take the top 3× the
     needed count, sample uniformly without replacement from that top
     pool — same heuristic as the v1 build_test_h5.py.
@@ -180,7 +182,7 @@ def sample_new_iiic(plurality: dict, n_raters: dict,
 
     for cls in IIIC_CLASSES:
         n_already = sum(1 for sid, k in chosen.items() if k == cls)
-        n_needed = PER_CLASS_TARGET - n_already
+        n_needed = per_class - n_already
         if n_needed <= 0:
             continue
         # Excluded: already-chosen segs + segs not in this class's pool
@@ -189,7 +191,9 @@ def sample_new_iiic(plurality: dict, n_raters: dict,
             raise SystemExit(
                 f"Need {n_needed} more {cls} segments, only "
                 f"{len(pool)} available with full payload.")
-        # Quality bias — n_raters DESC, then random within top pool.
+        # Quality bias — n_raters DESC, then random within a top pool that
+        # scales with the draw so a large per-class target still spans the
+        # well-labeled candidates rather than just the top 50.
         pool_arr = np.array(pool)
         nrt = np.array([n_raters.get(s, 0) for s in pool], dtype=int)
         order = np.argsort(-nrt, kind="stable")
@@ -266,15 +270,26 @@ def main():
         description="Build the v1.1.0 CORTEX test bank (300 IIIC + 100 spike).")
     ap.add_argument("--out", type=Path, default=REPO / "data" / "eeg_bank_v2.h5",
                     help="Target file (default: data/eeg_bank_v2.h5).")
+    ap.add_argument("--per-class", type=int, default=PER_CLASS_TARGET,
+                    help=f"Segments per IIIC class (default {PER_CLASS_TARGET}; "
+                         "pool size = per_class × 6). Use a large value to build "
+                         "the web pool the per-session sampler draws 500 from.")
+    ap.add_argument("--spec", type=Path, default=SPEC_FILE,
+                    help="Path to the ~100 GB eeg_bank_spec.h5 payload source "
+                         "(default data/eeg_bank_spec.h5; point at the SSD copy).")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report what would be written, don't touch disk.")
     args = ap.parse_args()
+    spec_file = args.spec
+    per_class = args.per_class
 
     print("CORTEX test-bank builder v2", flush=True)
     print(f"  out: {args.out}", flush=True)
+    print(f"  per-class: {per_class}  (pool = {per_class * len(IIIC_CLASSES)})", flush=True)
+    print(f"  spec: {spec_file}", flush=True)
     print(f"  dry-run: {args.dry_run}", flush=True)
     print()
-    _check_inputs()
+    _check_inputs(spec_file)
 
     # Stage 1: v1 segs to carry forward
     print("Stage 1 — v1 IIIC carry-forward")
@@ -295,15 +310,15 @@ def main():
     print("Stage 3 — spec-file full-payload filter")
     iiic_candidates = {sid for sid, cls in plurality.items()
                        if cls in IIIC_CLASSES}
-    full = spec_segments_with_full_iiic(SPEC_FILE, iiic_candidates)
+    full = spec_segments_with_full_iiic(spec_file, iiic_candidates)
     print(f"  IIIC candidates with full payload: {len(full):,}", flush=True)
     print()
 
-    # Stage 4: sample to reach 50/class (incl. v1 carry-forward)
+    # Stage 4: sample to reach per_class/class (incl. v1 carry-forward)
     print("Stage 4 — per-class sampling")
     rng = np.random.default_rng(RNG_SEED)
     chosen = sample_new_iiic(plurality, n_raters, full,
-                             set(v1_iiic), rng)
+                             set(v1_iiic), rng, per_class)
     final_class_counts = Counter(chosen.values())
     new_segs = set(chosen) - set(v1_iiic)
     print(f"  v1 carried forward: {len(set(v1_iiic) & set(chosen))}", flush=True)
@@ -312,7 +327,7 @@ def main():
     print(f"  per-class final:")
     for c in IIIC_CLASSES:
         print(f"    {c:8s}: {final_class_counts.get(c, 0):>3}", flush=True)
-    if any(final_class_counts.get(c, 0) != PER_CLASS_TARGET
+    if any(final_class_counts.get(c, 0) != per_class
            for c in IIIC_CLASSES):
         raise SystemExit("Per-class counts != target; aborting.")
     print()
@@ -328,12 +343,12 @@ def main():
         print(f"  {args.out} exists; renaming to {backup}", flush=True)
         args.out.rename(backup)
 
-    with h5py.File(V1_BANK, "r") as v1, h5py.File(SPEC_FILE, "r") as spec, \
+    with h5py.File(V1_BANK, "r") as v1, h5py.File(spec_file, "r") as spec, \
          h5py.File(args.out, "w") as dst:
         dst.attrs["schema_version"] = SCHEMA_VERSION
         dst.attrs["build_utc"] = datetime.datetime.now(
             datetime.timezone.utc).isoformat(timespec="seconds")
-        dst.attrs["n_iiic"] = PER_CLASS_TARGET * len(IIIC_CLASSES)
+        dst.attrs["n_iiic"] = per_class * len(IIIC_CLASSES)
         # IIIC: v1 carry-forward, then new
         for i, sid in enumerate(sorted(set(v1_iiic) & set(chosen)), 1):
             copy_iiic_from_v1(v1, dst, sid, chosen[sid])
