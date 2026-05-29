@@ -60,7 +60,6 @@ export function logDetSPD(A: Mat): number {
 
 // add jitter·I (matches the engine's 1e-9 I stabiliser).
 export function addJitter(A: Mat, jitter = 1e-9): Mat {
-  const n = A.length;
   return A.map((row, i) => row.map((v, j) => (i === j ? v + jitter : v)));
 }
 

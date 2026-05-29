@@ -23,30 +23,15 @@ const LOG_SQRT_2PI = 0.5 * Math.log(2 * Math.PI);
 export function erfc(x: number): number {
   const z = Math.abs(x);
   const t = 1 / (1 + 0.5 * z);
-  // Numerical Recipes erfccheb-style coefficients (≈1e-7); replaced below
-  // by the higher-order Cody form. Kept structure for clarity.
-  const tau =
-    t *
-    Math.exp(
-      -z * z -
-        1.26551223 +
-        t *
-          (1.00002368 +
-            t *
-              (0.37409196 +
-                t *
-                  (0.09678418 +
-                    t *
-                      (-0.18628806 +
-                        t *
-                          (0.27886807 +
-                            t *
-                              (-1.13520398 +
-                                t *
-                                  (1.48851587 +
-                                    t *
-                                      (-0.82215223 + t * 0.17087277))))))))),
-    );
+  // Numerical-Recipes rational form (~1.2e-7 relative). Horner via a flat
+  // coefficient sweep to avoid deep paren nesting.
+  const c = [
+    -1.26551223, 1.00002368, 0.37409196, 0.09678418, -0.18628806, 0.27886807,
+    -1.13520398, 1.48851587, -0.82215223, 0.17087277,
+  ];
+  let poly = c[c.length - 1];
+  for (let i = c.length - 2; i >= 0; i--) poly = c[i] + t * poly;
+  const tau = t * Math.exp(-z * z + poly);
   return x >= 0 ? tau : 2 - tau;
 }
 
