@@ -127,3 +127,59 @@ export async function postResults(
     body: JSON.stringify({ sessionId, result, stopReason, nQuestions }),
   });
 }
+
+// ── result delivery with local persistence + retry (PLAN §8) ──────
+// The final results upload must survive a flaky network or a tab close. We
+// enqueue the payload in localStorage first, then attempt delivery; anything
+// undelivered is retried by flushPendingResults() on the next authed load.
+const PENDING_KEY = "cortex_pending_results";
+
+interface PendingResult {
+  sessionId: string;
+  result: unknown;
+  stopReason: string;
+  nQuestions: number;
+}
+
+function loadPending(): PendingResult[] {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+function savePending(list: PendingResult[]): void {
+  localStorage.setItem(PENDING_KEY, JSON.stringify(list));
+}
+
+// Enqueue then deliver. Resolves true if delivered now, false if it was kept
+// for retry (the caller still shows results — the data is safe locally).
+export async function submitResults(
+  sessionId: string,
+  result: unknown,
+  stopReason: string,
+  nQuestions: number,
+): Promise<boolean> {
+  const list = loadPending().filter((p) => p.sessionId !== sessionId);
+  list.push({ sessionId, result, stopReason, nQuestions });
+  savePending(list);
+  return (await flushPendingResults()).includes(sessionId);
+}
+
+// Retry every queued result; returns the session ids successfully delivered.
+export async function flushPendingResults(): Promise<string[]> {
+  const list = loadPending();
+  if (!list.length || !getToken()) return [];
+  const delivered: string[] = [];
+  const remaining: PendingResult[] = [];
+  for (const p of list) {
+    try {
+      await postResults(p.sessionId, p.result, p.stopReason, p.nQuestions);
+      delivered.push(p.sessionId);
+    } catch {
+      remaining.push(p);
+    }
+  }
+  savePending(remaining);
+  return delivered;
+}

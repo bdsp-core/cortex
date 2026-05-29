@@ -7,7 +7,7 @@
 // exactly twice per sitting — create-session at start, post-results at end —
 // plus fire-and-forget per-trial checkpoints for crash-safety (PLAN §8).
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bundle } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
@@ -53,6 +53,12 @@ export function App() {
   const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
+
+  // Retry any results that failed to upload in a previous sitting, as soon as
+  // we have a token (crash-safety reconnect, PLAN §8).
+  useEffect(() => {
+    if (api.isAuthed()) void api.flushPendingResults();
+  }, [phase]);
 
   // ── flow transitions ──────────────────────────────────────────
   const begin = () => setPhase(api.isAuthed() ? "consent" : "login");
@@ -109,17 +115,17 @@ export function App() {
             nPerTask: d?.nPerTask,
           };
           setSummary(sum);
-          try {
-            await api.postResults(sessionId, {
-              verdicts: r.verdicts,
-              servedSegIds: r.servedSegIds,
-              trials: r.trials,
-              participant: participantRef.current,
-              sampleSeed: info.seed,
-            }, r.stopReason, r.nQuestions);
-          } catch (e) {
-            console.warn("[cortex] results upload failed; retained locally", e);
-          }
+          // Persist-then-deliver: the payload is saved locally before the
+          // POST, so a failed upload is retried on the next authed load
+          // rather than lost (PLAN §8).
+          const delivered = await api.submitResults(sessionId, {
+            verdicts: r.verdicts,
+            servedSegIds: r.servedSegIds,
+            trials: r.trials,
+            participant: participantRef.current,
+            sampleSeed: info.seed,
+          }, r.stopReason, r.nQuestions);
+          if (!delivered) console.warn("[cortex] results upload deferred; retained locally");
           setPhase("done");
         },
         onError: (m) => { setMsg(m); setPhase("error"); },
