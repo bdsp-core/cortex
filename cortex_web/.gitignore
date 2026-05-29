@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Generated data bundle (PHI-adjacent EEG; lives on S3, fetched at runtime).
+public/bundle/
+
+# Local env / secrets.
+.env
+.env.local
+
+.DS_Store
