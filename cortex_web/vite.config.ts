@@ -14,4 +14,15 @@ export default defineConfig({
     target: "es2022",
     sourcemap: true,
   },
+  // In `vite dev` (port 5173) proxy /api to the FastAPI backend (port 8000) so
+  // the SPA's same-origin /api calls work without CORS gymnastics. The EEG
+  // bundle is served from public/ by Vite directly, so only /api is proxied.
+  server: {
+    proxy: {
+      "/api": {
+        target: process.env.CORTEX_API_TARGET || "http://localhost:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 });
