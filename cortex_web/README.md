@@ -10,7 +10,7 @@ data format, concurrency/auth model, deployment, validation, and build order.
 
 ## Status
 
-Scaffold + de-risked engine core. What's here:
+End-to-end working app: engine + full participant flow + backend. What's here:
 
 ```
 PLAN.md                       the design doc (start here)
@@ -26,32 +26,100 @@ engine/                       TypeScript SMC engine (ported from engine/core_mcm
   session.ts                  the adaptive loop (async answer flow)
   worker.ts                   Web Worker entry + message protocol
   types.ts                    shared interfaces
+src/                          React SPA
+  App.tsx                     flow state machine (landing→…→results)
+  api.ts                      backend client (auth / session / progress / results)
+  bundle.ts + idbcache.ts     lazy EEG/spec loader, IndexedDB-cached by version
+  sampleSession.ts            fresh difficulty-stratified 500-sample per sitting
+  progress.ts                 posterior resolution-confidence readout
+  components/                 Landing, Login, Consent, Registration, Tutorial,
+                              Computing, Results, Viewer (+ Canvas EEG/Spec), ui
+server/                       FastAPI + SQLite backend
+  security.py                 PBKDF2 password hashing + HS256 JWT (stdlib-only)
+  db.py                       participants / sessions / trials / results (WAL)
+  app.py                      auth + manifest + session + progress + results + admin
+  admin.py                    CLI: mint credentials, export sessions/results
+  run.py                      `python -m server.run` dev entry
+  test_server.py              11 tests (security + full API round-trip)
 ui/theme.ts                   exact colors / fonts / geometry / montages / shortcuts
 scripts/prepare_web_bundle.py h5 bank → browser bundle (manifest + int16 EEG + uint8 spec)
-package.json / tsconfig / vite.config.ts
+scripts/run_local.sh dev.sh   one-process serve / hot-reload dev
+Dockerfile                    single-image build (SPA + API)
 ```
 
-**Not yet built** (see PLAN.md §10 phases 3–7): the React screens (Landing /
-Consent / Registration / Tutorial / Viewer / Results), IndexedDB bundle
-loader, the auth + results API, deployment. The engine + theme + data-prep
-are the foundation those build on.
+## Run it locally (before AWS)
 
-## Engine quickstart (Node/Vitest)
+One process serves the SPA, the EEG bundle, and the API on `:8000`:
 
 ```bash
+cd cortex_web
+pip install -r server/requirements.txt   # fastapi, uvicorn (auth/db are stdlib)
 npm install
-npm run typecheck
-npm test          # once engine/*.test.ts validation specs are added (PLAN.md §9)
+./scripts/run_local.sh                    # builds the SPA, mints a demo login, serves :8000
+# open http://localhost:8000 — log in with the printed demo credentials
+```
+
+Hot-reload dev (Vite on :5173 proxying /api → FastAPI on :8000):
+
+```bash
+./scripts/dev.sh                          # open http://localhost:5173
+```
+
+Mint real participant credentials and export results:
+
+```bash
+python -m server.admin gen --count 100 --prefix cortex --out codes.csv  # one CSV row per participant
+python -m server.admin export-sessions --out sessions.csv
+python -m server.admin export-results  --out results/                   # one JSON per session
+```
+
+## Tests
+
+```bash
+npm test                                  # engine validation (45) — statistically vs the Python engine
+python -m pytest server/test_server.py    # backend (11) — security + full API round-trip
 ```
 
 ## Data bundle
 
 ```bash
 # from the repo root, with the desktop test bank present at data/eeg_bank.h5:
-python cortex_web/scripts/prepare_web_bundle.py --version v1.1
-# → cortex_web/public/bundle/v1.1/{manifest.json, seg/*.eeg, seg/*.spec}
-# upload that dir to S3+CloudFront; the SPA fetches manifest.json then the segs.
+python cortex_web/scripts/prepare_web_bundle.py --version v1.1-local
+# → cortex_web/public/bundle/v1.1-local/{manifest.json, seg/*.eeg, seg/*.spec}
 ```
+
+The per-session sampler draws a fresh ~500-question subset each sitting, so the
+shipped POOL must exceed 500. The local bank is 100 segments; build a larger
+difficulty-spanning pool from the spec payload (on the external SSD), then
+re-run prepare_web_bundle.py:
+
+```bash
+python scripts/build_cortex_test_bank_v2.py \
+    --per-class 200 --spec /Volumes/Extreme\ SSD/eeg_bank_spec.h5 \
+    --out data/eeg_bank.h5          # 200×6 = 1200-segment pool
+python cortex_web/scripts/prepare_web_bundle.py --version v1.1-local
+```
+
+## Deploy (AWS)
+
+Two pieces (PLAN §3): static SPA + bundle on **S3 + CloudFront**, API on a small
+instance/Lambda.
+
+```bash
+# 1. SPA + bundle → S3 (edge-cached; identical bytes for everyone)
+npm run build && aws s3 sync dist/   s3://<spa-bucket>/   --profile <p>
+aws s3 sync public/bundle/ s3://<bundle-bucket>/bundle/ --profile <p>
+# point CORTEX_BUNDLE_URL at the CloudFront origin so the SPA fetches it from the CDN
+
+# 2. API (one process; auth + results only — no per-question load)
+docker build -t cortex-web . && docker run -p 8000:8000 \
+    -e CORTEX_JWT_SECRET=... -e CORTEX_ADMIN_TOKEN=... \
+    -e CORTEX_BUNDLE_URL=https://<cloudfront>/bundle/v1.1-local \
+    -e CORTEX_CORS_ORIGINS=https://<spa-domain> cortex-web
+```
+
+Env: `CORTEX_JWT_SECRET` (sign tokens), `CORTEX_ADMIN_TOKEN` (gate admin API),
+`CORTEX_BUNDLE_URL`, `CORTEX_CORS_ORIGINS`, `CORTEX_DB`, `CORTEX_TOKEN_TTL`.
 
 ## Why a Web Worker
 
