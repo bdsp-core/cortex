@@ -113,7 +113,9 @@ def main():
                 continue
 
             # --- EEG: eeg30s (nCh, nSamp) → int16 µV×scale ---
-            eeg = np.asarray(g["eeg30s"], dtype=np.float64)
+            # nan_to_num: some banks carry NaN samples (bad channels); int16
+            # cast of NaN is undefined → zero-fill (renders as flat line).
+            eeg = np.nan_to_num(np.asarray(g["eeg30s"], dtype=np.float64), nan=0.0)
             fs = float(g.attrs.get("fs_hz", 200.0))
             ch_names = [
                 (c.decode() if isinstance(c, bytes) else str(c))
