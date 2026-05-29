@@ -10,9 +10,14 @@ import { useEffect, useRef, useState } from "react";
 import { Bundle } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
-import { estimateFinishProbability, Progress } from "./progress";
+import { resolutionConfidence, Progress } from "./progress";
+import { sampleSession } from "./sampleSession";
 import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
+
+// Per-session question sample size. The bundle is a large pool; each sitting
+// draws a fresh difficulty-stratified subset of this many questions.
+const SESSION_SAMPLE = 500;
 import { COLORS, FONTS, IIIC_OPTIONS, VERDICT_STYLE } from "../ui/theme";
 
 const BUNDLE_URL = "/bundle/v1.1-local";
@@ -23,7 +28,7 @@ export function App() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
-  const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, finishProb: null });
+  const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, resolveConf: null });
   const [verdicts, setVerdicts] = useState<string[]>([]);
   const [nQ, setNQ] = useState(0);
   const [msg, setMsg] = useState("");
@@ -35,13 +40,20 @@ export function App() {
       .then((b) => {
         if (disposed) return;
         setBundle(b);
-        const maxQ = Math.min(MAX_QUESTIONS, b.inputs.segments.length);
-        setProgress({ answered: 0, maxQ, finishProb: null });
+        // Fresh, difficulty-stratified question sample for THIS sitting —
+        // a different draw each launch (pool ≫ sample ⇒ rarely repeats).
+        const { inputs, info } = sampleSession(b.inputs, SESSION_SAMPLE);
+        console.info(
+          `[cortex] session sample: ${info.nSampled} of ${info.nPool} pool ` +
+          `(seed ${info.seed}); per-class`, info.perClass,
+        );
+        const maxQ = Math.min(MAX_QUESTIONS, inputs.segments.length);
+        setProgress({ answered: 0, maxQ, resolveConf: null });
         const client = new EngineClient({
           onItem: (it) => setItem(it),
           onTrial: (diag: TrialDiag) => {
             const answered = diag.nPerTask.reduce((a, n) => a + n, 0);
-            setProgress({ answered, maxQ, finishProb: estimateFinishProbability(diag, maxQ) });
+            setProgress({ answered, maxQ, resolveConf: resolutionConfidence(diag) });
           },
           onDone: (r) => {
             setVerdicts(r.verdicts);
@@ -51,7 +63,8 @@ export function App() {
           onError: (m) => { setMsg(m); setPhase("error"); },
         });
         clientRef.current = client;
-        client.start(b.inputs, `web-${Date.now()}`);
+        // session id carries the sample seed so a sitting is reconstructable
+        client.start(inputs, `web-${info.seed}`);
         setPhase("running");
       })
       .catch((e) => { setMsg(String(e)); setPhase("error"); });

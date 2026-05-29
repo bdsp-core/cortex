@@ -157,9 +157,9 @@ export function Viewer({
           press 1–6 to answer
         </span>
         <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
-          Est. chance of reaching a conclusion:{" "}
+          Confidence of reaching a verdict (most-uncertain task):{" "}
           <b style={{ color: COLORS.textPrimary }}>
-            {progress.finishProb == null ? "—" : `${Math.round(progress.finishProb * 100)}%`}
+            {progress.resolveConf == null ? "—" : `${Math.round(progress.resolveConf * 100)}%`}
           </b>
         </span>
       </div>
