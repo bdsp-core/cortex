@@ -86,14 +86,17 @@ export function Viewer({
   // keyboard. Bound ONCE for the component's life (empty deps) with a stable
   // listener; reads the latest submit + state via refs so it never goes
   // stale. Capture phase ('true') so the event is handled at the window
-  // before any focused <select>/<button> can consume it (e.g. number-key
-  // type-ahead in a dropdown). lastKey is a visible diagnostic.
+  // before any focused <select>/<button> can consume it.
+  //
+  // NB: a key-grabbing browser extension (Vimium/Surfingkeys-style navigator,
+  // tab-switcher) that registers a capture-phase listener at document_start
+  // and stopImmediatePropagation()s number keys will pre-empt this — no page
+  // code can recover the event. Confirmed during dev: keys work in an
+  // extension-free (incognito) profile; click-to-answer is the fallback.
   const submitRef = useRef(submit);
   submitRef.current = submit;
-  const [lastKey, setLastKey] = useState("");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      setLastKey(e.key);
       if (e.key >= "1" && e.key <= "6") {
         e.preventDefault();
         submitRef.current(parseInt(e.key, 10) - 1);
@@ -148,7 +151,7 @@ export function Viewer({
           </button>
         ))}
         <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1–6 to answer{lastKey ? `  ·  last key: ${lastKey}` : ""}
+          press 1–6 to answer
         </span>
       </div>
 
