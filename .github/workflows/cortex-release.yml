@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          gh release download build-data-v2 \
+          gh release download build-data-v3-k7 \
               --repo ${{ github.repository }} \
               --pattern eeg_bank.h5 \
               --dir data/
@@ -121,7 +121,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path data | Out-Null
-          gh release download build-data-v2 `
+          gh release download build-data-v3-k7 `
               --repo ${{ github.repository }} `
               --pattern eeg_bank.h5 `
               --dir data/
@@ -194,7 +194,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data
-          gh release download build-data-v2 \
+          gh release download build-data-v3-k7 \
               --repo ${{ github.repository }} \
               --pattern eeg_bank.h5 \
               --dir data/
@@ -259,6 +259,13 @@ jobs:
             artifacts/CORTEX-linux-x86_64.tar.gz
           body: |
             ## CORTEX adaptive EEG certification test
+
+            ### What's new in v1.2.0 (since v1.1.5)
+
+            - **Now K=7** — the certification test now covers **7 tasks**: the original 6 IIIC pattern_classes (Seizure / LPD / GPD / LRDA / GRDA / Other) **plus a 7th spike-vs-no-spike task** (Phase 9 ground-up rebuild). Spike segments use the Jing-spike-paper presentation: 10-second window at 128 Hz with a Yes / No answer, alongside the unchanged 30-second IIIC presentation with 6-way answer.
+            - **Sim-calibrated adaptive stop policy.** The engine now stops a task when it has confident evidence — sessions complete in ~190 trials median (was ~300 cap in v1.1.5). Borderline-skill raters still see longer sessions; confident-skill raters finish in ~110 trials. Calibration sweep + numbers: `docs/SIM_V1_2_0_REPORT.md` in the source repo.
+            - **Result uploads are cohort-isolated.** v1.2.0 session CSVs land in `Dropbox/Apps/CORTEX/results/v1.2.0/` (was `Dropbox/Apps/CORTEX/results/` in v1.1.5). Same Dropbox app + credentials as v1.1.5 — no new login.
+            - **Per-task verdicts** now include a Spike row alongside the 6 IIIC rows on the results screen.
 
             ### Downloads
             - **macOS:** `CORTEX-mac.dmg` — see "Opening CORTEX on macOS" below
