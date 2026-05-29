@@ -149,6 +149,24 @@ def test_admin_requires_token(client):
                       headers={"X-Admin-Token": "wrong"}).status_code == 403
 
 
+def test_disabled_participant_cannot_auth(client, tmp_path):
+    code, pw = _make_participant(client)
+    # works while active
+    assert client.post("/api/auth", json={"code": code, "password": pw}).status_code == 200
+    # disable it directly in the DB the app is using, then auth must fail
+    client.app.state.db.set_participant_active(code, False)
+    assert client.post("/api/auth", json={"code": code, "password": pw}).status_code == 401
+
+
+def test_expired_token_rejected_by_api(client, monkeypatch):
+    code, pw = _make_participant(client)
+    # mint a token that is already expired
+    from . import security
+    tok = security.issue_token(code, ttl_seconds=-1)
+    r = client.get("/api/manifest", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 401
+
+
 def test_db_direct_participant():
     import tempfile, os
     with tempfile.TemporaryDirectory() as d:
