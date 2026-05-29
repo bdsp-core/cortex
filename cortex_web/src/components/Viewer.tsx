@@ -1,9 +1,10 @@
 // The Viewer screen — the heart of the test. Spectrogram (left) + EEG (right),
-// a 6-button IIIC answer panel + Confirm, and the display controls, all driven
-// by the engine Web Worker. Keyboard: 1–6 select, Enter confirm, ←/→ pan,
-// ↑/↓ gain ladder, Ctrl cycle montage.
+// a 6-button IIIC answer panel, and the display controls, all driven by the
+// engine Web Worker. Keyboard: 1–6 pick-and-advance (a keypress both selects
+// and submits), ←/→ pan, ↑/↓ gain ladder, Ctrl cycle montage. Clicking a
+// choice also advances.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bundle, SegmentData } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
@@ -38,6 +39,17 @@ export function Viewer({
   const [panStart, setPanStart] = useState(0);
   const [pick, setPick] = useState<number | null>(null);
 
+  // Refs let the once-bound keydown handler read fresh values without stale
+  // closures (the bug in the previous version). `answered` guards against a
+  // double-submit while the next item loads.
+  const segRef = useRef<SegmentData | null>(null);
+  segRef.current = seg;
+  const itemRef = useRef<Item | null>(null);
+  itemRef.current = item;
+  const windowSRef = useRef(windowS);
+  windowSRef.current = windowS;
+  const answered = useRef(false);
+
   // fetch the segment whenever the item changes; reset per-question UI state
   useEffect(() => {
     if (!item) return;
@@ -45,6 +57,7 @@ export function Viewer({
     setSeg(null);
     setPick(null);
     setPanStart(0);
+    answered.current = false; // new question → allow a new answer
     bundle.segment(item.segId).then((s) => alive && setSeg(s));
     return () => { alive = false; };
   }, [item, bundle]);
@@ -58,31 +71,46 @@ export function Viewer({
     return base.map((r) => (r.data ? { ...r, data: filtfilt(r.data, cascade) } : r));
   }, [seg, montage, bandpass, notchHz]);
 
-  const confirm = () => {
-    if (pick === null || !item) return;
-    onAnswer(pick);
-    setSeg(null); // clear until the next item loads
-  };
+  // Pick-and-advance: a single choice (key or click) selects AND submits.
+  const submit = useCallback(
+    (k: number) => {
+      if (answered.current || !itemRef.current || !segRef.current) return;
+      answered.current = true;
+      setPick(k);
+      onAnswer(k);
+      setSeg(null); // clear until the next item loads
+    },
+    [onAnswer],
+  );
 
-  // keyboard
+  // keyboard — bound once; reads refs so it never goes stale
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key >= "1" && e.key <= "6") setPick(parseInt(e.key, 10) - 1);
-      else if (e.key === "Enter") confirm();
-      else if (e.key === "ArrowLeft") setPanStart((p) => Math.max(0, p - windowS / 2));
-      else if (e.key === "ArrowRight")
-        setPanStart((p) => (seg ? Math.min(seg.nSamp / seg.fsHz - windowS, p + windowS / 2) : p));
-      else if (e.key === "ArrowUp")
+      if (e.key >= "1" && e.key <= "6") {
+        e.preventDefault();
+        submit(parseInt(e.key, 10) - 1);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setPanStart((p) => Math.max(0, p - windowSRef.current / 2));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setPanStart((p) => {
+          const s = segRef.current;
+          return s ? Math.min(s.nSamp / s.fsHz - windowSRef.current, p + windowSRef.current / 2) : p;
+        });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
         setGain((g) => GAIN_LADDER[Math.max(0, GAIN_LADDER.indexOf(g) - 1)]);
-      else if (e.key === "ArrowDown")
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
         setGain((g) => GAIN_LADDER[Math.min(GAIN_LADDER.length - 1, GAIN_LADDER.indexOf(g) + 1)]);
-      else if (e.key === "Control")
+      } else if (e.key === "Control") {
         setMontage((m) => MONTAGES[(MONTAGES.indexOf(m as any) + 1) % MONTAGES.length]);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pick, item, windowS, seg]);
+  }, [submit]);
 
   const dur = seg ? seg.nSamp / seg.fsHz : 0;
   const sel = (v: boolean) => ({
@@ -93,27 +121,26 @@ export function Viewer({
   return (
     <div style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
                   height: "100vh", display: "flex", flexDirection: "column", padding: 12, boxSizing: "border-box" }}>
-      {/* top: question + answer buttons + confirm */}
+      {/* top: question + answer buttons (pick-and-advance) */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
           Question {item ? item.trialIndex + 1 : "—"}
         </span>
         {IIIC_OPTIONS.map((o, i) => (
-          <button key={o.code} onClick={() => setPick(i)}
+          <button key={o.code} onClick={() => submit(i)}
             style={{ minWidth: 135, padding: "10px 8px", ...sel(pick === i) }}>
             {i + 1} · {o.label}
           </button>
         ))}
-        <button onClick={confirm} disabled={pick === null}
-          style={{ minWidth: 120, padding: "10px 8px", marginLeft: 8 }}>
-          Confirm ⏎
-        </button>
+        <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
+          press 1–6 to answer
+        </span>
       </div>
 
       {/* middle: spectrogram (left) + EEG (right) */}
       <div style={{ display: "flex", gap: 8, flex: 1, minHeight: 0, marginTop: 8 }}>
         <div style={{ width: 280, background: "#fff", borderRadius: 4 }}>
-          <SpecCanvas spec={seg?.spec ?? null} width={280} height={760} />
+          <SpecCanvas spec={seg?.spec ?? null} width={280} height={760} markerFrac={0.5} />
         </div>
         <div style={{ flex: 1, background: "#fff", borderRadius: 4 }}>
           {seg ? (

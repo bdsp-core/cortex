@@ -27,9 +27,13 @@ export interface SpecCanvasProps {
   spec: { data: Uint8Array; shape: number[] } | null;
   width: number;
   height: number;
+  // Fractional x-position (0..1) of the dashed marker showing where the
+  // displayed EEG segment sits in the 10-min spectrogram. The 30-sec EEG is
+  // centered in the 600-sec spectrogram, so this is 0.5. null = no marker.
+  markerFrac?: number | null;
 }
 
-export function SpecCanvas({ spec, width, height }: SpecCanvasProps) {
+export function SpecCanvas({ spec, width, height, markerFrac = null }: SpecCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -81,7 +85,22 @@ export function SpecCanvas({ spec, width, height }: SpecCanvasProps) {
       ctx.fillStyle = "#222";
       ctx.fillText(SPEC_REGIONS[reg], 4, y0 + 12);
     }
-  }, [spec, width, height]);
+
+    // dashed white vertical marker — location of the displayed EEG segment
+    // (centered in the 10-min spectrogram). Spans all four region panels.
+    if (markerFrac != null) {
+      const mx = labelW + Math.max(0, Math.min(1, markerFrac)) * plotW;
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(mx, 0);
+      ctx.lineTo(mx, height);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }, [spec, width, height, markerFrac]);
 
   return <canvas ref={ref} style={{ width, height }} />;
 }
