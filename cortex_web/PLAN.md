@@ -342,18 +342,21 @@ engine (not bit-identical — different RNG — but statistically equivalent):
 - `ui/theme.ts` — the exact palette/typography/geometry constants.
 - `package.json`, `tsconfig.json`, `vite.config.ts`, `README.md`.
 
-**Phased plan from here:**
-1. **Engine correctness** — finish the TS port; pass the §9 validation suite.
-   *This is the highest-risk item; do it first.*
-2. **Data bundle** — run `prepare_web_bundle.py` on the v1.1 bank; upload to S3;
-   wire IndexedDB download + cache.
-3. **Viewer** — Canvas EEG + spectrogram + answer panel + controls, pixel-matched.
-4. **Flow screens** — Landing / Consent / Registration / Tutorial / Computing /
-   Results, pixel-matched.
-5. **Auth + results API** — FastAPI; participant credential table; JWT; S3 results.
-6. **Deploy** — S3+CloudFront for SPA + bundle; EC2 (or Lambda) for API; TLS;
-   COOP/COEP only if SharedArrayBuffer is ever needed.
-7. **Validation + pilot** — golden-session test; 1-participant dry run; then open.
+**Phased plan from here** (status as of 2026-05-29 — see `STATUS.md` for detail):
+1. ✅ **Engine correctness** — TS port done; §9 validation suite 45/45.
+2. ✅ **Data bundle** — `prepare_web_bundle.py` (now `--bank`); local 300-seg
+   bundle; IndexedDB cache wired (`src/idbcache.ts`). *Pending:* a >500 pool
+   needs the ~100 GB spec payload (data step, not code — see STATUS).
+3. ✅ **Viewer** — Canvas EEG + spectrogram + answer panel + controls; 1–6
+   pick-and-advance, spectrogram time-marker, counter + confidence readout.
+4. ✅ **Flow screens** — Landing / Login / Consent / Registration / Tutorial /
+   Computing / Results (`src/components/`). *Pending:* browser-eyeball fidelity pass.
+5. ✅ **Auth + results API** — FastAPI + SQLite (`server/`); PBKDF2 + HS256 JWT
+   (stdlib); admin CLI; 11 tests; crash-safe result retry. *(Results in SQLite
+   + admin export; mirror to S3 in prod if desired.)*
+6. ⏳ **Deploy** — scaffolded: `Dockerfile`, `run_local.sh`/`dev.sh`, README
+   S3+CloudFront + container steps. Not yet deployed to AWS.
+7. ⏳ **Validation + pilot** — golden-session test + 1-participant dry run pending.
 
 **Repo placement:** scaffolded as `cortex_web/` inside
 `ilae-skill-certification-test-multi` for now (sibling to `cortex_app/`). When

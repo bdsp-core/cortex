@@ -1,8 +1,8 @@
 # CORTEX Web — status & handoff
 
-Last updated: 2026-05-27. Written as a cold-start brief so a future session
-(or person) can pick up the browser port without re-deriving anything. Pairs
-with [`PLAN.md`](PLAN.md) (the architecture/design) — this file is "where we
+Last updated: 2026-05-29 (overnight build session). Cold-start brief so a
+future session can pick up the browser port without re-deriving anything.
+Pairs with [`PLAN.md`](PLAN.md) (architecture/design) — this file is "where we
 actually are."
 
 ## TL;DR
@@ -10,9 +10,12 @@ actually are."
 A browser version of the CORTEX adaptive EEG certification test (desktop:
 `../cortex_app`). The SMC particle-filter engine runs **client-side in a Web
 Worker**; the UI is React; the EEG bundle is static (S3/CloudFront in prod,
-Vite `public/` locally). **It runs locally today** — engine validated, a
-working Viewer slice renders real EEG + spectrogram and drives a full
-adaptive session to a verdict screen. No AWS or Python needed at runtime.
+Vite `public/` locally); a tiny FastAPI+SQLite backend does auth + results.
+
+**The whole flow runs locally today** — landing → login → consent →
+registration → tutorial → adaptive test → results — backed by a real auth +
+results database. Two test suites green: engine 45, backend 11, plus 9
+frontend unit tests (54 JS total).
 
 Status by phase (PLAN §10):
 
@@ -20,142 +23,152 @@ Status by phase (PLAN §10):
 |---|---|
 | 1. Engine port (TS) | ✅ done |
 | 1b. Engine validation vs Python | ✅ 45/45 tests, typecheck clean |
-| 2. Data bundle (h5 → browser) | ✅ script + local bundle generated |
-| 3. Viewer (EEG + spectrogram + answer panel) | ✅ runnable first cut |
-| 4. Flow screens (Landing/Consent/Registration/Tutorial/Computing) | ⏳ not started |
-| 5. Auth + results API | ⏳ not started |
-| 6. AWS deploy | ⏳ not started |
+| 2. Data bundle (h5 → browser) | ✅ script + 300-seg local bundle |
+| 3. Viewer (EEG + spectrogram + answer panel) | ✅ done (1–6 pick-and-advance, spec marker, counter, confidence) |
+| 4. Flow screens (Landing/Login/Consent/Registration/Tutorial/Computing/Results) | ✅ done |
+| 5. Auth + results API | ✅ FastAPI+SQLite; JWT; admin CLI; 11 tests; crash-safe retry |
+| 6. AWS deploy | ⏳ scaffolded (Dockerfile + README steps); not yet deployed |
 | 7. Fidelity polish + pilot | ⏳ in progress (see gaps) |
 
-## How to run locally
+## How to run locally (full flow)
 
 ```bash
 cd cortex_web
-npm install                                              # once
-# generate the data bundle from the desktop test bank (needs ../data/eeg_bank.h5):
-python scripts/prepare_web_bundle.py --version v1.1-local
-npm run dev                                              # → http://localhost:5173
+pip install -r server/requirements.txt   # fastapi + uvicorn (auth/db are stdlib)
+npm install
+./scripts/run_local.sh                    # builds SPA, mints a demo login, serves :8000
+# → open http://localhost:8000, log in with the demo credentials it prints
 ```
 
+Hot-reload dev: `./scripts/dev.sh` (Vite :5173 + FastAPI :8000, /api proxied).
+
 Other commands:
-- `npm test` — engine validation suite (45 tests; self-contained, no Python).
-- `npm run build` — production build (also the typecheck gate; emits to `dist/`).
-- `npx tsx engine/demo_session.ts` — headless: prints n_questions + per-task
-  verdicts for strong/borderline/at-chance simulated raters on the real bank.
+- `npm test` — full vitest suite (engine 45 + frontend 9). No Python needed.
+- `python -m pytest server/test_server.py` — backend (11).
+- `npm run build` — production build + typecheck gate → `dist/`.
+- `python -m server.admin gen --count N --out codes.csv` — mint credentials.
+- `python -m server.admin export-results --out results/` — pull results JSON.
+- `npx tsx engine/demo_session.ts` — headless strong/borderline/at-chance demo.
 
 ## What's built
 
-### Engine (`engine/`) — faithful TS port of the Python engine, validated
-Ported from `../engine/core_mcmc.py`, `../scripts/cortex_policy.py`,
-`../scripts/cortex_engine_inputs.py`, `../scripts/session_controller.py`.
-- `mathfns.ts` — Φ, logΦ (`log_ndtr`, stable left tail), logsumexp. The
-  numerically delicate part; erfc is the ~1e-7 NR form (Cody upgrade noted in
-  PLAN §11 if 1e-12 ever needed).
-- `rng.ts` — seedable xoshiro256\*\* + gaussian + multinomial resample. Seed =
-  SHA-256(sessionId) like the desktop. NOT bit-identical to NumPy (by design).
-- `linalg.ts` — fixed-size chol/inv/slogdet/cov + Jacobi eigh-sqrt fallback.
-- `likelihood.ts` — lapse-probit `P(y=1|z)=λ+(1−2λ)Φ(z)`, λ=0.025.
-- `prior.ts` — hierarchical zero-mean MVN, `Corr_l` for both t- and l-blocks.
-- `particles.ts` — state / update / ess / multinomial-resample + 15-step MH
-  rejuvenation (proposal_scale 2.38/√(2K)).
-- `choose_item.ts` — A-optimal expected-total-posterior-variance selection +
-  Q1 top-N variation. (Full-grid scan; the desktop's coarse-to-fine is a
-  speed-only optimization not needed at N=600 / bank≤500.)
-- `policy.ts` — AD6: π_k pass-mass, mcse, info-gate R_k; N_min=15, R*=0.30,
-  α=0.10, Z=2.0; PASS/FAIL/REFER_BORDERLINE/REFER_UNINFORMATIVE.
-- `session.ts` — the adaptive loop reshaped for the browser's async answer
-  flow (binary-Y reduction Y=1 iff pick==k). N_PARTICLES=600, MAX_QUESTIONS=300.
-- `worker.ts` — Web Worker entry + message protocol (init/answer/abort →
-  item/trial/done/error).
-- `__testdata__/gen_reference.py` + `reference.json` — ground truth dumped
-  from the REAL Python engine.
-- `mathfns.test.ts`, `pipeline.test.ts`, `session.test.ts` — the validation
-  suite (the session test runs full adaptive sessions on the real bank or a
-  synthetic fallback).
-- `demo_session.ts` — headless demo runner.
+### Engine (`engine/`) — faithful TS port, validated (unchanged this session)
+Φ/logΦ/logsumexp numerics, seeded xoshiro256\*\*, lapse-probit likelihood
+(λ=0.025), hierarchical MVN prior, SMC update + MH rejuvenation, A-optimal
+`choose_item`, AD6 policy, the adaptive loop, the Web Worker. See PLAN §9 for
+the validation story. N_PARTICLES=600, MAX_QUESTIONS=300.
 
 ### Data (`scripts/prepare_web_bundle.py`)
-h5 bank (`../data/eeg_bank.h5` `iiic/` group) + `iiic_segment_signals.csv` +
-`Sigma_l_fitted.npy` + `cert_config.yaml` → `public/bundle/<version>/`:
-- `manifest.json` — engine inputs (taskCodes/Labels, ellStar[6], corrL,
-  per-seg sMean/sSd/patternClass/channelNames/fsHz) + segment metadata.
-- `seg/<id>.eeg` — int16 LE (nCh×nSamp), µV×4.
-- `seg/<id>.spec` — uint8, sdata quantized to [-10,25] dB.
-Bundle is **gitignored** (`public/bundle/`) — regenerate locally; on prod it
-lives on S3.
+h5 `iiic/` bank + `iiic_segment_signals.csv` + `Sigma_l_fitted.npy` +
+`cert_config.yaml` → `public/bundle/<version>/{manifest.json, seg/*.eeg,
+seg/*.spec}`. New `--bank PATH` flag targets any bank. **Local bundle is now
+the 300-seg `build-data-v2` bank** (50/class) — confident verdicts, not the
+REFER-skew the old 100-seg bank gave. Bundle + banks are gitignored.
 
-### UI (`src/`, `ui/theme.ts`)
-- `ui/theme.ts` — exact palette/fonts/geometry/montage pairs/jet LUT/gain
-  ladder/keyboard shortcuts extracted from the desktop viewer.
-- `src/bundle.ts` — manifest + lazy int16-EEG/uint8-spec loader (in-memory
-  cache; IndexedDB persistence is a TODO).
-- `src/engineClient.ts` — main-thread wrapper around the worker.
-- `src/dsp.ts` — zero-phase Butterworth bandpass + RBJ notch (filtfilt).
-- `src/montage.ts` — bipolar (exact pairs + separators + EKG) / average;
-  **laplacian falls back to average** (neighbour sets not yet ported).
-- `src/components/EegCanvas.tsx` — Canvas EEG (per-row offset, ±clip·gain,
-  gain µV = 1 row-unit, time grid + pan, scale bar).
-- `src/components/SpecCanvas.tsx` — Canvas spectrogram (4 region panels, jet
-  LUT, uint8→dB, no recompute).
-- `src/components/Viewer.tsx` — the screen: spectrogram-left/EEG-right, 6 IIIC
-  answer buttons + Confirm, montage/gain/bandpass/notch/window controls,
-  keyboard 1–6/Enter/arrows/Ctrl. Controlled (props: bundle, item, onAnswer).
-- `src/App.tsx` + `src/main.tsx` — shell: loads the bundle, owns the engine
-  client + session state, renders Viewer then a verdict panel on done. Boots
-  straight into the Viewer (no flow screens yet).
+### Frontend (`src/`, `ui/theme.ts`)
+- `App.tsx` — flow state machine: landing → login → consent → registration →
+  tutorial → loading → running(Viewer) → computing → done(Results) → error.
+- `components/` — Landing (wordmark + static-EEG backdrop), Login (code+pw),
+  Consent ("Before You Begin"), Registration (3-page wizard; fields mirror the
+  desktop participant record), Tutorial, Computing (spinner), Results (per-task
+  verdict table + technical π/R/n grid), Viewer (Canvas EEG/Spec), `ui.tsx`
+  shared primitives.
+- `api.ts` — backend client: login(JWT), getManifest, createSession,
+  postProgress (per-trial, fire-and-forget), submitResults (persist→POST→retry).
+- `sampleSession.ts` — fresh difficulty-stratified ~500-sample per sitting.
+- `progress.ts` — `resolutionConfidence = min_k max(π_k, 1−π_k)` (posterior).
+- `bundle.ts` + `idbcache.ts` — lazy EEG/spec loader, IndexedDB-cached by
+  bundle version (survives reload; degrades to network).
+- `engineClient.ts`, `dsp.ts`, `montage.ts`, Canvas components.
 
-## Known gaps / fidelity TODOs (the "not yet pixel-perfect" list)
+### Backend (`server/`)
+- `security.py` — PBKDF2-SHA256 password hashing + HS256 JWT, **stdlib only**
+  (no PyJWT/bcrypt). Signing secret from env or a persisted dev file.
+- `db.py` — SQLite (WAL): participants / sessions / trials / results.
+- `app.py` — `POST /api/auth`→JWT; gated `GET /api/manifest`, `POST /api/session`,
+  `POST /api/progress`, `POST /api/results`; admin endpoints behind
+  `X-Admin-Token`; CORS for Vite dev; serves `/bundle` + the SPA `dist` so one
+  uvicorn runs everything. `admin.py` CLI, `run.py` entry, `test_server.py` (11).
+- Runtime artifacts (`*.db`, `.jwt_secret`, `codes.csv`, `results/`) gitignored.
 
-1. **Flow screens not built** — Landing/Consent/Registration(3 pages)/Tutorial/
-   Computing-results. Specs are in `ui/theme.ts` + the desktop
-   `eeg_bank_viewer.py`. App currently boots into the Viewer.
-2. **DSP not scipy-exact** — `dsp.ts` is a zero-phase Butterworth+notch that
-   looks right; exact `scipy.butter(N=2)` coefficient parity is a refinement.
-3. **Laplacian montage** = average fallback; port the per-channel neighbour
-   sets from `eeg_bank_viewer.py` (~L91-103).
-4. **Fonts/spacing** not pixel-matched (Palatino branding face, exact paddings).
-5. **EEG vertical fit** — 20 montage rows in a fixed canvas height; row
-   spacing may need tuning so labels don't crowd.
-6. **DC offset** — some bank channels have large DC means (~2000 µV); the
-   default 0.5 Hz highpass removes it, but with bandpass "off" the traces will
-   be off-screen. Acceptable (matches raw), but worth a note in the UI.
-7. **IndexedDB persistence** — currently in-memory cache only; add IndexedDB
-   so a reload doesn't re-download, plus prefetch-ahead.
-8. **Results screen** is minimal (verdict list); the desktop has a richer
-   skill/bias narrative + "technical details" grid + optional MP4s.
-9. **Local bank is 100 segs** → verdicts skew REFER_BORDERLINE (≈16 q/task,
-   right at N_min=15). The 300-seg production bank reaches confident PASS/FAIL.
-   Generate from the 300-seg bank for realistic local testing.
+### Deploy (`Dockerfile`, `scripts/run_local.sh`, `scripts/dev.sh`)
+Single image: node build → python+uvicorn. README has the S3+CloudFront (SPA +
+bundle) + container (API) steps and env vars.
 
-## Recently fixed
-- **Flat EEG bug (2026-05-27):** `channel_names`/`fs_hz` are attrs on the
-  `eeg30s` *dataset*, not the group — data-prep read them from the group →
-  empty channel names → montage produced all-zeros → flat traces. Fixed to
-  read from the dataset attrs; regenerate the bundle and refresh.
-- **NaN EEG samples** → `nan_to_num` before the int16 cast.
-- **Stray emitted .js** → tsconfig `noEmit`, build uses `tsc --noEmit`.
+## The 500-question pool — current state & the one remaining data step
 
-## Roadmap (next, in order)
-1. Visual check in-browser; tune EEG row spacing/fonts to match the desktop.
-2. Build the flow screens (phase 4).
-3. IndexedDB loader + prefetch (phase 4).
-4. Auth + results API — local FastAPI stub first (phase 5), then S3 results.
-5. AWS deploy — S3+CloudFront for SPA+bundle, EC2/Lambda for the API (phase 6).
-6. Generate the 300-seg production bundle; pilot dry-run.
+The per-session sampler draws a fresh ~500-question subset each sitting, so the
+shipped pool must EXCEED 500 for the "rarely-repeats" property. **The local
+bundle is 300 segments** (the largest prebuilt bank), so today the sampler uses
+all 300 each sitting (confident verdicts, but two sittings see the same 300 in
+a different order — not yet the rare-repeat property).
+
+To get a true >500 pool, the EEG+spectrogram payload must come from the
+~100 GB `eeg_bank_spec.h5`. It is **not on disk** (canonical home: the external
+SSD `/Volumes/Extreme SSD/`, not mounted this session) and also lives at
+`s3://bdsp-opendata-credentialed/eeg-test/eeg_bank_spec.h5` (99.5 GiB). I did
+NOT pull 100 GiB unsupervised (egress cost). Everything else is ready — when the
+payload is available, one command builds the pool and one rebuilds the bundle:
+
+```bash
+# Option A — mount the SSD, then:
+python scripts/build_cortex_test_bank_v2.py \
+    --per-class 150 --spec "/Volumes/Extreme SSD/eeg_bank_spec.h5" \
+    --out data/eeg_bank_pool.h5            # 150×6 = 900-segment pool
+# Option B — pull the 99.5 GiB spec bank from S3 first (one-time egress):
+aws --profile opendata s3 cp \
+    s3://bdsp-opendata-credentialed/eeg-test/eeg_bank_spec.h5 /tmp/eeg_bank_spec.h5
+python scripts/build_cortex_test_bank_v2.py --per-class 150 \
+    --spec /tmp/eeg_bank_spec.h5 --out data/eeg_bank_pool.h5
+
+# then regenerate the bundle from the bigger pool:
+python cortex_web/scripts/prepare_web_bundle.py --version v1.1-local \
+    --bank data/eeg_bank_pool.h5
+```
+
+`build_cortex_test_bank_v2.py` is now parameterized (`--per-class`, `--spec`);
+`prepare_web_bundle.py` takes `--bank`. No code change needed — just the data.
+
+## Known gaps / fidelity TODOs
+
+1. **>500 pool** — see above (data step, not code).
+2. **Aggregate pass/fail probability** — the displayed metric is the interim
+   `min_k max(π_k,1−π_k)` (per the user's "for now"). The full intent is a
+   forward Monte-Carlo rollout of P(eventually pass-or-fail, whichever larger);
+   deferred because a correct rollout re-runs the adaptive loop per question
+   (heavy in-browser) and needs validation vs the desktop. Documented in
+   `src/progress.ts`.
+3. **Visual fidelity not browser-verified** — the flow screens were built to
+   the `ui/theme.ts` spec but NOT yet eyeballed in a browser side-by-side with
+   the desktop. First morning task: open the app and check palette/spacing/fonts.
+4. **DSP not scipy-exact**; **laplacian montage = average fallback** (neighbour
+   sets not ported); **Palatino face** not bundled (CSS stack only).
+5. **Strong examinee takes ~259 q on the 300 pool** — expected (adaptive
+   exploration with 50/class); a bigger pool shortens this.
+6. **No browser-automation (Playwright) test** of the click-through — the flow
+   is verified by build + unit tests + a live-uvicorn API round-trip, not a
+   headless UI run.
+
+## Recently done (this session)
+- Per-session stratified 500-sampler (`sampleSession.ts`) + posterior
+  resolution-confidence readout (replaced the budget heuristic).
+- Parameterized `build_cortex_test_bank_v2.py` (`--per-class`, `--spec`).
+- FastAPI+SQLite backend (auth, session, progress, results, admin CLI, 11 tests).
+- Full onboarding flow + API wiring; crash-safe result retry; IndexedDB cache.
+- Deployment scaffolding (run scripts, Dockerfile, README).
+- Pulled the 300-seg bank, rebuilt the bundle → confident verdicts.
 
 ## Open decisions
-- Result-delivery channel (desktop uses Dropbox; web plan is POST /results→S3).
-- Session resume across a browser refresh mid-test (default: restart).
-- Whether `cortex_web/` splits into its own repo (`ilae-skill-certification-web`)
-  once it grows — same move as the learning workstream.
+- Result-delivery channel (backend stores in SQLite + admin export; PLAN
+  mentioned S3 — mirror to S3 in prod if desired).
+- Session resume across a browser refresh mid-test (default: restart; the
+  per-trial server checkpoints already capture partial progress).
+- Whether `cortex_web/` splits into its own repo once it grows.
 
 ## Where this sits in the broader project
-- **`cortex_app/`** — the shipped desktop app (PyInstaller; releases
-  `cortex-v1.0`…`v1.1.5`; CI in `.github/workflows/cortex-release.yml`). The
-  reference implementation.
+- **`cortex_app/`** — shipped desktop app (the reference implementation).
 - **`engine/` + `scripts/cortex_*.py` + `calibration/`** — the certified
   Python engine this port mirrors.
-- **`data/eeg_bank.h5`** (gitignored) — the test bank; on the
+- **`data/eeg_bank.h5`** (gitignored) — test bank; 300-seg on the
   `build-data-v2` GitHub release + `s3://bdsp-opendata-credentialed/eeg-test/`.
-- **`bdsp-core/ilae-skill-certification-learning`** — the separate
-  training/learning-with-feedback workstream.
+- **`bdsp-core/ilae-skill-certification-learning`** — separate learning workstream.
