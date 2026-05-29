@@ -2,6 +2,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Emitted JS from any stray `tsc` build — sources are .ts/.tsx only; vite/
+# vitest transpile directly, nothing hand-written is .js in these trees.
+engine/**/*.js
+src/**/*.js
+ui/**/*.js
+
 # Generated data bundle (PHI-adjacent EEG; lives on S3, fetched at runtime).
 public/bundle/
 
