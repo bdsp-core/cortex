@@ -1,12 +1,12 @@
 // Bundle loader. In local dev the bundle is served by Vite from
 // public/bundle/<version>/; in production it's S3+CloudFront (same shape).
 // EEG arrives as int16 (µV × eegScale); spectrogram as uint8 over the fixed
-// dB range. Blobs are fetched lazily per segment and cached in memory.
-//
-// IndexedDB persistence (survive reload, prefetch-ahead) is a documented
-// follow-up (PLAN §5); the in-memory cache is enough for the dev slice.
+// dB range. Blobs are fetched lazily per segment, cached in memory for the
+// session, and persisted to IndexedDB (keyed by bundle version) so a reload
+// or a repeat sitting doesn't re-download the bundle.
 
 import { EngineInputs } from "../engine/types";
+import { cachedArrayBuffer } from "./idbcache";
 
 export interface BundleManifest extends EngineInputs {
   version: string;
@@ -60,7 +60,8 @@ export class Bundle {
     const meta = this.manifest.segments.find((s) => s.segId === segId);
     if (!meta) throw new Error(`segment ${segId} not in manifest`);
 
-    const eegBuf = await (await fetch(`${this.base}/${meta.eeg}`)).arrayBuffer();
+    const ver = this.manifest.version;
+    const eegBuf = await cachedArrayBuffer(`${this.base}/${meta.eeg}`, `${ver}/${meta.eeg}`);
     const i16 = new Int16Array(eegBuf);
     const eeg = new Float32Array(i16.length);
     const inv = 1 / this.manifest.eegScale;
@@ -68,7 +69,7 @@ export class Bundle {
 
     let spec: SegmentData["spec"] = null;
     if (meta.spec) {
-      const sBuf = await (await fetch(`${this.base}/${meta.spec}`)).arrayBuffer();
+      const sBuf = await cachedArrayBuffer(`${this.base}/${meta.spec}`, `${ver}/${meta.spec}`);
       spec = { data: new Uint8Array(sBuf), shape: meta.specShape ?? [] };
     }
 
