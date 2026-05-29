@@ -72,8 +72,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="v1.1")
     ap.add_argument("--out", type=Path, default=REPO / "cortex_web" / "public" / "bundle")
+    ap.add_argument("--bank", type=Path, default=BANK,
+                    help=f"source h5 bank with an 'iiic/' group (default {BANK}).")
     ap.add_argument("--max", type=int, default=None, help="cap #segments (smoke)")
     args = ap.parse_args()
+    bank_path = args.bank
 
     out_root = args.out / args.version
     seg_dir = out_root / "seg"
@@ -90,9 +93,9 @@ def main():
 
     segments = []
     n_spec = 0
-    with h5py.File(BANK, "r") as f:
+    with h5py.File(bank_path, "r") as f:
         if "iiic" not in f:
-            raise SystemExit(f"{BANK} has no 'iiic' group")
+            raise SystemExit(f"{bank_path} has no 'iiic' group")
         seg_ids = sorted(int(s) for s in f["iiic"] if str(s).lstrip("-").isdigit())
         if args.max:
             seg_ids = seg_ids[: args.max]
