@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bundle, SegmentData } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
+import { Progress } from "../progress";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import {
@@ -24,10 +25,12 @@ export interface Item {
 export function Viewer({
   bundle,
   item,
+  progress,
   onAnswer,
 }: {
   bundle: Bundle;
   item: Item | null;
+  progress: Progress;
   onAnswer: (pick: number) => void;
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
@@ -139,10 +142,10 @@ export function Viewer({
       style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
                   height: "100vh", display: "flex", flexDirection: "column", padding: 12,
                   boxSizing: "border-box", outline: "none" }}>
-      {/* top: question + answer buttons (pick-and-advance) */}
+      {/* top: question counter + answer buttons (pick-and-advance) */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
-          Question {item ? item.trialIndex + 1 : "—"}
+          Question {item ? item.trialIndex + 1 : "—"} of up to {progress.maxQ || "—"}
         </span>
         {IIIC_OPTIONS.map((o, i) => (
           <button key={o.code} onClick={() => submit(i)}
@@ -152,6 +155,12 @@ export function Viewer({
         ))}
         <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
           press 1–6 to answer
+        </span>
+        <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
+          Est. chance of reaching a conclusion:{" "}
+          <b style={{ color: COLORS.textPrimary }}>
+            {progress.finishProb == null ? "—" : `${Math.round(progress.finishProb * 100)}%`}
+          </b>
         </span>
       </div>
 

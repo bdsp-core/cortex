@@ -10,6 +10,9 @@ import { useEffect, useRef, useState } from "react";
 import { Bundle } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
+import { estimateFinishProbability, Progress } from "./progress";
+import { MAX_QUESTIONS } from "../engine/session";
+import { TrialDiag } from "../engine/types";
 import { COLORS, FONTS, IIIC_OPTIONS, VERDICT_STYLE } from "../ui/theme";
 
 const BUNDLE_URL = "/bundle/v1.1-local";
@@ -20,6 +23,7 @@ export function App() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
+  const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, finishProb: null });
   const [verdicts, setVerdicts] = useState<string[]>([]);
   const [nQ, setNQ] = useState(0);
   const [msg, setMsg] = useState("");
@@ -31,8 +35,14 @@ export function App() {
       .then((b) => {
         if (disposed) return;
         setBundle(b);
+        const maxQ = Math.min(MAX_QUESTIONS, b.inputs.segments.length);
+        setProgress({ answered: 0, maxQ, finishProb: null });
         const client = new EngineClient({
           onItem: (it) => setItem(it),
+          onTrial: (diag: TrialDiag) => {
+            const answered = diag.nPerTask.reduce((a, n) => a + n, 0);
+            setProgress({ answered, maxQ, finishProb: estimateFinishProbability(diag, maxQ) });
+          },
           onDone: (r) => {
             setVerdicts(r.verdicts);
             setNQ(r.nQuestions);
@@ -86,6 +96,7 @@ export function App() {
     <Viewer
       bundle={bundle!}
       item={item}
+      progress={progress}
       onAnswer={(pick) => clientRef.current?.answer(pick)}
     />
   );
