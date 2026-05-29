@@ -260,6 +260,14 @@ jobs:
           body: |
             ## CORTEX adaptive EEG certification test
 
+            ### Hotfix in v1.2.1 (since v1.2.0)
+
+            **Critical fix: v1.2.0 sessions never asked spike questions.** The v1.2.0 ship had the K=7 backbone fully wired EXCEPT for a leftover K=6 import in the live-test entry point (`scripts/eeg_bank_viewer.py:open_viewer`). As a result, v1.2.0 sessions ran with K=6 engine inputs (300 IIIC seg_ids only); the 50 spike segments in the bundled K=7 bank were never asked; the final certificate had 6 task verdicts and no spike verdict. v1.2.1 fixes the import to use `build_k7_engine_inputs` so all 7 tasks (spike + 6 IIIC) actually get tested. Also fixes a latent ℓ\* block-name mismatch between the policy and the results-screen loader.
+
+            **If you took v1.2.0:** please retake v1.2.1 to get a spike verdict. Your v1.2.0 results are missing the spike task and are not directly comparable.
+
+            Regression-gated by three new tests in `tests/test_cortex_viewer.py`; bundle suite is now 432/432 pass + 26/26 viewer pass.
+
             ### What's new in v1.2.0 (since v1.1.5)
 
             - **Now K=7** — the certification test now covers **7 tasks**: the original 6 IIIC pattern_classes (Seizure / LPD / GPD / LRDA / GRDA / Other) **plus a 7th spike-vs-no-spike task** (Phase 9 ground-up rebuild). Spike segments use the Jing-spike-paper presentation: 10-second window at 128 Hz with a Yes / No answer, alongside the unchanged 30-second IIIC presentation with 6-way answer.

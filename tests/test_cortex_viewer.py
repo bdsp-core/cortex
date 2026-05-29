@@ -159,6 +159,99 @@ def test_session_complete_sets_result(viewer):
     assert not win._awaiting_answer
 
 
+# ── v1.2.1 regression test for cortex-v1.2.0 spike-not-tested bug ──────────
+
+def test_main_open_viewer_uses_k7_engine_inputs():
+    """v1.2.1 regression: open_viewer() inside main() must import the K=7
+    engine-inputs builder (build_k7_engine_inputs from cortex_engine_inputs_k7),
+    NOT the K=6 builder (build_iiic_engine_inputs from cortex_engine_inputs).
+
+    The v1.2.0 ship had `from cortex_engine_inputs import build_iiic_engine_inputs`
+    here, which returned K=6 inputs (300 IIIC seg_ids only). The 50 spike segs
+    in the bundled K=7 bank were never accessible to the engine; the session
+    completed with 6 task verdicts and no spike verdict (see
+    docs/SIM_V1_2_0_REPORT.md +
+    /home/exx/.local/share/CORTEX/sessions/f3da305d-*/certificate.json
+    for the diagnostic that surfaced this).
+
+    session_controller.py:67 has `build_iiic_engine_inputs = build_k7_engine_inputs`
+    as a back-compat alias, but that only applies to consumers importing FROM
+    session_controller. open_viewer() imports directly from cortex_engine_inputs,
+    bypassing the alias.
+
+    This test is AST-based — it parses scripts/eeg_bank_viewer.py and inspects
+    the import statements inside the open_viewer nested function. Any future
+    refactor that swaps the import back to the K=6 module (or removes the K=7
+    import) fails this test."""
+    import ast
+    from pathlib import Path
+    viewer_src = (Path(__file__).resolve().parents[1] / "scripts"
+                  / "eeg_bank_viewer.py").read_text()
+    tree = ast.parse(viewer_src)
+    open_viewer_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "open_viewer":
+            open_viewer_node = node
+            break
+    assert open_viewer_node is not None, (
+        "open_viewer nested function not found in eeg_bank_viewer.py — has "
+        "main() been refactored? Update this test if so.")
+    uses_k7_builder = False
+    uses_k6_builder = False
+    for sub in ast.walk(open_viewer_node):
+        if isinstance(sub, ast.ImportFrom):
+            if sub.module == "cortex_engine_inputs_k7":
+                if any(a.name == "build_k7_engine_inputs" for a in sub.names):
+                    uses_k7_builder = True
+            elif sub.module == "cortex_engine_inputs":
+                if any(a.name == "build_iiic_engine_inputs"
+                       for a in sub.names):
+                    uses_k6_builder = True
+    assert uses_k7_builder, (
+        "open_viewer must import build_k7_engine_inputs from "
+        "cortex_engine_inputs_k7 (the K=7 production path). Without this, "
+        "spike segments in the bundled bank are never asked.")
+    assert not uses_k6_builder, (
+        "open_viewer must NOT import build_iiic_engine_inputs (the K=6 path) "
+        "— this was the cortex-v1.2.0 spike-not-tested bug. Use the K=7 "
+        "builder from cortex_engine_inputs_k7 instead.")
+
+
+def test_k7_engine_inputs_actually_returns_7_tasks_with_spike():
+    """Companion smoke test for the above: build_k7_engine_inputs() must
+    actually return 7 task codes with 'spike' as the first one + a `family`
+    method on the result so eeg_bank_viewer can dispatch spike-vs-IIIC UI."""
+    import cortex_engine_inputs_k7 as c7
+    inputs = c7.build_k7_engine_inputs()
+    assert list(inputs.task_codes) == [
+        "spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"], (
+        f"K=7 task_codes ordering changed; got {inputs.task_codes}")
+    assert callable(getattr(inputs, "family", None)), (
+        "K=7 EngineInputs must expose a family(seg_id) method for the "
+        "family-aware UI dispatch in eeg_bank_viewer.show_item.")
+    n_segs = len(inputs.all_seg_ids)
+    assert n_segs > 6, f"K=7 bank has only {n_segs} segs — too small"
+
+
+def test_default_policy_for_k7_uses_v14_block_by_default():
+    """v1.2.1 regression: default_policy_for_k7's default block_name must
+    match load_ell_star_k7's default. Both should target the K=7 production
+    ship (ell_star_unified_v14). v1.2.0 had a mismatch — default_policy_for_k7
+    defaulted to v13 while load_ell_star_k7 defaulted to v14 — which (after
+    fixing the K=6/K=7 import bug above) would cause the engine to compute
+    verdicts against v13 ℓ\\* while ResultsScreen rendered narratives against
+    v14 ℓ\\*. Numbers on the same screen would disagree."""
+    import inspect
+    import cortex_policy_k7 as cp_k7
+    sig = inspect.signature(cp_k7.default_policy_for_k7)
+    assert sig.parameters["block_name"].default == "ell_star_unified_v14", (
+        f"default_policy_for_k7 default block_name should be 'v14' to match "
+        f"load_ell_star_k7; got {sig.parameters['block_name'].default!r}")
+    # And confirm load_ell_star_k7's default matches:
+    sig_load = inspect.signature(cp_k7.load_ell_star_k7)
+    assert sig_load.parameters["block_name"].default == "ell_star_unified_v14"
+
+
 def _fill_required(reg):
     """Set the minimum fields required to pass the v1.1.1 wizard
     validation. Page 3 (demographics) is fully optional."""

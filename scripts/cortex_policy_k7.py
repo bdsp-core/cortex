@@ -100,7 +100,7 @@ def load_ell_star_k7(task_codes, config_path=None,
 
 def default_policy_for_k7(inputs, *, delta_auroc=None,
                           policy=None, config_path=None,
-                          block_name: str = "ell_star_unified_v13"):
+                          block_name: str = "ell_star_unified_v14"):
     """Resolve the policy used by a K=7 CortexSession. Precedence:
       explicit `policy=` instance         → use it
       `delta_auroc` is None (production)  → AD6Policy.from_inputs_k7(inputs)

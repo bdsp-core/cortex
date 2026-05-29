@@ -2841,11 +2841,21 @@ def main():
         reg.continue_btn.setEnabled(False)
         reg.continue_btn.setText("LOADING…")
         app.processEvents()                  # let the button repaint first
-        from cortex_engine_inputs import build_iiic_engine_inputs
+        # Phase-9 K=7 (v1.2.1 hotfix): use the K=7 engine inputs builder so
+        # the session sees all 7 tasks (spike + 6 IIIC). The v1.2.0 ship had
+        # a leftover `from cortex_engine_inputs import build_iiic_engine_inputs`
+        # here that returned K=6 IIIC-only inputs (300 segs) — spike segments
+        # in the bundled bank were never asked. session_controller.py:67
+        # aliases `build_iiic_engine_inputs = build_k7_engine_inputs` for
+        # consumers that import from session_controller, but this entry
+        # point imported from cortex_engine_inputs DIRECTLY, bypassing the
+        # alias. Fixed in v1.2.1; regression-gated by
+        # tests/test_cortex_viewer.py::test_main_open_viewer_uses_k7_engine_inputs.
+        from cortex_engine_inputs_k7 import build_k7_engine_inputs
         from session_controller import (
             SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT)
         from cortex_storage import SessionRecorder
-        inputs = build_iiic_engine_inputs()
+        inputs = build_k7_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
         # engine pool, so the engine never re-serves the practice segment.
         tutorial_sid = inputs.all_seg_ids[0]

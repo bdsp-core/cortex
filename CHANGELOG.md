@@ -7,6 +7,71 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.1` — HOTFIX: K=7 engine-inputs import + ℓ\* block consistency
+
+Critical hotfix for the cortex-v1.2.0 ship. The v1.2.0 bundle compiled
+all the K=7 backbone code + bank correctly but the live-test entry
+point in `scripts/eeg_bank_viewer.py` still imported the K=6 engine
+inputs builder, so internal-test sessions ran with K=6 inputs (300 IIIC
+seg_ids only) and the 50 spike segments in the bundled K=7 bank were
+never asked. Sessions completed with **6 task verdicts** (sz, lpd, gpd,
+lrda, grda, iic) and **NO SPIKE verdict** — defeating the whole point
+of Phase 9.
+
+Surfaced by Eli's v1.2.0 self-test (session
+`f3da305d-b4a8-4a01-afa5-1f813dd9c519` at
+`/home/exx/.local/share/CORTEX/sessions/`). 299/300 trials, stop_reason
+= bank_exhausted, certificate.json had 6 verdicts, participant.json
+recorded `n_iiic_segments: 299`.
+
+### Two bugs fixed
+
+**1. `scripts/eeg_bank_viewer.py:2844`** — `open_viewer()` was importing
+`build_iiic_engine_inputs` from `cortex_engine_inputs` (the K=6 module),
+not `build_k7_engine_inputs` from `cortex_engine_inputs_k7`. The
+back-compat alias `build_iiic_engine_inputs = build_k7_engine_inputs`
+at `session_controller.py:67` only applied to consumers importing FROM
+`session_controller`; this entry point imported directly from the
+cortex_engine_inputs module, bypassing the alias. Fixed by changing the
+import to the K=7 module explicitly. The misleading alias is preserved
+for back-compat with `audit_selection.py` + `cortex_smoke.py` (dev
+tools; their K=7 update is non-blocking and deferred).
+
+**2. `scripts/cortex_policy_k7.py:103`** — `default_policy_for_k7`'s
+default `block_name` parameter was `"ell_star_unified_v13"` while
+`load_ell_star_k7`'s default was `"ell_star_unified_v14"`. After
+fixing bug 1, the live engine would have computed verdicts against
+v13 ℓ\* while `ResultsScreen._safe_load_ell_star` rendered narratives
+against v14 ℓ\* — same screen, disagreeing numbers. Fixed by bumping
+the policy default to v14 to match the loader.
+
+### Regression tests (`tests/test_cortex_viewer.py`; 3 new, 26 total pass)
+
+* `test_main_open_viewer_uses_k7_engine_inputs` — AST-parses
+  `eeg_bank_viewer.py` and asserts the `open_viewer` nested function
+  imports `build_k7_engine_inputs` (not `build_iiic_engine_inputs`).
+  Any future refactor reverting the import fails this test.
+* `test_k7_engine_inputs_actually_returns_7_tasks_with_spike` —
+  asserts `build_k7_engine_inputs()` returns the 7-task list starting
+  with spike + exposes the `family()` method needed for the UI dispatch.
+* `test_default_policy_for_k7_uses_v14_block_by_default` — asserts
+  the v13/v14 block_name default consistency between policy + loader.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.0` → `1.2.1`.
+* `.github/workflows/cortex-release.yml` release-body "What's new in
+  v1.2.1" prepended above the v1.2.0 section explaining the hotfix.
+
+### What testers see
+
+v1.2.1 bundle runs all 7 tasks. Internal testers who already took v1.2.0
+should retake v1.2.1 to get a spike verdict — their v1.2.0 results in
+`Dropbox/Apps/CORTEX/results/v1.2.0/` are missing the spike task and are
+not directly comparable to v1.2.1 results in the same folder.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.0` — Phase-9 K=7 unified joint hierarchical ground-up release (internal-test cohort)
 
 Closes Phase 9 — the K=6 → K=7 ground-up rebuild that adds spike-vs-no-spike
