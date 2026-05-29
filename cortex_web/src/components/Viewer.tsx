@@ -83,12 +83,20 @@ export function Viewer({
     [onAnswer],
   );
 
-  // keyboard — bound once; reads refs so it never goes stale
+  // keyboard. Bound ONCE for the component's life (empty deps) with a stable
+  // listener; reads the latest submit + state via refs so it never goes
+  // stale. Capture phase ('true') so the event is handled at the window
+  // before any focused <select>/<button> can consume it (e.g. number-key
+  // type-ahead in a dropdown). lastKey is a visible diagnostic.
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  const [lastKey, setLastKey] = useState("");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      setLastKey(e.key);
       if (e.key >= "1" && e.key <= "6") {
         e.preventDefault();
-        submit(parseInt(e.key, 10) - 1);
+        submitRef.current(parseInt(e.key, 10) - 1);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         setPanStart((p) => Math.max(0, p - windowSRef.current / 2));
@@ -108,9 +116,9 @@ export function Viewer({
         setMontage((m) => MONTAGES[(MONTAGES.indexOf(m as any) + 1) % MONTAGES.length]);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [submit]);
+    window.addEventListener("keydown", onKey, true); // capture phase
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   const dur = seg ? seg.nSamp / seg.fsHz : 0;
   const sel = (v: boolean) => ({
@@ -118,9 +126,16 @@ export function Viewer({
     borderRadius: 6,
   });
 
+  // Ensure the page holds keyboard focus (a window opened via `open` can land
+  // with focus off the document). A focusable root + focus-on-mount fixes it.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { rootRef.current?.focus(); }, []);
+
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
-                  height: "100vh", display: "flex", flexDirection: "column", padding: 12, boxSizing: "border-box" }}>
+    <div ref={rootRef} tabIndex={0}
+      style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
+                  height: "100vh", display: "flex", flexDirection: "column", padding: 12,
+                  boxSizing: "border-box", outline: "none" }}>
       {/* top: question + answer buttons (pick-and-advance) */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
@@ -133,7 +148,7 @@ export function Viewer({
           </button>
         ))}
         <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1–6 to answer
+          press 1–6 to answer{lastKey ? `  ·  last key: ${lastKey}` : ""}
         </span>
       </div>
 
