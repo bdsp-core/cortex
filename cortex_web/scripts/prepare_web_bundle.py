@@ -115,11 +115,13 @@ def main():
             # --- EEG: eeg30s (nCh, nSamp) → int16 µV×scale ---
             # nan_to_num: some banks carry NaN samples (bad channels); int16
             # cast of NaN is undefined → zero-fill (renders as flat line).
-            eeg = np.nan_to_num(np.asarray(g["eeg30s"], dtype=np.float64), nan=0.0)
-            fs = float(g.attrs.get("fs_hz", 200.0))
+            ds = g["eeg30s"]
+            eeg = np.nan_to_num(np.asarray(ds, dtype=np.float64), nan=0.0)
+            # fs_hz + channel_names are attrs on the DATASET, not the group.
+            fs = float(ds.attrs.get("fs_hz", g.attrs.get("fs_hz", 200.0)))
             ch_names = [
                 (c.decode() if isinstance(c, bytes) else str(c))
-                for c in g.attrs.get("channel_names", [])
+                for c in ds.attrs.get("channel_names", g.attrs.get("channel_names", []))
             ]
             n_ch, n_samp = eeg.shape
             q = np.clip(np.round(eeg * EEG_SCALE), -32768, 32767).astype("<i2")
