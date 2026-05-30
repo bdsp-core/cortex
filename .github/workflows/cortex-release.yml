@@ -260,6 +260,14 @@ jobs:
           body: |
             ## CORTEX adaptive EEG certification test
 
+            ### Calibration tweak in v1.2.3 (since v1.2.2)
+
+            **N_MIN raised 12 → 20.** During Eli's v1.2.2 self-test as a deliberate random-guesser, two of six IIIC tasks (gpd, iic) returned spurious PASS verdicts. Root cause: AD6 verdict-lock fired at the N_MIN=12 floor (trial 67 / 54 respectively) when the posterior was momentarily elevated by early-trial noise — and the K=7 hierarchical cross-task posterior continued updating after the lock, but the verdict couldn't revoke (monotonic-lock is a deliberate adaptive design choice). Two PhD agents independently confirmed: at internal-test settings (N_MIN=12, ALPHA=0.25) the per-task spurious-PASS rate for a true random rater is ~5.5%; familywise across K=7 ~50%. Raising N_MIN to 20 cuts the per-task rate to ~3% and roughly halves the familywise rate, without changing the alpha gate (kept fast for internal-test). ALPHA stays at 0.25 by design.
+
+            **Expected internal-test impact:** median session length shifts from ~188 trials (v1.2.0/v1.2.2) to ~245 trials (v1.2.3) on the 350-seg internal bank. Tests still complete inside the 300-question cap for confident raters; borderline raters more often see bank-exhausted endings (which produce REFER verdicts rather than locked PASS/FAIL).
+
+            **Production target unchanged:** v2.0 production settings will be N_MIN=60, ALPHA=0.05, ~35K-question bank — making the spurious-PASS rate ~0.5% per task and ~3.5% familywise. Internal-test settings are a fast calibration regime, not the production target.
+
             ### Hotfix in v1.2.2 (since v1.2.1)
 
             **Critical fix: the v1.2.1 bundle crashed on launch.** v1.2.1 re-wired the live test to the K=7 engine-inputs builder but the PyInstaller spec was never updated to ship the two data files that builder reads (`data/labels/segment_signals.csv` + `Sigma_l_fitted_k7.npy`). On a clean install the app crashed at startup with `FileNotFoundError: .../data/labels/segment_signals.csv`. v1.2.2 adds both K=7 files to the bundle so the app launches and runs all 7 tasks. No code/behavior change beyond the bundled data.

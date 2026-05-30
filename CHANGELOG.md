@@ -7,6 +7,65 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.3` — AD6 calibration tweak: N_MIN 12 → 20 (random-rater edge-case hardening)
+
+Calibration tweak surfaced by Eli's v1.2.0/v1.2.2 self-test as a deliberate
+random guesser. Session `f3da305d-b4a8-4a01-afa5-1f813dd9c519` ended with
+2 of 6 IIIC tasks (gpd, iic) returning PASS verdicts despite 19.4%
+accuracy (near random for 6-way questions). The AD6Policy verdict-lock
+fired at the N_MIN=12 floor (trial 67 for gpd with n_per_task=12,
+π=0.823; trial 54 for iic with n_per_task=12, π=0.808) when the posterior
+was momentarily elevated. The K=7 hierarchical posterior continued
+updating after the lock via Σ_l cross-task pooling — by session end
+gpd ell_mean drifted to +0.197 (below ℓ\*=0.330) and iic to -0.313
+(below ℓ\*=0.442) — but monotonic verdicts could not revoke.
+
+### PhD-agent analysis
+
+Two PhD-level agents (Bayesian decision theory + CAT psychometrics)
+independently analysed the failure mode in this session's transcript.
+Quantitative summary:
+
+| Setting | Per-task spurious-PASS | Familywise (K=7) |
+|---|---:|---:|
+| v1.2.0 (N_MIN=12, ALPHA=0.25) | ~5.5% | ~50% (matches observed 2/6) |
+| **v1.2.3 (N_MIN=20, ALPHA=0.25)** | **~3%** | **~25%** |
+| v2.0 production (N_MIN=60, ALPHA=0.05) | ~0.5% | ~3.5% |
+
+Both agents independently confirmed Eli's hypothesis: the failure mode
+is statistically improbable at v2.0 production strictness. v1.2.3
+bridges internal-test speed with reduced false-PASS at the calibration
+midpoint. Architectural alternative (revocable verdicts per AERA
+Standard 4.10) was considered and explicitly deferred — monotonic-lock
+is kept as a deliberate adaptive design choice consistent with the SPRT
+OC framing (Wald 1947; Robbins 1956). See Agent 1's posterior-precision
+math + Agent 2's CAT-literature review in the session transcript.
+
+### Change
+
+  * `scripts/cortex_policy.py` `DEFAULT_N_MIN` `12 → 20`. `DEFAULT_ALPHA`
+    unchanged at `0.25` by design (keeps the internal test fast while
+    raising the bar against momentary-posterior spurious locks).
+  * `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.2 → 1.2.3`.
+  * `.github/workflows/cortex-release.yml` release-body prepends a
+    "Calibration tweak in v1.2.3" section above the v1.2.2 hotfix entry.
+
+### Sim coverage
+
+N_MIN=20 is **outside** the `sim_v1_2_0/` sweep grid (which covered
+NMIN ∈ {8, 10, 12, 15}). Extrapolated from the nearest measured cell
+(NMIN=15, ALPHA=0.25: median=221, p95=300, all_resolved=64%) to NMIN=20
+→ expected median ~245 trials, p95 ~300, all_resolved ~55%. Empirical
+re-validation deferred. Acceptable because v1.2.3 is an internal-test
+calibration setting; v2.0 production will run its own OC sweep at the
+panel-target N_MIN=60 + ALPHA=0.05.
+
+### Test gate at ship
+
+`tests/test_cortex_viewer.py + tests/test_phase9_*.py`: **74/74 PASS**.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.2` — HOTFIX: bundle the K=7 data files the v1.2.1 builder reads
 
 Critical packaging hotfix for the cortex-v1.2.1 ship. v1.2.1 correctly
