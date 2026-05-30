@@ -775,14 +775,16 @@ def test_computing_results_page_opt_out_text(qapp):
 
 
 def test_computing_results_page_opt_in_text(qapp):
-    """Opt-in path shows the 2-3 min advisory."""
+    """Opt-in path shows the visualizations advisory, with no time estimate
+    (v1.3.1: the '2 to 3 minutes' line was removed)."""
     page = ev.ComputingResultsPage(opt_in=True)
     try:
         from PyQt6.QtWidgets import QLabel
         texts = [w.text() for w in page.findChildren(QLabel)]
         joined = " ".join(texts)
-        assert "2 to 3 minutes" in joined
-        assert "few seconds" not in joined
+        assert "personalized visualizations" in joined
+        assert "2 to 3 minutes" not in joined
+        assert "few seconds" not in joined        # opt-out copy only
         assert page.opt_in is True
     finally:
         page.deleteLater()

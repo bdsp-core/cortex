@@ -2394,8 +2394,7 @@ class ComputingResultsPage(QWidget):
 
         if self.opt_in:
             sub_text = ("Computing your results and generating "
-                        "personalized visualizations.\n"
-                        "This takes 2 to 3 minutes.")
+                        "personalized visualizations.")
         else:
             sub_text = ("Computing your results.\n"
                         "This will take just a few seconds.")
@@ -2427,7 +2426,9 @@ class ComputingResultsPage(QWidget):
         row2.addStretch(1); row2.addWidget(self.spinner); row2.addStretch(1)
         root.addLayout(row2)
 
-        # Live stage label + ETA, fed by _FinalizeWorker.progress.
+        # v1.3.1: live stage label, fed by _FinalizeWorker.progress. The ETA
+        # countdown was removed (the estimate was not accurate enough to be
+        # useful); the determinate bar + stage still communicate progress.
         self.stage_lbl = QLabel("Starting…")
         self.stage_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         stf = QFont(); stf.setPointSize(11)
@@ -2436,15 +2437,6 @@ class ComputingResultsPage(QWidget):
             "color: #cfd3da; background: transparent;")
         root.addSpacing(12)
         root.addWidget(self.stage_lbl)
-
-        self.eta_lbl = QLabel("")
-        self.eta_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        etf = QFont(); etf.setPointSize(10)
-        self.eta_lbl.setFont(etf)
-        self.eta_lbl.setStyleSheet(
-            "color: #868b96; background: transparent;")
-        root.addSpacing(4)
-        root.addWidget(self.eta_lbl)
 
         foot = QLabel("Please do not close this window.")
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2456,21 +2448,11 @@ class ComputingResultsPage(QWidget):
         root.addWidget(foot)
         root.addStretch(3)
 
-    @staticmethod
-    def _fmt_eta(eta):
-        """Human ETA string from seconds; '' when unknown."""
-        if eta is None or eta < 0:
-            return ""
-        secs = int(round(eta))
-        if secs < 60:
-            return f"about {max(secs, 1)}s remaining"
-        m, s = divmod(secs, 60)
-        return f"about {m}m {s:02d}s remaining"
-
     @pyqtSlot(str, float, object)
     def set_progress(self, stage, frac, eta):
-        """Update the determinate bar + stage + ETA. Connected (queued,
-        cross-thread) to _FinalizeWorker.progress."""
+        """Update the determinate bar + stage label. Connected (queued,
+        cross-thread) to _FinalizeWorker.progress. v1.3.1: the ``eta``
+        argument is accepted for signal compatibility but no longer shown."""
         if not self._determinate:
             self.spinner.setRange(0, 1000)
             self._determinate = True
@@ -2478,7 +2460,6 @@ class ComputingResultsPage(QWidget):
         self.spinner.setValue(int(frac * 1000))
         if stage:
             self.stage_lbl.setText("Done" if frac >= 1.0 else f"{stage}…")
-        self.eta_lbl.setText("" if frac >= 1.0 else self._fmt_eta(eta))
 
 
 class ResultsScreen(QWidget):

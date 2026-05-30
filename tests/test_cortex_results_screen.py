@@ -308,18 +308,28 @@ def test_computing_page_set_progress_is_determinate(qapp):
         assert page.spinner.maximum() == 1000        # switched determinate
         assert page.spinner.value() == 500
         assert "Building engine-explainer video" in page.stage_lbl.text()
-        assert "remaining" in page.eta_lbl.text()
         page.set_progress("Done", 1.0, None)
         assert page.spinner.value() == 1000
         assert page.stage_lbl.text() == "Done"
-        assert page.eta_lbl.text() == ""
     finally:
         page.deleteLater()
         qapp.processEvents()
 
 
-def test_fmt_eta_formatting():
-    f = ev.ComputingResultsPage._fmt_eta
-    assert f(None) == "" and f(-1) == ""
-    assert "s remaining" in f(25)
-    assert f(125) == "about 2m 05s remaining"
+def test_v1_3_1_no_eta_no_minutes_estimate(qapp):
+    """v1.3.1: the loading page no longer shows a time estimate. No eta_lbl /
+    _fmt_eta, no '2 to 3 minutes' copy; set_progress still accepts the 3-arg
+    progress signal (eta ignored) without raising."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "eeg_bank_viewer.py").read_text()
+    assert "2 to 3 minutes" not in src
+    assert "_fmt_eta" not in src and "eta_lbl" not in src
+    page = ev.ComputingResultsPage(opt_in=True)
+    try:
+        assert not hasattr(page, "eta_lbl")
+        page.set_progress("Saving results", 0.9, 5.0)   # must not raise
+        assert "Saving results" in page.stage_lbl.text()
+    finally:
+        page.deleteLater()
+        qapp.processEvents()

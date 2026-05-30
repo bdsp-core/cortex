@@ -7,6 +7,41 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.1` — drop the (inaccurate) ETA + "2 to 3 minutes" copy on the loading page
+
+UI-copy only. No engine, policy, calibration, data, or video-render change.
+
+The post-test `ComputingResultsPage` (`eeg_bank_viewer.py`) no longer shows a
+time estimate, because the estimate was not accurate enough to be useful:
+
+* Removed the `eta_lbl` widget and the `_fmt_eta` helper; `set_progress`
+  still accepts the 3-arg `(stage, frac, eta)` progress signal for
+  compatibility but no longer displays `eta`. The determinate progress bar
+  and the stage label ("Building engine-explainer video", etc.) stay, so the
+  page still communicates real progress and what the engine is doing.
+* Removed the "This takes 2 to 3 minutes." line from the opt-in caption (now
+  just "Computing your results and generating personalized visualizations.").
+  The opt-out caption keeps "This will take just a few seconds." (the
+  no-video path really is near-instant). `finalize` still computes/emits the
+  ETA value; it is simply not shown.
+
+### Tests
+
+* Updated `test_computing_page_set_progress_is_determinate` (drops the ETA
+  assertions) and `test_computing_results_page_opt_in_text` (asserts no "2 to
+  3 minutes"); removed `test_fmt_eta_formatting`; added
+  `test_v1_3_1_no_eta_no_minutes_estimate` (no `eta_lbl`/`_fmt_eta`/"2 to 3
+  minutes"; `set_progress` still safe with a 3-arg call). Validated by
+  offscreen-rendering the page.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.0 → 1.3.1`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.1.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.0` — static MP4 axes + signal-graph trend line + professional titles
 
 Visualization-only release. No engine, policy, calibration, or data change.
