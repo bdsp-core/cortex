@@ -370,15 +370,15 @@ jobs:
 
             Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            ### What is new in v1.3.4
+            ### What is new in v1.3.5
 
-            A small fix to the engine explainer video. The question chart along the bottom used to redraw itself from scratch for every task. Now it draws in once, during the first task, and then stays complete and still while the upper panels move through the rest of the tasks. The other three videos are unchanged, and nothing about the test, the questions, or your results changed.
+            This build changes how the test chooses questions, so it is worth a quick note. Before, once all but one category had been decided, the test would ask that last category many times in a row, which could feel repetitive. Now, after a run of questions on the same category, the test switches to a different category for one question before continuing. You will see a bit more variety, especially late in a session. We checked this carefully in simulation: it does not change how your results are scored, it reaches a decision on every category at least as reliably as before, and if anything it tends to finish a little sooner. Your scoring and the number of categories are unchanged.
 
             The Intel and Apple Silicon mac downloads are both still here: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 
             ### If you downloaded an earlier v1.2.x
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.3.4 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.3.5 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 

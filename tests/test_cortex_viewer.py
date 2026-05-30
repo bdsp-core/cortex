@@ -1086,3 +1086,14 @@ def test_registration_wizard_advances_through_pages(qapp, monkeypatch):
     finally:
         reg.deleteLater()
         qapp.processEvents()
+
+
+def test_v1_3_5_live_session_wires_consec_cap():
+    """v1.3.5: the live test wires the sim-validated consecutive-same-domain
+    cap into the production session, and the default is 12."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "scripts"
+    viewer = (root / "eeg_bank_viewer.py").read_text()
+    assert "max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT" in viewer
+    sc = (root / "session_controller.py").read_text()
+    assert "MAX_CONSEC_SAME_DOMAIN_DEFAULT = 12" in sc

@@ -244,7 +244,7 @@ if sys.platform == 'darwin':
         name='CORTEX.app',
         bundle_identifier='org.bdsp-core.cortex',
         info_plist={
-            'CFBundleShortVersionString': '1.3.4',
+            'CFBundleShortVersionString': '1.3.5',
             'CFBundleName': 'CORTEX',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '12.0',

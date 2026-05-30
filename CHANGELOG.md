@@ -7,6 +7,54 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.5` — break up long single-domain runs (consecutive-same-domain cap = 12)
+
+First **engine-behavior** change in the v1.3.x line (the earlier ones were
+visualization-only). Sim-validated before shipping.
+
+### What
+
+The adaptive selector could ask one IIIC task many times in a row once it was
+the last unresolved task (session `e46cc793`: seizure 99 in a row). v1.3.5
+adds `CortexSession(max_consecutive_same_domain=N)` (default `None` = off; the
+live test sets **12** via `MAX_CONSEC_SAME_DOMAIN_DEFAULT`). After N
+consecutive questions on one task the selector is forced onto a different
+domain — preferring other unresolved tasks, falling back to a resolved IIIC
+task only when one task is the sole remainder. The spike block (Phase A) is
+exempt; the forced question still updates the joint posterior.
+
+### Why 12 (sim sweep)
+
+`sim_v1_3_5/run_consec_sweep.py`, 300 heterogeneous-rater sessions at the ship
+AD6 params (N_MIN=20, ALPHA=0.25). The cap is a clean win, no downside (full
+table in `docs/SIM_V1_3_5_CONSEC_CAP.md`): without a cap the worst IIIC run
+hit **158** (p95 145); at cap=12 it is held at 12 while `all_resolved`
+**improves** 93.3% → 98.3% (the forced variety questions add cross-task
+evidence via Σ that helps the lingering task resolve), worst-case session
+length **shortens** (p95 300 → 213), and the verdict mix is unchanged.
+
+### Implementation + tests
+
+* `scripts/session_controller.py`: the cap logic in `_compute_active_domains`
+  + a consecutive counter in the run loop; `max_consecutive_same_domain`
+  kwarg; `MAX_CONSEC_SAME_DOMAIN_DEFAULT = 12`.
+* `scripts/eeg_bank_viewer.py`: the live `SessionController` now passes the
+  cap.
+* `sim_v1_2_0/_lib.py`: threads the cap + adds the `max_iiic_run` metric;
+  `sim_v1_3_5/run_consec_sweep.py` is the sweep.
+* Tests: `test_v1_3_5_cap_default_off_never_excludes`,
+  `test_v1_3_5_cap_forces_switch_off_dominant`,
+  `test_v1_3_5_live_session_wires_consec_cap`. Existing 23 session-controller
+  tests still pass (default-off preserves behavior).
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.4 → 1.3.5`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.5.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.4` — engine_explainer question plot freezes after the first task block
 
 Visualization-only release. No engine, policy, calibration, or data change.

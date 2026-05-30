@@ -77,6 +77,15 @@ N_PARTICLES = 600
 # (==bank_size). Only the live test path (eeg_bank_viewer.main) passes
 # this constant explicitly.
 MAX_QUESTIONS_DEFAULT = 300
+# v1.3.5: live-test default for the consecutive-same-domain cap. After this
+# many questions in a row on one IIIC task the selector is forced to switch
+# domains, to break up long single-domain runs (one rater hit 99 seizure in a
+# row, session e46cc793). Chosen from sim_v1_3_5/run_consec_sweep.py (300
+# heterogeneous-rater sessions): cap=12 capped the worst IIIC run from ~158 to
+# 12 while IMPROVING all_resolved (93.3% -> 98.3%) and shortening worst-case
+# sessions (p95 300 -> 213), with verdicts unchanged. Only the live test path
+# sets this; CortexSession's own default is None (off) for tests/sims/audit.
+MAX_CONSEC_SAME_DOMAIN_DEFAULT = 12
 # delta=0.15 is the legacy DeltaStop target (Mode-A / methodology path).
 # AD6Policy (production) does not use delta. See docs/AD6_RESOLUTION.md.
 DELTA_AUROC = 0.15
@@ -155,7 +164,8 @@ class CortexSession:
                  max_questions=None, ess_threshold_frac=ESS_THRESHOLD_FRAC,
                  n_mh_steps=N_MH_STEPS, seed=None, selection="adaptive",
                  policy=None, capture_clouds=False,
-                 first_item_topn=FIRST_ITEM_TOPN):
+                 first_item_topn=FIRST_ITEM_TOPN,
+                 max_consecutive_same_domain=None):
         self.inputs = inputs
         self.session_id = str(session_id)
         self.N = int(n_particles)
@@ -180,6 +190,15 @@ class CortexSession:
         # audit/OC), DeltaStopPolicy (>0, legacy methods).
         self.policy = default_policy_for(
             inputs, delta_auroc=delta_auroc, policy=policy)
+
+        # v1.3.5 (default OFF): after this many consecutive questions on one
+        # task, the selector is forced onto a different domain for the next
+        # question, to break up long single-domain runs (UX). None preserves
+        # the original behavior exactly. State reset at the start of run().
+        self._max_consec = (int(max_consecutive_same_domain)
+                            if max_consecutive_same_domain else None)
+        self._last_task = None
+        self._consec_count = 0
         self.proposal_scale = 2.38 / np.sqrt(2 * self.K)
 
     def _compute_active_domains(self, bank_signals):
@@ -208,12 +227,31 @@ class CortexSession:
         verdicts = (self.policy._verdicts if (hasattr(self.policy, "_verdicts")
                                                and self.policy._verdicts is not None)
                     else [PENDING] * K)
-        # Phase A — K=7 spike sectioning
+        # Phase A — K=7 spike sectioning (the spike block is deliberate; the
+        # consecutive-cap does NOT apply here).
         if (K == 7 and verdicts[0] == PENDING and len(bank_signals[0]) > 0):
             return [0]
         # Phase B / K=6 — all unresolved tasks with non-empty banks
-        return [k for k in range(K)
+        base = [k for k in range(K)
                 if len(bank_signals[k]) > 0 and verdicts[k] == PENDING]
+        # v1.3.5 consecutive-same-domain cap (default OFF). After `_max_consec`
+        # questions in a row on one task, force the NEXT question onto a
+        # different domain. Prefer other UNRESOLVED tasks; if the dominant task
+        # is the ONLY unresolved one, fall back to other IIIC tasks with
+        # non-empty banks (even already-resolved) so a long single-domain run
+        # is broken up. k>=1 keeps the variety question a 6-way IIIC (not a
+        # spike yes/no). The forced question still updates the joint posterior.
+        if (self._max_consec and self._last_task is not None
+                and self._consec_count >= self._max_consec
+                and self._last_task in base):
+            others = [k for k in base if k != self._last_task]
+            if others:
+                return others
+            variety = [k for k in range(1, K)
+                       if k != self._last_task and len(bank_signals[k]) > 0]
+            if variety:
+                return variety
+        return base
 
     def _select(self, state, remaining, rng, trial_index):
         """Pick the next (task k, seg_id, s, s_sd) + the chosen item's
@@ -292,6 +330,8 @@ class CortexSession:
         stop_reason = "bank_exhausted"
         aborted = False
         self.policy.reset(self.K)
+        self._last_task = None        # v1.3.5: reset consecutive-cap state
+        self._consec_count = 0
         n_per_task = [0] * self.K
         decision = None
 
@@ -309,6 +349,15 @@ class CortexSession:
                     break
                 k, seg_id, s, s_sd, expected_loss = _selected
                 select_ms = (time.perf_counter() - t0) * 1000.0
+
+                # v1.3.5: track consecutive same-domain run length so the next
+                # _compute_active_domains can force a switch once it hits the
+                # cap. (No-op for the default max_consec=None path.)
+                if k == self._last_task:
+                    self._consec_count += 1
+                else:
+                    self._last_task = k
+                    self._consec_count = 1
 
                 if on_item is not None:
                     on_item({"trial_index": trial_index, "task_k": k,

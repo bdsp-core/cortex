@@ -2930,7 +2930,8 @@ def main():
         # tests/test_cortex_viewer.py::test_main_open_viewer_uses_k7_engine_inputs.
         from cortex_engine_inputs_k7 import build_k7_engine_inputs
         from session_controller import (
-            SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT)
+            SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT,
+            MAX_CONSEC_SAME_DOMAIN_DEFAULT)
         from cortex_storage import SessionRecorder
         inputs = build_k7_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
@@ -2954,9 +2955,12 @@ def main():
         # runway decoupled from bank size so future bank growth doesn't
         # implicitly lengthen the test. capture_clouds=True so the session
         # writes trajectory.npz.
-        controller = SessionController(engine_inputs, reg.session_id,
-                                       capture_clouds=True,
-                                       max_questions=MAX_QUESTIONS_DEFAULT)
+        controller = SessionController(
+            engine_inputs, reg.session_id,
+            capture_clouds=True,
+            max_questions=MAX_QUESTIONS_DEFAULT,
+            # v1.3.5: break up long single-domain runs (sim-validated cap=12).
+            max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT)
         # Record which termination policy actually drives this session —
         # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
         # legacy/audit paths — so participant.json reflects what stopped

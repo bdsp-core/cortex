@@ -200,3 +200,37 @@ def test_engine_worker_threaded_session(inputs):
     res = done["result"]
     assert res.n_questions == 15
     assert len(set(res.served_seg_ids)) == res.n_questions
+
+
+# ─── v1.3.5: consecutive-same-domain cap (default OFF) ───────────────────
+def test_v1_3_5_cap_default_off_never_excludes(inputs):
+    """Default (no cap) must never drop the dominant domain — preserves the
+    original active-domain behavior exactly."""
+    sess = sc.CortexSession(inputs, session_id="t-cap-off", n_particles=50)
+    assert sess._max_consec is None
+    K = sess.K
+    sess.policy.reset(K)
+    bank = [np.array([0.1, 0.2]) for _ in range(K)]
+    sess._last_task = 1
+    sess._consec_count = 99            # way past any cap
+    act = sess._compute_active_domains(bank)
+    assert 1 in act                    # off => dominant stays selectable
+
+
+def test_v1_3_5_cap_forces_switch_off_dominant(inputs):
+    """With a cap, once the consecutive count reaches it the dominant task is
+    excluded from the next selection (forcing a switch)."""
+    sess = sc.CortexSession(inputs, session_id="t-cap3",
+                            max_consecutive_same_domain=3, n_particles=50)
+    assert sess._max_consec == 3
+    K = sess.K
+    sess.policy.reset(K)
+    bank = [np.array([0.1, 0.2]) for _ in range(K)]
+    sess._last_task = 1
+    # below the cap: dominant stays in
+    sess._consec_count = 2
+    assert 1 in sess._compute_active_domains(bank)
+    # at the cap: dominant forced out, but the set is non-empty
+    sess._consec_count = 3
+    act = sess._compute_active_domains(bank)
+    assert 1 not in act and len(act) >= 1
