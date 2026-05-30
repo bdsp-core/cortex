@@ -38,12 +38,10 @@ excellent at spikes and shaky at rhythmic delta is a real and useful thing
 to know.
 
 <div align="center">
-  <video controls muted width="85%">
-    <source src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/collapse-combined.mp4" type="video/mp4">
-  </video>
+  <img src="docs/media/collapse-combined.gif" width="85%" alt="All seven task posterior clouds overlaid on one skill-versus-bias plot, colored by task"/>
 </div>
 
-*All seven tasks at once: each task's posterior cloud in skill (vertical) versus bias (horizontal) space, colored by task and growing more opaque as the engine grows confident. You can watch where each task settles relative to neutral. ([play](docs/media/collapse-combined.mp4))*
+*All seven tasks at once: each task's posterior cloud in skill (vertical) versus bias (horizontal) space, colored by task and growing more opaque as the engine grows confident. You can watch where each task settles relative to neutral.*
 
 ## How it works, briefly
 
@@ -88,12 +86,10 @@ Kalman update, and the calibration pipeline, with every equation pinned to
 the line of code that implements it.
 
 <div align="center">
-  <video controls muted width="90%">
-    <source src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/engine_explainer.mp4" type="video/mp4">
-  </video>
+  <img src="docs/media/engine_explainer.gif" width="90%" alt="The adaptive engine: a 3D posterior density, a 2D cloud with its 95% ellipse, and a question-by-difficulty plot"/>
 </div>
 
-*The adaptive engine in motion. For each task it carries a joint posterior over the reader's skill and bias (shown as a 3D density and a 2D cloud with its 95% uncertainty ellipse), while the lower panel logs every question by difficulty and domain. The engine chooses each next question to shrink that uncertainty the fastest. ([play](docs/media/engine_explainer.mp4))*
+*The adaptive engine in motion. For each task it carries a joint posterior over the reader's skill and bias (shown as a 3D density and a 2D cloud with its 95% uncertainty ellipse), while the lower panel logs every question by difficulty and domain. The engine chooses each next question to shrink that uncertainty the fastest.*
 
 ## Does it actually work
 
@@ -110,12 +106,10 @@ collapses as the adaptive test asks more questions, across all seven tasks
 and every expertise tier.*
 
 <div align="center">
-  <video controls muted width="85%">
-    <source src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/collapse.mp4" type="video/mp4">
-  </video>
+  <img src="docs/media/collapse.gif" width="85%" alt="Per-task particle clouds tightening over a session as evidence accumulates"/>
 </div>
 
-*The same thing in a single live session: each task's particle cloud tightens as evidence accumulates, the brighter colors marking a more confident posterior. ([play](docs/media/collapse.mp4))*
+*The same thing in a single live session: each task's particle cloud tightens as evidence accumulates, the brighter colors marking a more confident posterior.*
 
 The validation trail is the point, not a footnote. See
 [`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) for the scientific gate,
@@ -137,12 +131,10 @@ The viewer, the session controller, and the engine wiring live in
 [`README_CORTEX_TEST.md`](README_CORTEX_TEST.md).
 
 <div align="center">
-  <video controls muted width="85%">
-    <source src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/passfail.mp4" type="video/mp4">
-  </video>
+  <img src="docs/media/passfail.gif" width="85%" alt="Per-task pass-mass trajectories crossing into the PASS or FAIL band over a session"/>
 </div>
 
-*What the test produces: per task verdicts forming over a session. Each task's pass-mass climbs into the green PASS band or drops into the red FAIL band, and the monotonic rule locks each verdict the moment it resolves. ([play](docs/media/passfail.mp4))*
+*What the test produces: per task verdicts forming over a session. Each task's pass-mass climbs into the green PASS band or drops into the red FAIL band, and the monotonic rule locks each verdict the moment it resolves.*
 
 ## Quickstart
 
