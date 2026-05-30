@@ -230,7 +230,10 @@ def test_v1_2_8_passfail_drops_ad6_verdict_caption():
     assert "trajectory color shows running AD6 verdict" not in src
 
 
-def test_v1_2_8_collapse_breathes_axes_per_frame():
+def test_v1_3_0_collapse_static_axes_from_extremes():
+    """v1.3.0: render_collapse computes static per-panel limits ONCE from
+    each task's full trajectory (via _data_limits) and no longer sets the
+    panel limits per frame inside update()."""
     import ast
     from pathlib import Path
     src = (Path(__file__).resolve().parents[1] / "scripts"
@@ -238,7 +241,12 @@ def test_v1_2_8_collapse_breathes_axes_per_frame():
     fn = next(n for n in ast.walk(ast.parse(src))
               if isinstance(n, ast.FunctionDef) and n.name == "render_collapse")
     body = ast.unparse(fn)
-    assert "_data_limits" in body and "set_xlim" in body and "set_ylim" in body
+    assert "task_xlim" in body and "_data_limits" in body
+    update = next(n for n in ast.walk(fn)
+                  if isinstance(n, ast.FunctionDef) and n.name == "update")
+    up = ast.unparse(update)
+    assert "set_xlim" not in up and "set_ylim" not in up, \
+        "update() must not autoscale per frame in v1.3.0 (static axes)"
 
 
 # ─── v1.2.9: render_all forwards a labeled per-render progress callback ──

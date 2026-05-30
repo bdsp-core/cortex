@@ -7,6 +7,71 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.0` — static MP4 axes + signal-graph trend line + professional titles
+
+Visualization-only release. No engine, policy, calibration, or data change.
+Three changes to the per-session MP4s, in `scripts/cortex_render_videos.py` +
+`scripts/render_engine_explainer.py`.
+
+### 1. Static axes from full-session extremes (replaces v1.2.8 breathing)
+
+v1.2.8 autoscaled each panel per frame, which fit the data but made the axes
+jitter as the cloud collapsed. v1.3.0 instead computes each panel's extremes
+ONCE from the whole session and uses fixed axes that capture every value:
+
+* `render_collapse` precomputes `task_xlim`/`task_ylim` per task from
+  `t_traj[:, :, k].ravel()` / `l_traj` (every particle, every frame) and sets
+  them once; the per-frame `set_xlim`/`set_ylim` in `update()` is removed.
+* `render_engine_explainer` precomputes per-task `task_tlim`/`task_llim` and a
+  global `q_xlim`/`q_ylim` for the question scatter, passed into `_draw_frame`
+  as static `t_range`/`l_range`/`q_xlim`/`q_ylim`. The 3D manifold, 2D cloud,
+  and bottom scatter no longer autoscale per frame.
+
+Net effect: the cloud never runs off a panel (the extremes contain it) and
+the axes hold still during playback. The question scatter's x-axis now spans
+all questions from the start, so dots fill in left to right within a fixed
+frame.
+
+passfail's π-axis stays fixed at [0, 1] as before (π is a probability).
+
+### 2. Neutral grey trend line through the signal-question dots
+
+The engine-explainer's "Question difficulty by domain" panel now draws a thin
+neutral grey line (`_MUTED`, the muted slate already in the palette)
+connecting the questions in order, under the domain-colored dots, so the
+difficulty trajectory reads as a sequence.
+
+### 3. Professional titles and descriptions
+
+Cleaned up the rendered copy across all three videos (sentence case, no em
+dashes, clearer phrasing): collapse "Posterior cloud collapse" / "Question N
+of M"; explainer "Task K of N: <domain> · trial j of T", panel titles
+"Posterior density", "Posterior cloud and mean path", "Question difficulty by
+domain", and a clean one-line caption; passfail "Question N of M".
+
+### Regression tests (updated +1, retargeted +1)
+
+* `test_v1_3_0_collapse_static_axes_from_extremes` (collapse precomputes
+  `task_xlim` and `update()` no longer autoscales);
+  `test_v1_3_0_explainer_static_axes_and_grey_connector` (static precompute,
+  `_draw_frame` uses the static ranges + draws the grey connector, no
+  per-frame `_data_limits(t_k)`). The v1.2.8 bottom-title assertion retargeted
+  to "Question difficulty by domain". Validated by frame-grabbing the collapse
+  + explainer on a real 175-trial K=7 session.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.9 → 1.3.0`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.0 (carries forward the two mac downloads).
+
+### Test gate at ship
+
+cortex viewer + render + storage + results + end-to-end + phase9:
+**138/138 PASS**.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.9` — results-page recordings breakdown + real progress bar with ETA
 
 Two test-taker-facing UX improvements. No engine, policy, calibration, or

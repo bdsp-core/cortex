@@ -329,8 +329,14 @@ _DOMAIN_ORDER = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
 
 def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
-                fpt, mean_trail, questions, ax_surf, ax_cloud, ax_q):
-    """Render one frame. Called from FuncAnimation's update closure."""
+                fpt, mean_trail, questions, t_range, l_range,
+                q_xlim, q_ylim, ax_surf, ax_cloud, ax_q):
+    """Render one frame. Called from FuncAnimation's update closure.
+
+    v1.3.0: ``t_range``/``l_range`` (per focal task) and ``q_xlim``/``q_ylim``
+    (the question scatter) are STATIC limits precomputed once from the whole
+    session, so every panel captures all of its values without moving frame
+    to frame."""
     ax_surf.clear(); ax_cloud.clear(); ax_q.clear()
     _style_axes_dark(ax_surf, three_d=True)
     _style_axes_dark(ax_cloud)
@@ -340,10 +346,8 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
     l_k = state["l"][:, task_k]
     w = state["w"]
 
-    # v1.2.8: breathe the (t, ℓ) panels to the live cloud so particles never
-    # run off the axes (shared helper from cortex_render_videos).
-    t_lo, t_hi = _cv._data_limits(t_k)
-    l_lo, l_hi = _cv._data_limits(l_k)
+    t_lo, t_hi = t_range
+    l_lo, l_hi = l_range
 
     # === 3D posterior density surface ===========================
     TG, LG, H = _weighted_kde_grid(t_k, l_k, w, n=30,
@@ -355,10 +359,10 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
     ax_surf.set_xlim(t_lo, t_hi); ax_surf.set_ylim(l_lo, l_hi)
     z_max = max(float(H.max()) * 1.2, 1e-3)
     ax_surf.set_zlim(0, z_max)
-    ax_surf.set_xlabel(r"$t_k$  (bias)", labelpad=-4)
-    ax_surf.set_ylabel(r"$\ell_k$  (skill)", labelpad=-4)
-    ax_surf.set_zlabel("density", labelpad=-6)
-    ax_surf.set_title("posterior manifold", pad=2, fontsize=9)
+    ax_surf.set_xlabel(r"$t$  (bias)", labelpad=-4)
+    ax_surf.set_ylabel(r"$\ell$  (skill)", labelpad=-4)
+    ax_surf.set_zlabel("Density", labelpad=-6)
+    ax_surf.set_title("Posterior density", pad=2, fontsize=9)
 
     # === 2D overhead: cloud + 95% credible ellipse + mean trail ===
     alphas = np.clip(w / (w.max() + 1e-12) * 0.55, 0.04, 0.55)
@@ -390,46 +394,37 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
                             alpha=0.55))
     except np.linalg.LinAlgError:
         pass
-    # Breathe the cloud panel too, but widen to also contain the ellipse +
-    # mean trail so they are never clipped at the edge.
-    cx = [t_lo, t_hi, float(mu[0])]
-    cy = [l_lo, l_hi, float(mu[1])]
-    if len(mean_trail) >= 1:
-        tr = np.asarray(mean_trail)
-        cx += [float(tr[:, 0].min()), float(tr[:, 0].max())]
-        cy += [float(tr[:, 1].min()), float(tr[:, 1].max())]
-    ax_cloud.set_xlim(*_cv._data_limits(cx))
-    ax_cloud.set_ylim(*_cv._data_limits(cy))
-    ax_cloud.set_xlabel(r"$t_k$  (bias)")
-    ax_cloud.set_ylabel(r"$\ell_k$  (skill)")
-    ax_cloud.set_title("posterior cloud — geodesic trail of mean",
-                       pad=2, fontsize=9)
+    # v1.3.0: static limits (same frame as the 3D panel) so the cloud,
+    # ellipse and mean path sit in a fixed, full-session-extent box.
+    ax_cloud.set_xlim(t_lo, t_hi); ax_cloud.set_ylim(l_lo, l_hi)
+    ax_cloud.set_xlabel(r"$t$  (bias)")
+    ax_cloud.set_ylabel(r"$\ell$  (skill)")
+    ax_cloud.set_title("Posterior cloud and mean path", pad=2, fontsize=9)
     ax_cloud.grid(True, color=_GRID, alpha=0.25)
 
-    # === questions asked so far — signal strength by domain =====
-    # v1.2.8: replaces the expected-posterior-variance score curve. One dot
-    # per asked question: x = question number, y = its signal strength
-    # (s_mean, probit-scale case difficulty), colored by domain. Revealed up
-    # to the trial in focus ("reveal as it goes"), with the most-recent
-    # question ringed so it ties to the animated panels above.
+    # === Question difficulty by domain ==========================
+    # One dot per asked question: x = question number, y = its signal
+    # strength (s_mean, probit case difficulty), colored by domain. Revealed
+    # up to the trial in focus, the most-recent question ringed so it ties to
+    # the panels above. v1.3.0: a neutral grey line connects the questions in
+    # order, and the axes are static (full-session extent, precomputed).
     revealed = [q for q in questions if q["idx"] <= j]
     if revealed:
         xs = np.array([q["idx"] + 1 for q in revealed], dtype=float)
         ys = np.array([q["s"] for q in revealed], dtype=float)
         cs = [DOMAIN_COLORS.get(q["domain"], _MUTED) for q in revealed]
+        if len(xs) >= 2:
+            ax_q.plot(xs, ys, color=_MUTED, linewidth=0.8, alpha=0.5,
+                      zorder=2)
         ax_q.scatter(xs, ys, s=22, c=cs, edgecolor="none",
                      alpha=0.9, zorder=3)
         ax_q.scatter([xs[-1]], [ys[-1]], s=80, facecolor="none",
                      edgecolor="white", linewidth=1.1, zorder=4)
-        ax_q.set_xlim(*_cv._data_limits(xs, frac=0.04, floor=2.0))
-        ax_q.set_ylim(*_cv._data_limits(ys, frac=0.14, floor=0.6))
-    else:
-        ax_q.set_xlim(0, 2); ax_q.set_ylim(-1, 1)
+    ax_q.set_xlim(*q_xlim); ax_q.set_ylim(*q_ylim)
     ax_q.axhline(0.0, color=_GRID, lw=0.6, alpha=0.5, zorder=0)
-    ax_q.set_xlabel("question number")
-    ax_q.set_ylabel("signal strength  $s$\n(probit-scale case difficulty)")
-    ax_q.set_title("questions asked so far — signal strength by domain",
-                   pad=2, fontsize=9)
+    ax_q.set_xlabel("Question number")
+    ax_q.set_ylabel("Signal strength  $s$\n(probit case difficulty)")
+    ax_q.set_title("Question difficulty by domain", pad=2, fontsize=9)
     ax_q.grid(True, color=_GRID, alpha=0.25)
     handles = [Line2D([0], [0], marker="o", linestyle="none", markersize=5,
                       markerfacecolor=DOMAIN_COLORS[d], markeredgecolor="none",
@@ -483,6 +478,22 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
                 sess["w_traj"][j])
             mean_trails[k].append(tuple(mu_jk))
 
+    # v1.3.0: static axis limits computed ONCE from the whole session, so the
+    # panels capture every value without moving frame to frame. Per-task
+    # (t, ℓ) extents span all particles across all trials; the question
+    # scatter spans all questions' numbers + signal strengths.
+    task_tlim = [_cv._data_limits(sess["t_traj"][:, :, k].ravel())
+                 for k in range(K)]
+    task_llim = [_cv._data_limits(sess["l_traj"][:, :, k].ravel())
+                 for k in range(K)]
+    if questions:
+        q_xlim = _cv._data_limits([q["idx"] + 1 for q in questions],
+                                  frac=0.04, floor=2.0)
+        q_ylim = _cv._data_limits([q["s"] for q in questions],
+                                  frac=0.14, floor=0.6)
+    else:
+        q_xlim, q_ylim = (0.0, 2.0), (-1.0, 1.0)
+
     def update(frame):
         task_k, j, _adv = idx_for(frame)
         state = _state_from_cloud(sess["t_traj"][j],
@@ -494,19 +505,21 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
                     task_code=sess["task_codes"][task_k],
                     j=j, n_trials=T, frame=frame, fpt=fpt,
                     mean_trail=trail, questions=questions,
+                    t_range=task_tlim[task_k], l_range=task_llim[task_k],
+                    q_xlim=q_xlim, q_ylim=q_ylim,
                     ax_surf=ax_surf, ax_cloud=ax_cloud,
                     ax_q=ax_q)
         task_code = sess["task_codes"][task_k]
         title_h.set_text(
-            f"task {task_k + 1}/{K}: "
-            f"{DOMAIN_TITLES.get(task_code, task_code)}  —  "
-            f"trial {j + 1}/{T}")
+            f"Task {task_k + 1} of {K}: "
+            f"{DOMAIN_TITLES.get(task_code, task_code)}"
+            f"   ·   trial {j + 1} of {T}")
         sub_h.set_text(
-            "the engine asks the question that minimises expected "
-            "posterior variance.  top: posterior over skill "
-            r"$\ell$ and bias $t$ for this task (manifold + cloud with "
-            "uncertainty ellipse).  bottom: every question asked so far, "
-            "its signal strength colored by domain.")
+            "The engine selects each question to reduce its uncertainty "
+            "fastest.  Top: the posterior over this task's skill "
+            r"$\ell$ and bias $t$, as a 3D density and a 2D cloud with its "
+            "95% uncertainty ellipse and the path of the mean.  Bottom: "
+            "every question asked so far, by difficulty and domain.")
         return ()
 
     writer = FFMpegWriter(fps=fps, bitrate=4000, codec="libx264",

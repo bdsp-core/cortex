@@ -324,7 +324,24 @@ def test_v1_2_8_explainer_drops_expected_loss_curve():
            / "render_engine_explainer.py").read_text()
     assert "_expected_loss_vec" not in src
     assert "expected posterior variance" not in src
-    assert "signal strength by domain" in src
+    assert "Question difficulty by domain" in src     # v1.3.0 bottom title
+
+
+def test_v1_3_0_explainer_static_axes_and_grey_connector():
+    """v1.3.0: the explainer precomputes static per-task + question-scatter
+    limits and draws a neutral grey connector line through the question
+    dots, rather than autoscaling the panels per frame."""
+    import ast
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "render_engine_explainer.py").read_text()
+    assert "task_tlim" in src and "q_xlim" in src      # static precompute
+    fn = next(n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "_draw_frame")
+    body = ast.unparse(fn)
+    assert "t_range" in body and "q_xlim" in body      # uses static limits
+    assert "ax_q.plot(" in body                        # grey connector line
+    assert "_cv._data_limits(t_k)" not in body         # no per-frame autoscale
 
 
 def test_v1_2_8_domain_palette_covers_seven_tasks():
