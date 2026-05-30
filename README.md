@@ -1,213 +1,187 @@
-# ILAE Skill Certification (unified)
+# ILAE Skill Certification
 
-Unified repository for the ILAE epileptiform-discharge skill
-certification system: **two engines, one shared data + calibration
-layer.**
+**An adaptive Bayesian test that measures how well a clinician reads an EEG, and stops the moment it knows the answer.**
 
-  * **Paper-1 engine** (`engine/`) — SMC + MCMC adaptive testing for
-    the Multi-AUROC Precision Protocol (Mode-A). A per-examinee
-    Bayesian adaptive test across K=7 tasks (spike + 6 IIIC tasks);
-    skill is reported as per-domain AUROC with credible interval;
-    session stops when `max_k halfwidth_0.95(AUROC_k) < δ`.
-  * **Deployment engine** (`deployment/`) — Laplace + EKF clinical
-    deployment runtime. Same likelihood definition as Paper-1
-    (`λ + (1 − 2λ)·Φ`, λ = 0.025), bit-faithfully ported from the PI
-    deployment scripts and re-frozen on the unified K=7 corpus.
+Reading an electroencephalogram is a high stakes judgment call. Is this run
+of sharp waves a seizure or a benign rhythm? Two board certified
+neurologists can look at the same tracing and disagree, and that
+disagreement has consequences for the patient. This project asks a precise
+question: given a clinician and a pattern, how skilled are they, really, and
+how few questions does it take to find out?
 
-Both engines read the same `data/` + `calibration/` layer; neither
-imports the other (D1 module boundary).
+The answer here is not a fixed quiz with a passing score. It is a Bayesian
+adaptive test. It maintains a probability distribution over your skill,
+chooses each EEG to be the most informative one it could possibly show you
+next, and ends as soon as its uncertainty about you is small enough to
+certify. Confident readers finish fast. Borderline readers earn a few more
+questions. Nobody answers a question the test could have predicted.
 
-Status: **v1.0.0-rc1 candidate** — Phases 0 → 7 SHIPPED; Phase 8
-(this packaging + docs pass) in progress. See `CHANGELOG.md` for the
-phase-by-phase trail and `docs/PHASE7_CLOSEOUT.md` for the scientific
-gate.
+![The model and the prior](data/deployment_prior/figures/fig1_concept.png)
 
-Repository policy: **private until journal acceptance**. PHI
-inventory: `data/SENSITIVE.md`. IRB 2016P000058 (BIDMC), 2013P001024
-(MGH).
+*The signal detection model behind the test. Panel A: a reader's response
+curve sharpens as skill rises. Panel B: one rater's skill and bias profile
+across the seven tasks. Panel C: the fitted cross task skill correlations
+that let evidence on one pattern inform belief about another.*
+
+---
+
+## What it measures
+
+The test covers seven tasks at once (K = 7): a binary spike detection
+question, and the six ILAE ictal-interictal continuum (IIIC) patterns,
+seizure, LPD, GPD, LRDA, GRDA, and Other. Skill on each task is reported the
+way clinicians already think about diagnostic accuracy, as an area under the
+ROC curve with a credible interval, and each task earns its own verdict:
+PASS, FAIL, or REFER. There is no single rolled up grade, because being
+excellent at spikes and shaky at rhythmic delta is a real and useful thing
+to know.
+
+## How it works, briefly
+
+Every answer is modeled as signal detection with a small lapse rate. A
+clinician with bias $t$ and log discrimination $\ell$, shown a segment of
+signal strength $s$, says "yes" with probability
+
+$$
+P(y = 1) \;=\; \lambda + (1 - 2\lambda)\,\Phi\!\big( e^{\ell}(s + t) \big),
+\qquad \lambda = 0.025.
+$$
+
+That one likelihood is shared by every component of the system, from
+calibration to both inference engines. From there the project runs two
+engines that never import each other, by deliberate design:
+
+- The **research engine** (`engine/`) carries the full joint posterior over
+  all seven tasks as a particle cloud. After each answer it reweights the
+  cloud, and when the effective sample size drops below half it resamples
+  and rejuvenates the particles with a short adaptive Metropolis-Hastings
+  run, restoring diversity without distorting the distribution. It selects
+  each next question by A-optimal design: the EEG whose answer is expected
+  to shrink total posterior variance the most. It stops when every task's
+  95% AUROC interval is narrower than 0.05.
+
+- The **deployment engine** (`deployment/`) trades the cloud for a Gaussian
+  (Laplace) posterior updated online by an extended Kalman filter, so a
+  single session runs fast and the update is a transparent rank one
+  information step. It certifies a task PASS when the posterior puts 95% of
+  its mass above the cut score, FAIL when 95% falls below, and REFER when
+  the evidence never resolves.
+
+The cut scores themselves are calibrated, not chosen by hand. They come from
+a leave one task out cross validated Youden procedure on fitted clinician
+skill, which is specifically designed so that the definition of "expert"
+cannot leak into the threshold it produces.
+
+**The full derivations live in [`docs/METHODS.md`](docs/METHODS.md)**, which
+walks from the response model through the particle filter, the
+Metropolis-Hastings rejuvenation step, the A-optimal question selection, the
+Kalman update, and the calibration pipeline, with every equation pinned to
+the line of code that implements it.
+
+## Does it actually work
+
+Yes, and the repository is built to let a skeptic check. Skill is recovered
+in simulation, posterior intervals have their stated coverage, the engine is
+bit for bit reproducible across machines under single thread BLAS, and the
+whole thing is replayed against the recorded answers of 21 real clinicians,
+not just synthetic raters.
+
+![Skill recovery](data/deployment_prior/figures/fig4_recovery.png)
+
+*Per task skill recovery. The error between estimated and true skill
+collapses as the adaptive test asks more questions, across all seven tasks
+and every expertise tier.*
+
+The validation trail is the point, not a footnote. See
+[`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) for the scientific gate,
+[`docs/INVARIANT_AUDIT.md`](docs/INVARIANT_AUDIT.md) for the reference truth
+audit, and [`docs/METHODS.md`](docs/METHODS.md) section 5 for the validation
+methods.
+
+## CORTEX: the test you can actually take
+
+`CORTEX` is the desktop application that turns all of this into a fifteen
+minute experience: a clinician launches it, works through an adaptive
+sequence of real EEGs driven by the research engine, and gets a per task
+report at the end. It is packaged as a one file download for macOS, Windows,
+and Linux, built and released automatically by
+[`.github/workflows/cortex-release.yml`](.github/workflows/cortex-release.yml).
+The viewer, the session controller, and the engine wiring live in
+[`scripts/`](scripts/); the test taker setup guide is
+[`README_CORTEX_TEST.md`](README_CORTEX_TEST.md).
 
 ## Quickstart
 
-Python 3.11.9 required (see `.python-version`). The engine's
-bit-exact-reproducibility contract requires single-thread BLAS at
-runtime (`OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1`); `conftest.py`
-sets these automatically for `pytest`.
+Python 3.11 is required (see `.python-version`). The engine's bit exact
+reproducibility contract needs single thread BLAS at runtime;
+`conftest.py` sets `OPENBLAS_NUM_THREADS=1` and `MKL_NUM_THREADS=1`
+automatically for the test suite.
 
 ```sh
 python -m venv .venv
-.venv/bin/pip install -e ".[test]"      # add ,calibration for Phase-3.5
-.venv/bin/pytest                          # 282 passed / 1 xfailed expected
+.venv/bin/pip install -e ".[test]"     # add ,calibration for the joint fits
+.venv/bin/pytest                        # 282 passed, 1 xfailed expected
 ```
 
-Console entry points:
+Three console entry points expose the pipeline end to end:
 
-| CLI | Module | Phase | Purpose |
-|---|---|---|---|
-| `ilae-deploy` | `deployment.cli:main` | Phase 4.7 | Clinical-deployment pipeline `freeze → simulate → plot` at K=7. |
-| `ilae-paper` | `bridge.run_multi_auroc_bridge:main` | Phase 1 (F1.3) | Multi-AUROC Precision Protocol bridge for Paper-1 Mode-A runs. |
-| `ilae-calibrate` | `pipeline.run_unified_calibration:main` | Phase 3 | Unified non-circular CV Youden calibration (recompute on PI corpus, K=7). |
+| CLI | Purpose |
+|---|---|
+| `ilae-deploy` | Clinical deployment pipeline: freeze the prior, simulate a session, plot the figures, at K = 7. |
+| `ilae-paper` | The Multi-AUROC Precision Protocol research runs (Mode-A). |
+| `ilae-calibrate` | Recompute the unified, non circular cross validated calibration on the corpus. |
 
-Run `ilae-deploy --help`, `ilae-paper --help`, `ilae-calibrate --help`
-for usage.
-
-## CORTEX internal test
-
-`scripts/eeg_bank_viewer.py` (the CORTEX viewer) plus `session_controller.py`,
-`cortex_engine_inputs.py`, and `cortex_storage.py` are a self-contained,
-take-the-test build of the IIIC adaptive certification for internal review:
-a lab member runs it, answers an adaptive question sequence driven by the
-SMC engine, and the per-session results upload to a Dropbox folder. Build
-the distributable bundle with:
-
-```sh
-python scripts/build_internal_test_zip.py     # → dist/cortex-internal-test.zip
-```
-
-Result delivery is configured in `cortex_config.yaml` (see
-`docs/CORTEX_DROPBOX_SETUP.md`); the bundle's own `README_CORTEX_TEST.md` is
-the test-taker setup + run guide.
-
-## Repository layout
+## Repository map
 
 ```
-ilae-skill-certification-unified/
-├── README.md  CLAUDE.md  CHANGELOG.md   # this file; reviewer-facing context; phase trail
-├── pyproject.toml  environment.yml  requirements.txt
-├── cert_config.yaml                      # v13 production calibration (K=7)
-├── Sigma_l_fitted.npy                    # legacy K=6 empirical Corr_l (engine reads via symlink)
-│
-├── engine/                               # Paper-1 SMC + MCMC engine (hardened)
-│   ├── core.py  core_mcmc.py  core_mcmc_brute_k.py  engine_mode_b.py
-│   ├── auroc.py  diagnostics.py  engine_paths.py
-│   └── variants/                         # PI methodological variants on hardened likelihood
-│
-├── deployment/                           # Clinical-deployment runtime (Laplace/EKF)
-│   ├── simulate_test.py  run_deployment_sim.py  freeze_deployment_prior.py
-│   ├── cli.py  plot_deploy.py            # K-agnostic; renders 5 figures at K=7
-│   ├── deployment_config.yaml            # shipping stopping-rule contract
-│   └── replay/                           # Phase 7.3 strict-A real-rater replay (D6)
-│
-├── pipeline/                             # Data ingest + fitting + calibration orchestration
-│   ├── ingest_*.py  build_*.py  fit_2pl_probit*.py
-│   ├── reference_calibration/            # byte-verbatim reference fitters (Rasch + per-rater probit-lapse + CV Youden)
-│   ├── joint_calibration/                # Phase 3.5 joint hierarchical s_j (NumPyro NUTS, calibration-stage only)
-│   ├── replay/                           # Phase 7.3 unified replay driver
-│   └── run_unified_calibration.py        # ilae-calibrate target (Phase 3 orchestrator)
-│
-├── calibration/                          # v13 production calibration outputs
-│   ├── cert_config.yaml  youden_ell_star.json
-│   └── CALIBRATION_PROVENANCE.md
-│
-├── bridge/                               # Reproducibility / audit-trail layer; Mode-A entry
-│   ├── run_multi_auroc_bridge.py         # ilae-paper target
-│   └── _common.py
-│
-├── data/
-│   ├── labels/                           # Canonical PI corpus (D3 single source of truth)
-│   ├── deployment_prior/                 # K=7 frozen Σ + ℓ* + case_bank + figures
-│   ├── engine_inputs/                    # Derived: sdt_fits.csv + cross_domain_rater_matrix.csv
-│   ├── curated_banks/                    # K=6 SPARCNET item-bank signals (Phase 7.4-A vendored)
-│   ├── replay/                           # Phase 7.3 strict-A rater bank (gitignored, regenerable)
-│   ├── DATA_PROVENANCE.md  SENSITIVE.md
-│
-├── scripts/                              # Validation / experiment harnesses (Phase-2 + Phase-7)
-├── tests/                                # 282-test suite (+ 1 xfailed)
-├── experiments/                          # Reproducible experiment configs
-└── docs/                                 # Phase docs + design audits
-    ├── PHASE7_CLOSEOUT.md                # Phase-7 scientific gate sign-off
-    ├── PHASE7_REPLAY_HEADLINE.md         # D6 real-rater replay v1.0-blocker findings
-    ├── PHASE7_PAPER1_FIGURES.md          # Paper-1 + Tier-2 OC K=7 figures
-    ├── DEPLOYMENT_INTEGRATION.md         # Phase 4 integration verdict
-    ├── DATA_UNIFICATION_ANALYSIS.md      # Phase 3.5 joint s_j + engine SBC results
-    ├── INVARIANT_AUDIT.md                # Phase 6 reference-truth checklist
-    ├── OPEN_DECISIONS.md                 # Phase 8 open shipping decisions
-    └── …
+engine/        Research engine: joint SMC particle cloud + Metropolis-Hastings rejuvenation
+deployment/    Clinical runtime: Laplace posterior + extended Kalman filter (never imports engine/)
+pipeline/      Data ingest, fitting, and the calibration orchestrator (reference + joint hierarchical)
+calibration/   Frozen production cut scores and their provenance
+scripts/       The CORTEX app, plus the validation and experiment harnesses
+data/          The canonical corpus, the frozen deployment prior, and derived signal banks
+docs/          METHODS.md and the phase by phase scientific record
+tests/         The 282 test suite gating every invariant above
 ```
 
-## Two-engine architecture (D1)
+## Data, ethics, and reproducibility
 
-| | Paper-1 engine | Deployment engine |
-|---|---|---|
-| Algorithm | SMC + MCMC rejuvenation | Laplace approximation + EKF |
-| Item selection | Global-EV (A-optimal posterior-variance reduction) | EV-driven with task-level caps |
-| Stopping rule | `max_k HW₀.₉₅(AUROCₖ) < δ` (Mode-A) | `pass_p ≥ 0.95 / fail_p ≤ 0.05`, `N_min=60`, `N_max=500`, `N_max_per_task=120`, `N_min_per_task=10` (Mode-B-style PASS/FAIL/REFER per task) |
-| Module | `engine/` | `deployment/` |
-| Entry CLI | `ilae-paper` | `ilae-deploy` |
-| Use | Paper-1 simulation study + validation | Clinical deployment at K=7 |
+This system is trained and calibrated on de-identified clinical EEG
+annotations from roughly 89,000 segment signals scored by 1,949 raters. That
+provenance carries obligations, and the repository takes them seriously.
 
-Both consume the same calibration (`calibration/cert_config.yaml`
-v13) and the same data (`data/labels/`); the likelihood is **one
-definition** (`λ + (1 − 2λ)·Φ`, λ = 0.025; `engine/core.py:21`).
+- **IRB.** All annotation data are covered by IRB 2016P000058 (BIDMC) and
+  2013P001024 (MGH), under a waiver of consent for retrospective use. The
+  raw EEG source is never vendored into this repository; only derived per
+  segment signals are. See [`data/SENSITIVE.md`](data/SENSITIVE.md).
+- **Privacy.** The EEG is de-identified at source. The remaining sensitivity
+  is the identities of the board certified clinicians who served as raters,
+  which are hashed before any public distribution and never co-published
+  with their scores.
+- **Reproducibility.** Calibration constants are pinned and runtime
+  asserted, two independent copies of the reference fitter are held byte
+  equivalent under test, and the engine produces identical results across
+  machines. Nothing here is "trust me."
 
-## Reference-truth invariants (per Phase 6)
+## Status, license, and citation
 
-Audited in `docs/INVARIANT_AUDIT.md` (5 PASS, 4 signed-off
-deviations). Hard pins:
+This is active research software accompanying a manuscript in preparation.
+The interfaces are stable enough to read and run, the science is gated by
+the test suite, and the calibration is frozen at its v13 production values.
+Released under [CC BY-NC 4.0](LICENSE.txt) (attribution, non commercial).
 
-  * `LAPSE_RATE = 0.025` — single source at `engine/core.py:21`,
-    shared by Mode-A SMC, Mode-B, deployment runtime, and the
-    reference fitter (`LAMBDA = 0.025` in
-    `pipeline/reference_calibration/fit_sdt_per_domain.py`).
-  * `LOGIT_TO_PROBIT = 1.0 / 1.7` — at
-    `pipeline/reference_calibration/fit_sdt_per_domain.py:38`;
-    runtime-asserted in `pipeline/run_unified_calibration.py:201`.
-  * **Expert split = 70/30** for σ\*/ℓ\* TRAIN/VAL (no leakage);
-    non-expert split = 50/50 (`EXPERT_TRAIN_FRAC = 0.70` at
-    `pipeline/reference_calibration/youden_sigma_star_ref.py:19`).
-    The earlier "50/50" CLAUDE.md comment was stale; corrected.
-  * The two `fit_sdt_per_domain.py` copies (in
-    `pipeline/reference_calibration/` and `pipeline/_calib_work/src/`)
-    are byte-equivalent (md5 `6b90d59dcd0aaa878f9a52802254044b`);
-    gated by `tests/test_phase6_invariants.py`.
-  * Expert membership = `data/labels/raters.csv:expertise_level`
-    (NOT the legacy `EXPERTS` Python set or
-    `gold_standard_raters.yaml`; those references in the plan/CLAUDE.md
-    were stale — corrected per `docs/INVARIANT_AUDIT.md` §7).
-
-## Reproducibility
-
-The engine is bit-exact reproducible across machines with the same
-numpy + scipy + BLAS configuration **under single-thread BLAS**.
-`tests/test_parallel_determinism.py` asserts serial == parallel
-bitwise; `tests/test_phase35_*.py` gates the s_sd-propagation
-back-compat at `s_sd → 0`.
-
-Phase 3.5 calibration uses NumPyro + JAX NUTS (the
-`[calibration]` optional dep) which is calibration-stage-only — the
-engine runtime never imports JAX/NumPyro, preserving the BLAS
-contract. JAX determinism (PRNGKey + XLA) is documented separately
-in `calibration/CALIBRATION_PROVENANCE.md`.
-
-## Sensitive data + IRB
-
-See `data/SENSITIVE.md` for the PHI inventory, IRB coverage, and the
-hash-at-acceptance plan (the anonymizer
-`scripts/anonymize_rater_data.py` is spec'd and runs at journal
-acceptance). The raw EEG source (`SN1_combined_v2.h5`) is **never
-vendored**: per D9, it stays external (sibling
-`ilae-skill-certification-test-main` repo or equivalent); retrieval
-path is documented in `data/SENSITIVE.md`.
+Authors: **E. W. Keldsen**, **M. B. Westover**. Stanford University School
+of Medicine, Department of Neurology. If you use or build on this work,
+please cite the repository and the forthcoming manuscript.
 
 ## Where to look for what
 
-| Question | Doc |
+| Question | Start here |
 |---|---|
-| What was decided and why? | `../UNIFIED_REPO_MERGE_PLAN.md` (D1–D9, phased plan) |
-| Phase-by-phase trail | `CHANGELOG.md` |
-| Is the engine calibrated? | `docs/PHASE7_CLOSEOUT.md`; `docs/DATA_UNIFICATION_ANALYSIS.md` §8 |
-| How is real-rater replay built? | `docs/PHASE7_REPLAY_HEADLINE.md` |
-| What are the Paper-1 figures? | `results/phase1_figures/` + `docs/PHASE7_PAPER1_FIGURES.md` |
-| What still needs deciding for v1.0? | `docs/OPEN_DECISIONS.md` |
-| What's the deployment contract? | `deployment/deployment_config.yaml` + `docs/DEPLOYMENT_INTEGRATION.md` |
-| What's PHI / IRB? | `data/SENSITIVE.md` |
-| What's the calibration provenance? | `calibration/CALIBRATION_PROVENANCE.md` + `data/DATA_PROVENANCE.md` |
-| Reference-truth invariants | `docs/INVARIANT_AUDIT.md` |
-
-## Contributing
-
-See `CLAUDE.md` for reviewer-grade context and the documented
-contributor conventions (incremental + regression-gated edits;
-component-by-component ports against PI baseline; gate on
-PI-output-equivalence + the 282-test suite). The repo policy is
-private until journal acceptance; external contributions follow the
-acceptance hash step.
+| How does the math actually work? | [`docs/METHODS.md`](docs/METHODS.md) |
+| Is the engine calibrated and validated? | [`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) |
+| What is the deployment contract? | `deployment/deployment_config.yaml` + [`docs/DEPLOYMENT_INTEGRATION.md`](docs/DEPLOYMENT_INTEGRATION.md) |
+| How was the corpus built? | [`data/DATA_PROVENANCE.md`](data/DATA_PROVENANCE.md) |
+| What are the reference truth invariants? | [`docs/INVARIANT_AUDIT.md`](docs/INVARIANT_AUDIT.md) |
+| Reviewer grade architecture notes | [`CLAUDE.md`](CLAUDE.md) |
+| The full change history | [`CHANGELOG.md`](CHANGELOG.md) |
