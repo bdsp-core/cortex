@@ -29,10 +29,15 @@ failure. Surfaced by Eli.
 
 `.github/workflows/cortex-release.yml`:
 
-* New `build-mac-intel` job on `runs-on: macos-13` (the last x86_64
-  GitHub-hosted runner). Steps mirror `build-mac` byte-for-byte except the
-  runner and the output filename; it emits `CORTEX-mac-intel.dmg` with the
-  same Applications drag-target staging (translocation avoidance).
+* New `build-mac-intel` job that cross-builds the x86_64 app on the SAME
+  Apple Silicon runner as `build-mac`, under Rosetta 2. GitHub is retiring
+  the standalone Intel macOS runners (a first attempt on `macos-13` sat
+  un-serviced in queue for 25+ minutes), so instead of depending on one the
+  job installs a universal2 python.org CPython and drives venv + pip +
+  PyInstaller through `arch -x86_64`. A `lipo -archs` guard fails the job if
+  the output is not x86_64. It emits `CORTEX-mac-intel.dmg` with the same
+  Applications drag-target staging. **`build-mac` is untouched**, so the
+  arm64 DMG is built exactly as before.
 * `release` job: `needs` gains `build-mac-intel`; a download step pulls the
   new artifact; `CORTEX-mac-intel.dmg` is added to the release `files`
   list. Releases now attach four artifacts (mac arm64, mac Intel, Windows,
