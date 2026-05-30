@@ -7,6 +7,67 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.2` — HOTFIX: bundle the K=7 data files the v1.2.1 builder reads
+
+Critical packaging hotfix for the cortex-v1.2.1 ship. v1.2.1 correctly
+re-wired `scripts/eeg_bank_viewer.py:open_viewer()` from the K=6 inputs
+builder to `cortex_engine_inputs_k7.build_k7_engine_inputs()`, but did
+NOT update the PyInstaller `datas` list in `cortex_app/cortex.spec` to
+ship the two data files the K=7 builder reads. The v1.2.1 bundle still
+carried only the K=6 files (`data/labels/iiic_segment_signals.csv` +
+`Sigma_l_fitted.npy`), so launching the live test crashed at startup:
+
+```
+FileNotFoundError: [Errno 2] No such file or directory:
+  '.../CORTEX/_internal/data/labels/segment_signals.csv'
+```
+
+Surfaced on Eli's Linux v1.2.1 self-run (`./CORTEX/CORTEX`).
+
+### Root cause
+
+The K=6 builder (`cortex_engine_inputs.py`) reads
+`data/labels/iiic_segment_signals.csv` + `Sigma_l_fitted.npy` — exactly
+the two files `cortex.spec` bundled, so v1.2.0 (K=6 path) was
+self-consistent. The K=7 builder (`cortex_engine_inputs_k7.py`) reads
+`data/labels/segment_signals.csv` + `Sigma_l_fitted_k7.npy` instead.
+v1.2.1 changed the code's file dependencies without changing the
+bundle. The 432/432 + 26/26 source-tree suites did not catch it: they
+run where both K=7 files exist on disk; nothing exercised the packaged
+bundle's data completeness.
+
+Two files were missing, not one — `segment_signals.csv` is the first
+`FileNotFoundError`; `Sigma_l_fitted_k7.npy` (read by
+`load_fitted_Sigma(SIGMA_PATH)` at `cortex_engine_inputs_k7.py:282`) is
+the second, surfacing only once the CSV is present.
+
+### Fix
+
+`cortex_app/cortex.spec` `datas` now also ships:
+
+* `data/labels/segment_signals.csv` → `data/labels`
+* `Sigma_l_fitted_k7.npy` → bundle root
+
+The K=6 `iiic_segment_signals.csv` is retained (still read by
+`session_controller` for segment metadata). The v14 ℓ\* policy path was
+verified to read only the already-bundled `calibration/cert_config.yaml`
+— no third missing file.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.1` → `1.2.2`.
+* `.github/workflows/cortex-release.yml` release-body "Hotfix in v1.2.2"
+  prepended above the v1.2.1 section.
+
+### What testers see
+
+v1.2.2 launches and runs all 7 tasks. No code/behavior change vs v1.2.1
+beyond the bundle now containing the K=7 data files — v1.2.1 never
+reached a usable session on a clean install, so there are no v1.2.1
+results to compare against.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-29) — `cortex-v1.2.1` — HOTFIX: K=7 engine-inputs import + ℓ\* block consistency
 
 Critical hotfix for the cortex-v1.2.0 ship. The v1.2.0 bundle compiled

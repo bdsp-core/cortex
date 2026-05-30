@@ -42,12 +42,26 @@ datas = [
     # metadata
     (str(REPO / 'data' / 'labels' / 'iiic_segment_signals.csv'),
                                                 'data/labels'),
+    # segment_signals.csv (K=7) — read by cortex_engine_inputs_k7
+    # .build_k7_engine_inputs(), which the v1.2.1 hotfix wired
+    # eeg_bank_viewer.open_viewer() to use. WITHOUT this file the live
+    # test crashes at startup with FileNotFoundError on
+    # data/labels/segment_signals.csv (the v1.2.1 bundle bug: the code
+    # switched to the K=7 builder but this datas entry was not added).
+    (str(REPO / 'data' / 'labels' / 'segment_signals.csv'),
+                                                'data/labels'),
     # logo asset used on the welcome / consent screens
     (str(REPO / 'data' / 'Brain_Data_Science_Platform.png'), 'data'),
     # local config carrying the (gitignored) Dropbox credentials
     (str(REPO / 'cortex_config.yaml'),         '.'),
     # frozen prior used by the engine for the live test
     (str(REPO / 'Sigma_l_fitted.npy'),         '.'),
+    # K=7 frozen prior — load_fitted_Sigma(SIGMA_PATH) in
+    # cortex_engine_inputs_k7 reads Sigma_l_fitted_k7.npy. Same v1.2.1
+    # bundle gap as segment_signals.csv above: the K=7 builder needs this
+    # and it surfaces as the SECOND FileNotFoundError once segment_signals
+    # .csv is present. Ship both.
+    (str(REPO / 'Sigma_l_fitted_k7.npy'),      '.'),
     # engine package — vendored verbatim. 180 KB total; cheap to ship the
     # whole tree. Includes diagnostics.py + core_mcmc_brute_k.py +
     # engine_mode_b.py + variants/ which are NOT exercised by the CORTEX
@@ -230,7 +244,7 @@ if sys.platform == 'darwin':
         name='CORTEX.app',
         bundle_identifier='org.bdsp-core.cortex',
         info_plist={
-            'CFBundleShortVersionString': '1.2.1',
+            'CFBundleShortVersionString': '1.2.2',
             'CFBundleName': 'CORTEX',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '12.0',

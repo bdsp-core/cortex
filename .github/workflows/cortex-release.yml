@@ -260,6 +260,12 @@ jobs:
           body: |
             ## CORTEX adaptive EEG certification test
 
+            ### Hotfix in v1.2.2 (since v1.2.1)
+
+            **Critical fix: the v1.2.1 bundle crashed on launch.** v1.2.1 re-wired the live test to the K=7 engine-inputs builder but the PyInstaller spec was never updated to ship the two data files that builder reads (`data/labels/segment_signals.csv` + `Sigma_l_fitted_k7.npy`). On a clean install the app crashed at startup with `FileNotFoundError: .../data/labels/segment_signals.csv`. v1.2.2 adds both K=7 files to the bundle so the app launches and runs all 7 tasks. No code/behavior change beyond the bundled data.
+
+            **If you downloaded v1.2.1:** it never reached a usable session — use v1.2.2 instead.
+
             ### Hotfix in v1.2.1 (since v1.2.0)
 
             **Critical fix: v1.2.0 sessions never asked spike questions.** The v1.2.0 ship had the K=7 backbone fully wired EXCEPT for a leftover K=6 import in the live-test entry point (`scripts/eeg_bank_viewer.py:open_viewer`). As a result, v1.2.0 sessions ran with K=6 engine inputs (300 IIIC seg_ids only); the 50 spike segments in the bundled K=7 bank were never asked; the final certificate had 6 task verdicts and no spike verdict. v1.2.1 fixes the import to use `build_k7_engine_inputs` so all 7 tasks (spike + 6 IIIC) actually get tested. Also fixes a latent ℓ\* block-name mismatch between the policy and the results-screen loader.
