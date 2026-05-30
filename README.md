@@ -1,4 +1,5 @@
-# ILAE Skill Certification
+# CORTEX
+### Continuous Optimization Response Testing for EEG eXpertise
 
 **An adaptive Bayesian test that measures how well a clinician reads an EEG, and stops the moment it knows the answer.**
 
@@ -98,9 +99,10 @@ The validation trail is the point, not a footnote. See
 audit, and [`docs/METHODS.md`](docs/METHODS.md) section 5 for the validation
 methods.
 
-## CORTEX: the test you can actually take
+## Take the test: the desktop app
 
-`CORTEX` is the desktop application that turns all of this into a fifteen
+The desktop application is how a clinician actually takes CORTEX, turning
+all of this into a fifteen
 minute experience: a clinician launches it, works through an adaptive
 sequence of real EEGs driven by the research engine, and gets a per task
 report at the end. It is packaged as a one file download for macOS, Windows,
