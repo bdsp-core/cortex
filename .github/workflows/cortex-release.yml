@@ -32,10 +32,10 @@ jobs:
   build-mac:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -90,7 +90,7 @@ jobs:
           rm -rf "$STAGING"
 
       - name: Upload Mac DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CORTEX-mac
           path: cortex_app/dist/CORTEX-mac.dmg
@@ -98,10 +98,10 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -142,7 +142,7 @@ jobs:
         run: Compress-Archive -Path cortex_app/dist/CORTEX -DestinationPath cortex_app/dist/CORTEX-windows.zip
 
       - name: Upload Windows zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CORTEX-windows
           path: cortex_app/dist/CORTEX-windows.zip
@@ -156,10 +156,10 @@ jobs:
     # users on those slightly-older distros.
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -219,7 +219,7 @@ jobs:
           tar czf CORTEX-linux-x86_64.tar.gz CORTEX
 
       - name: Upload Linux tar artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CORTEX-linux
           path: cortex_app/dist/CORTEX-linux-x86_64.tar.gz
@@ -232,25 +232,25 @@ jobs:
       contents: write
     steps:
       - name: Download Mac artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CORTEX-mac
           path: artifacts/
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CORTEX-windows
           path: artifacts/
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: CORTEX-linux
           path: artifacts/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
           files: |
