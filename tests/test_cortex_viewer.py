@@ -344,6 +344,102 @@ def test_compute_active_domains_k7_spike_first_sectioning():
     assert sess._compute_active_domains(bs) == []
 
 
+def test_redraw_hides_spec_container_for_spike_and_disables_checkbox():
+    """v1.2.5 Issue 1 regression: _redraw must HIDE spec_container (not just
+    skip drawing) when family is spike, so the tutorial's IIIC spectrogram
+    does not bleed through. Also must disable the spec_cb checkbox so the
+    user cannot toggle on a panel that has no data. The EEG plot has
+    stretch=1 in plots_row while spec_container has stretch=0, so hiding
+    the container makes the EEG auto-expand to fill the freed space.
+    AST-checked so future refactors of _redraw cannot reintroduce the
+    silent-skip-but-do-not-hide bug from v1.2.4."""
+    import ast
+    from pathlib import Path
+    viewer_src = (Path(__file__).resolve().parents[1] / "scripts"
+                  / "eeg_bank_viewer.py").read_text()
+    tree = ast.parse(viewer_src)
+    redraw_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_redraw":
+            redraw_node = node
+            break
+    assert redraw_node is not None
+    src = ast.unparse(redraw_node)
+    # Must hide the container outright + disable the checkbox for spike
+    assert "spec_container.setVisible(False)" in src
+    assert "spec_cb.setEnabled(False)" in src
+    # And must re-enable both when the family is not spike
+    assert "spec_cb.setEnabled(True)" in src
+
+
+def test_render_collapse_passfail_k7_grid_layout():
+    """v1.2.5 Issue 2 regression: cortex_render_videos.render_collapse and
+    render_passfail must use a K-aware grid (was hardcoded
+    GridSpecFromSubplotSpec(2, 3) = 6 cells; K=7 crashes at inner[2, 0]).
+    Both functions must size the grid to fit K panels."""
+    import ast
+    from pathlib import Path
+    rv_src = (Path(__file__).resolve().parents[1] / "scripts"
+              / "cortex_render_videos.py").read_text()
+    tree = ast.parse(rv_src)
+    for fn_name in ("render_collapse", "render_passfail"):
+        node = None
+        for n in ast.walk(tree):
+            if isinstance(n, ast.FunctionDef) and n.name == fn_name:
+                node = n
+                break
+        assert node is not None, f"{fn_name} not found"
+        src = ast.unparse(node)
+        # K-aware grid sizing
+        assert "n_cols" in src and "n_rows" in src, (
+            f"{fn_name} must compute n_cols + n_rows from K")
+        # The hardcoded GridSpecFromSubplotSpec(2, 3, ...) must be GONE
+        assert "GridSpecFromSubplotSpec(2, 3" not in src, (
+            f"{fn_name} still has the hardcoded K=6 2x3 grid (Issue 2)")
+        # The hardcoded `r == 1` (last-row marker for 2-row grids) must be
+        # replaced with n_rows-aware logic.
+        assert "r == 1" not in src, (
+            f"{fn_name} still has the hardcoded `r == 1` last-row check")
+
+
+def test_render_collapse_passfail_actually_render_k7_session():
+    """v1.2.5 Issue 2 end-to-end regression: render both MP4s for both K=6
+    and K=7 synthetic sessions; both must succeed without IndexError."""
+    import sys as _sys
+    import tempfile
+    from pathlib import Path
+    _SCRIPTS = str(_REPO + "/scripts")
+    if _SCRIPTS not in _sys.path:
+        _sys.path.insert(0, _SCRIPTS)
+    import numpy as np
+    from cortex_render_videos import render_collapse, render_passfail
+    for K_n, codes in [(7, ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]),
+                        (6, ["sz", "lpd", "gpd", "lrda", "grda", "iic"])]:
+        T, N = 12, 50      # tiny; just exercises the grid layout
+        session = {
+            "participant_name": f"K{K_n}",
+            "task_codes": codes,
+            "t_traj": np.random.randn(T, N, K_n).astype(np.float32) * 0.5,
+            "l_traj": np.random.randn(T, N, K_n).astype(np.float32) * 0.5,
+            "w_traj": np.ones((T, N), dtype=np.float32) / N,
+            "trials": [{"auroc_hw": [0.1] * K_n,
+                         "policy_diag": {"pi": [0.5] * K_n,
+                                          "verdicts": ["PENDING"] * K_n,
+                                          "mcse": [0.05] * K_n},
+                         "verdicts": ["PENDING"] * K_n,
+                         "task_k": i % K_n} for i in range(T)],
+            "n_questions": T,
+            "final_verdicts": ["PASS"] * K_n,
+            "stop_reason": "all_resolved",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            for fn, fn_label in [(render_collapse, "collapse"),
+                                  (render_passfail, "passfail")]:
+                out = Path(td) / f"{fn_label}_k{K_n}.mp4"
+                fn(session, out)
+                assert out.exists() and out.stat().st_size > 1024
+
+
 def test_session_skips_empty_spike_bank_without_indexerror():
     """v1.2.4 Issue 4 regression: when the spike pool exhausts mid-session
     (random rater + N_MIN=20 + 50 spike bank: ~trial 270 in Eli's frozen

@@ -102,8 +102,9 @@ from cortex_policy import (  # noqa: E402
     REFER_UNINFORMATIVE, PENDING)
 
 # ── visual constants — mirror viz_render_collapse for in-house consistency ──
-DOMAIN_TITLES = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
-                 "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
+DOMAIN_TITLES = {"spike": "Spike", "sz": "Seizure", "lpd": "LPD",
+                 "gpd": "GPD", "lrda": "LRDA", "grda": "GRDA",
+                 "iic": "Other"}
 T_LIM = (-3.0, 3.0)
 L_LIM = (-2.0, 3.0)
 FPS = 30                          # 30 fps keeps render time + file size modest
@@ -205,7 +206,13 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     trials = session["trials"]
     T, N, K = t_traj.shape
 
-    fig = plt.figure(figsize=(9.0, 5.4), dpi=DPI)
+    # v1.2.5 K=7 fix: was hardcoded 2 rows by 3 columns (= 6 cells), so the
+    # Phase-9 K=7 task set crashed at `inner[2, 0]` (k=6 = iic; out of bounds
+    # for a 2x3 GridSpec). Now grid-size scales with K: K=6 keeps the
+    # original 2x3; K=7 widens to 2x4 (8 cells, last one empty).
+    n_cols = 3 if K <= 6 else 4
+    n_rows = (K + n_cols - 1) // n_cols
+    fig = plt.figure(figsize=(3.0 * n_cols, 5.4), dpi=DPI)
     outer = GridSpec(2, 1, figure=fig, height_ratios=[0.10, 0.90],
                      hspace=0.05, left=0.06, right=0.97,
                      top=0.97, bottom=0.07)
@@ -215,19 +222,19 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     sub_h = hud_ax.text(0.01, 0.05, "", transform=hud_ax.transAxes,
                         fontsize=8, family="monospace", color="0.35")
 
-    inner = GridSpecFromSubplotSpec(2, 3, subplot_spec=outer[1],
+    inner = GridSpecFromSubplotSpec(n_rows, n_cols, subplot_spec=outer[1],
                                     wspace=0.30, hspace=0.45)
     scatters = []
     hw_texts = []
     for k in range(K):
-        r, c = divmod(k, 3)
+        r, c = divmod(k, n_cols)
         ax = fig.add_subplot(inner[r, c])
         ax.set_xlim(*T_LIM); ax.set_ylim(*L_LIM)
         ax.set_xticks([-2, 0, 2]); ax.set_yticks([-1, 0, 1, 2])
         ax.tick_params(labelsize=6)
         ax.set_title(DOMAIN_TITLES.get(task_codes[k], task_codes[k]),
                      fontsize=9, pad=2)
-        if r == 1:
+        if r == n_rows - 1:
             ax.set_xlabel(r"$t$ (bias)", fontsize=7, labelpad=1)
         if c == 0:
             ax.set_ylabel(r"$\ell$ (skill)", fontsize=7, labelpad=1)
@@ -326,7 +333,12 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
             verdicts_traj[t] = list(last_v)
         last_v = verdicts_traj[t]
 
-    fig = plt.figure(figsize=(11.0, 6.4), dpi=DPI)
+    # v1.2.5 K=7 fix (same pattern as render_collapse above): grid scales
+    # with K. K=6: 2x3 (6 cells); K=7: 2x4 (8 cells, last empty). figsize
+    # widens proportionally so each per-task panel stays the same size.
+    n_cols = 3 if K <= 6 else 4
+    n_rows = (K + n_cols - 1) // n_cols
+    fig = plt.figure(figsize=(3.667 * n_cols, 6.4), dpi=DPI)
     outer = GridSpec(2, 1, figure=fig, height_ratios=[0.10, 0.90],
                      hspace=0.06, left=0.07, right=0.97,
                      top=0.97, bottom=0.08)
@@ -336,13 +348,13 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
     sub_h = hud_ax.text(0.01, 0.05, "", transform=hud_ax.transAxes,
                         fontsize=8, family="monospace", color="0.35")
 
-    inner = GridSpecFromSubplotSpec(2, 3, subplot_spec=outer[1],
+    inner = GridSpecFromSubplotSpec(n_rows, n_cols, subplot_spec=outer[1],
                                     wspace=0.28, hspace=0.42)
     lines = []; fills = [None] * K
     verdict_texts = []
     axes = []
     for k in range(K):
-        r, c = divmod(k, 3)
+        r, c = divmod(k, n_cols)
         ax = fig.add_subplot(inner[r, c])
         ax.set_xlim(1, max(n_q, 2))
         ax.set_ylim(0.0, 1.0)
@@ -350,7 +362,7 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
         ax.tick_params(labelsize=6)
         ax.set_title(DOMAIN_TITLES.get(task_codes[k], task_codes[k]),
                      fontsize=9, pad=2)
-        if r == 1:
+        if r == n_rows - 1:
             ax.set_xlabel("question", fontsize=7, labelpad=1)
         if c == 0:
             ax.set_ylabel(r"$\pi_k$ (pass-mass)", fontsize=7, labelpad=1)

@@ -7,6 +7,105 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.5` — spike-screen cleanup + K=7 collapse/passfail MP4 fix + release-notes rewrite
+
+Three things in this build. The first two are bugs Eli surfaced on his
+v1.2.4 self-test; the third is a documentation cleanup.
+
+### Issue 1: spectrogram from the tutorial stays visible on spike screens
+
+v1.2.4's `_redraw` family-aware gate skipped DRAWING the spectrogram for
+spike segments, but did not HIDE the `spec_container` widget. So after
+the tutorial rendered an IIIC spectrogram into the panel, the panel
+stayed visible (with the stale tutorial spectrogram still on it) when
+the live test transitioned into the spike phase. Eli reported it as
+"the spectrograms from the tutorial stayed rendered for the spike
+questions".
+
+Fix in `scripts/eeg_bank_viewer.py:_redraw`:
+
+* When `family == "spike"`, call `self.spec_container.setVisible(False)`
+  outright. The `eeg_plot` carries `stretch=1` in `plots_row` while
+  `spec_container` has `stretch=0`, so Qt re-distributes the freed
+  space to the EEG plot. The EEG view expands to fill the entire plot
+  area for the 10-s by 128-Hz spike clip, which is what Eli requested
+  with "have the eeg for the spikes questions extend to replace the
+  location of the spectrograms".
+* Also disable the spec_cb checkbox (`setEnabled(False)`) for spike so
+  the user cannot toggle on a panel that has no data anyway.
+* Re-enable both when the family transitions back to IIIC.
+
+`_on_spec_toggle` also gets a defensive short-circuit so that if the
+checkbox is somehow toggled while a spike segment is showing, the
+panel stays hidden.
+
+### Issue 2: `collapse.mp4` and `passfail.mp4` did not generate at K=7
+
+Eli reported that on his v1.2.4 finalize the `engine_explainer.mp4`
+rendered but `collapse.mp4` and `passfail.mp4` did not. Root cause in
+`scripts/cortex_render_videos.py`:
+
+* `render_collapse` (line 218 pre-fix) and `render_passfail` (line 339
+  pre-fix) used `GridSpecFromSubplotSpec(2, 3, ...)` which is 6 cells.
+  For K=7 the loop tried to add the 7th subplot at `inner[2, 0]` which
+  is out of bounds for a 2-row grid, throwing IndexError. The renderers
+  are wrapped in try/except inside `cortex_storage.SessionRecorder.finalize`
+  with an independent failure budget per renderer, so the engine
+  explainer (a separate code path) still ran while collapse + passfail
+  silently failed.
+* `engine_explainer.mp4` uses a 2x2 layout that cycles tasks one at a
+  time inside the same frame, so it was unaffected by K=7 vs K=6 grid
+  sizing.
+
+Fix: compute `n_cols` and `n_rows` from `K` (K<=6 keeps the original
+2x3 grid; K=7 widens to 2x4). The figsize widens proportionally so each
+per-task panel stays the same size as the K=6 version. The hardcoded
+`if r == 1:` last-row check becomes `if r == n_rows - 1:`. Also added
+`"spike": "Spike"` to `DOMAIN_TITLES` so the spike panel gets a friendly
+title instead of falling back to the raw task code.
+
+Verified by smoke-rendering both MP4s for both K=6 (no regression) and
+K=7 synthetic sessions: all four files produced cleanly.
+
+### Issue 3: release notes rewrite (human voice, fresh-slate scope)
+
+The release-page body in `.github/workflows/cortex-release.yml` had
+stacked v1.2.0 through v1.2.4 hotfix sections that read as a wall of
+third-person technical changelog text full of em dashes. Per Eli's
+direction, the body is now a fresh, first-person, em-dash-free document
+that covers: a one-paragraph "what the test does" intro (adaptive,
+MCMC engine, K=7 task list, typical session length); a short "what's
+new in v1.2.5" section; an "if you took an earlier v1.2.x" callout;
+system requirements; detailed install instructions per OS (mac
+Gatekeeper walkthrough preserved); and a reporting-bugs paragraph.
+Full historical changelog stays in this file (`CHANGELOG.md`).
+
+### Regression tests added (`tests/test_cortex_viewer.py`; +3 tests)
+
+* `test_redraw_hides_spec_container_for_spike_and_disables_checkbox`:
+  AST-asserts `_redraw` calls `spec_container.setVisible(False)` AND
+  `spec_cb.setEnabled(False)` for spike (not just the silent-skip bug
+  from v1.2.4).
+* `test_render_collapse_passfail_k7_grid_layout`: AST-asserts both
+  renderers compute `n_cols` / `n_rows` from K and no longer have the
+  hardcoded `GridSpecFromSubplotSpec(2, 3` or `r == 1` patterns.
+* `test_render_collapse_passfail_actually_render_k7_session`: drives
+  both renderers end-to-end on synthetic K=6 + K=7 session payloads
+  and asserts both MP4 files materialise.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.4 → 1.2.5`.
+* `.github/workflows/cortex-release.yml` release-body fully rewritten
+  (fresh-slate v1.2.5-only page, no stacked history).
+
+### Test gate at ship
+
+`tests/test_cortex_viewer.py + tests/test_phase9_*.py`: 81/81 PASS
+(was 78; +3 new for v1.2.5).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.4` — four-issue fix from Eli's v1.2.3 self-test: tutorial loader, spike spectrogram, session sectioning, empty-bank crash
 
 Four user-visible issues Eli surfaced on his v1.2.3 self-test (Linux),

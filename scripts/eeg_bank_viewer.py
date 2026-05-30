@@ -832,6 +832,14 @@ class BankViewer(QMainWindow):
         self._redraw()
 
     def _on_spec_toggle(self, on):
+        # v1.2.5: a spike segment never shows the spectrogram. If somehow
+        # the checkbox is toggled while a spike segment is showing (the
+        # checkbox is disabled by _redraw, but defensively belt-and-braces),
+        # keep the panel hidden and short-circuit.
+        family = getattr(self, "_cur_family", "iiic")
+        if family == "spike":
+            self.spec_container.setVisible(False)
+            return
         self.spec_container.setVisible(on)
         if on:
             self._redraw()
@@ -1119,16 +1127,27 @@ class BankViewer(QMainWindow):
         if not hasattr(self, "data"):
             return
         self._draw_eeg()
-        # Phase-9 K=7 (v1.2.4 fix): spike segments have no spectrogram
-        # panel — the spike-paper methodology (Jing et al) uses only the
-        # 10s × 128 Hz EEG window for the Yes/No spike classification.
-        # The bundled spike segs don't carry sdata/sfreqs/stimes, so even
-        # if the user has the spec checkbox enabled, there's nothing to
-        # draw + the on-the-fly fallback would produce a meaningless
-        # 10s spectrogram strip. Skip cleanly.
+        # v1.2.5: family-aware spectrogram panel.
+        # Spike segments do not get a spectrogram (the Jing spike-paper
+        # methodology uses only the 10s by 128 Hz EEG window for the Yes
+        # / No spike classification). Hide the spec_container outright
+        # so (1) the tutorial's IIIC spectrogram does not bleed through
+        # onto the spike question, and (2) the EEG plot expands to fill
+        # the freed space (it carries stretch=1 in plots_row while
+        # spec_container has stretch=0; Qt re-distributes when a
+        # stretch-0 widget is hidden). Also disable the spec_cb checkbox
+        # so the user cannot toggle on a panel that has no data anyway.
         family = getattr(self, "_cur_family", "iiic")
-        if self.spec_cb.isChecked() and family != "spike":
-            self._draw_spectrogram()
+        if family == "spike":
+            self.spec_container.setVisible(False)
+            self.spec_cb.setEnabled(False)
+        else:
+            self.spec_cb.setEnabled(True)
+            if self.spec_cb.isChecked():
+                self.spec_container.setVisible(True)
+                self._draw_spectrogram()
+            else:
+                self.spec_container.setVisible(False)
 
     def _draw_eeg(self):
         self.eeg_plot.clear()

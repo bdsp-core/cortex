@@ -258,69 +258,65 @@ jobs:
             artifacts/CORTEX-windows.zip
             artifacts/CORTEX-linux-x86_64.tar.gz
           body: |
-            ## CORTEX adaptive EEG certification test
+            ## CORTEX
 
-            ### Fixes in v1.2.4 (since v1.2.3)
+            This is the desktop test taker for our adaptive EEG certification project. You answer a sequence of EEG questions, and an adaptive engine decides what to ask you next based on how you have done so far. The test runs entirely on your computer and uploads only the result CSVs to our Dropbox folder when you finish.
 
-            Four issues Eli surfaced on his v1.2.3 self-test, all fixed:
+            ### What the test does
 
-            * **Tutorial now loads correctly.** v1.2.3 picked the first segment in the K=7 manifest as the tutorial example — but K=7 manifest puts spike segs first, so the tutorial (which is hard-coded for the IIIC 6-button + eeg30s renderer) tried to load a spike seg with the IIIC renderer and silently failed. v1.2.4 explicitly picks the first IIIC seg as the tutorial example.
-            * **No spectrogram for spike questions.** Per the spike-paper methodology (Jing et al), spike classification uses the 10s × 128 Hz EEG window only — no spectrogram panel. The spike bundle has no `sdata`/`sfreqs`/`stimes` to draw anyway, so v1.2.3 silently rendered an empty panel. v1.2.4 skips the spectrogram draw for spike segments cleanly.
-            * **Test is now sectioned: spike first, then IIIC.** Earlier versions interleaved spike + IIIC questions adaptively. v1.2.4 introduces phase-aware item selection — the engine asks **spike questions only** until the spike verdict locks (PASS/FAIL/REFER) OR the spike pool exhausts, then transitions to the **IIIC phase** (the original 6-task adaptive). The hierarchical Σ_l posterior coupling is preserved across phases (spike evidence informs IIIC priors via the K=7 model), so the math is unchanged — only the question ordering is. Final results screen aggregates spike + IIIC as before.
-            * **Fixes the `index 0 is out of bounds` crash at ~trial 270.** When the random-guesser session served all 50 spike segs at N_MIN=20, the engine's `choose_item` initialised from an empty per-task bank and crashed with IndexError. v1.2.4's phase-aware active-domains computation skips empty-bank tasks cleanly. The same mechanism implements the spike-first sectioning above — one architectural fix handles both issues.
+            We give you EEG recordings and ask you to classify them. The test covers 7 tasks: a binary spike vs no spike question (Yes / No) for short spike clips, and a 6 way pattern classification for longer IIIC recordings (Seizure, LPD, GPD, LRDA, GRDA, Other).
 
-            Regression-gated by 4 new tests in `tests/test_cortex_viewer.py`; bundle suite is now 30/30 viewer + 48/48 Phase 9 = 78/78 pass.
+            The engine is adaptive. It uses an MCMC (Sequential Monte Carlo) particle cloud to track your skill on each task in real time, and at every step it picks the question that will reduce its uncertainty about you the fastest. It stops asking about a task once it has enough evidence to say PASS, FAIL, or REFER for that task with confidence, then moves on. Spike questions come first as a block. When the engine has resolved the spike task, or has used up all the spike recordings, it transitions to the IIIC block. The final results screen shows a verdict for each of the 7 tasks.
 
-            ### Calibration tweak in v1.2.3 (since v1.2.2)
+            Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            **N_MIN raised 12 → 20.** During Eli's v1.2.2 self-test as a deliberate random-guesser, two of six IIIC tasks (gpd, iic) returned spurious PASS verdicts. Root cause: AD6 verdict-lock fired at the N_MIN=12 floor (trial 67 / 54 respectively) when the posterior was momentarily elevated by early-trial noise — and the K=7 hierarchical cross-task posterior continued updating after the lock, but the verdict couldn't revoke (monotonic-lock is a deliberate adaptive design choice). Two PhD agents independently confirmed: at internal-test settings (N_MIN=12, ALPHA=0.25) the per-task spurious-PASS rate for a true random rater is ~5.5%; familywise across K=7 ~50%. Raising N_MIN to 20 cuts the per-task rate to ~3% and roughly halves the familywise rate, without changing the alpha gate (kept fast for internal-test). ALPHA stays at 0.25 by design.
+            ### What is new in v1.2.5
 
-            **Expected internal-test impact:** median session length shifts from ~188 trials (v1.2.0/v1.2.2) to ~245 trials (v1.2.3) on the 350-seg internal bank. Tests still complete inside the 300-question cap for confident raters; borderline raters more often see bank-exhausted endings (which produce REFER verdicts rather than locked PASS/FAIL).
+            Three things in this build.
 
-            **Production target unchanged:** v2.0 production settings will be N_MIN=60, ALPHA=0.05, ~35K-question bank — making the spurious-PASS rate ~0.5% per task and ~3.5% familywise. Internal-test settings are a fast calibration regime, not the production target.
+            First, we cleaned up the EEG display on spike questions. Earlier builds left the spectrogram panel from the tutorial visible on spike screens (spike segments don't have spectrograms). Now the spectrogram panel is hidden during the spike block and the EEG plot expands to fill the freed space, so you get a clean wide view of the 10 second spike clip.
 
-            ### Hotfix in v1.2.2 (since v1.2.1)
+            Second, we fixed the per session MP4 visualizations. v1.2.4 silently failed to render the `collapse.mp4` and `passfail.mp4` outputs (the particle cloud collapse video and the AD6 verdict trajectory video) for K=7 sessions because the grid layout was hardcoded for 6 tasks. Both renderers now scale to 7 tasks. The `engine_explainer.mp4` was already working and is unchanged.
 
-            **Critical fix: the v1.2.1 bundle crashed on launch.** v1.2.1 re-wired the live test to the K=7 engine-inputs builder but the PyInstaller spec was never updated to ship the two data files that builder reads (`data/labels/segment_signals.csv` + `Sigma_l_fitted_k7.npy`). On a clean install the app crashed at startup with `FileNotFoundError: .../data/labels/segment_signals.csv`. v1.2.2 adds both K=7 files to the bundle so the app launches and runs all 7 tasks. No code/behavior change beyond the bundled data.
+            Third, the release notes (the page you are reading) have been rewritten to be readable instead of stacking a wall of historical hotfix entries. Full version history lives in `CHANGELOG.md` in the source repo.
 
-            **If you downloaded v1.2.1:** it never reached a usable session — use v1.2.2 instead.
+            ### If you downloaded an earlier v1.2.x
 
-            ### Hotfix in v1.2.1 (since v1.2.0)
-
-            **Critical fix: v1.2.0 sessions never asked spike questions.** The v1.2.0 ship had the K=7 backbone fully wired EXCEPT for a leftover K=6 import in the live-test entry point (`scripts/eeg_bank_viewer.py:open_viewer`). As a result, v1.2.0 sessions ran with K=6 engine inputs (300 IIIC seg_ids only); the 50 spike segments in the bundled K=7 bank were never asked; the final certificate had 6 task verdicts and no spike verdict. v1.2.1 fixes the import to use `build_k7_engine_inputs` so all 7 tasks (spike + 6 IIIC) actually get tested. Also fixes a latent ℓ\* block-name mismatch between the policy and the results-screen loader.
-
-            **If you took v1.2.0:** please retake v1.2.1 to get a spike verdict. Your v1.2.0 results are missing the spike task and are not directly comparable.
-
-            Regression-gated by three new tests in `tests/test_cortex_viewer.py`; bundle suite is now 432/432 pass + 26/26 viewer pass.
-
-            ### What's new in v1.2.0 (since v1.1.5)
-
-            - **Now K=7** — the certification test now covers **7 tasks**: the original 6 IIIC pattern_classes (Seizure / LPD / GPD / LRDA / GRDA / Other) **plus a 7th spike-vs-no-spike task** (Phase 9 ground-up rebuild). Spike segments use the Jing-spike-paper presentation: 10-second window at 128 Hz with a Yes / No answer, alongside the unchanged 30-second IIIC presentation with 6-way answer.
-            - **Sim-calibrated adaptive stop policy.** The engine now stops a task when it has confident evidence — sessions complete in ~190 trials median (was ~300 cap in v1.1.5). Borderline-skill raters still see longer sessions; confident-skill raters finish in ~110 trials. Calibration sweep + numbers: `docs/SIM_V1_2_0_REPORT.md` in the source repo.
-            - **Result uploads are cohort-isolated.** v1.2.0 session CSVs land in `Dropbox/Apps/CORTEX/results/v1.2.0/` (was `Dropbox/Apps/CORTEX/results/` in v1.1.5). Same Dropbox app + credentials as v1.1.5 — no new login.
-            - **Per-task verdicts** now include a Spike row alongside the 6 IIIC rows on the results screen.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.5 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
-            - **macOS:** `CORTEX-mac.dmg` — see "Opening CORTEX on macOS" below
-            - **Windows:** `CORTEX-windows.zip` — see "Opening CORTEX on Windows" below
-            - **Linux:** `CORTEX-linux-x86_64.tar.gz` — see "Opening CORTEX on Linux" below
+
+            * macOS: `CORTEX-mac.dmg`. See "Opening CORTEX on macOS" below.
+            * Windows: `CORTEX-windows.zip`. See "Opening CORTEX on Windows" below.
+            * Linux: `CORTEX-linux-x86_64.tar.gz`. See "Opening CORTEX on Linux" below.
+
+            ### System requirements
+
+            * macOS 12 Monterey or newer (Intel or Apple Silicon).
+            * Windows 10 or Windows 11 (64 bit).
+            * Linux with glibc 2.35 or newer. That covers Ubuntu 22.04 and later, Debian 12 and later, Fedora 36 and later, RHEL 9 and later, and current Arch.
+            * About 700 MB of free disk space for the installed app plus the bundled test bank.
+            * An internet connection to upload results at the end of the session. The test itself runs offline.
+
+            You do not need Python installed. Everything the test needs is bundled inside the installer.
 
             ### Opening CORTEX on macOS
 
-            CORTEX is not Apple-signed (this is an internal pilot, not a commercial app), so the **first launch needs one-time approval**. On macOS Sequoia and later, Apple removed the inline "Open Anyway" button from the warning dialog — you have to authorize it from System Settings.
+            Because we are not yet shipping a signed build (this is an internal pilot, not a public release), macOS will warn you the first time you launch it. The warning is normal and goes away after the one time approval.
 
-            **You MUST drag CORTEX to /Applications first — don't double-click it inside the disk-image window.** macOS quietly runs apps launched from a downloaded location in a read-only "translocated" copy and *caches* that copy, so a buggy old version can keep getting re-run even after you download a fixed update. Installing to /Applications avoids the whole class of problem.
+            Important: drag CORTEX to your Applications folder before you open it. Do not double click CORTEX from inside the disk image window. macOS quietly runs apps from a downloaded location inside a read only "translocated" copy and caches that copy. Old cached copies sometimes get re-run even after you download a fixed update. Installing to Applications avoids this.
 
-            1. Double-click `CORTEX-mac.dmg` to open it. A window appears with **CORTEX** on the left and an **Applications** shortcut on the right.
-            2. **Drag the CORTEX icon onto the Applications shortcut.** (Don't double-click CORTEX inside this window.)
-            3. Eject the disk image (Finder → arrow next to "CORTEX" in the sidebar). Open **Applications**, double-click **CORTEX**.
-            4. macOS shows *"CORTEX Not Opened — Apple could not verify CORTEX is free of malware..."* Click **Done**.
-            5. Open **System Settings → Privacy & Security**. Scroll to the **Security** section near the bottom.
-            6. You'll see *"CORTEX was blocked to protect your Mac."* Click **Open Anyway** (enter your password if prompted).
-            7. Try opening **CORTEX** from /Applications again. This time you get a new dialog *with* an **Open** button — click **Open**.
-            8. macOS remembers — no further warnings on subsequent launches.
+            1. Double click `CORTEX-mac.dmg`. A window opens showing a CORTEX icon on the left and an Applications shortcut on the right.
+            2. Drag the CORTEX icon onto the Applications shortcut. Do not open CORTEX from inside this disk image window.
+            3. Eject the disk image. In Finder, click the small arrow next to "CORTEX" in the sidebar.
+            4. Open your Applications folder and double click CORTEX.
+            5. macOS shows "CORTEX Not Opened. Apple could not verify CORTEX is free of malware". Click Done.
+            6. Open System Settings, then Privacy and Security, then scroll down to the Security section.
+            7. You will see "CORTEX was blocked to protect your Mac". Click Open Anyway. macOS will ask for your password.
+            8. Open CORTEX from Applications again. This time you get a new dialog with an Open button. Click Open.
+            9. macOS remembers your approval. No warnings on subsequent launches.
 
-            If you're comfortable with Terminal, this single command run after dragging to /Applications also works (skips steps 4–7):
+            If you are comfortable with Terminal, this single command also clears the quarantine flag after dragging the app to Applications and skips steps 5 through 8:
 
             ```
             xattr -d com.apple.quarantine /Applications/CORTEX.app
@@ -328,33 +324,28 @@ jobs:
 
             ### Opening CORTEX on Windows
 
-            1. Extract the `.zip`, open the `CORTEX/` folder, double-click `CORTEX.exe`.
-            2. If Windows SmartScreen warns *"Windows protected your PC"*, click **More info** then **Run anyway**. (Only the first launch.)
+            1. Right click `CORTEX-windows.zip` and choose Extract All. Pick a folder you can find again (Documents is fine).
+            2. Open the extracted `CORTEX/` folder.
+            3. Double click `CORTEX.exe`.
+            4. The first time you launch, Windows SmartScreen may show "Windows protected your PC". Click More info, then Run anyway. Only the first launch.
+
+            If your IT policy blocks unsigned executables and SmartScreen does not give you a Run anyway button, please email the study team and we will work around it.
 
             ### Opening CORTEX on Linux
 
-            1. Extract the tarball:
+            Open a terminal in the folder where the tarball is and run:
 
-               ```
-               tar xzf CORTEX-linux-x86_64.tar.gz
-               ```
+            ```
+            tar xzf CORTEX-linux-x86_64.tar.gz
+            ./CORTEX/CORTEX
+            ```
 
-            2. Run the launcher:
+            You can also extract the tarball with your file manager and double click the `CORTEX` executable inside the extracted folder. Most desktop environments will run it as a binary on first double click.
 
-               ```
-               ./CORTEX/CORTEX
-               ```
-
-               (Or open the `CORTEX/` folder in your file manager and double-click the `CORTEX` executable — most desktop environments will run it as a binary on first double-click.)
-
-            The Linux build is x86_64 only. The MP4 visualisation render requires `ffmpeg` on your `$PATH` — install with `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora/RHEL), or `sudo pacman -S ffmpeg` (Arch). Without it, sessions still complete cleanly; the per-test-taker collapse / pass-fail videos won't be generated.
-
-            ### Requirements
-
-            macOS 12 (Monterey) or later, or Windows 10/11, or Linux with glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+). No Python install needed — everything is bundled.
+            The Linux build is x86_64 only. The visualization videos that render at the end of a session use ffmpeg. The app bundles its own copy via imageio-ffmpeg, so you do not normally need to install ffmpeg yourself. If the videos do not generate, install your distro's ffmpeg package as a fallback: `sudo apt install ffmpeg` on Debian or Ubuntu, `sudo dnf install ffmpeg` on Fedora or RHEL, `sudo pacman -S ffmpeg` on Arch. Sessions complete cleanly without ffmpeg, just without the visualization MP4s.
 
             ### Reporting bugs
 
-            Anything that crashes, looks visually wrong, is confusing, or feels slow — note it and email the study team. That feedback is the whole point of this internal round.
+            Anything that crashes, looks visually wrong, is confusing, or feels too slow: please note what you saw and email the study team. That feedback is the whole point of this internal round. If the test froze on you, include the question number it froze on and roughly how far in (5 minutes? 20?). That helps a lot.
           draft: false
           prerelease: false
