@@ -95,6 +95,74 @@ jobs:
           name: CORTEX-mac
           path: cortex_app/dist/CORTEX-mac.dmg
 
+  build-mac-intel:
+    # Intel (x86_64) mac build. macos-13 is the last x86_64 GitHub-hosted
+    # runner; macos-latest is now Apple Silicon (arm64). A PyInstaller binary
+    # is single-arch, so the arm64 CORTEX-mac.dmg will NOT launch on an Intel
+    # Mac (Rosetta runs Intel binaries on Apple Silicon, never the reverse).
+    # This job ships a separate CORTEX-mac-intel.dmg. Steps mirror build-mac
+    # exactly except the runner and the output filename.
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage cortex_config.yaml from secret
+        env:
+          CORTEX_CONFIG_YAML: ${{ secrets.CORTEX_CONFIG_YAML }}
+        run: |
+          if [ -z "$CORTEX_CONFIG_YAML" ]; then
+            echo "ERROR: secret CORTEX_CONFIG_YAML is not set"; exit 1
+          fi
+          printf '%s' "$CORTEX_CONFIG_YAML" > cortex_config.yaml
+
+      - name: Download test bank from build-data release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data
+          gh release download build-data-v3-k7 \
+              --repo ${{ github.repository }} \
+              --pattern eeg_bank.h5 \
+              --dir data/
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-cortex.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          cd cortex_app
+          pyinstaller --clean --noconfirm cortex.spec
+
+      - name: Create DMG (with /Applications drag-target)
+        # Same translocation-avoidance rationale as the Apple Silicon job:
+        # the mounted DMG shows CORTEX.app plus an Applications shortcut so
+        # users drag-install rather than double-click in-place.
+        run: |
+          STAGING=cortex_app/dist/CORTEX-dmg-staging
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R cortex_app/dist/CORTEX.app "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+          hdiutil create -volname "CORTEX" \
+            -srcfolder "$STAGING" \
+            -ov -format UDZO \
+            cortex_app/dist/CORTEX-mac-intel.dmg
+          rm -rf "$STAGING"
+
+      - name: Upload Mac Intel DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORTEX-mac-intel
+          path: cortex_app/dist/CORTEX-mac-intel.dmg
+
   build-windows:
     runs-on: windows-latest
     steps:
@@ -225,7 +293,7 @@ jobs:
           path: cortex_app/dist/CORTEX-linux-x86_64.tar.gz
 
   release:
-    needs: [build-mac, build-windows, build-linux]
+    needs: [build-mac, build-mac-intel, build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/cortex-v')
     permissions:
@@ -235,6 +303,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: CORTEX-mac
+          path: artifacts/
+
+      - name: Download Mac Intel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CORTEX-mac-intel
           path: artifacts/
 
       - name: Download Windows artifact
@@ -255,6 +329,7 @@ jobs:
           name: ${{ github.ref_name }}
           files: |
             artifacts/CORTEX-mac.dmg
+            artifacts/CORTEX-mac-intel.dmg
             artifacts/CORTEX-windows.zip
             artifacts/CORTEX-linux-x86_64.tar.gz
           body: |
@@ -270,25 +345,28 @@ jobs:
 
             Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            ### What is new in v1.2.6
+            ### What is new in v1.2.7
 
-            One small clarity fix in this build. During the tutorial we walk you through the spectrogram panel using a pattern-classification example, so the panel is on screen while you read about it. We now tell you, right there in that tutorial step, that the spectrogram only appears for the pattern-classification recordings and that the spike-present questions show the EEG on its own with no spectrogram panel. That way the panel going away when the spike block starts is expected rather than surprising.
+            This build adds a separate download for Intel Macs. Until now the only mac build targeted Apple Silicon (the M1, M2, M3, and later chips), and it would not launch on an older Intel Mac. There are now two mac downloads: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 
-            This build also carries the display and video fixes from v1.2.5: the spectrogram panel is hidden on the spike questions so the EEG plot expands to a clean wide view of the 10 second clip, and the per session `collapse.mp4` and `passfail.mp4` visualizations render correctly for all 7 tasks.
+            Everything from v1.2.6 is included: the tutorial now tells you the spectrogram only appears for the pattern-classification recordings and that the spike-present questions show the EEG on its own, the spectrogram panel is hidden during the spike block so the EEG plot expands to a clean wide view, and the per session `collapse.mp4` and `passfail.mp4` visualizations render correctly for all 7 tasks.
 
             ### If you downloaded an earlier v1.2.x
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.6 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.7 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 
-            * macOS: `CORTEX-mac.dmg`. See "Opening CORTEX on macOS" below.
+            * macOS, Apple Silicon (M1 or newer): `CORTEX-mac.dmg`. See "Opening CORTEX on macOS" below.
+            * macOS, Intel: `CORTEX-mac-intel.dmg`. See "Opening CORTEX on macOS" below.
             * Windows: `CORTEX-windows.zip`. See "Opening CORTEX on Windows" below.
             * Linux: `CORTEX-linux-x86_64.tar.gz`. See "Opening CORTEX on Linux" below.
 
+            Not sure which Mac you have? Click the Apple menu in the top left corner and choose About This Mac. If you see a "Chip" line with an Apple M name, download the Apple Silicon DMG. If you see a "Processor" line with an Intel name, download the Intel DMG. The Apple Silicon download will not open on an Intel Mac, so this choice matters.
+
             ### System requirements
 
-            * macOS 12 Monterey or newer (Intel or Apple Silicon).
+            * macOS 12 Monterey or newer. We provide separate downloads for Apple Silicon and Intel Macs; download the one that matches your chip.
             * Windows 10 or Windows 11 (64 bit).
             * Linux with glibc 2.35 or newer. That covers Ubuntu 22.04 and later, Debian 12 and later, Fedora 36 and later, RHEL 9 and later, and current Arch.
             * About 700 MB of free disk space for the installed app plus the bundled test bank.
@@ -302,7 +380,7 @@ jobs:
 
             Important: drag CORTEX to your Applications folder before you open it. Do not double click CORTEX from inside the disk image window. macOS quietly runs apps from a downloaded location inside a read only "translocated" copy and caches that copy. Old cached copies sometimes get re-run even after you download a fixed update. Installing to Applications avoids this.
 
-            1. Double click `CORTEX-mac.dmg`. A window opens showing a CORTEX icon on the left and an Applications shortcut on the right.
+            1. Double click the DMG you downloaded (`CORTEX-mac.dmg` for Apple Silicon, `CORTEX-mac-intel.dmg` for Intel). A window opens showing a CORTEX icon on the left and an Applications shortcut on the right.
             2. Drag the CORTEX icon onto the Applications shortcut. Do not open CORTEX from inside this disk image window.
             3. Eject the disk image. In Finder, click the small arrow next to "CORTEX" in the sidebar.
             4. Open your Applications folder and double click CORTEX.

@@ -7,6 +7,51 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.7` — separate Intel-Mac DMG (CORTEX-mac-intel.dmg)
+
+Packaging-only release. No engine, policy, UI, or data change; the app
+behaves identically to v1.2.6. This build fixes a macOS architecture gap.
+
+### The gap
+
+The mac build job runs on `runs-on: macos-latest`, which GitHub Actions
+now provisions as an Apple Silicon (arm64) runner. A PyInstaller binary is
+single-architecture (`cortex.spec` has `target_arch=None`, so it targets
+the build host), and the bundled ffmpeg is `ffmpeg-macos-aarch64`
+(`cortex.spec:96`). The resulting `CORTEX-mac.dmg` is therefore arm64-only
+and does **not** launch on an Intel Mac. Rosetta 2 does not help: it runs
+Intel binaries on Apple Silicon, never the reverse. The release notes
+nonetheless advertised "macOS 12 Monterey or newer (Intel or Apple
+Silicon)", so an Intel-Mac tester would download the DMG and hit a launch
+failure. Surfaced by Eli.
+
+### Change
+
+`.github/workflows/cortex-release.yml`:
+
+* New `build-mac-intel` job on `runs-on: macos-13` (the last x86_64
+  GitHub-hosted runner). Steps mirror `build-mac` byte-for-byte except the
+  runner and the output filename; it emits `CORTEX-mac-intel.dmg` with the
+  same Applications drag-target staging (translocation avoidance).
+* `release` job: `needs` gains `build-mac-intel`; a download step pulls the
+  new artifact; `CORTEX-mac-intel.dmg` is added to the release `files`
+  list. Releases now attach four artifacts (mac arm64, mac Intel, Windows,
+  Linux).
+* Release-body rewritten for v1.2.7: two mac downloads with an "About This
+  Mac" chooser, and the system-requirements mac line corrected (no longer
+  claims a single DMG covers both architectures).
+
+`cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.6 → 1.2.7`.
+
+### Not changed
+
+No Python source changed, so the source-tree test gate
+(`tests/test_cortex_viewer.py + tests/test_phase9_*.py`, 82/82) is
+unaffected. The Intel build is exercised by CI on the next tag push; there
+is no local mac runner to validate it here.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.6` — tutorial note: spectrogram not shown for spike questions
 
 A documentation-only clarity fix on top of v1.2.5. No engine, policy, or
