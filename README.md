@@ -37,6 +37,12 @@ PASS, FAIL, or REFER. There is no single rolled up grade, because being
 excellent at spikes and shaky at rhythmic delta is a real and useful thing
 to know.
 
+<div align="center">
+  <video src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/collapse-combined.mp4" controls muted width="85%"></video>
+</div>
+
+*All seven tasks at once: each task's posterior cloud in skill (vertical) versus bias (horizontal) space, colored by task and growing more opaque as the engine grows confident. You can watch where each task settles relative to neutral.*
+
 ## How it works, briefly
 
 Every answer is modeled as signal detection with a small lapse rate. A
@@ -79,6 +85,12 @@ Metropolis-Hastings rejuvenation step, the A-optimal question selection, the
 Kalman update, and the calibration pipeline, with every equation pinned to
 the line of code that implements it.
 
+<div align="center">
+  <video src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/engine_explainer.mp4" controls muted width="90%"></video>
+</div>
+
+*The adaptive engine in motion. For each task it carries a joint posterior over the reader's skill and bias (shown as a 3D density and a 2D cloud with its 95% uncertainty ellipse), while the lower panel logs every question by difficulty and domain. The engine chooses each next question to shrink that uncertainty the fastest.*
+
 ## Does it actually work
 
 Yes, and the repository is built to let a skeptic check. Skill is recovered
@@ -92,6 +104,12 @@ not just synthetic raters.
 *Per task skill recovery. The error between estimated and true skill
 collapses as the adaptive test asks more questions, across all seven tasks
 and every expertise tier.*
+
+<div align="center">
+  <video src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/collapse.mp4" controls muted width="85%"></video>
+</div>
+
+*The same thing in a single live session: each task's particle cloud tightens as evidence accumulates, the brighter colors marking a more confident posterior.*
 
 The validation trail is the point, not a footnote. See
 [`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) for the scientific gate,
@@ -111,6 +129,12 @@ and Linux, built and released automatically by
 The viewer, the session controller, and the engine wiring live in
 [`scripts/`](scripts/); the test taker setup guide is
 [`README_CORTEX_TEST.md`](README_CORTEX_TEST.md).
+
+<div align="center">
+  <video src="https://github.com/bdsp-core/ilae-skill-certification-test-multi/raw/main/docs/media/passfail.mp4" controls muted width="85%"></video>
+</div>
+
+*What the test produces: per task verdicts forming over a session. Each task's pass-mass climbs into the green PASS band or drops into the red FAIL band, and the monotonic rule locks each verdict the moment it resolves.*
 
 ## Quickstart
 
