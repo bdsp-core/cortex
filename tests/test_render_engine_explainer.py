@@ -378,3 +378,20 @@ def test_render_engine_explainer_forwards_progress_callback(tmp_path):
     assert seen, "progress_callback was never called"
     i_last, n_last = seen[-1]
     assert n_last > 0 and 0 <= i_last <= n_last
+
+
+def test_v1_3_4_question_plot_freezes_after_first_block():
+    """v1.3.4: the bottom question plot reveals progressively only during the
+    first task block (task_k == 0), then stays fully revealed (frozen) while
+    the top panels cycle the other tasks."""
+    import ast
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "render_engine_explainer.py").read_text()
+    fn = next(n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "_draw_frame")
+    body = ast.unparse(fn)
+    assert "first_block" in body and "task_k == 0" in body
+    assert "reveal_j" in body
+    # non-first blocks reveal up to the last trial (full freeze)
+    assert "n_trials - 1" in body

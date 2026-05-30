@@ -408,7 +408,12 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
     # up to the trial in focus, the most-recent question ringed so it ties to
     # the panels above. v1.3.0: a neutral grey line connects the questions in
     # order, and the axes are static (full-session extent, precomputed).
-    revealed = [q for q in questions if q["idx"] <= j]
+    # v1.3.4: the question plot reveals progressively ONLY during the first
+    # task block (task_k == 0); once that block has drawn the full sequence it
+    # stays frozen (fully revealed) while the top panels cycle the other tasks.
+    first_block = (task_k == 0)
+    reveal_j = j if first_block else (n_trials - 1)
+    revealed = [q for q in questions if q["idx"] <= reveal_j]
     if revealed:
         xs = np.array([q["idx"] + 1 for q in revealed], dtype=float)
         ys = np.array([q["s"] for q in revealed], dtype=float)
@@ -418,8 +423,11 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
                       zorder=2)
         ax_q.scatter(xs, ys, s=22, c=cs, edgecolor="none",
                      alpha=0.9, zorder=3)
-        ax_q.scatter([xs[-1]], [ys[-1]], s=80, facecolor="none",
-                     edgecolor="white", linewidth=1.1, zorder=4)
+        # Ring the most-recent question only while it is actively revealing
+        # (first block); once frozen there is no "current" question to mark.
+        if first_block:
+            ax_q.scatter([xs[-1]], [ys[-1]], s=80, facecolor="none",
+                         edgecolor="white", linewidth=1.1, zorder=4)
     ax_q.set_xlim(*q_xlim); ax_q.set_ylim(*q_ylim)
     ax_q.axhline(0.0, color=_GRID, lw=0.6, alpha=0.5, zorder=0)
     ax_q.set_xlabel("Question number")

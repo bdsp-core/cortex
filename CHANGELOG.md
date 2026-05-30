@@ -7,6 +7,47 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.4` — engine_explainer question plot freezes after the first task block
+
+Visualization-only release. No engine, policy, calibration, or data change.
+
+`scripts/render_engine_explainer.py` `_draw_frame`: the bottom "Question
+difficulty by domain" scatter used to re-reveal the full question sequence in
+EVERY task block (7 times). It now reveals progressively ONLY during the first
+task block (`task_k == 0`) and then stays frozen (fully revealed) while the
+top panels cycle the remaining six tasks. The most-recent-question ring is
+shown only during the live reveal (first block); there is no "current"
+question to mark once frozen. Implemented by gating the reveal index:
+`reveal_j = j if first_block else n_trials - 1`.
+
+### Context (investigation, no code change)
+
+Surfaced alongside a question about session `e46cc793`, where seizure was
+asked for the last 99 questions. Verified this is the engine working as
+designed, not a bug and not a render error: the AD6 verdict-lock is monotonic
+and `session_controller._compute_active_domains` returns only PENDING tasks,
+so once the other six resolved (by trial 141) seizure was the sole active
+domain and received every remaining question until it locked at trial 240.
+The bottom plot colors each dot by the real `task_code`, so it faithfully
+shows the actual sequence. A long single-domain run is a UX consideration, not
+a correctness one; any mitigation (per-task cap / interleaving) would be an
+engine change and is deferred for an explicit decision.
+
+### Tests (+1)
+
+* `test_v1_3_4_question_plot_freezes_after_first_block` (AST: `_draw_frame`
+  gates the reveal on `task_k == 0` and reveals to `n_trials - 1` otherwise).
+  Validated by frame-grabbing a later task block on a real 240-trial session
+  (bottom plot fully revealed, no ring).
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.3 → 1.3.4`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.4.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.3` — new collapse-combined.mp4 (all domains overlaid on one plot)
 
 Visualization-only release. No engine, policy, calibration, or data change.
