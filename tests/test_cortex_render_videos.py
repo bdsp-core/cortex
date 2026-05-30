@@ -269,3 +269,27 @@ def test_render_all_forwards_labeled_progress(tmp_path, monkeypatch):
                   progress_callback=lambda stage, i, n: seen.append((stage, i, n)))
     assert ("collapse", 2, 4) in seen
     assert ("passfail", 1, 4) in seen
+
+
+# ─── v1.3.2: collapse panels centered on (0,0) — symmetric axes ──────────
+def test_v1_3_2_collapse_axes_symmetric_about_zero():
+    """v1.3.2: render_collapse uses symmetric (0,0)-centered per-panel
+    limits, and the symmetric-limit helper returns [-M, M] containing the
+    data extreme."""
+    import ast
+    from pathlib import Path
+    import cortex_render_videos as cv
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "cortex_render_videos.py").read_text()
+    fn = next(n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "render_collapse")
+    body = ast.unparse(fn)
+    assert "_symmetric_data_limits" in body
+    # helper behavior: symmetric about 0 and contains the largest |value|
+    lo, hi = cv._symmetric_data_limits([-6.0, 2.0, 0.5])
+    assert lo < 0 < hi
+    assert abs(lo + hi) < 1e-9          # centered on 0
+    assert hi >= 6.0                    # contains the extreme (|-6|)
+    # collapsed cloud still gets a non-degenerate symmetric window
+    lo2, hi2 = cv._symmetric_data_limits([0.001, -0.001])
+    assert hi2 > 0 and abs(lo2 + hi2) < 1e-9

@@ -208,6 +208,19 @@ def _data_limits(vals, frac=0.08, floor=0.4):
     return lo - pad, hi + pad
 
 
+def _symmetric_data_limits(vals, frac=0.08, floor=0.4):
+    """Symmetric-about-zero ``(-M, M)`` limits that contain every value in
+    ``vals`` plus a margin, so the panel is centered on 0 (v1.3.2 collapse
+    panels). ``M`` = max |value| (per-panel fit). The floor keeps a
+    fully-collapsed cloud from a degenerate zero-width axis."""
+    arr = np.asarray(vals, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    m = float(np.max(np.abs(arr))) if arr.size else 0.0
+    m = max(m, floor / 2.0)
+    m += frac * m
+    return -m, m
+
+
 # ────────────────────────── collapse renderer ───────────────────────────────
 
 def render_collapse(session, out_path: Path, fps: int = FPS,
@@ -216,8 +229,9 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     """One 2x3 panel grid, each panel showing the particle cloud in
     (t_k, ℓ_k) for IIIC task k, colored by per-panel cloud spread on the
     plasma colormap. No ground-truth ★. HUD shows the question counter +
-    max-AUROC-halfwidth from telemetry (v1.3.0: no participant name; static
-    per-panel axes fit each task's full-session extremes)."""
+    max-AUROC-halfwidth from telemetry (v1.3.2: no participant name; static
+    per-panel axes centered on (0,0), symmetric and fit to each task's
+    full-session extremes)."""
     task_codes = session["task_codes"]
     t_traj = session["t_traj"]
     l_traj = session["l_traj"]
@@ -225,12 +239,15 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     trials = session["trials"]
     T, N, K = t_traj.shape
 
-    # v1.3.0: static per-panel axis limits, computed ONCE from each task's
-    # full trajectory (every particle across every frame). This captures all
-    # values so the cloud never runs off the panel, while keeping the axes
-    # fixed during playback (no per-frame jitter).
-    task_xlim = [_data_limits(t_traj[:, :, k].ravel()) for k in range(K)]
-    task_ylim = [_data_limits(l_traj[:, :, k].ravel()) for k in range(K)]
+    # v1.3.2: static per-panel limits, computed ONCE from each task's full
+    # trajectory (every particle, every frame), SYMMETRIC about zero so each
+    # panel is centered on (0,0). x = t (bias), y = ℓ (skill); both axes span
+    # [-M, M] with M = max |value| + margin, captured per panel so the cloud
+    # never runs off and the axes hold still during playback.
+    task_xlim = [_symmetric_data_limits(t_traj[:, :, k].ravel())
+                 for k in range(K)]
+    task_ylim = [_symmetric_data_limits(l_traj[:, :, k].ravel())
+                 for k in range(K)]
 
     # v1.2.5 K=7 fix: was hardcoded 2 rows by 3 columns (= 6 cells), so the
     # Phase-9 K=7 task set crashed at `inner[2, 0]` (k=6 = iic; out of bounds

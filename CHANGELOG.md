@@ -7,6 +7,38 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.2` — collapse.mp4 panels centered on (0,0) (symmetric axes)
+
+Visualization-only release. No engine, policy, calibration, or data change.
+
+`scripts/cortex_render_videos.py` `render_collapse`: each per-task panel's
+axes are now **symmetric about zero** (centered on (0,0)) instead of fit to
+the raw asymmetric data extremes. New helper `_symmetric_data_limits` returns
+`[-M, M]` with `M = max |value| + margin` (per panel, from the full
+trajectory), so the bias (x = t) and skill (y = ℓ) axes each span an
+equal-magnitude range and the 0 reference lines cross the middle of every
+box. Still static (no per-frame jitter) and still captures every value.
+
+Scope: collapse.mp4 only. The engine-explainer's (t, ℓ) manifold + cloud
+panels keep their v1.3.0 static (asymmetric, data-fit) limits.
+
+### Tests (+1)
+
+* `test_v1_3_2_collapse_axes_symmetric_about_zero`: `render_collapse` uses
+  `_symmetric_data_limits`; the helper returns limits symmetric about 0 that
+  contain the largest |value|, and a collapsed cloud still gets a
+  non-degenerate symmetric window. Validated by frame-grabbing the collapse
+  video on a real 176-trial K=7 session (per-panel limits e.g. spike x ±4.1 /
+  y ±5.1, all lo = −hi).
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.1 → 1.3.2`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.2.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.1` — drop the (inaccurate) ETA + "2 to 3 minutes" copy on the loading page
 
 UI-copy only. No engine, policy, calibration, data, or video-render change.

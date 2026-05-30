@@ -370,15 +370,15 @@ jobs:
 
             Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            ### What is new in v1.3.1
+            ### What is new in v1.3.2
 
-            A small cleanup of the screen shown while we put your results together. We removed the time estimate, since it was not accurate enough to be helpful, and we dropped the "this takes 2 to 3 minutes" line. The progress bar and the label telling you what is happening right now (calculating, building the videos, saving, sharing) are still there, so you can still see it working. Nothing about the test or your results changed.
+            A small visual tweak to the particle-cloud collapse video. Each task panel is now centered on its origin, so the bias axis (left to right) and the skill axis (up and down) are symmetric around zero and the center crosshair sits in the middle of every box. This makes it easier to read where a cloud sits relative to neutral. Nothing about the test, the questions, or your results changed.
 
             The Intel and Apple Silicon mac downloads are both still here: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 
             ### If you downloaded an earlier v1.2.x
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.3.1 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.3.2 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 
