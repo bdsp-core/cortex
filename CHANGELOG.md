@@ -7,6 +7,73 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.8` — end-of-session MP4 layout cleanup
+
+Visualization-only release. No engine, policy, calibration, or data change;
+verdicts and session behavior are identical to v1.2.7. Four changes to the
+three per-session MP4s (`collapse.mp4`, `passfail.mp4`, `engine_explainer.mp4`),
+all in `scripts/cortex_render_videos.py` + `scripts/render_engine_explainer.py`.
+
+### 1. Participant name removed from all three videos
+
+The HUD titles no longer embed the test-taker's name. Removed from
+`render_collapse` (`cortex_render_videos.py:253,274`), `render_passfail`
+(`:387,427`), and the explainer title (`render_engine_explainer.py`). Titles
+now read e.g. "question 91 / 175" and "task 3/7: LPD — trial 88/175".
+
+### 2. AD6-verdict caption dropped from passfail.mp4
+
+The sub-caption "trajectory color shows running AD6 verdict" is removed
+(`cortex_render_videos.py:390`); the caption now reads only "green band =
+PASS · red band = FAIL". Per Eli's direction this is **caption only** — the
+π-line is still colored by the running PASS/FAIL/REFER verdict and the final
+verdict badge still locks at session end. (The caption existed only in
+passfail; collapse and the explainer never had it.)
+
+### 3. engine_explainer.mp4 bottom panel replaced
+
+The wide bottom panel was the expected-posterior-variance score curve
+(`_expected_loss_vec` over a signal grid). It is replaced by a session-level
+scatter: x = question number, y = that question's signal strength (`s_mean`,
+probit-scale case difficulty), one dot per question colored by domain
+(spike / sz / lpd / gpd / lrda / grda / iic, Okabe-Ito palette). Dots
+**reveal progressively** up to the trial in focus, with the most-recent
+question ringed white. The explainer now loads `trials.jsonl` (for `s_mean`
++ `task_code`) and no longer imports the engine. Also fixed a latent K=7
+cosmetic bug: the explainer's `DOMAIN_TITLES` was missing the `"spike"` key.
+
+### 4. Axes adapt to the data (no values run off-axis)
+
+Per-frame "breathing" autoscale on every panel where values can exceed a
+fixed box: the collapse (t, ℓ) clouds, the explainer's 3D manifold + 2D
+cloud, and the new bottom scatter now fit their live data each frame
+(`_data_limits` helper, `cortex_render_videos.py`). passfail's π-axis stays
+fixed at [0, 1] on purpose: π is a probability and the PASS/FAIL bands are
+defined on that scale, so values there cannot run off and breathing it would
+break the band reference.
+
+### Regression tests (`tests/test_cortex_render_videos.py`, `tests/test_render_engine_explainer.py`; +7)
+
+* names dropped from titles; AD6 caption gone; collapse breathes via
+  `_data_limits`; explainer dropped `_expected_loss_vec` + the
+  "expected posterior variance" ylabel; `DOMAIN_COLORS` covers all 7 tasks;
+  `_load_session` parses `questions` from `trials.jsonl`. The synthetic
+  explainer fixture now carries `s_mean` + `task_code` so the e2e render
+  exercises the new panel. Validated by frame-grabbing all three MP4s on a
+  real 175-trial K=7 session.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.7 → 1.2.8`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.2.8 (carries forward the two mac downloads from v1.2.7).
+
+### Test gate at ship
+
+`tests/test_cortex_viewer.py + tests/test_cortex_render_videos.py + tests/test_render_engine_explainer.py + tests/test_cortex_storage.py + tests/test_cortex_results_screen.py + tests/test_phase9_*.py`: **130/130 PASS** (+7 new for v1.2.8).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.7` — separate Intel-Mac DMG (CORTEX-mac-intel.dmg)
 
 Packaging-only release. No engine, policy, UI, or data change; the app

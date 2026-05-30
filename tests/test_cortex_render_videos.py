@@ -213,3 +213,29 @@ def test_render_andrew_session_end_to_end(tmp_path):
         assert p.exists(), f"{kind}.mp4 not produced"
         assert p.stat().st_size > 50_000, (
             f"{kind}.mp4 suspiciously small: {p.stat().st_size} bytes")
+
+
+# ─── v1.2.8: layout cleanup (no name, no AD6 caption, breathing axes) ──
+def test_v1_2_8_titles_drop_participant_name():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "cortex_render_videos.py").read_text()
+    assert 'f"{name}' not in src        # no name interpolated into any title
+
+
+def test_v1_2_8_passfail_drops_ad6_verdict_caption():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "cortex_render_videos.py").read_text()
+    assert "trajectory color shows running AD6 verdict" not in src
+
+
+def test_v1_2_8_collapse_breathes_axes_per_frame():
+    import ast
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "cortex_render_videos.py").read_text()
+    fn = next(n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "render_collapse")
+    body = ast.unparse(fn)
+    assert "_data_limits" in body and "set_xlim" in body and "set_ylim" in body

@@ -190,15 +190,33 @@ def _plasma_for_spread(spread):
     return PLASMA(v)
 
 
+def _data_limits(vals, frac=0.08, floor=0.4):
+    """Tight (lo, hi) limits that contain every value in ``vals`` plus a
+    small margin, so a scatter never runs off the axis. A floor keeps a
+    fully-collapsed cloud from producing a degenerate zero-width axis
+    (v1.2.8: per-frame 'breathing' autoscale)."""
+    arr = np.asarray(vals, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return -floor / 2, floor / 2
+    lo = float(arr.min()); hi = float(arr.max())
+    span = hi - lo
+    if span < floor:
+        mid = 0.5 * (lo + hi)
+        lo, hi, span = mid - floor / 2, mid + floor / 2, floor
+    pad = frac * span
+    return lo - pad, hi + pad
+
+
 # ────────────────────────── collapse renderer ───────────────────────────────
 
 def render_collapse(session, out_path: Path, fps: int = FPS,
                     hold_seconds: float = HOLD_SECONDS) -> None:
     """One 2x3 panel grid, each panel showing the particle cloud in
     (t_k, ℓ_k) for IIIC task k, colored by per-panel cloud spread on the
-    plasma colormap. No ground-truth ★. HUD shows participant name +
-    question counter + max-AUROC-halfwidth from telemetry."""
-    name = session["participant_name"]
+    plasma colormap. No ground-truth ★. HUD shows the question counter +
+    max-AUROC-halfwidth from telemetry (v1.2.8: no participant name; axes
+    breathe per frame to fit the cloud)."""
     task_codes = session["task_codes"]
     t_traj = session["t_traj"]
     l_traj = session["l_traj"]
@@ -226,11 +244,13 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
                                     wspace=0.30, hspace=0.45)
     scatters = []
     hw_texts = []
+    axes = []
     for k in range(K):
         r, c = divmod(k, n_cols)
         ax = fig.add_subplot(inner[r, c])
+        # v1.2.8: limits are set per frame from the live cloud (breathing),
+        # so the cloud can never run off the panel. Ticks auto-adapt too.
         ax.set_xlim(*T_LIM); ax.set_ylim(*L_LIM)
-        ax.set_xticks([-2, 0, 2]); ax.set_yticks([-1, 0, 1, 2])
         ax.tick_params(labelsize=6)
         ax.set_title(DOMAIN_TITLES.get(task_codes[k], task_codes[k]),
                      fontsize=9, pad=2)
@@ -243,6 +263,7 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
         sc = ax.scatter([], [], s=4, alpha=0.4,
                         edgecolors="none", zorder=2)
         scatters.append(sc)
+        axes.append(ax)
         txt = ax.text(0.97, 0.97, "", transform=ax.transAxes,
                       ha="right", va="top", fontsize=6, family="monospace",
                       bbox=dict(boxstyle="round,pad=0.15",
@@ -250,7 +271,7 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
         hw_texts.append(txt)
 
     def init():
-        title_h.set_text(f"{name}  —  particle-cloud collapse")
+        title_h.set_text("particle-cloud collapse")
         sub_h.set_text("brighter color = tighter cloud (more confident "
                        "posterior) ·  bottom-right of each panel: AUROC "
                        "half-width")
@@ -269,9 +290,12 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
             colors = np.tile(rgba, (N, 1))
             colors[:, 3] = alpha
             scatters[k].set_facecolor(colors)
+            # v1.2.8: breathe each panel's axes to fit the live cloud.
+            axes[k].set_xlim(*_data_limits(t[:, k]))
+            axes[k].set_ylim(*_data_limits(l[:, k]))
             hw_k = float(trials[j]["auroc_hw"][k])
             hw_texts[k].set_text(f"HW={hw_k:.3f}")
-        title_h.set_text(f"{name}  —  question {j + 1:>3d} / {T}")
+        title_h.set_text(f"question {j + 1:>3d} / {T}")
         return ()
 
     total = T + int(hold_seconds * fps)
@@ -307,7 +331,6 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
     task_codes = session["task_codes"]
     trials = session["trials"]
     n_q = session["n_questions"]
-    name = session["participant_name"]
     final_verdicts = session["final_verdicts"]
     K = len(task_codes)
     T = len(trials)
@@ -384,10 +407,9 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
         axes.append(ax)
 
     def init():
-        title_h.set_text(f"{name}  —  AD6 verdict evolution")
+        title_h.set_text("AD6 verdict evolution")
         sub_h.set_text(f"green band = PASS (π ≥ {1 - alpha:.2f})  ·  "
-                       f"red band = FAIL (π ≤ {alpha:.2f})  ·  "
-                       "trajectory color shows running AD6 verdict")
+                       f"red band = FAIL (π ≤ {alpha:.2f})")
         return ()
 
     def update(i):
@@ -424,7 +446,7 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
                     VERDICT_COLORS.get(vk, VERDICT_COLORS[PENDING]))
 
         stop = session["stop_reason"].replace("_", " ")
-        title_h.set_text(f"{name}  —  question {j + 1:>3d} / {n_q}"
+        title_h.set_text(f"question {j + 1:>3d} / {n_q}"
                          + (f"   ·   {stop}" if j == T - 1 else ""))
         return ()
 

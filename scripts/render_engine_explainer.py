@@ -1,8 +1,7 @@
 """Per-session 3D explainer of the engine's item-selection decision process.
 
 Renders ``engine_explainer.mp4`` into a session directory by replaying
-the engine's expected-loss landscape from the saved particle
-trajectory. Visualises the differential-geometry framing of Bayesian
+the saved particle trajectory. Visualises the geometry of Bayesian
 adaptive testing:
 
   * **Top-left (rotating 3D surface)** — posterior density manifold
@@ -17,13 +16,13 @@ adaptive testing:
     posterior-mean points shows the **geodesic** the cloud has
     traced through parameter space so far.
 
-  * **Bottom (1D info-gain landscape)** — the score curve the engine
-    minimises: ``_expected_loss_vec`` from ``engine.core_mcmc``
-    evaluated against the current particle cloud over a dense signal
-    grid. The argmin is the optimal next-item signal level (= the
-    "gradient-descent step" the engine takes when picking the next
-    question). A small marker "rolls" from the current frame's mean
-    down to the argmin to make the descent visually explicit.
+  * **Bottom (questions-by-domain scatter, v1.2.8)** — every question
+    asked so far, one dot per question: x = question number, y = its
+    signal strength (s_mean, probit-scale case difficulty), colored by
+    domain (spike / sz / lpd / gpd / lrda / grda / iic). Dots reveal up
+    to the trial in focus, with the most-recent question ringed so it
+    ties to the animated panels above. (Replaces the earlier
+    expected-posterior-variance score curve.)
 
 The video cycles through all K tasks sequentially. Each task block
 renders a representative subsample of trials so total runtime stays
@@ -74,30 +73,30 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt            # noqa: E402
 from matplotlib.animation import FuncAnimation, FFMpegWriter  # noqa: E402
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec  # noqa: E402
+from matplotlib.lines import Line2D       # noqa: E402  (legend proxies)
 from mpl_toolkits.mplot3d import Axes3D    # noqa: E402, F401  (registers 3D)
 
-# Frozen PyInstaller bundles: anchor on sys._MEIPASS so the engine
-# import path resolves to the data unpack root rather than a synthetic
-# PYZ path. Mirrors the convention used in cortex_render_videos and
-# cortex_engine_inputs.
+# Frozen PyInstaller bundles: anchor on sys._MEIPASS for parity with the
+# sibling renderers. v1.2.8 dropped the engine import this block used to set
+# up for the old bottom-panel score curve; the bottom panel is now a
+# session-level questions-vs-signal scatter that needs no engine code.
 if getattr(sys, "frozen", False):
     _REPO = Path(sys._MEIPASS)
     _HERE = _REPO / "scripts"
-_ENGINE = _REPO / "engine"
-if str(_ENGINE) not in sys.path:
-    sys.path.insert(0, str(_ENGINE))
-
-from core_mcmc import _expected_loss_vec  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 # ─── visual constants ─────────────────────────────────────────────────
-DOMAIN_TITLES = {"sz": "Seizure", "lpd": "LPD", "gpd": "GPD",
-                 "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
+DOMAIN_TITLES = {"spike": "Spike", "sz": "Seizure", "lpd": "LPD",
+                 "gpd": "GPD", "lrda": "LRDA", "grda": "GRDA", "iic": "Other"}
+# Per-domain dot colors for the questions-vs-signal panel — the Okabe-Ito
+# colorblind-safe palette, all legible on the dark CORTEX background.
+DOMAIN_COLORS = {"spike": "#E69F00", "sz": "#D55E00", "lpd": "#56B4E9",
+                 "gpd": "#0072B2", "lrda": "#009E73", "grda": "#CC79A7",
+                 "iic": "#F0E442"}
 T_LIM = (-3.0, 3.0)
 L_LIM = (-2.0, 3.0)
-SIGNAL_GRID_FINE = np.linspace(-2.8, 2.8, 61)   # smoother than engine's 11
 DPI = 110
 # v1.1.5: slowed playback to target ~60 sec total runtime across the 6
 # IIIC tasks. v1.1.3-v1.1.4 ran at 24 fps × 30 trials × 0.8 s hold for
@@ -119,8 +118,8 @@ HOLD_SECONDS_PER_TASK = 4.0
 
 # ─── pure-math helpers (no Qt, no engine instrumentation) ─────────────
 def _state_from_cloud(t, l, w):
-    """Reconstruct the (minimal) engine-state dict that
-    ``_expected_loss_vec`` consumes from a saved particle cloud frame."""
+    """Reconstruct the (minimal) ``{t, l, w}`` cloud dict the frame renderer
+    consumes from a saved particle trajectory frame."""
     return {"t": t, "l": l, "w": w}
 
 
@@ -153,14 +152,18 @@ def _ellipse_xy(mu, cov, n_std=1.96, n_pts=128):
     return pts[0], pts[1]
 
 
-def _weighted_kde_grid(t_k, l_k, w, n=30):
+def _weighted_kde_grid(t_k, l_k, w, n=30, t_range=None, l_range=None):
     """Weighted 2D histogram → smooth density grid for the 3D surface.
 
     Histogram (not true KDE) keeps render time fast — visually
     indistinguishable from a small-bandwidth KDE at the resolution
-    matplotlib's surface plot uses anyway."""
-    t_edges = np.linspace(T_LIM[0], T_LIM[1], n + 1)
-    l_edges = np.linspace(L_LIM[0], L_LIM[1], n + 1)
+    matplotlib's surface plot uses anyway. v1.2.8: ``t_range``/``l_range``
+    let the caller bin over the live cloud extent so the surface breathes
+    to fit instead of clipping at fixed limits."""
+    t_lo, t_hi = t_range if t_range is not None else T_LIM
+    l_lo, l_hi = l_range if l_range is not None else L_LIM
+    t_edges = np.linspace(t_lo, t_hi, n + 1)
+    l_edges = np.linspace(l_lo, l_hi, n + 1)
     H, _, _ = np.histogram2d(t_k, l_k, bins=[t_edges, l_edges],
                              weights=w)
     H /= H.sum() + 1e-12
@@ -193,6 +196,32 @@ def _load_session(session_dir: Path) -> dict:
     t_traj = np.asarray(traj["t_traj"])
     l_traj = np.asarray(traj["l_traj"])
     w_traj = np.asarray(traj["w_traj"])
+
+    # v1.2.8: the bottom panel plots each asked question's signal strength
+    # (s_mean) against its question number, colored by domain (task_code),
+    # revealed up to the trial in focus. Pull it from trials.jsonl; tolerate
+    # legacy/synthetic sessions that lack s_mean (those rows are skipped).
+    questions = []
+    trials_path = sd / "trials.jsonl"
+    if trials_path.is_file():
+        for line in trials_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:                            # noqa: BLE001
+                continue
+            s = rec.get("s_mean")
+            if s is None:
+                continue
+            dom = rec.get("task_code")
+            if dom is None:
+                tk = rec.get("task_k")
+                dom = (task_codes[tk] if isinstance(tk, int)
+                       and 0 <= tk < len(task_codes) else "iic")
+            questions.append({"idx": int(rec.get("trial_index", len(questions))),
+                              "s": float(s), "domain": str(dom)})
+
     return {
         "session_dir": sd,
         "task_codes": task_codes,
@@ -203,6 +232,7 @@ def _load_session(session_dir: Path) -> dict:
         "n_particles": int(t_traj.shape[1]),
         "n_tasks": int(t_traj.shape[2]),
         "participant_name": name,
+        "questions": questions,
     }
 
 
@@ -266,7 +296,8 @@ def _style_axes_dark(ax, three_d=False):
 
 
 def _build_figure():
-    """Three-panel layout (3D surface | 2D cloud | wide score curve)."""
+    """Three-panel layout (3D surface | 2D cloud | wide questions-by-domain
+    scatter)."""
     # libx264 + yuv420p needs even pixel dimensions. figsize * DPI must
     # produce even (width, height). 11.0 * 110 = 1210; 7.0 * 110 = 770.
     fig = plt.figure(figsize=(11.0, 7.0), dpi=DPI)
@@ -287,32 +318,41 @@ def _build_figure():
                                     wspace=0.22, hspace=0.32)
     ax_surf = fig.add_subplot(inner[0, 0], projection="3d")
     ax_cloud = fig.add_subplot(inner[0, 1])
-    ax_score = fig.add_subplot(inner[1, :])
+    ax_q = fig.add_subplot(inner[1, :])
     _style_axes_dark(ax_surf, three_d=True)
     _style_axes_dark(ax_cloud)
-    _style_axes_dark(ax_score)
-    return fig, ax_surf, ax_cloud, ax_score, title_h, sub_h
+    _style_axes_dark(ax_q)
+    return fig, ax_surf, ax_cloud, ax_q, title_h, sub_h
+
+
+_DOMAIN_ORDER = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
 
 def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
-                fpt, mean_trail, ax_surf, ax_cloud, ax_score):
+                fpt, mean_trail, questions, ax_surf, ax_cloud, ax_q):
     """Render one frame. Called from FuncAnimation's update closure."""
-    ax_surf.clear(); ax_cloud.clear(); ax_score.clear()
+    ax_surf.clear(); ax_cloud.clear(); ax_q.clear()
     _style_axes_dark(ax_surf, three_d=True)
     _style_axes_dark(ax_cloud)
-    _style_axes_dark(ax_score)
+    _style_axes_dark(ax_q)
 
     t_k = state["t"][:, task_k]
     l_k = state["l"][:, task_k]
     w = state["w"]
 
+    # v1.2.8: breathe the (t, ℓ) panels to the live cloud so particles never
+    # run off the axes (shared helper from cortex_render_videos).
+    t_lo, t_hi = _cv._data_limits(t_k)
+    l_lo, l_hi = _cv._data_limits(l_k)
+
     # === 3D posterior density surface ===========================
-    TG, LG, H = _weighted_kde_grid(t_k, l_k, w, n=30)
+    TG, LG, H = _weighted_kde_grid(t_k, l_k, w, n=30,
+                                   t_range=(t_lo, t_hi), l_range=(l_lo, l_hi))
     ax_surf.view_init(elev=24, azim=-60 + (frame * 1.5) % 360)
     ax_surf.plot_surface(TG, LG, H.T, cmap="plasma", linewidth=0,
                          antialiased=True, edgecolor="none", alpha=0.82,
                          rstride=1, cstride=1)
-    ax_surf.set_xlim(*T_LIM); ax_surf.set_ylim(*L_LIM)
+    ax_surf.set_xlim(t_lo, t_hi); ax_surf.set_ylim(l_lo, l_hi)
     z_max = max(float(H.max()) * 1.2, 1e-3)
     ax_surf.set_zlim(0, z_max)
     ax_surf.set_xlabel(r"$t_k$  (bias)", labelpad=-4)
@@ -350,49 +390,53 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
                             alpha=0.55))
     except np.linalg.LinAlgError:
         pass
-    ax_cloud.set_xlim(*T_LIM); ax_cloud.set_ylim(*L_LIM)
+    # Breathe the cloud panel too, but widen to also contain the ellipse +
+    # mean trail so they are never clipped at the edge.
+    cx = [t_lo, t_hi, float(mu[0])]
+    cy = [l_lo, l_hi, float(mu[1])]
+    if len(mean_trail) >= 1:
+        tr = np.asarray(mean_trail)
+        cx += [float(tr[:, 0].min()), float(tr[:, 0].max())]
+        cy += [float(tr[:, 1].min()), float(tr[:, 1].max())]
+    ax_cloud.set_xlim(*_cv._data_limits(cx))
+    ax_cloud.set_ylim(*_cv._data_limits(cy))
     ax_cloud.set_xlabel(r"$t_k$  (bias)")
     ax_cloud.set_ylabel(r"$\ell_k$  (skill)")
     ax_cloud.set_title("posterior cloud — geodesic trail of mean",
                        pad=2, fontsize=9)
     ax_cloud.grid(True, color=_GRID, alpha=0.25)
 
-    # === 1D info-gain landscape =================================
-    # `_expected_loss_vec` returns expected total posterior variance
-    # if we ask the next question on task_k at each signal level. The
-    # engine picks argmin — the "gradient-descent step" in question
-    # space. We plot the curve, mark the argmin, and animate a marker
-    # rolling from the current posterior mean (in signal-space, the
-    # rater's mean response location) toward the argmin to make the
-    # descent visually explicit.
-    scores = _expected_loss_vec(state, task_k, SIGNAL_GRID_FINE)
-    s_argmin = float(SIGNAL_GRID_FINE[int(np.argmin(scores))])
-    ax_score.plot(SIGNAL_GRID_FINE, scores, color=_TEXT, linewidth=1.4)
-    ax_score.fill_between(SIGNAL_GRID_FINE, scores, scores.min(),
-                          color=_TEXT, alpha=0.08)
-    ax_score.axvline(s_argmin, color=_GREEN, linewidth=1.2,
-                     linestyle="--", alpha=0.85)
-    # Marker descent: interpolate from the rater's current bias estimate
-    # (mu[0], approximation of where they sit in signal space) toward
-    # the optimal next signal, parameterised by within-trial progress.
-    progress_within_trial = (frame % fpt) / max(1, fpt - 1)
-    progress = float(np.clip(progress_within_trial, 0.0, 1.0))
-    ball_s = -mu[0] + progress * (s_argmin - (-mu[0]))
-    ball_y = float(np.interp(ball_s, SIGNAL_GRID_FINE, scores))
-    ax_score.scatter([ball_s], [ball_y], s=70, c=_GREEN, marker="o",
-                     edgecolor="white", linewidth=0.7, zorder=10)
-    # Argmin label
-    ax_score.text(s_argmin, scores.min() + 0.02 * (scores.max() -
-                  scores.min()), f" optimal next $s={s_argmin:+.2f}$",
-                  color=_GREEN, fontsize=8, ha="left", va="bottom")
-    ax_score.set_xlim(SIGNAL_GRID_FINE[0], SIGNAL_GRID_FINE[-1])
-    pad = 0.06 * max(scores.max() - scores.min(), 1e-9)
-    ax_score.set_ylim(scores.min() - pad, scores.max() + pad)
-    ax_score.set_xlabel("candidate item signal  $s$  (probit-scale case difficulty)")
-    ax_score.set_ylabel("expected posterior variance\nafter one question")
-    ax_score.set_title("engine's decision landscape — descend the gradient to the next question",
-                       pad=2, fontsize=9)
-    ax_score.grid(True, color=_GRID, alpha=0.25)
+    # === questions asked so far — signal strength by domain =====
+    # v1.2.8: replaces the expected-posterior-variance score curve. One dot
+    # per asked question: x = question number, y = its signal strength
+    # (s_mean, probit-scale case difficulty), colored by domain. Revealed up
+    # to the trial in focus ("reveal as it goes"), with the most-recent
+    # question ringed so it ties to the animated panels above.
+    revealed = [q for q in questions if q["idx"] <= j]
+    if revealed:
+        xs = np.array([q["idx"] + 1 for q in revealed], dtype=float)
+        ys = np.array([q["s"] for q in revealed], dtype=float)
+        cs = [DOMAIN_COLORS.get(q["domain"], _MUTED) for q in revealed]
+        ax_q.scatter(xs, ys, s=22, c=cs, edgecolor="none",
+                     alpha=0.9, zorder=3)
+        ax_q.scatter([xs[-1]], [ys[-1]], s=80, facecolor="none",
+                     edgecolor="white", linewidth=1.1, zorder=4)
+        ax_q.set_xlim(*_cv._data_limits(xs, frac=0.04, floor=2.0))
+        ax_q.set_ylim(*_cv._data_limits(ys, frac=0.14, floor=0.6))
+    else:
+        ax_q.set_xlim(0, 2); ax_q.set_ylim(-1, 1)
+    ax_q.axhline(0.0, color=_GRID, lw=0.6, alpha=0.5, zorder=0)
+    ax_q.set_xlabel("question number")
+    ax_q.set_ylabel("signal strength  $s$\n(probit-scale case difficulty)")
+    ax_q.set_title("questions asked so far — signal strength by domain",
+                   pad=2, fontsize=9)
+    ax_q.grid(True, color=_GRID, alpha=0.25)
+    handles = [Line2D([0], [0], marker="o", linestyle="none", markersize=5,
+                      markerfacecolor=DOMAIN_COLORS[d], markeredgecolor="none",
+                      label=DOMAIN_TITLES.get(d, d)) for d in _DOMAIN_ORDER]
+    ax_q.legend(handles=handles, loc="upper left", ncol=len(_DOMAIN_ORDER),
+                fontsize=6, framealpha=0.0, handletextpad=0.2,
+                columnspacing=0.8, labelcolor=_TEXT)
 
 
 # ─── public API ───────────────────────────────────────────────────────
@@ -423,7 +467,8 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
         T, K, fps=fps, trials_per_task=trials_per_task,
         hold_seconds=hold_seconds)
 
-    fig, ax_surf, ax_cloud, ax_score, title_h, sub_h = _build_figure()
+    fig, ax_surf, ax_cloud, ax_q, title_h, sub_h = _build_figure()
+    questions = sess["questions"]
 
     # Pre-compute the trail of posterior means per task — used by the
     # 2D cloud panel to draw the geodesic the cloud has traced through
@@ -447,20 +492,20 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
         _draw_frame(state, task_k=task_k,
                     task_code=sess["task_codes"][task_k],
                     j=j, n_trials=T, frame=frame, fpt=fpt,
-                    mean_trail=trail,
+                    mean_trail=trail, questions=questions,
                     ax_surf=ax_surf, ax_cloud=ax_cloud,
-                    ax_score=ax_score)
+                    ax_q=ax_q)
         task_code = sess["task_codes"][task_k]
         title_h.set_text(
-            f"{sess['participant_name']}  —  task {task_k + 1}/{K}: "
+            f"task {task_k + 1}/{K}: "
             f"{DOMAIN_TITLES.get(task_code, task_code)}  —  "
             f"trial {j + 1}/{T}")
         sub_h.set_text(
             "the engine asks the question that minimises expected "
-            "posterior variance.  each frame: cloud (posterior over "
-            r"skill $\ell$ and bias $t$) → ellipse (uncertainty) → "
-            "score curve (cost-to-decide as a function of next-item "
-            "signal).  green dashed line = argmin = optimal next $s$.")
+            "posterior variance.  top: posterior over skill "
+            r"$\ell$ and bias $t$ for this task (manifold + cloud with "
+            "uncertainty ellipse).  bottom: every question asked so far, "
+            "its signal strength colored by domain.")
         return ()
 
     writer = FFMpegWriter(fps=fps, bitrate=4000, codec="libx264",

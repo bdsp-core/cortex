@@ -370,15 +370,15 @@ jobs:
 
             Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            ### What is new in v1.2.7
+            ### What is new in v1.2.8
 
-            This build adds a separate download for Intel Macs. Until now the only mac build targeted Apple Silicon (the M1, M2, M3, and later chips), and it would not launch on an older Intel Mac. There are now two mac downloads: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
+            This build cleans up the three short videos the app renders for you at the end of a session. We removed the participant name from all three. We replaced the bottom panel of the engine explainer video with a clearer plot that shows every question you answered along the bottom and how hard each one was up the side, with each dot colored by which task it belonged to (spike, seizure, LPD, GPD, LRDA, GRDA, or Other), drawn in as the video plays. And we made every plot rescale to fit its data so nothing ever runs off the edge of a graph. The test itself, the questions, and your verdicts are unchanged.
 
-            Everything from v1.2.6 is included: the tutorial now tells you the spectrogram only appears for the pattern-classification recordings and that the spike-present questions show the EEG on its own, the spectrogram panel is hidden during the spike block so the EEG plot expands to a clean wide view, and the per session `collapse.mp4` and `passfail.mp4` visualizations render correctly for all 7 tasks.
+            The Intel and Apple Silicon mac downloads from v1.2.7 are both still here: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 
             ### If you downloaded an earlier v1.2.x
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.7 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.8 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 

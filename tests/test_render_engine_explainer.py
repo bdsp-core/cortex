@@ -59,6 +59,8 @@ def _make_synthetic_session(sd: Path, *, T=4, N=80, K=6):
     (sd / "trials.jsonl").write_text(
         "\n".join(json.dumps({
             "trial_index": i, "task_k": i % K,
+            "task_code": TASK_CODES[i % K],          # v1.2.8 bottom-panel color
+            "s_mean": float(np.sin(i)), "s_sd": 0.1,  # v1.2.8 bottom-panel y
             "auroc_hw": [0.2] * K,
             "policy_diag": {"pi": [0.5] * K, "mcse": [0.01] * K,
                             "R": [0.4] * K, "ess": 400.0},
@@ -311,3 +313,38 @@ def test_finalize_skips_explainer_for_aborted_session(
     assert not explainer_called, (
         "engine_explainer ran for an aborted session — should have "
         "been skipped (matches cortex_render_videos.render_all behavior).")
+
+
+# ─── v1.2.8: bottom panel = questions-vs-signal-strength by domain ────
+def test_v1_2_8_explainer_drops_expected_loss_curve():
+    """The bottom panel no longer plots the expected-posterior-variance
+    score curve (and no longer imports the engine to do so)."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "render_engine_explainer.py").read_text()
+    assert "_expected_loss_vec" not in src
+    assert "expected posterior variance" not in src
+    assert "signal strength by domain" in src
+
+
+def test_v1_2_8_domain_palette_covers_seven_tasks():
+    assert set(ree.DOMAIN_COLORS) == {
+        "spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"}
+    assert ree.DOMAIN_TITLES.get("spike") == "Spike"   # was missing pre-1.2.8
+
+
+def test_v1_2_8_load_session_parses_questions(tmp_path):
+    _make_synthetic_session(tmp_path, T=6, N=40, K=6)
+    sess = ree._load_session(tmp_path)
+    qs = sess["questions"]
+    assert len(qs) == 6
+    assert set(qs[0]) == {"idx", "s", "domain"}
+    assert qs[0]["idx"] == 0
+    assert qs[0]["domain"] in ree.DOMAIN_COLORS
+
+
+def test_v1_2_8_explainer_title_drops_participant_name():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "render_engine_explainer.py").read_text()
+    assert "sess['participant_name']" not in src
