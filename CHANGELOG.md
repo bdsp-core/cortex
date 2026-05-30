@@ -7,6 +7,107 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.4` — four-issue fix from Eli's v1.2.3 self-test: tutorial loader, spike spectrogram, session sectioning, empty-bank crash
+
+Four user-visible issues Eli surfaced on his v1.2.3 self-test (Linux),
+all fixed in this release. The first two are small UI fixes; the last
+two are a single architectural change in `scripts/session_controller.py`
+that introduces phase-aware item selection.
+
+### Issue 1: tutorial fails to load EEG + spectrogram
+
+`scripts/eeg_bank_viewer.py:open_viewer()` picked `inputs.all_seg_ids[0]`
+as the tutorial example. Under K=7 the manifest puts the 50 spike segs
+at indices 0..49, so the tutorial got a spike seg_id — but the tutorial
+UI is hard-coded for IIIC (6-button answer panel + `eeg30s` renderer).
+The `_render` call tried `bank['/iiic/<spike_seg_id>']` which doesn't
+exist → silent failure (the bank's exception handler set `self.data = None`
+and returned). The tutorial appeared frozen.
+
+Fix: explicit `next(s for s in inputs.all_seg_ids if inputs.family(s) == 'iiic')`
+when the inputs object has a `family` attribute (K=7 path). K=6 fallback
+preserved (`IIICEngineInputs` has no `family` attr; first seg is always
+IIIC there).
+
+### Issue 2: spike questions still show spectrogram panel
+
+`scripts/eeg_bank_viewer.py:_redraw()` called `self._draw_spectrogram()`
+whenever the spec checkbox was checked. Spike segments don't carry
+`sdata`/`sfreqs`/`stimes` — and the spike-paper methodology (Jing et al)
+uses the 10s × 128 Hz EEG window only, no spectrogram panel. The
+on-the-fly compute fallback would have produced a meaningless 10-s
+spectrogram strip if the precomputed data were absent.
+
+Fix: family-aware gate in `_redraw`:
+`if self.spec_cb.isChecked() and family != "spike": self._draw_spectrogram()`.
+
+### Issues 3 + 4: session sectioning + empty-bank crash (single fix)
+
+Eli's v1.2.3 self-test froze at ~question 270 on a spike question. Root
+cause traced to `engine/core_mcmc.py:choose_item:607`:
+`best_k, best_s = domains[0], float(np.asarray(candidates[domains[0]])[0])` —
+when the spike pool exhausts (all 50 spike segs served), `bank_signals[0]`
+becomes `np.array([])` of shape `(0,)`, and the engine crashes with
+`IndexError: index 0 is out of bounds for axis 0 with size 0`. The
+engine has an `active_domains` parameter (`engine/core_mcmc.py:605`)
+exactly for this case — but the K=7 session controller was not passing
+it.
+
+Eli's separate request — section the test (spike phase first, then IIIC,
+then aggregate results at the end) — uses the same `active_domains`
+mechanism. One fix addresses both:
+
+`scripts/session_controller.py` adds `_compute_active_domains` on
+`CortexSession`:
+
+  * **Phase A (spike sectioning)**: if K=7 AND spike (k=0) verdict is
+    still PENDING AND the spike bank is non-empty, return `[0]` — the
+    engine asks spike questions only until AD6 locks the verdict or the
+    spike pool exhausts.
+  * **Phase B (IIIC)**: once the spike phase has ended (verdict locked
+    OR pool empty), return all IIIC task indices (1..6) with non-empty
+    banks AND PENDING verdicts.
+  * **K=6 (legacy) / non-AD6 policies**: return all k with non-empty
+    banks (no phase awareness needed).
+  * **All resolved**: empty list → `_select` returns None → run loop
+    stops cleanly with new `stop_reason="all_active_resolved"`.
+
+`_select` now consults `_compute_active_domains` each trial + passes the
+result to `choose_item` and `_pick_top_n`. The hierarchical Σ_l coupling
+is preserved across phases (spike evidence informs IIIC priors via the
+K=7 model) — only the question ordering changes. Final ResultsScreen
+aggregates spike + IIIC verdicts as before.
+
+### Regression tests (`tests/test_cortex_viewer.py`)
+
+Four new tests, 30/30 viewer suite pass:
+
+  * `test_main_open_viewer_picks_iiic_tutorial_seg_under_k7` — AST-asserts
+    that `open_viewer` uses `inputs.family(...)` to filter `all_seg_ids`
+    for the tutorial seg.
+  * `test_redraw_skips_spectrogram_for_spike_family` — AST-asserts
+    `_redraw` reads `_cur_family` and the body mentions `spike` (the
+    family-aware gate).
+  * `test_compute_active_domains_k7_spike_first_sectioning` — drives all
+    4 phase-transition cases (Phase A, spike-resolved Phase B, empty-
+    spike-pool Phase B, all-resolved → empty) on a real K=7 inputs +
+    AD6Policy.
+  * `test_session_skips_empty_spike_bank_without_indexerror` — runs a
+    real random-rater K=7 session for up to 100 trials and asserts it
+    completes without IndexError.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.3 → 1.2.4`.
+* `.github/workflows/cortex-release.yml` release-body prepends a "Fixes
+  in v1.2.4" section above the v1.2.3 calibration entry.
+
+### Test gate at ship
+
+`tests/test_cortex_viewer.py + tests/test_phase9_*.py`: **78/78 PASS** (was 74; +4 new for v1.2.4).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.3` — AD6 calibration tweak: N_MIN 12 → 20 (random-rater edge-case hardening)
 
 Calibration tweak surfaced by Eli's v1.2.0/v1.2.2 self-test as a deliberate

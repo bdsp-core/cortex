@@ -252,6 +252,129 @@ def test_default_policy_for_k7_uses_v14_block_by_default():
     assert sig_load.parameters["block_name"].default == "ell_star_unified_v14"
 
 
+# ── v1.2.4 regression tests for the 4-issue fix ───────────────────────────
+
+def test_main_open_viewer_picks_iiic_tutorial_seg_under_k7():
+    """v1.2.4 Issue 1 regression: open_viewer() must pick an IIIC seg as
+    tutorial_sid, NOT the first item of all_seg_ids (which under K=7 is a
+    spike seg — the K=7 inputs manifest has spike segments at indices 0..49).
+    The tutorial UI is hard-coded for IIIC (eeg30s renderer + 6-button panel),
+    so a spike tutorial_sid would silently fail to load (`bank.[/iiic/<spike_seg_id>]`
+    doesn't exist). Surfaced by Eli's v1.2.3 self-test."""
+    import ast
+    from pathlib import Path
+    viewer_src = (Path(__file__).resolve().parents[1] / "scripts"
+                  / "eeg_bank_viewer.py").read_text()
+    tree = ast.parse(viewer_src)
+    open_viewer_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "open_viewer":
+            open_viewer_node = node
+            break
+    assert open_viewer_node is not None
+    # Look for a call to inputs.family(...) inside a generator-expression
+    # filter on inputs.all_seg_ids — this is the "pick first IIIC seg" pattern.
+    src_slice = ast.unparse(open_viewer_node)
+    assert "inputs.family" in src_slice and "iiic" in src_slice, (
+        "open_viewer must use inputs.family(...) to filter all_seg_ids "
+        "for the tutorial seg (Issue 1 regression).")
+
+
+def test_redraw_skips_spectrogram_for_spike_family():
+    """v1.2.4 Issue 2 regression: BankViewer._redraw must SKIP
+    _draw_spectrogram() when self._cur_family == 'spike'. Spike segments
+    don't carry sdata/sfreqs/stimes, and the spike-paper methodology uses
+    the EEG signal only (no spectrogram panel). Surfaced by Eli's v1.2.3
+    self-test."""
+    import ast
+    from pathlib import Path
+    viewer_src = (Path(__file__).resolve().parents[1] / "scripts"
+                  / "eeg_bank_viewer.py").read_text()
+    tree = ast.parse(viewer_src)
+    redraw_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_redraw":
+            redraw_node = node
+            break
+    assert redraw_node is not None
+    src_slice = ast.unparse(redraw_node)
+    # Family-aware spectrogram gate
+    assert "_cur_family" in src_slice, "_redraw must read _cur_family"
+    assert "spike" in src_slice, "_redraw must mention spike in its gate"
+    # Confirm _draw_spectrogram is conditional on something not just spec_cb
+    assert "_draw_spectrogram" in src_slice
+
+
+def test_compute_active_domains_k7_spike_first_sectioning():
+    """v1.2.4 Issue 3 regression: K=7 sessions must ask spike (k=0) first
+    UNTIL the spike verdict locks (PASS/FAIL) OR the spike pool exhausts,
+    then transition to IIIC (k=1..6). Implements `_compute_active_domains`
+    on CortexSession."""
+    import sys as _sys
+    _SCRIPTS = str(_REPO + "/scripts")
+    if _SCRIPTS not in _sys.path:
+        _sys.path.insert(0, _SCRIPTS)
+    import numpy as np
+    from session_controller import CortexSession
+    from cortex_engine_inputs_k7 import build_k7_engine_inputs
+    from cortex_policy import PASS, PENDING
+
+    inputs = build_k7_engine_inputs()
+    inp = inputs.without([inputs.all_seg_ids[0]])
+    sess = CortexSession(inp, session_id="t-active", n_particles=200)
+    sess.policy.reset(7)
+
+    # Phase A: spike pool non-empty + PENDING → only k=0
+    bs, _, _ = inp.as_engine_arrays(inp.all_seg_ids)
+    assert sess._compute_active_domains(bs) == [0]
+
+    # Phase A→B trigger 1: spike resolved → IIIC tasks active
+    sess.policy._verdicts = [PASS] + [PENDING] * 6
+    assert sess._compute_active_domains(bs) == [1, 2, 3, 4, 5, 6]
+
+    # Phase A→B trigger 2: spike pool empty + spike PENDING → still skip k=0
+    sess.policy._verdicts = [PENDING] * 7
+    iiic_only = [s for s in inp.all_seg_ids if inp.family(s) != "spike"]
+    bs_empty_spike, _, _ = inp.as_engine_arrays(iiic_only)
+    assert bs_empty_spike[0].size == 0
+    assert sess._compute_active_domains(bs_empty_spike) == [1, 2, 3, 4, 5, 6]
+
+    # All resolved: empty list → run loop will stop the session
+    sess.policy._verdicts = [PASS] * 7
+    assert sess._compute_active_domains(bs) == []
+
+
+def test_session_skips_empty_spike_bank_without_indexerror():
+    """v1.2.4 Issue 4 regression: when the spike pool exhausts mid-session
+    (random rater + N_MIN=20 + 50 spike bank: ~trial 270 in Eli's frozen
+    v1.2.3 self-test), the engine's `choose_item` used to crash with
+    `IndexError: index 0 is out of bounds for axis 0 with size 0` because
+    `bank_signals[0]` had become `np.array([])`. The phase-aware
+    active_domains in _compute_active_domains prevents the empty-bank pick.
+    """
+    import sys as _sys
+    _SCRIPTS = str(_REPO + "/scripts")
+    if _SCRIPTS not in _sys.path:
+        _sys.path.insert(0, _SCRIPTS)
+    import numpy as np
+    from session_controller import CortexSession
+    from cortex_engine_inputs_k7 import build_k7_engine_inputs
+
+    inputs = build_k7_engine_inputs()
+    inp = inputs.without([inputs.all_seg_ids[0]])
+    sess = CortexSession(inp, session_id="t-empty-spike",
+                         seed=99, max_questions=100, n_particles=200)
+    rng = np.random.default_rng(99)
+    def random_y(k, seg_id, s):
+        return int(rng.integers(0, 2)) if k == 0 else \
+               int(rng.choice([0, 0, 0, 0, 0, 1]))
+    # If the bug were present, this run would crash at some trial in [50, 100].
+    result = sess.run(random_y)
+    assert result.n_questions > 0
+    assert result.stop_reason in (
+        "all_resolved", "bank_exhausted", "all_active_resolved", "max_reached")
+
+
 def _fill_required(reg):
     """Set the minimum fields required to pass the v1.1.1 wizard
     validation. Page 3 (demographics) is fully optional."""

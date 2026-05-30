@@ -1119,7 +1119,15 @@ class BankViewer(QMainWindow):
         if not hasattr(self, "data"):
             return
         self._draw_eeg()
-        if self.spec_cb.isChecked():
+        # Phase-9 K=7 (v1.2.4 fix): spike segments have no spectrogram
+        # panel — the spike-paper methodology (Jing et al) uses only the
+        # 10s × 128 Hz EEG window for the Yes/No spike classification.
+        # The bundled spike segs don't carry sdata/sfreqs/stimes, so even
+        # if the user has the spec checkbox enabled, there's nothing to
+        # draw + the on-the-fly fallback would produce a meaningless
+        # 10s spectrogram strip. Skip cleanly.
+        family = getattr(self, "_cur_family", "iiic")
+        if self.spec_cb.isChecked() and family != "spike":
             self._draw_spectrogram()
 
     def _draw_eeg(self):
@@ -2858,7 +2866,20 @@ def main():
         inputs = build_k7_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
         # engine pool, so the engine never re-serves the practice segment.
-        tutorial_sid = inputs.all_seg_ids[0]
+        # Phase-9 K=7 (v1.2.4 fix): inputs.all_seg_ids[0] for the K=7
+        # builder returns a SPIKE seg (spike comes first in the manifest),
+        # but the tutorial UI is hard-coded for IIIC (6-button panel +
+        # eeg30s renderer; v1.2.0-v1.2.3 bug: tutorial silently failed to
+        # load because _render tried to fetch `/iiic/<spike_seg_id>` from
+        # the bank which doesn't exist). Walk all_seg_ids and pick the
+        # first IIIC seg explicitly. The K=6 IIICEngineInputs predecessor
+        # has no .family attr so fall through to all_seg_ids[0] (which is
+        # always IIIC there).
+        if hasattr(inputs, "family"):
+            tutorial_sid = next(
+                s for s in inputs.all_seg_ids if inputs.family(s) == "iiic")
+        else:
+            tutorial_sid = inputs.all_seg_ids[0]
         engine_inputs = inputs.without([tutorial_sid])
         # v1.1.0: hard cap at MAX_QUESTIONS_DEFAULT — keeps the live-test
         # runway decoupled from bank size so future bank growth doesn't

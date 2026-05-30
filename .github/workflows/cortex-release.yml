@@ -260,6 +260,17 @@ jobs:
           body: |
             ## CORTEX adaptive EEG certification test
 
+            ### Fixes in v1.2.4 (since v1.2.3)
+
+            Four issues Eli surfaced on his v1.2.3 self-test, all fixed:
+
+            * **Tutorial now loads correctly.** v1.2.3 picked the first segment in the K=7 manifest as the tutorial example — but K=7 manifest puts spike segs first, so the tutorial (which is hard-coded for the IIIC 6-button + eeg30s renderer) tried to load a spike seg with the IIIC renderer and silently failed. v1.2.4 explicitly picks the first IIIC seg as the tutorial example.
+            * **No spectrogram for spike questions.** Per the spike-paper methodology (Jing et al), spike classification uses the 10s × 128 Hz EEG window only — no spectrogram panel. The spike bundle has no `sdata`/`sfreqs`/`stimes` to draw anyway, so v1.2.3 silently rendered an empty panel. v1.2.4 skips the spectrogram draw for spike segments cleanly.
+            * **Test is now sectioned: spike first, then IIIC.** Earlier versions interleaved spike + IIIC questions adaptively. v1.2.4 introduces phase-aware item selection — the engine asks **spike questions only** until the spike verdict locks (PASS/FAIL/REFER) OR the spike pool exhausts, then transitions to the **IIIC phase** (the original 6-task adaptive). The hierarchical Σ_l posterior coupling is preserved across phases (spike evidence informs IIIC priors via the K=7 model), so the math is unchanged — only the question ordering is. Final results screen aggregates spike + IIIC as before.
+            * **Fixes the `index 0 is out of bounds` crash at ~trial 270.** When the random-guesser session served all 50 spike segs at N_MIN=20, the engine's `choose_item` initialised from an empty per-task bank and crashed with IndexError. v1.2.4's phase-aware active-domains computation skips empty-bank tasks cleanly. The same mechanism implements the spike-first sectioning above — one architectural fix handles both issues.
+
+            Regression-gated by 4 new tests in `tests/test_cortex_viewer.py`; bundle suite is now 30/30 viewer + 48/48 Phase 9 = 78/78 pass.
+
             ### Calibration tweak in v1.2.3 (since v1.2.2)
 
             **N_MIN raised 12 → 20.** During Eli's v1.2.2 self-test as a deliberate random-guesser, two of six IIIC tasks (gpd, iic) returned spurious PASS verdicts. Root cause: AD6 verdict-lock fired at the N_MIN=12 floor (trial 67 / 54 respectively) when the posterior was momentarily elevated by early-trial noise — and the K=7 hierarchical cross-task posterior continued updating after the lock, but the verdict couldn't revoke (monotonic-lock is a deliberate adaptive design choice). Two PhD agents independently confirmed: at internal-test settings (N_MIN=12, ALPHA=0.25) the per-task spurious-PASS rate for a true random rater is ~5.5%; familywise across K=7 ~50%. Raising N_MIN to 20 cuts the per-task rate to ~3% and roughly halves the familywise rate, without changing the alpha gate (kept fast for internal-test). ALPHA stays at 0.25 by design.

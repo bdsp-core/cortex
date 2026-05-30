@@ -59,6 +59,7 @@ from auroc import (  # noqa: E402
     auroc_mean_from_particles_hier, auroc_halfwidths_hier)
 from cortex_engine_inputs_k7 import build_k7_engine_inputs  # noqa: E402
 from cortex_policy_k7 import default_policy_for_k7  # noqa: E402
+from cortex_policy import PENDING  # noqa: E402 — v1.2.4: phase-aware active-domains
 
 # Phase-9 K=7: K=7 wins by default. Module remains K-agnostic via
 # inputs.task_codes; the build_k7 loader supplies 7 tasks (spike + 6 IIIC).
@@ -181,21 +182,64 @@ class CortexSession:
             inputs, delta_auroc=delta_auroc, policy=policy)
         self.proposal_scale = 2.38 / np.sqrt(2 * self.K)
 
+    def _compute_active_domains(self, bank_signals):
+        """K=7 phase-aware active-domains for the engine selector. Eli's
+        v1.2.4 sectioning rule + Issue-4 empty-bank guard:
+
+          Phase A (spike-first sectioning): if K=7 AND spike (k=0) verdict
+            is still PENDING AND the spike bank is non-empty, return
+            [0] only — the engine asks spike questions until AD6 locks
+            the spike verdict OR the spike bank exhausts.
+
+          Phase B (IIIC sectioning): once the spike phase has ended (verdict
+            locked or pool empty), return all IIIC task indices (1..6)
+            with non-empty banks AND PENDING verdicts.
+
+          K=6 (legacy) / non-AD6 policies: return all k with non-empty
+            banks (no phase awareness needed — IIIC banks are uniform).
+
+        Also fixes Issue 4 — `engine/core_mcmc.py:choose_item` IndexError
+        when a per-task bank empties (at N_MIN=20 the engine can ask all
+        50 spike segs by ~trial 140 and crash on the 51st pick because
+        spike's bank_signals[0] was shape (0,)). Phase-aware
+        active_domains prevents the empty-bank pick.
+        """
+        K = self.K
+        verdicts = (self.policy._verdicts if (hasattr(self.policy, "_verdicts")
+                                               and self.policy._verdicts is not None)
+                    else [PENDING] * K)
+        # Phase A — K=7 spike sectioning
+        if (K == 7 and verdicts[0] == PENDING and len(bank_signals[0]) > 0):
+            return [0]
+        # Phase B / K=6 — all unresolved tasks with non-empty banks
+        return [k for k in range(K)
+                if len(bank_signals[k]) > 0 and verdicts[k] == PENDING]
+
     def _select(self, state, remaining, rng, trial_index):
         """Pick the next (task k, seg_id, s, s_sd) + the chosen item's
-        expected post-answer total posterior variance."""
+        expected post-answer total posterior variance. Returns None if
+        no domain is selectable (all resolved or all banks empty) — the
+        run loop catches this and stops the session with
+        stop_reason="all_active_resolved"."""
         inp = self.inputs
         if self.selection == "adaptive":
             bank_signals, bank_sds, bank_segids = inp.as_engine_arrays(remaining)
+            # v1.2.4: phase-aware active domains (spike-first sectioning +
+            # empty-bank skip). See _compute_active_domains docstring.
+            active_domains = self._compute_active_domains(bank_signals)
+            if not active_domains:
+                return None
             if trial_index == 0 and self.first_item_topn > 1:
                 # Q1 varies per examinee — draw uniformly (session rng) from
                 # the top-N most-informative items, not the single argmin
                 # (which would be identical for every test-taker).
                 k, seg_id, s, s_sd = self._pick_top_n(
-                    state, bank_signals, bank_sds, bank_segids, rng)
+                    state, bank_signals, bank_sds, bank_segids, rng,
+                    active_domains=active_domains)
             else:
                 k, s, s_sd, seg_id = choose_item(
                     state, bank_signals, bank_sds=bank_sds,
+                    active_domains=active_domains,
                     return_sd=True, bank_segids=bank_segids)
         else:  # random null baseline — the Phase-1 ablation comparator
             seg_id = int(rng.choice(remaining))
@@ -209,12 +253,18 @@ class CortexSession:
             state, k, np.array([s]), signal_sds=np.array([s_sd]))[0])
         return k, seg_id, s, s_sd, expected_loss
 
-    def _pick_top_n(self, state, bank_signals, bank_sds, bank_segids, rng):
+    def _pick_top_n(self, state, bank_signals, bank_sds, bank_segids, rng,
+                     active_domains=None):
         """Trial-0 selection — uniformly pick among the `first_item_topn`
         items with the lowest expected posterior variance, so the opening
-        question differs per examinee instead of being a fixed argmin."""
+        question differs per examinee instead of being a fixed argmin.
+
+        v1.2.4: respects `active_domains` (the K=7 phase-A spike-first
+        sectioning rule). Defaults to all K domains if not supplied
+        (back-compat with non-K=7 callers)."""
         scored = []                       # (expected_loss, task_k, idx)
-        for k in range(self.K):
+        domains = active_domains if active_domains is not None else range(self.K)
+        for k in domains:
             sigs = np.asarray(bank_signals[k])
             sds = np.asarray(bank_sds[k])
             losses = _expected_loss_vec(state, k, sigs, signal_sds=sds)
@@ -250,8 +300,14 @@ class CortexSession:
                 if not remaining:
                     break
                 t0 = time.perf_counter()
-                k, seg_id, s, s_sd, expected_loss = self._select(
-                    state, remaining, rng, trial_index)
+                _selected = self._select(state, remaining, rng, trial_index)
+                # v1.2.4: _select returns None when no active domain has a
+                # candidate (all banks empty for unresolved tasks OR all
+                # tasks already resolved). Stop the session cleanly.
+                if _selected is None:
+                    stop_reason = "all_active_resolved"
+                    break
+                k, seg_id, s, s_sd, expected_loss = _selected
                 select_ms = (time.perf_counter() - t0) * 1000.0
 
                 if on_item is not None:
