@@ -637,7 +637,10 @@ class BankViewer(QMainWindow):
              "reading the waveforms.\n\n"
              "The four panels are brain regions: LL and RL are the left "
              "and right temporal chains; LP and RP are the left and "
-             "right parasagittal chains."),
+             "right parasagittal chains.\n\n"
+             "The spectrogram appears only for these pattern-"
+             "classification recordings. The spike-present questions "
+             "show the EEG on its own, with no spectrogram panel."),
             (self.eeg_plot, "The EEG",
              "The raw tracings. Each row is a derivation between two "
              "electrodes. Pan through the recording with the ◀ ▶ buttons "

@@ -7,6 +7,58 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.6` — tutorial note: spectrogram not shown for spike questions
+
+A documentation-only clarity fix on top of v1.2.5. No engine, policy, or
+data change; behavior is byte-identical to v1.2.5.
+
+### Context
+
+v1.2.5 made the spike block hide the spectrogram panel and expand the EEG
+to fill the freed space (`_redraw` hides `spec_container` when
+`family == "spike"`). But the tutorial renders an **IIIC** example
+(`start_tutorial(..., tutorial_domain="iiic")`), so during the coach-marks
+walkthrough the spectrogram panel IS on screen while the "The spectrogram"
+step describes it. A first-time tester therefore had no warning that the
+panel disappears once the live test enters the spike block — the v1.2.5
+hide could read as a bug rather than intended behavior.
+
+### Change
+
+`scripts/eeg_bank_viewer.py:start_tutorial` — the "The spectrogram"
+coach-mark step gains a closing sentence:
+
+> "The spectrogram appears only for these pattern-classification
+> recordings. The spike-present questions show the EEG on its own, with
+> no spectrogram panel."
+
+This pairs with the existing "Choosing an answer" step, which already
+notes that "Some recordings instead ask only whether an epileptiform
+spike is present." Wording matches the terse tutorial voice and the
+`spike-present` phrasing used elsewhere in the walkthrough.
+
+### Regression test added (`tests/test_cortex_viewer.py`; +1 test)
+
+* `test_tutorial_spectrogram_step_notes_spike_has_no_spectrogram`:
+  AST-parses `start_tutorial` and asserts the "The spectrogram" step
+  contains the `no spectrogram panel` note, so a future tutorial-copy
+  edit cannot silently drop it.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.5 → 1.2.6`.
+* `.github/workflows/cortex-release.yml` release-body "What is new in
+  v1.2.6" describes the tutorial note and carries forward the v1.2.5
+  spike-display + MP4 fixes (fresh-slate page, no stacked history); the
+  "earlier v1.2.x" re-download callout bumped to v1.2.6.
+
+### Test gate at ship
+
+`tests/test_cortex_viewer.py + tests/test_phase9_*.py`: **82/82 PASS**
+(was 81; +1 new for v1.2.6).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.5` — spike-screen cleanup + K=7 collapse/passfail MP4 fix + release-notes rewrite
 
 Three things in this build. The first two are bugs Eli surfaced on his

@@ -372,6 +372,34 @@ def test_redraw_hides_spec_container_for_spike_and_disables_checkbox():
     assert "spec_cb.setEnabled(True)" in src
 
 
+def test_tutorial_spectrogram_step_notes_spike_has_no_spectrogram():
+    """v1.2.6: the spectrogram coach-mark in start_tutorial must tell the
+    user the spectrogram is only shown for the pattern-classification
+    (IIIC) recordings and that spike questions show the EEG alone. The
+    tutorial renders an IIIC example so the panel IS visible during the
+    walkthrough; without this note a tester would not know the panel
+    disappears for the spike block (paired with the v1.2.5 _redraw hide).
+    AST-checked against the start_tutorial step list so the note cannot
+    silently drop out of a future tutorial-copy edit."""
+    import ast
+    from pathlib import Path
+    viewer_src = (Path(__file__).resolve().parents[1] / "scripts"
+                  / "eeg_bank_viewer.py").read_text()
+    tree = ast.parse(viewer_src)
+    start_tutorial_node = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "start_tutorial":
+            start_tutorial_node = node
+            break
+    assert start_tutorial_node is not None
+    src = ast.unparse(start_tutorial_node)
+    # The spectrogram step ("The spectrogram" title) must carry the spike caveat.
+    assert "The spectrogram" in src
+    assert "no spectrogram panel" in src, (
+        "start_tutorial spectrogram step must note that spike-present "
+        "questions show the EEG alone with no spectrogram panel (v1.2.6).")
+
+
 def test_render_collapse_passfail_k7_grid_layout():
     """v1.2.5 Issue 2 regression: cortex_render_videos.render_collapse and
     render_passfail must use a K-aware grid (was hardcoded

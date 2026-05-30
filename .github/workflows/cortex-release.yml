@@ -270,19 +270,15 @@ jobs:
 
             Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
 
-            ### What is new in v1.2.5
+            ### What is new in v1.2.6
 
-            Three things in this build.
+            One small clarity fix in this build. During the tutorial we walk you through the spectrogram panel using a pattern-classification example, so the panel is on screen while you read about it. We now tell you, right there in that tutorial step, that the spectrogram only appears for the pattern-classification recordings and that the spike-present questions show the EEG on its own with no spectrogram panel. That way the panel going away when the spike block starts is expected rather than surprising.
 
-            First, we cleaned up the EEG display on spike questions. Earlier builds left the spectrogram panel from the tutorial visible on spike screens (spike segments don't have spectrograms). Now the spectrogram panel is hidden during the spike block and the EEG plot expands to fill the freed space, so you get a clean wide view of the 10 second spike clip.
-
-            Second, we fixed the per session MP4 visualizations. v1.2.4 silently failed to render the `collapse.mp4` and `passfail.mp4` outputs (the particle cloud collapse video and the AD6 verdict trajectory video) for K=7 sessions because the grid layout was hardcoded for 6 tasks. Both renderers now scale to 7 tasks. The `engine_explainer.mp4` was already working and is unchanged.
-
-            Third, the release notes (the page you are reading) have been rewritten to be readable instead of stacking a wall of historical hotfix entries. Full version history lives in `CHANGELOG.md` in the source repo.
+            This build also carries the display and video fixes from v1.2.5: the spectrogram panel is hidden on the spike questions so the EEG plot expands to a clean wide view of the 10 second clip, and the per session `collapse.mp4` and `passfail.mp4` visualizations render correctly for all 7 tasks.
 
             ### If you downloaded an earlier v1.2.x
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.5 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.2.6 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 
