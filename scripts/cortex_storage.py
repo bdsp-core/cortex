@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -348,44 +349,94 @@ class SessionRecorder:
         os.fsync(self._events_fh.fileno())
 
     # ── end of session ──────────────────────────────────────────────────
-    def finalize(self, result):
+    def finalize(self, result, progress=None):
         """Write certificate.json + trajectory.npz; on a clean (non-aborted)
         completion also the result CSVs — kept locally and delivered to the
-        synced folder and/or Dropbox if either is configured."""
+        synced folder and/or Dropbox if either is configured.
+
+        v1.2.9: ``progress`` is an optional callback
+        ``progress(stage: str, frac01: float, eta_seconds: float|None)``
+        invoked at each stage and per video frame, so the GUI can show a
+        determinate bar + stage label + a real ETA. The fraction budget is
+        split: results+trajectory write (small), the three MP4 renders (the
+        bulk, sub-progress driven per-frame), then save + share (small)."""
         if self._closed:
             return
         finished = _utc_now()
+        t0 = time.monotonic()
+        last = {"frac": -1.0, "stage": None}
+
+        def emit(stage, frac):
+            if progress is None:
+                return
+            frac = max(0.0, min(1.0, float(frac)))
+            # Throttle: skip near-duplicate frames to keep the GUI smooth,
+            # but always emit a stage change or the terminal frame.
+            if (stage == last["stage"] and frac < 1.0
+                    and frac - last["frac"] < 0.005):
+                return
+            last["frac"] = frac
+            last["stage"] = stage
+            elapsed = time.monotonic() - t0
+            eta = (elapsed * (1.0 - frac) / frac) if frac > 0.02 else None
+            try:
+                progress(stage, frac, eta)
+            except Exception:                            # noqa: BLE001
+                pass
+
+        will_render = (self.render_videos
+                       and result is not None
+                       and not getattr(result, "aborted", False)
+                       and getattr(result, "t_traj", None) is not None)
+
+        emit("Calculating results", 0.01)
         self._write_certificate(result, finished)
         self._write_trajectory(result)
+        emit("Calculating results", 0.05 if will_render else 0.40)
+
         # Per-test-taker MP4 visualizations — wow-factor delivery alongside
         # the certificate. Wrapped in try/except so a missing ffmpeg or
         # matplotlib failure can never block the rest of finalize().
         # Renderer reads trajectory.npz + trials.jsonl + certificate.json +
         # participant.json from self.dir, so it MUST run after the writes
         # above. Aborted sessions skip rendering — the partial trajectory
-        # is not worth a 15s render.
-        if (self.render_videos
-                and result is not None
-                and not getattr(result, "aborted", False)
-                and getattr(result, "t_traj", None) is not None):
+        # is not worth a 15s render. The three renders take the bulk of the
+        # time; their per-frame callbacks drive [0.05, 0.92] of the bar.
+        if will_render:
             try:
                 from cortex_render_videos import render_all
-                render_all(self.dir)
+
+                def cb_all(stage, i, n):
+                    if stage == "collapse":
+                        lo, hi, label = 0.05, 0.28, "Building collapse video"
+                    else:
+                        lo, hi, label = 0.28, 0.50, "Building pass/fail video"
+                    emit(label, lo + (i / max(n, 1)) * (hi - lo))
+
+                render_all(self.dir, progress_callback=cb_all)
             except Exception as e:
                 logger.warning("per-test-taker video render failed: %s", e)
             # v1.1.3: engine-explainer MP4 — independent failure budget
             # so a problem in one render path can't suppress the other.
             try:
                 from render_engine_explainer import render_engine_explainer
-                render_engine_explainer(self.dir)
+
+                def cb_exp(i, n):
+                    emit("Building engine-explainer video",
+                         0.50 + (i / max(n, 1)) * (0.92 - 0.50))
+
+                render_engine_explainer(self.dir, progress_callback=cb_exp)
             except Exception as e:
                 logger.warning("engine_explainer render failed: %s", e)
         if result is None or getattr(result, "aborted", False):
+            emit("Done", 1.0)
             return
+        emit("Saving results", 0.94)
         try:
             csv_paths = self._write_result_csvs(result, finished)
         except Exception as e:
             logger.warning("could not write result CSVs: %s", e)
+            emit("Done", 1.0)
             return
         # (1) copy into a local cloud-synced folder, if configured
         if self.synced_dir is not None:
@@ -396,8 +447,10 @@ class SessionRecorder:
             except Exception as e:
                 logger.warning("synced-folder copy failed: %s", e)
         # (2) upload directly to Dropbox, if configured
+        emit("Sharing results", 0.97)
         if self.dropbox_cfg is not None:
             _dropbox_upload(self.dropbox_cfg, csv_paths)
+        emit("Done", 1.0)
 
     def _write_certificate(self, result, finished_utc):
         per_task = []

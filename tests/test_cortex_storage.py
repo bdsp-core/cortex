@@ -398,3 +398,25 @@ def test_load_synced_dir_parsing(tmp_path, monkeypatch):
     assert cs.load_synced_dir() is None
     cfg.write_text('synced_results_dir: "/tmp/cortex"\n')
     assert str(cs.load_synced_dir()) == "/tmp/cortex"
+
+
+# ─── v1.2.9: staged progress + ETA from finalize ─────────────────────
+def test_finalize_emits_progress_stages(tmp_path):
+    """finalize(progress=cb) must drive a monotonic 0..1 fraction through
+    named stages and end at ('Done', 1.0). render_videos=False so the slow
+    MP4 stages are skipped (the fraction still completes)."""
+    rec = _recorder(tmp_path)
+    rec.write_trial(_telemetry(0), _gui(0))
+    events = []
+    rec.finalize(_result(n=1),
+                 progress=lambda s, f, e: events.append((s, f, e)))
+    rec.close()
+    assert events, "no progress events emitted"
+    stages = [s for s, _, _ in events]
+    fracs = [f for _, f, _ in events]
+    assert stages[-1] == "Done" and fracs[-1] == 1.0
+    assert all(b >= a for a, b in zip(fracs, fracs[1:])), "frac not monotonic"
+    assert "Calculating results" in stages
+    assert "Saving results" in stages
+    # ETA is None or a non-negative number of seconds
+    assert all(e is None or e >= 0 for _, _, e in events)

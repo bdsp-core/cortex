@@ -7,6 +7,68 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.9` — results-page recordings breakdown + real progress bar with ETA
+
+Two test-taker-facing UX improvements. No engine, policy, calibration, or
+data change; verdicts are identical to v1.2.8.
+
+### 1. "Recordings reviewed" line shows the spike/pattern split
+
+`ResultsScreen` (`eeg_bank_viewer.py:2512`) printed only the combined total
+(`result.n_questions`, which already sums all 7 tasks). It now also shows the
+breakdown derived from per-trial `task_code`, e.g. "175 recordings reviewed
+(20 spike, 155 pattern)." Falls back to the plain total when a result carries
+no trials (older/stub results).
+
+### 2. Post-test loading page: determinate progress bar + stage + real ETA
+
+`ComputingResultsPage` previously showed an indeterminate busy-chase spinner
+with a static "2 to 3 minutes" hint for the whole 2-3 min finalize. It now
+shows a determinate bar, the current stage, and a live countdown:
+
+* `cortex_storage.finalize(result, progress=cb)` gained an optional
+  `progress(stage, frac01, eta_seconds)` callback. It splits the fraction
+  budget: results+trajectory write (small), the three MP4 renders (the bulk,
+  `[0.05, 0.92]`), then save + share. ETA is `elapsed * (1-frac)/frac`, which
+  self-corrects as real frames flow. A throttle suppresses near-duplicate
+  frames.
+* The three renderers (`cortex_render_videos.render_collapse` /
+  `render_passfail` / `render_all`, `render_engine_explainer.render_engine_explainer`)
+  gained a `progress_callback` forwarded to matplotlib's per-frame
+  `anim.save(progress_callback=...)`, so the bar tracks genuine render
+  progress (not a guess). `render_all` reports a labeled
+  `(stage, frame, total)` so finalize can slice collapse vs pass/fail.
+* `_FinalizeWorker` gained a `progress` signal (emitted from the worker
+  thread, queued to the GUI); `ComputingResultsPage.set_progress` switches
+  the bar to determinate on first update and renders the stage label + a
+  formatted ETA ("about 1m 13s remaining"). Stages a tester sees: Calculating
+  results → Building collapse / pass/fail / engine-explainer video → Saving
+  results → Sharing results → Done.
+
+### Regression tests (+6)
+
+* `test_finalize_emits_progress_stages` (monotonic 0→1, named stages, ETA
+  non-negative); `test_render_all_forwards_labeled_progress`;
+  `test_render_engine_explainer_forwards_progress_callback`;
+  `test_results_screen_shows_spike_pattern_breakdown`;
+  `test_computing_page_set_progress_is_determinate`; `test_fmt_eta_formatting`.
+  Existing finalize/render stubs updated to the new `progress`/
+  `progress_callback` signatures. Validated by rendering the progress page +
+  results line offscreen.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.8 → 1.2.9`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.2.9 (carries forward the two mac downloads).
+
+### Test gate at ship
+
+cortex viewer + render + storage + results + end-to-end + session-controller
++ phase9: **148/148 PASS** (+6 new for v1.2.9).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.2.8` — end-of-session MP4 layout cleanup
 
 Visualization-only release. No engine, policy, calibration, or data change;

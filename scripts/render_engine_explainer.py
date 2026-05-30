@@ -444,6 +444,7 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
                             *, fps: int = FPS,
                             trials_per_task: int = TRIALS_PER_TASK,
                             hold_seconds: float = HOLD_SECONDS_PER_TASK,
+                            progress_callback=None,
                             ) -> Path:
     """Render engine_explainer.mp4 in (or beside) the session directory.
 
@@ -514,7 +515,8 @@ def render_engine_explainer(session_dir, out_path: Optional[Path] = None,
                          interval=1000 / fps, blit=False)
     t0 = time.time()
     anim.save(str(out_path), writer=writer, dpi=DPI,
-              savefig_kwargs={"facecolor": _BG})
+              savefig_kwargs={"facecolor": _BG},
+              progress_callback=progress_callback)
     plt.close(fig)
     logger.info("engine_explainer.mp4 rendered in %.1fs (%.1fs video, "
                 "%.1f MB)", time.time() - t0, total_frames / fps,

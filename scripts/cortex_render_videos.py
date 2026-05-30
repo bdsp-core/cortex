@@ -211,7 +211,8 @@ def _data_limits(vals, frac=0.08, floor=0.4):
 # ────────────────────────── collapse renderer ───────────────────────────────
 
 def render_collapse(session, out_path: Path, fps: int = FPS,
-                    hold_seconds: float = HOLD_SECONDS) -> None:
+                    hold_seconds: float = HOLD_SECONDS,
+                    progress_callback=None) -> None:
     """One 2x3 panel grid, each panel showing the particle cloud in
     (t_k, ℓ_k) for IIIC task k, colored by per-panel cloud spread on the
     plasma colormap. No ground-truth ★. HUD shows the question counter +
@@ -304,7 +305,8 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
     anim = FuncAnimation(fig, update, init_func=init, frames=total,
                          interval=1000 / fps, blit=False)
     t0 = time.time()
-    anim.save(str(out_path), writer=writer, dpi=DPI)
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              progress_callback=progress_callback)
     plt.close(fig)
     logger.info("collapse.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
                 time.time() - t0, total / fps,
@@ -315,7 +317,8 @@ def render_collapse(session, out_path: Path, fps: int = FPS,
 
 def render_passfail(session, out_path: Path, fps: int = FPS,
                     hold_seconds: float = HOLD_SECONDS,
-                    alpha: float = None, Z: float = None) -> None:
+                    alpha: float = None, Z: float = None,
+                    progress_callback=None) -> None:
     """One 2x3 panel grid, one panel per IIIC task. Each panel:
 
       x-axis: question number (1 … n_questions)
@@ -456,7 +459,8 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
     anim = FuncAnimation(fig, update, init_func=init, frames=total,
                          interval=1000 / fps, blit=False)
     t0 = time.time()
-    anim.save(str(out_path), writer=writer, dpi=DPI)
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              progress_callback=progress_callback)
     plt.close(fig)
     logger.info("passfail.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
                 time.time() - t0, total / fps,
@@ -465,9 +469,14 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
 
 # ────────────────────────── public entry points ─────────────────────────────
 
-def render_all(session_dir) -> dict:
+def render_all(session_dir, progress_callback=None) -> dict:
     """Render both videos into the session directory. Returns a dict
-    mapping artifact name → Path. Idempotent — overwrites existing files."""
+    mapping artifact name → Path. Idempotent — overwrites existing files.
+
+    ``progress_callback``, if given, is called as
+    ``progress_callback(stage, current_frame, total_frames)`` with
+    ``stage`` in {"collapse", "passfail"} so a caller (finalize) can map
+    each render to its own slice of an overall progress bar."""
     _ensure_ffmpeg_logged()
     sd = Path(session_dir)
     session = _load_session(sd)
@@ -475,8 +484,11 @@ def render_all(session_dir) -> dict:
         "collapse": sd / "collapse.mp4",
         "passfail": sd / "passfail.mp4",
     }
-    render_collapse(session, out["collapse"])
-    render_passfail(session, out["passfail"])
+    pc = progress_callback
+    cb_collapse = (lambda i, n: pc("collapse", i, n)) if pc else None
+    cb_passfail = (lambda i, n: pc("passfail", i, n)) if pc else None
+    render_collapse(session, out["collapse"], progress_callback=cb_collapse)
+    render_passfail(session, out["passfail"], progress_callback=cb_passfail)
     return out
 
 

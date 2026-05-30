@@ -1029,7 +1029,8 @@ class BankViewer(QMainWindow):
         # Show the transition page first, then yield so it paints
         # before we spin up the worker thread (avoids a brief blank
         # frame on slow machines).
-        self.setCentralWidget(ComputingResultsPage(opt_in=opt_in))
+        computing_page = ComputingResultsPage(opt_in=opt_in)
+        self.setCentralWidget(computing_page)
         QApplication.processEvents()
 
         if self.recorder is None:
@@ -1042,6 +1043,8 @@ class BankViewer(QMainWindow):
         self._fin_worker = _FinalizeWorker(self.recorder, result)
         self._fin_worker.moveToThread(self._fin_thread)
         self._fin_thread.started.connect(self._fin_worker.run)
+        # v1.2.9: live progress → the computing page's determinate bar.
+        self._fin_worker.progress.connect(computing_page.set_progress)
         self._fin_worker.finished.connect(self._on_finalize_done)
         self._fin_worker.failed.connect(self._on_finalize_failed)
         # Tear the thread down once the worker emits either terminal.
@@ -2306,17 +2309,25 @@ class _FinalizeWorker(QObject):
     """
     finished = pyqtSignal(object)
     failed = pyqtSignal(str)
+    # v1.2.9: (stage label, fraction 0..1, eta_seconds or None). Emitted
+    # from this worker thread; connected to the GUI thread's
+    # ComputingResultsPage.set_progress via Qt's queued cross-thread signal.
+    progress = pyqtSignal(str, float, object)
 
     def __init__(self, recorder, result):
         super().__init__()
         self._recorder = recorder
         self._result = result
 
+    def _emit_progress(self, stage, frac, eta):
+        self.progress.emit(str(stage), float(frac), eta)
+
     @pyqtSlot()
     def run(self):
         try:
             if self._recorder is not None:
-                self._recorder.finalize(self._result)
+                self._recorder.finalize(self._result,
+                                        progress=self._emit_progress)
         except Exception as e:                          # noqa: BLE001
             logging.getLogger(__name__).exception(
                 "background finalize failed")
@@ -2401,19 +2412,39 @@ class ComputingResultsPage(QWidget):
         row.addStretch(1); row.addWidget(sub); row.addStretch(1)
         root.addLayout(row)
 
-        # Indeterminate QProgressBar = busy-chase animation. setMinimum
-        # = setMaximum = 0 turns off the percentage display and turns
-        # on the moving 'chunk' Qt renders by default.
+        # v1.2.9: starts indeterminate (busy-chase) so it animates during
+        # the brief pre-render writes; switches to a determinate 0..1000 bar
+        # on the first set_progress() call, then tracks real frame progress.
         self.spinner = QProgressBar()
         self.spinner.setMinimum(0)
         self.spinner.setMaximum(0)
         self.spinner.setTextVisible(False)
         self.spinner.setFixedSize(420, 10)
         self.spinner.setStyleSheet(self._PB_CSS)
+        self._determinate = False
         root.addSpacing(34)
         row2 = QHBoxLayout()
         row2.addStretch(1); row2.addWidget(self.spinner); row2.addStretch(1)
         root.addLayout(row2)
+
+        # Live stage label + ETA, fed by _FinalizeWorker.progress.
+        self.stage_lbl = QLabel("Starting…")
+        self.stage_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        stf = QFont(); stf.setPointSize(11)
+        self.stage_lbl.setFont(stf)
+        self.stage_lbl.setStyleSheet(
+            "color: #cfd3da; background: transparent;")
+        root.addSpacing(12)
+        root.addWidget(self.stage_lbl)
+
+        self.eta_lbl = QLabel("")
+        self.eta_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        etf = QFont(); etf.setPointSize(10)
+        self.eta_lbl.setFont(etf)
+        self.eta_lbl.setStyleSheet(
+            "color: #868b96; background: transparent;")
+        root.addSpacing(4)
+        root.addWidget(self.eta_lbl)
 
         foot = QLabel("Please do not close this window.")
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2424,6 +2455,30 @@ class ComputingResultsPage(QWidget):
         root.addSpacing(28)
         root.addWidget(foot)
         root.addStretch(3)
+
+    @staticmethod
+    def _fmt_eta(eta):
+        """Human ETA string from seconds; '' when unknown."""
+        if eta is None or eta < 0:
+            return ""
+        secs = int(round(eta))
+        if secs < 60:
+            return f"about {max(secs, 1)}s remaining"
+        m, s = divmod(secs, 60)
+        return f"about {m}m {s:02d}s remaining"
+
+    @pyqtSlot(str, float, object)
+    def set_progress(self, stage, frac, eta):
+        """Update the determinate bar + stage + ETA. Connected (queued,
+        cross-thread) to _FinalizeWorker.progress."""
+        if not self._determinate:
+            self.spinner.setRange(0, 1000)
+            self._determinate = True
+        frac = max(0.0, min(1.0, float(frac)))
+        self.spinner.setValue(int(frac * 1000))
+        if stage:
+            self.stage_lbl.setText("Done" if frac >= 1.0 else f"{stage}…")
+        self.eta_lbl.setText("" if frac >= 1.0 else self._fmt_eta(eta))
 
 
 class ResultsScreen(QWidget):
@@ -2511,7 +2566,18 @@ class ResultsScreen(QWidget):
 
         n_q = int(getattr(result, "n_questions", n_answered) or n_answered)
         stop = self._STOP_TEXT.get(getattr(result, "stop_reason", ""), "")
-        sub = QLabel(f"{n_q} recordings reviewed.   {stop}")
+        # v1.2.9: surface the spike vs IIIC-pattern split (n_q already sums
+        # both families). Derived from per-trial task_code; falls back to the
+        # plain total when trials are unavailable (older/stub results).
+        trials = list(getattr(result, "trials", []) or [])
+        n_spike = sum(1 for t in trials if t.get("task_code") == "spike")
+        if trials:
+            n_pattern = len(trials) - n_spike
+            reviewed = (f"{n_q} recordings reviewed "
+                        f"({n_spike} spike, {n_pattern} pattern).")
+        else:
+            reviewed = f"{n_q} recordings reviewed."
+        sub = QLabel(f"{reviewed}   {stop}")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sf = QFont()
         sf.setPointSize(12)

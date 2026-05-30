@@ -163,7 +163,7 @@ def test_session_complete_shows_computing_page_first(qapp, iiic_segs):
         def write_trial(self, *_a, **_kw):
             pass
 
-        def finalize(self, result):
+        def finalize(self, result, progress=None):
             import time
             time.sleep(0.25)               # 250ms — observable in tests
             self.finalize_called = True
@@ -213,7 +213,7 @@ def test_session_complete_opt_out_path_shows_fast_copy(qapp, iiic_segs):
         def write_trial(self, *_a, **_kw):
             pass
 
-        def finalize(self, result):
+        def finalize(self, result, progress=None):
             import time
             time.sleep(0.1)
 
@@ -281,3 +281,45 @@ def test_on_trial_done_tallies_accuracy(qapp, iiic_segs):
         win.close()
         win.deleteLater()
         qapp.processEvents()
+
+
+# ─── v1.2.9: recordings-reviewed spike/pattern breakdown + progress page ──
+def test_results_screen_shows_spike_pattern_breakdown(qapp, monkeypatch):
+    import cortex_policy as cp
+    monkeypatch.setattr(cp, "load_ell_star_iiic",
+                        lambda codes, **kw: [0.42] * len(codes))
+    r = _result(n=10)
+    r.trials = [{"task_code": "spike"}] * 3 + [{"task_code": "lpd"}] * 7
+    screen = ev.ResultsScreen(r, n_correct=6, n_answered=10)
+    try:
+        texts = " ".join(_labels(screen))
+        assert "10 recordings reviewed" in texts
+        assert "3 spike" in texts and "7 pattern" in texts
+    finally:
+        screen.deleteLater()
+        qapp.processEvents()
+
+
+def test_computing_page_set_progress_is_determinate(qapp):
+    page = ev.ComputingResultsPage(opt_in=True)
+    try:
+        assert page.spinner.maximum() == 0          # indeterminate to start
+        page.set_progress("Building engine-explainer video", 0.5, 73.0)
+        assert page.spinner.maximum() == 1000        # switched determinate
+        assert page.spinner.value() == 500
+        assert "Building engine-explainer video" in page.stage_lbl.text()
+        assert "remaining" in page.eta_lbl.text()
+        page.set_progress("Done", 1.0, None)
+        assert page.spinner.value() == 1000
+        assert page.stage_lbl.text() == "Done"
+        assert page.eta_lbl.text() == ""
+    finally:
+        page.deleteLater()
+        qapp.processEvents()
+
+
+def test_fmt_eta_formatting():
+    f = ev.ComputingResultsPage._fmt_eta
+    assert f(None) == "" and f(-1) == ""
+    assert "s remaining" in f(25)
+    assert f(125) == "about 2m 05s remaining"

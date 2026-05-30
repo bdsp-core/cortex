@@ -244,7 +244,7 @@ def test_finalize_runs_engine_explainer_alongside_render_all(
     import cortex_render_videos as cv_mod
     import render_engine_explainer as ree_mod
     monkeypatch.setattr(cv_mod, "render_all",
-                        lambda d: calls.append(("render_all", Path(d))))
+                        lambda d, **kw: calls.append(("render_all", Path(d))))
     monkeypatch.setattr(
         ree_mod, "render_engine_explainer",
         lambda d, **kw: calls.append(("render_engine_explainer",
@@ -271,7 +271,7 @@ def test_finalize_render_failures_are_independent(tmp_path, monkeypatch):
     import render_engine_explainer as ree_mod
     explainer_called = []
     monkeypatch.setattr(cv_mod, "render_all",
-                        lambda d: (_ for _ in ()).throw(
+                        lambda d, **kw: (_ for _ in ()).throw(
                             RuntimeError("cv boom")))
     monkeypatch.setattr(
         ree_mod, "render_engine_explainer",
@@ -348,3 +348,16 @@ def test_v1_2_8_explainer_title_drops_participant_name():
     src = (Path(__file__).resolve().parents[1] / "scripts"
            / "render_engine_explainer.py").read_text()
     assert "sess['participant_name']" not in src
+
+
+def test_render_engine_explainer_forwards_progress_callback(tmp_path):
+    """v1.2.9: the renderer must forward matplotlib's per-frame
+    progress_callback(current, total) so finalize can build a real ETA."""
+    _make_synthetic_session(tmp_path, T=3, N=40)
+    seen = []
+    ree.render_engine_explainer(
+        tmp_path, fps=12, trials_per_task=2, hold_seconds=0.2,
+        progress_callback=lambda i, n: seen.append((i, n)))
+    assert seen, "progress_callback was never called"
+    i_last, n_last = seen[-1]
+    assert n_last > 0 and 0 <= i_last <= n_last

@@ -239,3 +239,25 @@ def test_v1_2_8_collapse_breathes_axes_per_frame():
               if isinstance(n, ast.FunctionDef) and n.name == "render_collapse")
     body = ast.unparse(fn)
     assert "_data_limits" in body and "set_xlim" in body and "set_ylim" in body
+
+
+# ─── v1.2.9: render_all forwards a labeled per-render progress callback ──
+def test_render_all_forwards_labeled_progress(tmp_path, monkeypatch):
+    import cortex_render_videos as cv
+    monkeypatch.setattr(cv, "_load_session", lambda sd: {"_stub": True})
+
+    def fake_collapse(session, out, progress_callback=None):
+        if progress_callback:
+            progress_callback(2, 4)
+
+    def fake_passfail(session, out, progress_callback=None):
+        if progress_callback:
+            progress_callback(1, 4)
+
+    monkeypatch.setattr(cv, "render_collapse", fake_collapse)
+    monkeypatch.setattr(cv, "render_passfail", fake_passfail)
+    seen = []
+    cv.render_all(tmp_path,
+                  progress_callback=lambda stage, i, n: seen.append((stage, i, n)))
+    assert ("collapse", 2, 4) in seen
+    assert ("passfail", 1, 4) in seen
