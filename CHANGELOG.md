@@ -7,6 +7,48 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.3` — new collapse-combined.mp4 (all domains overlaid on one plot)
+
+Visualization-only release. No engine, policy, calibration, or data change.
+Adds a fourth per-session MP4.
+
+`scripts/cortex_render_videos.py` `render_collapse_combined` →
+**collapse-combined.mp4**: all K task clouds overlaid on ONE (t, ℓ) plot so a
+viewer can compare where each task's posterior settles in skill/bias space.
+
+* Each task a fixed color (Okabe-Ito `DOMAIN_COLORS`, mirroring the
+  engine-explainer), with a 2-column legend.
+* Opacity keyed to cloud concentration (`_alpha_for_spread`): a diffuse cloud
+  is faint, and it grows opaque as its posterior collapses. Same spread keying
+  as the plasma color map, applied to alpha.
+* Smallest symmetric (0,0)-centered axes that contain every particle of every
+  task across every frame (global max |value| + 3% margin, via
+  `_symmetric_data_limits` over the whole trajectory) — nothing runs off.
+* Dark theme so the transparent-to-opaque intensity reads clearly.
+
+Wiring: `render_all` now renders three videos (collapse, passfail, combined)
+and reports a `combined` progress stage; `cortex_storage.finalize` re-sliced
+the determinate progress bar (collapse 0.05–0.22, pass/fail 0.22–0.38,
+combined 0.38–0.52, engine-explainer 0.52–0.92). The other three videos are
+unchanged.
+
+### Tests (+2, 1 updated)
+
+* `test_v1_3_3_collapse_combined_renders` (renders a synthetic 7-task session,
+  asserts a valid MP4 + symmetric axes + opacity rises as spread falls);
+  `test_v1_3_3_render_all_includes_combined_key`; updated
+  `test_render_all_forwards_labeled_progress` to expect the `combined` stage.
+  Validated by frame-grabbing the combined video on a real 176-trial K=7
+  session (faint/diffuse early, opaque/clustered late; axes x ±5.7, y ±4.9).
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.2 → 1.3.3`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.3.
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.2` — collapse.mp4 panels centered on (0,0) (symmetric axes)
 
 Visualization-only release. No engine, policy, calibration, or data change.

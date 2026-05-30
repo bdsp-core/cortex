@@ -262,13 +262,19 @@ def test_render_all_forwards_labeled_progress(tmp_path, monkeypatch):
         if progress_callback:
             progress_callback(1, 4)
 
+    def fake_combined(session, out, progress_callback=None):
+        if progress_callback:
+            progress_callback(3, 4)
+
     monkeypatch.setattr(cv, "render_collapse", fake_collapse)
     monkeypatch.setattr(cv, "render_passfail", fake_passfail)
+    monkeypatch.setattr(cv, "render_collapse_combined", fake_combined)
     seen = []
     cv.render_all(tmp_path,
                   progress_callback=lambda stage, i, n: seen.append((stage, i, n)))
     assert ("collapse", 2, 4) in seen
     assert ("passfail", 1, 4) in seen
+    assert ("combined", 3, 4) in seen        # v1.3.3 combined-collapse render
 
 
 # ─── v1.3.2: collapse panels centered on (0,0) — symmetric axes ──────────
@@ -293,3 +299,44 @@ def test_v1_3_2_collapse_axes_symmetric_about_zero():
     # collapsed cloud still gets a non-degenerate symmetric window
     lo2, hi2 = cv._symmetric_data_limits([0.001, -0.001])
     assert hi2 > 0 and abs(lo2 + hi2) < 1e-9
+
+
+# ─── v1.3.3: combined-collapse video (all domains, one plot) ─────────────
+def test_v1_3_3_collapse_combined_renders(tmp_path):
+    """v1.3.3: render_collapse_combined overlays all K task clouds on one
+    symmetric (0,0)-centered plot and produces a valid MP4; opacity rises as
+    a cloud concentrates."""
+    import cortex_render_videos as cv
+    if cv.FFMPEG_EXE is None:
+        import pytest
+        pytest.skip("imageio_ffmpeg not installed")
+    rng = np.random.default_rng(0)
+    T, N, K = 4, 60, 7
+    t = np.zeros((T, N, K)); l = np.zeros((T, N, K))
+    for j in range(T):
+        s = 0.7 ** j
+        for k in range(K):
+            t[j, :, k] = (k - 3) * 0.4 + rng.standard_normal(N) * 0.8 * s
+            l[j, :, k] = (k - 3) * 0.3 + rng.standard_normal(N) * 0.8 * s
+    session = {"task_codes": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"],
+               "t_traj": t, "l_traj": l, "w_traj": np.full((T, N), 1.0 / N)}
+    out = tmp_path / "collapse-combined.mp4"
+    cv.render_collapse_combined(session, out, fps=12, hold_seconds=0.2)
+    assert out.exists() and out.stat().st_size > 5_000
+    # axes symmetric about 0
+    lo, hi = cv._symmetric_data_limits(t.ravel(), frac=0.03)
+    assert abs(lo + hi) < 1e-9 and hi > 0
+    # opacity rises as the cloud concentrates (spread shrinks)
+    assert cv._alpha_for_spread(0.1) > cv._alpha_for_spread(1.0)
+    assert 0.0 <= cv._alpha_for_spread(5.0) <= cv._alpha_for_spread(0.0) <= 1.0
+
+
+def test_v1_3_3_render_all_includes_combined_key(tmp_path, monkeypatch):
+    """render_all returns the collapse_combined artifact path."""
+    import cortex_render_videos as cv
+    monkeypatch.setattr(cv, "_load_session", lambda sd: {"_stub": True})
+    monkeypatch.setattr(cv, "render_collapse", lambda *a, **k: None)
+    monkeypatch.setattr(cv, "render_passfail", lambda *a, **k: None)
+    monkeypatch.setattr(cv, "render_collapse_combined", lambda *a, **k: None)
+    out = cv.render_all(tmp_path)
+    assert out["collapse_combined"].name == "collapse-combined.mp4"

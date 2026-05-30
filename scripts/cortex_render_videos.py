@@ -68,6 +68,8 @@ else:
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.colors import to_rgb         # v1.3.3 combined-collapse colors
+from matplotlib.lines import Line2D          # v1.3.3 legend proxies
 
 
 def _ensure_ffmpeg_logged():
@@ -113,6 +115,18 @@ DPI = 130
 SPREAD_MAX = 1.20
 SPREAD_MIN = 0.08
 PLASMA = plt.get_cmap("plasma")
+
+# v1.3.3 combined-collapse video: dark theme + per-domain Okabe-Ito palette
+# (mirrors render_engine_explainer for cross-video consistency; defined here
+# to avoid importing the explainer, which itself imports this module).
+_BG_DARK = "#0e1015"
+_GRID_DARK = "#3a3d45"
+_TEXT_DARK = "#dde0e6"
+_MUTED_DARK = "#9aa0ab"
+DOMAIN_COLORS = {"spike": "#E69F00", "sz": "#D55E00", "lpd": "#56B4E9",
+                 "gpd": "#0072B2", "lrda": "#009E73", "grda": "#CC79A7",
+                 "iic": "#F0E442"}
+_DOMAIN_ORDER = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
 # AD6 verdict palette — colorblind-safe, methodology-aligned where possible.
 VERDICT_COLORS = {
@@ -188,6 +202,16 @@ def _plasma_for_spread(spread):
     v = (SPREAD_MAX - float(spread)) / (SPREAD_MAX - SPREAD_MIN)
     v = float(np.clip(v, 0.0, 1.0))
     return PLASMA(v)
+
+
+def _alpha_for_spread(spread, lo=0.05, hi=0.60):
+    """Per-domain opacity from cloud spread (v1.3.3 combined collapse): a
+    diffuse cloud (large spread) is faint (lo); a concentrated/collapsed
+    cloud (small spread) is opaque (hi). Same spread keying as the plasma
+    color map, applied to alpha instead of hue."""
+    v = (SPREAD_MAX - float(spread)) / (SPREAD_MAX - SPREAD_MIN)
+    v = float(np.clip(v, 0.0, 1.0))
+    return lo + (hi - lo) * v
 
 
 def _data_limits(vals, frac=0.08, floor=0.4):
@@ -487,15 +511,101 @@ def render_passfail(session, out_path: Path, fps: int = FPS,
                 os.path.getsize(out_path) / (1024 * 1024))
 
 
+# ─────────────────────── combined-collapse renderer ─────────────────────────
+
+def render_collapse_combined(session, out_path: Path, fps: int = FPS,
+                             hold_seconds: float = HOLD_SECONDS,
+                             progress_callback=None) -> None:
+    """v1.3.3: all K domain clouds overlaid on ONE (t, ℓ) plot so you can
+    compare where each task's posterior clusters in skill/bias space.
+
+      * each task a fixed color (Okabe-Ito ``DOMAIN_COLORS``);
+      * a cloud is faint while diffuse and grows opaque as it concentrates
+        (alpha keyed to per-task spread, ``_alpha_for_spread``);
+      * the smallest symmetric (0,0)-centered axes that contain every
+        particle of every task across every frame (nothing runs off);
+      * dark theme to make the transparent-to-opaque intensity read well.
+    """
+    task_codes = session["task_codes"]
+    t_traj = session["t_traj"]
+    l_traj = session["l_traj"]
+    w_traj = session["w_traj"]
+    T, N, K = t_traj.shape
+
+    # Smallest symmetric axes that contain ALL particles (every task, every
+    # frame). Tiny margin so an edge particle's marker is not clipped.
+    xlim = _symmetric_data_limits(t_traj.ravel(), frac=0.03)
+    ylim = _symmetric_data_limits(l_traj.ravel(), frac=0.03)
+
+    fig = plt.figure(figsize=(8.0, 8.0), dpi=DPI)
+    fig.patch.set_facecolor(_BG_DARK)
+    ax = fig.add_axes([0.10, 0.07, 0.86, 0.85])
+    ax.set_facecolor(_BG_DARK)
+    for spine in ax.spines.values():
+        spine.set_color(_GRID_DARK)
+    ax.tick_params(colors=_MUTED_DARK, labelsize=8)
+    ax.set_xlim(*xlim); ax.set_ylim(*ylim)
+    ax.axhline(0.0, color=_GRID_DARK, linewidth=0.8, zorder=0)
+    ax.axvline(0.0, color=_GRID_DARK, linewidth=0.8, zorder=0)
+    ax.grid(True, color=_GRID_DARK, alpha=0.20)
+    ax.set_xlabel(r"$t$  (bias)", color=_MUTED_DARK, fontsize=10, labelpad=2)
+    ax.set_ylabel(r"$\ell$  (skill)", color=_MUTED_DARK, fontsize=10, labelpad=2)
+    title_h = ax.set_title("", color=_TEXT_DARK, fontsize=13,
+                           fontweight="bold", pad=10)
+    sub_h = fig.text(0.10, 0.975,
+                     "each color is a task; a cloud grows opaque as its "
+                     "posterior concentrates", color=_MUTED_DARK, fontsize=8,
+                     family="monospace")
+
+    scatters = []
+    rgbs = []
+    for k in range(K):
+        rgb = to_rgb(DOMAIN_COLORS.get(task_codes[k], _MUTED_DARK))
+        rgbs.append(rgb)
+        scatters.append(ax.scatter([], [], s=6, edgecolors="none", zorder=3))
+    handles = [Line2D([0], [0], marker="o", linestyle="none", markersize=6,
+                      markerfacecolor=DOMAIN_COLORS.get(d, _MUTED_DARK),
+                      markeredgecolor="none", label=DOMAIN_TITLES.get(d, d))
+               for d in _DOMAIN_ORDER if d in task_codes]
+    ax.legend(handles=handles, loc="upper left", ncol=2, fontsize=8,
+              framealpha=0.0, labelcolor=_TEXT_DARK, handletextpad=0.3,
+              columnspacing=1.0)
+
+    def update(i):
+        j = min(i, T - 1)
+        t = t_traj[j]; l = l_traj[j]; w = w_traj[j]
+        for k in range(K):
+            scatters[k].set_offsets(np.column_stack([t[:, k], l[:, k]]))
+            a = _alpha_for_spread(_weighted_rms_spread(t[:, k], l[:, k], w))
+            r, g, b = rgbs[k]
+            scatters[k].set_facecolor(np.tile([r, g, b, a], (N, 1)))
+        title_h.set_text(f"Combined cloud collapse   ·   Question {j + 1} of {T}")
+        return ()
+
+    total = T + int(hold_seconds * fps)
+    writer = FFMpegWriter(fps=fps, bitrate=4500, codec="libx264",
+                          extra_args=["-pix_fmt", "yuv420p"])
+    anim = FuncAnimation(fig, update, frames=total,
+                         interval=1000 / fps, blit=False)
+    t0 = time.time()
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              savefig_kwargs={"facecolor": _BG_DARK},
+              progress_callback=progress_callback)
+    plt.close(fig)
+    logger.info("collapse-combined.mp4 rendered in %.1fs (%.1fs video, "
+                "%.1f MB)", time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
+
+
 # ────────────────────────── public entry points ─────────────────────────────
 
 def render_all(session_dir, progress_callback=None) -> dict:
-    """Render both videos into the session directory. Returns a dict
+    """Render the session videos into the session directory. Returns a dict
     mapping artifact name → Path. Idempotent — overwrites existing files.
 
     ``progress_callback``, if given, is called as
-    ``progress_callback(stage, current_frame, total_frames)`` with
-    ``stage`` in {"collapse", "passfail"} so a caller (finalize) can map
+    ``progress_callback(stage, current_frame, total_frames)`` with ``stage``
+    in {"collapse", "passfail", "combined"} so a caller (finalize) can map
     each render to its own slice of an overall progress bar."""
     _ensure_ffmpeg_logged()
     sd = Path(session_dir)
@@ -503,12 +613,16 @@ def render_all(session_dir, progress_callback=None) -> dict:
     out = {
         "collapse": sd / "collapse.mp4",
         "passfail": sd / "passfail.mp4",
+        "collapse_combined": sd / "collapse-combined.mp4",
     }
     pc = progress_callback
     cb_collapse = (lambda i, n: pc("collapse", i, n)) if pc else None
     cb_passfail = (lambda i, n: pc("passfail", i, n)) if pc else None
+    cb_combined = (lambda i, n: pc("combined", i, n)) if pc else None
     render_collapse(session, out["collapse"], progress_callback=cb_collapse)
     render_passfail(session, out["passfail"], progress_callback=cb_passfail)
+    render_collapse_combined(session, out["collapse_combined"],
+                             progress_callback=cb_combined)
     return out
 
 

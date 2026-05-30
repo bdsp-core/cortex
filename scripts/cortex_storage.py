@@ -408,9 +408,11 @@ class SessionRecorder:
 
                 def cb_all(stage, i, n):
                     if stage == "collapse":
-                        lo, hi, label = 0.05, 0.28, "Building collapse video"
-                    else:
-                        lo, hi, label = 0.28, 0.50, "Building pass/fail video"
+                        lo, hi, label = 0.05, 0.22, "Building collapse video"
+                    elif stage == "passfail":
+                        lo, hi, label = 0.22, 0.38, "Building pass/fail video"
+                    else:  # combined
+                        lo, hi, label = 0.38, 0.52, "Building combined video"
                     emit(label, lo + (i / max(n, 1)) * (hi - lo))
 
                 render_all(self.dir, progress_callback=cb_all)
@@ -423,7 +425,7 @@ class SessionRecorder:
 
                 def cb_exp(i, n):
                     emit("Building engine-explainer video",
-                         0.50 + (i / max(n, 1)) * (0.92 - 0.50))
+                         0.52 + (i / max(n, 1)) * (0.92 - 0.52))
 
                 render_engine_explainer(self.dir, progress_callback=cb_exp)
             except Exception as e:
