@@ -140,11 +140,76 @@ def test_synced_csvs_on_clean_completion(tmp_path):
     assert len(trials) == 1 and len(summary) == 1
     rows = list(csv.DictReader(open(trials[0])))
     assert len(rows) == 2
-    assert rows[0]["participant_name"] == "Jane Doe"
+    assert "participant_name" not in rows[0]      # v1.3.6: de-identified
     assert rows[0]["is_correct"] == "True"
     srow = list(csv.DictReader(open(summary[0])))[0]
     assert srow["n_questions"] == "2"
     assert "auroc_sz" in srow
+
+
+def test_synced_csvs_are_deidentified(tmp_path):
+    """v1.3.6 PHI fix: the synced/uploaded CSVs (filenames + contents) must carry
+    NO direct identifiers — no participant name, email, or institution NAME;
+    institution is coded to a site_id. All other consented study variables are
+    retained. The name<->session_id linkage stays LOCAL in participant.json."""
+    rec = _recorder(tmp_path)                    # PARTICIPANT = Jane Doe / MGH / Fellow
+    rec.write_trial(_telemetry(0), _gui(0))
+    rec.write_trial(_telemetry(1, y=0), _gui(1, label="LPD"))
+    rec.finalize(_result(n=2))
+    rec.close()
+    synced = tmp_path / "synced"
+    files = sorted(synced.glob("*.csv"))
+    assert files, "no synced CSVs written"
+    # (a) filenames are session_id-keyed, no name embedded
+    for f in files:
+        assert f.name.startswith("sess-test_")
+        assert "Jane" not in f.name and "Doe" not in f.name
+    # (b) NO direct identifier appears anywhere in the synced bytes
+    blob = "\n".join(f.read_text() for f in files)
+    for leak in ("Jane Doe", "jane@example.com", "MGH"):
+        assert leak not in blob, f"PHI leaked into synced CSV: {leak!r}"
+    # (c) summary: PHI columns gone; coded site_id + study variables retained
+    srow = list(csv.DictReader((synced / "sess-test_summary.csv").open()))[0]
+    assert "participant_name" not in srow and "institution" not in srow
+    assert srow["session_id"] == "sess-test"
+    assert srow["expertise"] == "Fellow"                 # study variable retained
+    assert srow["site_id"].startswith("site_") and srow["site_id"] != "MGH"
+    # (d) trials CSV has no name column
+    assert "participant_name" not in list(
+        csv.DictReader((synced / "sess-test_trials.csv").open()))[0]
+    # (e) LOCAL linkage preserved — participant.json still holds the real identity
+    doc = json.loads((rec.dir / "participant.json").read_text())
+    assert doc["identity"]["name"] == "Jane Doe"
+    assert doc["identity"]["institution"] == "MGH"
+
+
+def test_site_id_coding():
+    """institution NAME -> stable coded site_id; never the plaintext name."""
+    assert cs._site_id("MGH") == cs._site_id("  mgh ")   # normalized + stable
+    assert cs._site_id("MGH") != cs._site_id("BWH")       # distinct sites
+    assert cs._site_id("") == "" and cs._site_id(None) == ""
+    assert "MGH" not in cs._site_id("MGH")                # not the plaintext name
+
+
+def test_consent_provenance_travels_with_deid_data(tmp_path):
+    """C2: consent provenance (consent_version + irb_protocol_id) must travel
+    WITH the de-identified synced summary, so every shared record is auditably
+    linked to the IRB-approved consent it was collected under (NEJM AI / ICMJE)."""
+    p = dict(PARTICIPANT)
+    p.update({"consent_version": "v1.2.3-irb-approved",
+              "irb_protocol_id": "IRB-2026-0142", "expertise": "Epileptologist"})
+    rec = cs.SessionRecorder(
+        "sess-test", p, {"delta_auroc": 0.15, "n_particles": 600},
+        sessions_root=tmp_path / "sessions", synced_dir=tmp_path / "synced",
+        dropbox_cfg=None, render_videos=False)
+    rec.write_trial(_telemetry(0), _gui(0))
+    rec.finalize(_result(n=1))
+    rec.close()
+    srow = list(csv.DictReader(
+        (tmp_path / "synced" / "sess-test_summary.csv").open()))[0]
+    assert srow["consent_version"] == "v1.2.3-irb-approved"
+    assert srow["irb_protocol_id"] == "IRB-2026-0142"
+    assert srow["expertise"] == "Epileptologist"          # B1: tier travels too
 
 
 def test_summary_csv_includes_v1_1_1_demographic_fields(tmp_path):

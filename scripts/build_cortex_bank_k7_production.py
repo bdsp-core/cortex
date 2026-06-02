@@ -291,7 +291,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mode", required=True,
                     choices=["full", "fallback", "dry-run"])
-    ap.add_argument("--min-n-raters", type=int, default=MIN_N_RATERS)
+    ap.add_argument("--min-n-raters", "--min-raters", dest="min_n_raters",
+                    type=int, default=MIN_N_RATERS)
     ap.add_argument("--fallback-per-task", type=int, default=FALLBACK_PER_TASK)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", type=Path, default=None,
@@ -488,7 +489,8 @@ def main(argv=None) -> int:
         "K": 7,
         "generated_utc": datetime.datetime.now(
             datetime.timezone.utc).isoformat(timespec="seconds"),
-        "bank_path": str(out_path.relative_to(REPO)),
+        "bank_path": (str(out_path.relative_to(REPO))
+                      if out_path.is_relative_to(REPO) else str(out_path)),
         "filter_criteria": {
             "spike": {"source": "data/labels/fits/spike/cases.csv",
                        "min_n_raters": args.min_n_raters},

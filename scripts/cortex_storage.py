@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import datetime
+import hashlib
 import json
 import logging
 import os
@@ -110,7 +111,7 @@ _TASK_CODES = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
 # trials.jsonl/CSV scalar columns — the per-task [6]-arrays stay in the
 # JSONL only; the CSV is kept flat for spreadsheet use.
-_DETAIL_COLS = ["session_id", "participant_name", "trial_index", "seg_id",
+_DETAIL_COLS = ["session_id", "trial_index", "seg_id",
                 "task_code", "pattern_class_true", "response_label",
                 "response_y", "is_correct", "reaction_time_ms",
                 "answer_changes", "n_interactions", "select_ms", "montage",
@@ -263,6 +264,22 @@ def _utc_now():
 
 def _safe_name(s):
     return "".join(c if c.isalnum() else "_" for c in str(s))[:40] or "anon"
+
+
+# v1.3.6 PHI fix: the institution NAME must never leave the device. _site_id
+# codes it to a stable pseudonym so same-institution participants still group
+# for site/fairness analysis. NOTE: coding, not cryptographic anonymization —
+# the salt ships with the app, so the code is brute-force-reversible given the
+# institution list. The plaintext name stays local (registrations.csv /
+# participant.json). The public Paper-3 release would use a server-side mapping.
+SITE_SALT = "cortex-site-v1"
+
+
+def _site_id(institution):
+    inst = str(institution or "").strip().lower()
+    if not inst:
+        return ""
+    return "site_" + hashlib.sha1((SITE_SALT + inst).encode()).hexdigest()[:10]
 
 
 def _as_list(v):
@@ -509,8 +526,11 @@ class SessionRecorder:
     def _write_result_csvs(self, result, finished_utc):
         """Write the detail + summary CSVs into the session directory; return
         their paths (the canonical local copies, distributed by finalize)."""
-        name = self.participant.get("name", "anon")
-        stem = f"{self.session_id}_{_safe_name(name)}"
+        # v1.3.6 PHI fix: CSVs are de-identified (synced to the cloud) — keyed by
+        # session_id only, NO participant name in the filename or any row. The
+        # name<->session_id linkage stays LOCAL in participant.json /
+        # registrations.csv.
+        stem = self.session_id
         trials_path = self.dir / f"{stem}_trials.csv"
         summary_path = self.dir / f"{stem}_summary.csv"
         # detailed — one row per question
@@ -521,17 +541,16 @@ class SessionRecorder:
             for t in self._trials:
                 row = dict(t)
                 row["session_id"] = self.session_id
-                row["participant_name"] = name
                 w.writerow(row)
         # summary — one row per session
-        summ = self._summary_row(result, finished_utc, name)
+        summ = self._summary_row(result, finished_utc)
         with open(summary_path, "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=list(summ.keys()))
             w.writeheader()
             w.writerow(summ)
         return [trials_path, summary_path]
 
-    def _summary_row(self, result, finished_utc, name):
+    def _summary_row(self, result, finished_utc):
         n = len(self._trials)
         n_correct = sum(1 for t in self._trials if t.get("is_correct"))
         rts = [t["reaction_time_ms"] for t in self._trials
@@ -541,12 +560,14 @@ class SessionRecorder:
         # mineable globally (registrations.csv stays local-only).
         # Missing keys default to "" — back-compatible with pre-v1.1.1
         # participant dicts that don't carry the new fields.
+        # v1.3.6 PHI fix: NO participant_name; institution NAME -> coded site_id
+        # (plaintext name never leaves the device). All other consented
+        # demographics are retained (keyed by session_id) for fairness analysis.
         p = self.participant
         row = {
             "session_id": self.session_id,
-            "participant_name": name,
             "expertise": p.get("expertise", ""),
-            "institution": p.get("institution", ""),
+            "site_id": _site_id(p.get("institution", "")),
             "started_utc": self._started_utc,
             "finished_utc": finished_utc,
             "n_questions": n,

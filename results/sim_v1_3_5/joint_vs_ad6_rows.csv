@@ -1,0 +1,5 @@
+arm,r,level,concord,rep,n_questions,stop_reason,vec_correct,per_correct,per_n,resolved
+hier_ad6,0.78,0.6,concordant,0,60,bank_exhausted,0,0,1,0
+hier_joint,0.78,0.6,concordant,0,60,bank_exhausted,0,0,1,0
+brute_ad6,0.78,0.6,concordant,0,60,bank_exhausted,0,0,1,0
+brute_joint,0.78,0.6,concordant,0,60,bank_exhausted,0,0,1,0

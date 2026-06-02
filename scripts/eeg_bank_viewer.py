@@ -1696,12 +1696,10 @@ class ConsentPage(QWidget):
 
 # --- Registration constants (module-level: imported by tests / smoke) ----
 
-# CONSENT_VERSION is stamped on every registration row so cohort splits
-# remain reproducible across IRB-language revisions. Bump on consent change.
-CONSENT_VERSION = "v1.1.4-placeholder"
-# IRB_PROTOCOL_ID is intentionally blank until the public-release IRB
-# amendment lands. data/SENSITIVE.md lists the internal-use IRBs.
-IRB_PROTOCOL_ID = ""
+# CONSENT_VERSION
+CONSENT_VERSION = "v1.3.6"
+# IRB_PROTOCOL_ID
+IRB_PROTOCOL_ID = "IRB 2016P000058 and IRB 2013P001024"
 
 # Required fields gate Continue on each wizard page. _EXPERTISE order is
 # stable — cortex_smoke.py:open_registration relies on index 4 == Fellow.
@@ -1732,7 +1730,7 @@ _PRIOR_TEST = ["Prefer not to say", "No", "Yes", "Unsure"]
 # results. Opt-in is the only path that triggers the renders; opt-out
 # skips them entirely (no MP4 files produced in the session dir).
 _VISUALIZATIONS = ["No — faster results",
-                   "Yes — generate visualizations (2-3 min)"]
+                   "Yes — generate visualizations"]
 # Short curated country list — broad geographic coverage for v1.1.1.
 # Expand to full ISO 3166 once the dataset volume warrants it.
 _COUNTRY = ["Prefer not to say", "United States", "Canada", "Mexico",

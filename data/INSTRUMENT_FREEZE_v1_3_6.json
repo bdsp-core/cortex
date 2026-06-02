@@ -1,0 +1,47 @@
+{
+  "instrument": "cortex-v1.3.6 paper-grade (NEJM AI Paper 2)",
+  "frozen_utc": "2026-06-02T00:48:08.863254+00:00",
+  "git": {
+    "sha": "5ca7fbdfdb3bf81a5cee955f22b7b1c60a5b9f2a",
+    "dirty_files": 32
+  },
+  "params": {
+    "alpha": 0.05,
+    "n_min": 20,
+    "r_star": 0.3,
+    "z": 2.0,
+    "max_questions": 500,
+    "n_particles": 600,
+    "max_consecutive_same_domain": 12,
+    "ell_star_block": "ell_star_unified_v14"
+  },
+  "bank": {
+    "n_spike": 100,
+    "n_iiic": 600,
+    "iiic_by_class": {
+      "gpd": 100,
+      "grda": 100,
+      "lpd": 100,
+      "lrda": 100,
+      "other": 100,
+      "seizure": 100
+    }
+  },
+  "files": {
+    "bank": {
+      "path": "data/eeg_bank.h5",
+      "sha256": "42cd334552750844104edb2e7fff7f18862aa9379dfc22889a03e3ad7bebe061",
+      "bytes": 877236517
+    },
+    "cert_config": {
+      "path": "calibration/cert_config.yaml",
+      "sha256": "ea6098d4d64cb2365600c56988ba6cc4737e858e5c8cc4e4b8742809e63ae9b8",
+      "bytes": 19834
+    },
+    "prior": {
+      "path": "Sigma_l_fitted_k7.npy",
+      "sha256": "d4411a0793572c20b5856f09bf4683502b08dc2bd1d6c0723ea9cc2566b71f7d",
+      "bytes": 5427
+    }
+  }
+}

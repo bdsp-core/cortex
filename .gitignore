@@ -142,3 +142,8 @@ first-test-csv-results/
 
 # --- Claude Code per-project metadata (not project artifacts) ---
 .claude/
+
+# v1.3.6: paper drafts (cover letter / prereg / firewall) stay OUT of the
+# public repo; local bank backups are too large + redundant for git.
+paper/
+data/eeg_bank_pre_*.h5

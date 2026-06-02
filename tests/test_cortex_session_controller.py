@@ -113,16 +113,17 @@ def test_delta_stop_mechanism(inputs):
 
 
 def test_native_delta_bank_exhausts(inputs):
-    """Phase-A finding (originally on the 100-segment bank): delta=0.05
-    AUROC half-width is not reachable for a 0.6-skill rater within the
-    bank. On the v1.1.0 300-segment bank this still bank-exhausts —
-    a 0.6 rater is not strong enough to hit hw<0.05 even with 300
-    questions across 6 tasks. The assertion is on the stop_reason +
-    the n_questions equalling the bank size (whatever it is)."""
+    """Bank-exhaustion path: when the delta-AUROC target is unreachable the
+    session asks EVERY available question and stops with `bank_exhausted`.
+    NOTE: the original Phase-A delta=0.05 / 0.6-rater scenario now RESOLVES
+    (`delta_reached`) on the v1.3.6 600-segment IIIC bank (~100 q/task is enough
+    to shrink hw<0.05). To keep this test exercising the exhaustion path
+    independent of bank size, use an unreachable delta (the hw floor at finite
+    N is ~0.05-0.1, far above 0.001)."""
     K = len(inputs.task_codes)
     y_src = sc.make_simulated_y_source(np.zeros(K), np.full(K, 0.6), seed=0)
     sess = sc.CortexSession(inputs, session_id="t-exhaust",
-                            n_particles=300, delta_auroc=0.05, seed=0)
+                            n_particles=300, delta_auroc=0.001, seed=0)
     res = sess.run(y_src)
     assert res.stop_reason == "bank_exhausted"
     assert res.n_questions == len(inputs.all_seg_ids)

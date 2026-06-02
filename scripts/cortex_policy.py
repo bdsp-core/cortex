@@ -117,12 +117,14 @@ DEFAULT_N_MIN = 20        # v1.2.3: was 12 — Eli's random-rater edge-case
                           # all_resolved 64%) to NMIN=20 → expected
                           # median ~245 trials on the 350-seg K=7 bank.
 DEFAULT_R_STAR = 0.30     # info-gate: SD(ℓ_k) must contract ≥ ~16% from prior
-DEFAULT_ALPHA = 0.25      # v1.2.0: was 0.10 — sim_v1_2_0 calibration
-                          # selected this from {0.15, 0.20, 0.25, 0.30,
-                          # 0.35} for the 200-trial median target.
-                          # v1.2.3: KEPT at 0.25 by design — Eli's call
-                          # to keep the internal-test fast while raising
-                          # the N_MIN floor.
+DEFAULT_ALPHA = 0.05      # v1.3.6: 0.25 -> 0.05, the panel-derived PRODUCTION /
+                          # NEJM AI paper-grade certification threshold (95%
+                          # posterior confidence for PASS/FAIL). The earlier 0.25
+                          # was the deliberate internal-test-fast override
+                          # (v1.2.0-v1.3.5). alpha=0.05 is viable now that the
+                          # 700-seg bank + MAX_Q=500 give clear candidates ~92%
+                          # per-domain resolution (sim_v1_3_5/run_bank_size_sweep
+                          # + run_v1_3_6_confirm). See cortex-nejm-ai-v1_3_6.
 DEFAULT_Z = 2.0           # MC-error buffer (engine's existing Z_BUFFER)
 
 

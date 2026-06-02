@@ -76,7 +76,12 @@ N_PARTICLES = 600
 # bank-size floor preserves audit/OC scripts that pass max_questions=None
 # (==bank_size). Only the live test path (eeg_bank_viewer.main) passes
 # this constant explicitly.
-MAX_QUESTIONS_DEFAULT = 300
+MAX_QUESTIONS_DEFAULT = 500
+# v1.3.6: raised 300 -> 500 for the NEJM AI alpha=0.05 paper-grade config. At
+# alpha=0.05 the test needs more questions to resolve all 7 domains; the
+# bank-size sweep (sim_v1_3_5/run_bank_size_sweep.py) showed MAX_Q=500 + the new
+# 700-seg bank (100 IIIC/class) lifts clear-candidate per-domain resolution from
+# ~73% to ~92% (free re: download — MAX_Q is test length, not bundled segments).
 # v1.3.5: live-test default for the consecutive-same-domain cap. After this
 # many questions in a row on one IIIC task the selector is forced to switch
 # domains, to break up long single-domain runs (one rater hit 99 seizure in a

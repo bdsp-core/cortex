@@ -31,10 +31,10 @@ def inputs():
 
 
 def test_build_returns_v1_1_bank_size(inputs):
-    """v1.1.0 bank is 300 IIIC segments (50 per class). v1 was 100."""
-    assert len(inputs.manifest) == 300
+    """v1.3.6 bank is 600 IIIC segments (100 per class). v1.1.0 was 300, v1 100."""
+    assert len(inputs.manifest) == 600
     assert inputs.manifest.index.name == "seg_id"
-    assert len(inputs.all_seg_ids) == 300
+    assert len(inputs.all_seg_ids) == 600
 
 
 def test_six_tasks_in_canonical_order(inputs):
