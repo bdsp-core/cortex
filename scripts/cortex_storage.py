@@ -282,6 +282,18 @@ def _site_id(institution):
     return "site_" + hashlib.sha1((SITE_SALT + inst).encode()).hexdigest()[:10]
 
 
+def _spike_correct(response_y, s_mean):
+    """is_correct for the BINARY spike task: did the Yes/No response match the
+    segment's true spike presence? True presence = sign of the calibrated signal
+    s_mean (>0 = spike present), the same signal the engine scores on."""
+    if response_y is None or s_mean is None:
+        return False
+    try:
+        return bool(int(response_y) == int(float(s_mean) > 0))
+    except (TypeError, ValueError):
+        return False
+
+
 def _as_list(v):
     """None -> []; an array/sequence -> list (avoids numpy truthiness)."""
     return [] if v is None else list(v)
@@ -344,8 +356,18 @@ class SessionRecorder:
                 rec[k] = gui[k]
         rec["n_interactions"] = len(gui.get("interaction", []))
         pc = rec.get("pattern_class_true")
-        label = str(gui.get("response_label", "")).lower()
-        rec["is_correct"] = bool(label and pc and label == pc)
+        if pc == "spike":
+            # v1.3.6: the spike task is BINARY (Yes/No). pattern_class_true is
+            # the placeholder "spike" (cortex_engine_inputs_k7.py:198), NOT the
+            # answer, so the IIIC `label == pc` test below is always False ->
+            # spurious 0% spike accuracy. Grade response_y against the segment's
+            # true spike presence = sign of the calibrated signal s_mean (the
+            # same signal the engine scores on; s_mean>0 = spike present).
+            rec["is_correct"] = _spike_correct(rec.get("response_y"),
+                                               rec.get("s_mean"))
+        else:
+            label = str(gui.get("response_label", "")).lower()
+            rec["is_correct"] = bool(label and pc and label == pc)
         return rec
 
     def write_trial(self, telemetry, gui):

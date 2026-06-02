@@ -999,8 +999,17 @@ class BankViewer(QMainWindow):
                     if g.get("trial_index") == tix), None)
         if gui is not None:
             self._n_answered += 1
-            if (str(gui.get("response_label", "")).lower()
-                    == telemetry.get("pattern_class_true")):
+            # v1.3.6: spike is BINARY — pattern_class_true is the placeholder
+            # "spike", so the IIIC label-match below never fires for it. Grade
+            # the spike response against sign(s_mean) (cortex_storage._spike_correct).
+            if telemetry.get("task_code") == "spike":
+                from cortex_storage import _spike_correct
+                correct = _spike_correct(telemetry.get("response_y"),
+                                         telemetry.get("s_mean"))
+            else:
+                correct = (str(gui.get("response_label", "")).lower()
+                           == telemetry.get("pattern_class_true"))
+            if correct:
                 self._n_correct += 1
         if self.recorder is not None:
             self.recorder.write_trial(telemetry, gui)
@@ -1587,7 +1596,7 @@ class ConsentPage(QWidget):
         "studies and classifies your level of expertise.\n\n"
         "Answer each recording as you would in routine clinical practice."
     )
-    # Placeholder consent wording — replace with IRB-approved text.
+
     _TERMS = (
         "By selecting “I Accept” you confirm that you are "
         "participating voluntarily, that the information you provide and "

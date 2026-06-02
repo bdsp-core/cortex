@@ -90,7 +90,12 @@ MAX_QUESTIONS_DEFAULT = 500
 # 12 while IMPROVING all_resolved (93.3% -> 98.3%) and shortening worst-case
 # sessions (p95 300 -> 213), with verdicts unchanged. Only the live test path
 # sets this; CortexSession's own default is None (off) for tests/sims/audit.
-MAX_CONSEC_SAME_DOMAIN_DEFAULT = 12
+# v1.3.6: lowered 12 -> 5 (Eli's call) for more variety and less exploitability
+# in the late single-domain tail. Note: 5 is below the run_consec_sweep grid that
+# validated 12; more frequent forced switches add cross-task evidence (which the
+# sweep found HELPS resolution) at the cost of slightly more domain-hopping. Re-run
+# sim_v1_3_5/run_consec_sweep.py at cap=5 if a fresh OC characterization is wanted.
+MAX_CONSEC_SAME_DOMAIN_DEFAULT = 5
 # delta=0.15 is the legacy DeltaStop target (Mode-A / methodology path).
 # AD6Policy (production) does not use delta. See docs/AD6_RESOLUTION.md.
 DELTA_AUROC = 0.15

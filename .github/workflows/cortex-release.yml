@@ -370,11 +370,11 @@ jobs:
 
             Sessions typically run between about 250 and 500 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions and may reach the longer end of that range.
 
-            ### What is new in v1.3.6
+            ### What is new in v1.3.7
 
-            This build raises the bar for how confident the test must be before it gives you a verdict on each category. It now waits for 95 percent confidence, the standard we will use for the published study, rather than the faster internal setting we used before. In practice this means the test is more rigorous and may ask you more questions, so a session can run longer than earlier builds. To support that we also expanded the question bank, so you will see more variety and fewer repeats. If your answers on a category sit right at the boundary, the test is now more likely to return REFER for that category, which simply means it did not gather enough evidence to call it either way. That is the correct, honest outcome and not a failure.
+            A small update over v1.3.6, running the same rigorous test. As a reminder: this version waits for 95 percent confidence before it gives you a verdict on each category, so it is more thorough and can ask more questions than the earliest builds. A session typically runs a few hundred questions, and a category right at the boundary may come back as REFER, which is a valid did-not-have-enough-evidence outcome rather than a failure. When you finish, the results we upload are de-identified: a random session id, no name, and your institution replaced by a coded site label. Your name stays only on your own computer.
 
-            We also improved privacy. When you finish, the results we upload are now de-identified: they are keyed to a random session id, your name is never uploaded, and your institution is replaced by a coded site label. Your name stays only on your own computer. Everything else about how the test works is unchanged.
+            New in v1.3.7: we increased the variety of questions late in a session, so the test switches categories more often and you will see fewer long runs of the same category near the end. We also fixed a display issue where the spike (Yes / No) accuracy on your results could read 0 percent even when you answered some correctly; spike accuracy now reflects your real performance. Your scoring, the categories, and how verdicts are reached are unchanged.
 
             The Intel and Apple Silicon mac downloads are both still here: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 

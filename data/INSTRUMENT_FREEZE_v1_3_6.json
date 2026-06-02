@@ -1,9 +1,9 @@
 {
   "instrument": "cortex-v1.3.6 paper-grade (NEJM AI Paper 2)",
-  "frozen_utc": "2026-06-02T00:48:08.863254+00:00",
+  "frozen_utc": "2026-06-02T02:38:34.287090+00:00",
   "git": {
-    "sha": "5ca7fbdfdb3bf81a5cee955f22b7b1c60a5b9f2a",
-    "dirty_files": 32
+    "sha": "d87b89d354e89912826d24ba0d07d0e4458fc726",
+    "dirty_files": 6
   },
   "params": {
     "alpha": 0.05,
@@ -12,7 +12,7 @@
     "z": 2.0,
     "max_questions": 500,
     "n_particles": 600,
-    "max_consecutive_same_domain": 12,
+    "max_consecutive_same_domain": 5,
     "ell_star_block": "ell_star_unified_v14"
   },
   "bank": {

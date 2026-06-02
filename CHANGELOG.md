@@ -7,6 +7,51 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-02) — `cortex-v1.3.7` — variety cap 12→5, spike-accuracy display fix, finalized IRB consent
+
+A small follow-up to v1.3.6. Same paper-grade instrument (ALPHA=0.05, 700-seg
+bank, MAX_Q=500, N=600) and the **same bank** (`build-data-v4-k7`, no re-upload).
+
+### What
+
+* **Consecutive-variety cap `12 → 5`** (`session_controller.py`
+  `MAX_CONSEC_SAME_DOMAIN_DEFAULT`): forces a domain switch after 5 same-domain
+  questions (was 12) for more variety / less exploitability in the late
+  single-domain tail. Eli's call; 5 is below the `run_consec_sweep` grid that
+  validated 12 (re-run at 5 for a fresh OC characterization if wanted).
+* **Spike `is_correct` display fix** (`cortex_storage.py` + `eeg_bank_viewer.py`):
+  the BINARY spike task was graded with the IIIC formula
+  (`response_label == pattern_class_true`), which is ALWAYS False for spike
+  (`pattern_class_true` is the placeholder `"spike"`, cortex_engine_inputs_k7.py:198)
+  → spurious 0% spike accuracy. Now graded against `sign(s_mean)` (spike present
+  = s_mean>0), the same signal the engine scores on. **Verdicts were never
+  affected** (they use `response_y` + the SDT model, not `is_correct`). New
+  `_spike_correct` helper. Confirmed on a real manual-test session: spike
+  accuracy 0/20 → the true 11/20.
+* **Finalized IRB consent text** (`eeg_bank_viewer.py` `_build_consent`):
+  IRB-approved wording replaces the placeholder. `CONSENT_VERSION=v1.3.6`,
+  `IRB_PROTOCOL_ID` populated.
+* **`site_id` decoder** (`scripts/decode_site_ids.py`): maps the de-identified
+  coded `site_id` back to institution via a deterministic lookup built from the
+  local `registrations.csv` (the hash is one-way; decode is a lookup, not a
+  reversal).
+* Instrument freeze (`INSTRUMENT_FREEZE_v1_3_6.json`) regenerated to lock cap=5.
+
+### Implementation + tests
+
+* Changed: `session_controller.py` (cap), `cortex_storage.py` (`_spike_correct`
+  + `_merge`), `eeg_bank_viewer.py` (consent text + the live accuracy counter).
+* New: `scripts/decode_site_ids.py`.
+* Tests: `test_spike_is_correct_uses_sign_of_s_mean`; the consec-cap drift-guard
+  updated 12 → 5. Full suite green.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.6 → 1.3.7`.
+* Same bank (`build-data-v4-k7`); release-body "What is new" updated for v1.3.7.
+
+---
+
 ## ▶ CORTEX bundle (2026-06-01) — `cortex-v1.3.6` — paper-grade instrument (ALPHA 0.05, 700-segment bank, MAX_Q 500) + PHI de-identification + instrument freeze
 
 Turns the internal test into the **paper-grade certification instrument** for

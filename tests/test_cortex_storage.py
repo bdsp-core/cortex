@@ -114,6 +114,25 @@ def test_is_correct_merge(tmp_path):
     rec.close()
 
 
+def test_spike_is_correct_uses_sign_of_s_mean():
+    """v1.3.6: the BINARY spike task is graded against sign(s_mean) (spike
+    present = s_mean>0), NOT the IIIC label==pattern_class_true match — which is
+    always False for spike (pattern_class_true is the placeholder "spike") and
+    produced spurious 0% spike accuracy."""
+    # unit — the helper
+    assert cs._spike_correct(1, 1.5) is True      # said Yes, s_mean>0 -> correct
+    assert cs._spike_correct(0, -1.2) is True     # said No, s_mean<0 -> correct
+    assert cs._spike_correct(1, -0.8) is False    # said Yes, s_mean<0 -> wrong
+    assert cs._spike_correct(0, 0.9) is False     # said No, s_mean>0 -> wrong
+    assert cs._spike_correct(None, 1.0) is False  # defensive
+    # integration — via _merge, a binary spike trial now grades correctly
+    tel = {"trial_index": 0, "task_k": 0, "task_code": "spike", "seg_id": 5,
+           "pattern_class_true": "spike", "s_mean": 1.3, "response_y": 1}
+    gui = {"trial_index": 0, "response_label": "Yes (spike present)"}
+    assert cs.SessionRecorder._merge(tel, gui)["is_correct"] is True   # was always False
+    assert cs.SessionRecorder._merge(dict(tel, response_y=0), gui)["is_correct"] is False
+
+
 def test_finalize_writes_certificate_and_trajectory(tmp_path):
     rec = _recorder(tmp_path)
     rec.write_trial(_telemetry(0), _gui(0))
