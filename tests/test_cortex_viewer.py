@@ -1097,3 +1097,84 @@ def test_v1_3_5_live_session_wires_consec_cap():
     assert "max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT" in viewer
     sc = (root / "session_controller.py").read_text()
     assert "MAX_CONSEC_SAME_DOMAIN_DEFAULT = 5" in sc
+
+
+# ─── v1.3.8: IIIC labeled-epoch window, 10s 3-window pan, red box, spectrogram markers ───
+
+
+@pytest.fixture(scope="session")
+def spike_segs():
+    with h5py.File(cei.BANK_PATH, "r") as f:
+        return sorted(int(x) for x in f["spike"]) if "spike" in f else []
+
+
+def test_v1_3_8_iiic_default_window_is_labeled_epoch(viewer):
+    """IIIC opens on the central labeled epoch (clip-local [10,20]s), not 0s."""
+    app, fake, win, segs = viewer
+    _show(app, win, segs[1])                    # FakeController → family iiic
+    assert win._cur_family == "iiic"
+    assert ev.IIIC_LABEL_START_S == 10.0
+    assert win.t_start == 10.0
+    assert win.window_s == 10.0
+
+
+def test_v1_3_8_pan_steps_full_window_over_three_windows(viewer):
+    """Pan steps a full window so IIIC visits exactly {0,10,20}s and clamps."""
+    app, fake, win, segs = viewer
+    _show(app, win, segs[1])
+    assert win.t_start == 10.0
+    win._pan(-1); assert win.t_start == 0.0
+    win._pan(-1); assert win.t_start == 0.0          # clamp at 0
+    win._pan(+1); assert win.t_start == 10.0
+    win._pan(+1); assert win.t_start == 20.0
+    win._pan(+1); assert win.t_start == 20.0         # clamp at duration-window
+
+
+def test_v1_3_8_iiic_eeg_has_labeled_region_box(viewer):
+    """A LinearRegionItem frames the labeled epoch [10,20]s on IIIC EEG, and
+    a redraw replaces rather than stacks it."""
+    import pyqtgraph as pg
+    app, fake, win, segs = viewer
+    _show(app, win, segs[1])
+    regions = [it for it in win.eeg_plot.getPlotItem().items
+               if isinstance(it, pg.LinearRegionItem)]
+    assert len(regions) == 1
+    lo, hi = regions[0].getRegion()
+    assert round(lo, 3) == 10.0 and round(hi, 3) == 20.0
+    win._redraw()
+    regions2 = [it for it in win.eeg_plot.getPlotItem().items
+                if isinstance(it, pg.LinearRegionItem)]
+    assert len(regions2) == 1, "red box must not accumulate across redraws"
+
+
+def test_v1_3_8_spectrogram_marks_30s_clip(viewer):
+    """8 dotted markers (2 clip bounds × 4 panels) at mid±15s of the 10-min
+    spectrogram; redraw replaces rather than stacks them."""
+    app, fake, win, segs = viewer
+    _show(app, win, segs[1])
+    assert hasattr(win, "_spec_marker_lines")
+    assert len(win._spec_marker_lines) == 8
+    xs = sorted({round(ln.value(), 1) for _p, ln in win._spec_marker_lines})
+    assert xs == [285.0, 315.0]                  # central 30s of the 2..598s span
+    win._draw_spectrogram()
+    assert len(win._spec_marker_lines) == 8, "markers must not accumulate"
+
+
+def test_v1_3_8_classify_hint_iiic_only(viewer, spike_segs):
+    """The 'classify within the red box' banner shows for IIIC, hides for
+    spike; spike opens at 0s with no red box."""
+    import pyqtgraph as pg
+    app, fake, win, segs = viewer
+    _show(app, win, segs[1])
+    # isHidden() reflects the explicit setVisible() state even before the
+    # top-level window is shown (cf. the ResultsScreen details-panel tests).
+    assert win.classify_hint_lbl.isHidden() is False
+    if not spike_segs:
+        pytest.skip("no spike segs in bank")
+    win._cur_family = "spike"
+    win._render(spike_segs[0], "spike")
+    assert win.classify_hint_lbl.isHidden() is True
+    assert win.t_start == 0.0
+    regions = [it for it in win.eeg_plot.getPlotItem().items
+               if isinstance(it, pg.LinearRegionItem)]
+    assert regions == [], "spike EEG must have no labeled-region box"

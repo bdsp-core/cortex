@@ -73,6 +73,16 @@ else:
 BANK_PATH = _REPO / "data" / "eeg_bank.h5"
 SPEC_PATH = _REPO / "data" / "eeg_bank_spec.h5"   # precomputed 10-min spectrograms
 
+# v1.3.8 — IIIC viewing geometry. The 30s `eeg30s` clip is the CENTRAL 30s of
+# the 10-min spectrogram (stimes ~2..598s, center ~300s); the expert-labeled
+# epoch is the central 10s of the clip == clip-local [10, 20] s. The viewer
+# defaults the IIIC window to that labeled epoch, pans in full-window 10s steps
+# over {0-10, 10-20, 20-30} s, and boxes the labeled epoch on the EEG while
+# marking the 30s-clip extent on the 10-min spectrogram.
+IIIC_CLIP_S = 30.0          # IIIC eeg30s clip length (s)
+IIIC_LABEL_START_S = 10.0   # labeled epoch start within the clip (s)
+IIIC_LABEL_LEN_S = 10.0     # labeled epoch length (s)
+
 
 # ──────────────────────── data helpers ────────────────────────
 
@@ -710,6 +720,17 @@ class BankViewer(QMainWindow):
         self._region_top.setLayout(top)
         outer.addWidget(self._region_top)
 
+        # v1.3.8: instruction banner for IIIC recordings — tells the candidate
+        # the red box marks the region scored by the panel and that panning
+        # reveals neighbouring context. Hidden for spike (no box, full clip).
+        self.classify_hint_lbl = QLabel(
+            "Classify the pattern found within the red box. "
+            "Pan left or right to gain context.")
+        self.classify_hint_lbl.setStyleSheet(
+            "color: #b03030; font-weight: 600; padding: 2px 0;")
+        self.classify_hint_lbl.setVisible(False)
+        outer.addWidget(self.classify_hint_lbl)
+
         # Plots: spectrogram (LEFT, fixed 250-300 px) + EEG (RIGHT, all
         # remaining space) — matches morgoth-viewer's main_window layout
         # exactly (setMinimumWidth(250), setMaximumWidth(300)).
@@ -848,7 +869,9 @@ class BankViewer(QMainWindow):
             self._redraw()
 
     def _pan(self, direction):
-        step = self.window_s * 0.5
+        # v1.3.8: pan by a full (non-overlapping) window so the IIIC default
+        # 10s window steps over the three context windows {0-10,10-20,20-30}s.
+        step = self.window_s
         new = self.t_start + direction * step
         max_t = max(0.0, self.duration - self.window_s)
         self.t_start = float(np.clip(new, 0.0, max_t))
@@ -1130,10 +1153,15 @@ class BankViewer(QMainWindow):
         else:
             self.channel_names = CHANNELS_19[:self.data.shape[0]]
         self.duration = self.data.shape[1] / self.fs
-        self.t_start = 0.0
         if self.window_s > self.duration:
             self.window_s = self.duration
             self.win_box.setCurrentText(str(int(round(self.window_s))))
+        # v1.3.8: IIIC opens on the labeled epoch (clip-local [10, 20] s) so the
+        # red box frames the scored region by default; spike opens at 0 (the
+        # full 10s clip). Clamp to the last full window for short clips.
+        max_t = max(0.0, self.duration - self.window_s)
+        self.t_start = (float(min(IIIC_LABEL_START_S, max_t))
+                        if domain == "iiic" else 0.0)
         self.filter_bank = FilterBank(self.fs)
         self._refresh_answer_panel()
         self._redraw()
@@ -1153,6 +1181,9 @@ class BankViewer(QMainWindow):
         # stretch-0 widget is hidden). Also disable the spec_cb checkbox
         # so the user cannot toggle on a panel that has no data anyway.
         family = getattr(self, "_cur_family", "iiic")
+        # v1.3.8: the "classify within the red box" banner is IIIC-only.
+        if getattr(self, "classify_hint_lbl", None) is not None:
+            self.classify_hint_lbl.setVisible(family == "iiic")
         if family == "spike":
             self.spec_container.setVisible(False)
             self.spec_cb.setEnabled(False)
@@ -1219,6 +1250,20 @@ class BankViewer(QMainWindow):
         self.eeg_plot.setXRange(t[0], t[-1], padding=0.005)
         self.eeg_plot.getAxis("left").setTicks([y_ticks])
         self._add_scale_bar(gain_uv, n_ch, t[-1])
+        # v1.3.8: box the expert-labeled epoch (clip-local [10, 20] s) on IIIC
+        # recordings — this is the region scored by the panel. The box is in
+        # clip-time data coords, so it frames the whole plot in the default
+        # 10-20s window and leaves view when the user pans for context. Added
+        # after the (per-draw) clear() above so it never accumulates.
+        if getattr(self, "_cur_family", "iiic") == "iiic":
+            _lo = IIIC_LABEL_START_S
+            _hi = IIIC_LABEL_START_S + IIIC_LABEL_LEN_S
+            _box = pg.LinearRegionItem(
+                values=(_lo, _hi), movable=False,
+                brush=pg.mkBrush(255, 80, 80, 45),
+                pen=pg.mkPen((215, 45, 45), width=2))
+            _box.setZValue(-10)   # behind the EEG traces
+            self.eeg_plot.addItem(_box)
         # UI shows the question number; the segment id is internal only.
         qlabel = ("Tutorial example" if self._tutorial_active
                   else f"Question {self._cur_trial + 1}")
@@ -1302,6 +1347,15 @@ class BankViewer(QMainWindow):
         regs, freqs, stimes = precomp
         n_freqs = len(freqs)
         t0, t1 = float(stimes[0]), float(stimes[-1])
+        # v1.3.8: clear any prior 30s-clip markers — this method reuses the
+        # ImageItems and never clear()s the plots, so InfiniteLines would
+        # otherwise accumulate on every redraw.
+        for _p, _ln in getattr(self, "_spec_marker_lines", []):
+            try:
+                _p.removeItem(_ln)
+            except Exception:
+                pass
+        self._spec_marker_lines = []
         eps = np.finfo(np.float32).eps
         for i, (img, plot, region) in enumerate(zip(self.spec_images,
                                                     self.spec_plots,
@@ -1321,6 +1375,22 @@ class BankViewer(QMainWindow):
             y_ticks = [(j, f'{freqs[j]:.0f}')
                         for j in range(0, n_freqs, step)]
             plot.getAxis('left').setTicks([y_ticks])
+        # v1.3.8: dotted white verticals marking where the 30s EEG clip sits
+        # within the 10-min spectrogram. The clip is the central 30s of the
+        # displayed span, so mid = span centre and the bounds are mid ± 15 s.
+        # Guarded to the precomputed 10-min case (span >> clip); the on-the-fly
+        # 30s fallback spectrogram has no wider context to annotate.
+        if (t1 - t0) > IIIC_CLIP_S * 1.5:
+            _mid = 0.5 * (t0 + t1)
+            for _x in (_mid - IIIC_CLIP_S / 2.0, _mid + IIIC_CLIP_S / 2.0):
+                for _p in self.spec_plots:
+                    _ln = pg.InfiniteLine(
+                        pos=_x, angle=90,
+                        pen=pg.mkPen('w', width=1.5,
+                                     style=Qt.PenStyle.DotLine))
+                    _ln.setZValue(10)   # over the spectrogram image
+                    _p.addItem(_ln)
+                    self._spec_marker_lines.append((_p, _ln))
 
     # ─────────────── scale bar ───────────────
 

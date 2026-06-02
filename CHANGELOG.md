@@ -7,6 +7,46 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-02) — `cortex-v1.3.8` — IIIC viewer: labeled-epoch default, 10s pan, red box, spectrogram clip markers
+
+A viewer-only follow-up to v1.3.7. Same engine, policy, bank
+(`build-data-v4-k7`), and calibration; only the IIIC EEG/spectrogram
+presentation in `scripts/eeg_bank_viewer.py` changes (spike viewing untouched).
+
+### What
+
+* **IIIC opens on the labeled epoch.** The 30s `eeg30s` clip is the central 30s
+  of the 10-min spectrogram, and the expert-scored epoch is its central 10s
+  (clip-local [10,20]s). The viewer now defaults the IIIC window to that epoch
+  (was 0-10s): `_render` sets `t_start = min(IIIC_LABEL_START_S, max_t)` for IIIC.
+* **Pan steps a full window.** `_pan` step changed from `window_s*0.5` to
+  `window_s`, so the default 10s window steps over exactly the three context
+  windows {0-10, 10-20, 20-30}s (clamped).
+* **Red labeled-region box + banner.** A light-red, non-movable
+  `LinearRegionItem` frames clip-local [10,20]s on the IIIC EEG (added after the
+  per-draw `clear()`, so it never accumulates), plus an IIIC-only banner:
+  "Classify the pattern found within the red box. Pan left or right to gain
+  context."
+* **Spectrogram 30s-clip markers.** Dotted white verticals at `mid +/- 15s`
+  (=285/315s) on all four regional spectrograms show where the 30s EEG clip sits
+  inside the 10-min spectrogram; removed-then-re-added each draw (no
+  accumulation), guarded to the precomputed 10-min case.
+
+### Geometry constants
+
+`IIIC_CLIP_S=30`, `IIIC_LABEL_START_S=10`, `IIIC_LABEL_LEN_S=10` (single source of
+truth near `SPEC_PATH`), encoding the centered-clip convention verified from the
+bank (`stimes` 2..598s, center 300s; `eeg30s` is the central 30s).
+
+### Tests
+
+5 new offscreen functional regressions (`test_v1_3_8_*` in
+`tests/test_cortex_viewer.py`): default window, 3-window pan + clamp, red box
+present + no-accumulate, 8 spectrogram markers at 285/315 + no-accumulate, hint
+IIIC-only + spike-no-box. Full cortex suite: 81 passed (was 76).
+
+---
+
 ## ▶ CORTEX bundle (2026-06-02) — `cortex-v1.3.7` — variety cap 12→5, spike-accuracy display fix, finalized IRB consent
 
 A small follow-up to v1.3.6. Same paper-grade instrument (ALPHA=0.05, 700-seg
