@@ -368,17 +368,19 @@ jobs:
 
             The engine is adaptive. It uses an MCMC (Sequential Monte Carlo) particle cloud to track your skill on each task in real time, and at every step it picks the question that will reduce its uncertainty about you the fastest. It stops asking about a task once it has enough evidence to say PASS, FAIL, or REFER for that task with confidence, then moves on. Spike questions come first as a block. When the engine has resolved the spike task, or has used up all the spike recordings, it transitions to the IIIC block. The final results screen shows a verdict for each of the 7 tasks.
 
-            Sessions typically run between 150 and 280 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions.
+            Sessions typically run between about 250 and 500 questions depending on how clearly your answers separate from the cut score on each task. Confident raters finish faster; borderline raters trigger more questions and may reach the longer end of that range.
 
-            ### What is new in v1.3.5
+            ### What is new in v1.3.6
 
-            This build changes how the test chooses questions, so it is worth a quick note. Before, once all but one category had been decided, the test would ask that last category many times in a row, which could feel repetitive. Now, after a run of questions on the same category, the test switches to a different category for one question before continuing. You will see a bit more variety, especially late in a session. We checked this carefully in simulation: it does not change how your results are scored, it reaches a decision on every category at least as reliably as before, and if anything it tends to finish a little sooner. Your scoring and the number of categories are unchanged.
+            This build raises the bar for how confident the test must be before it gives you a verdict on each category. It now waits for 95 percent confidence, the standard we will use for the published study, rather than the faster internal setting we used before. In practice this means the test is more rigorous and may ask you more questions, so a session can run longer than earlier builds. To support that we also expanded the question bank, so you will see more variety and fewer repeats. If your answers on a category sit right at the boundary, the test is now more likely to return REFER for that category, which simply means it did not gather enough evidence to call it either way. That is the correct, honest outcome and not a failure.
+
+            We also improved privacy. When you finish, the results we upload are now de-identified: they are keyed to a random session id, your name is never uploaded, and your institution is replaced by a coded site label. Your name stays only on your own computer. Everything else about how the test works is unchanged.
 
             The Intel and Apple Silicon mac downloads are both still here: `CORTEX-mac.dmg` for Apple Silicon and `CORTEX-mac-intel.dmg` for Intel. Pick the one that matches your Mac (the Downloads section below explains how to tell). Windows and Linux are unchanged.
 
-            ### If you downloaded an earlier v1.2.x
+            ### If you downloaded an earlier build
 
-            Earlier builds in the v1.2 line had a few issues that this build resolves. If you took a session on v1.2.0 through v1.2.4, your results CSVs are still safe in `Dropbox/Apps/CORTEX/results/v1.2.0/`, but the spike portion of those sessions may have been incomplete (v1.2.0 never asked spike questions) or the visualization videos may be missing (v1.2.4). Please re-download and run the test again on v1.3.5 if you can spare 10 to 15 minutes; otherwise just send any feedback you have and we will work with what we have.
+            If you took a session on any earlier build (v1.2.x or v1.3.0 through v1.3.5), your results CSVs are still safe in your Dropbox results folder. Those builds used a faster, less strict confidence setting and a smaller question bank, so a re-run on v1.3.6 gives a more rigorous and more comparable result for the study. Please re-download and run the test again on v1.3.6 if you can spare the time; otherwise just send any feedback you have and we will work with what we have.
 
             ### Downloads
 
@@ -394,7 +396,7 @@ jobs:
             * macOS 12 Monterey or newer. We provide separate downloads for Apple Silicon and Intel Macs; download the one that matches your chip.
             * Windows 10 or Windows 11 (64 bit).
             * Linux with glibc 2.35 or newer. That covers Ubuntu 22.04 and later, Debian 12 and later, Fedora 36 and later, RHEL 9 and later, and current Arch.
-            * About 700 MB of free disk space for the installed app plus the bundled test bank.
+            * About 1.2 GB of free disk space for the installed app plus the bundled test bank (the v1.3.6 bank is larger).
             * An internet connection to upload results at the end of the session. The test itself runs offline.
 
             You do not need Python installed. Everything the test needs is bundled inside the installer.

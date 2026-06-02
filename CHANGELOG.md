@@ -7,6 +7,80 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-01) — `cortex-v1.3.6` — paper-grade instrument (ALPHA 0.05, 700-segment bank, MAX_Q 500) + PHI de-identification + instrument freeze
+
+Turns the internal test into the **paper-grade certification instrument** for
+the NEJM AI Paper-2 cohort: the 95% production confidence threshold, a larger
+calibrated bank that makes it reachable, de-identified result upload, and a
+hash-locked instrument freeze. The engine architecture is unchanged. The
+marginal AD6 stopping rule was confirmed near-optimal across three simulation
+studies, and the cross-domain "joint verdict" alternative was a verified NO-GO
+(see `docs/SIM_BANK_QUALITY_SWEEP.md` and the `sim_v1_3_5/` harnesses).
+
+### What
+
+* **Certification threshold ALPHA `0.25 → 0.05`** (`cortex_policy.py`
+  `DEFAULT_ALPHA`). PASS/FAIL now require 95% posterior confidence (the
+  panel-derived production target). The earlier 0.25 was a deliberate v1.2.x
+  internal-test-fast override.
+* **`MAX_QUESTIONS_DEFAULT 300 → 500`** (`session_controller.py`). ALPHA=0.05
+  needs more questions to resolve all 7 domains; 500 gives the headroom (median
+  ~279 on the live bank, cap rarely hit by clear candidates).
+* **Internal bank `350 → 700` segments**: 600 IIIC (100 per pattern-class) +
+  100 spike, a stratified-by-s_mean subset of the frozen 35k production bank
+  built by `scripts/build_internal_bank_v1_3_6.py`. The bank is gitignored and
+  ships as a `build-data-v4-k7` release asset (see Packaging).
+* **PHI de-identification** (`cortex_storage.py`): synced/uploaded result CSVs
+  are session_id-keyed with NO participant name, and the institution name is
+  replaced by a coded `site_id`. All consented demographics are retained for
+  subgroup/fairness analysis. The name to session_id linkage stays local in
+  `participant.json` / `registrations.csv`.
+* **Consent + IRB provenance** (`eeg_bank_viewer.py`): `CONSENT_VERSION=v1.3.6`,
+  `IRB_PROTOCOL_ID` populated; both travel with the de-identified upload.
+* **Instrument freeze** (`scripts/freeze_instrument_v1_3_6.py` +
+  `data/INSTRUMENT_FREEZE_v1_3_6.json`): sha256 hash-lock of the bank,
+  cut-scores, and prior plus the full param config, with a `--verify` /
+  `check_drift()` guard so the whole cohort is collected on a bit-identical
+  instrument.
+
+### Why (validated)
+
+`sim_v1_3_5/run_bank_size_sweep.py` + `run_v1_3_6_confirm.py`: at ALPHA=0.05 on
+the 350-seg bank, sessions hit the 300 cap and REFER heavily. The 700-seg bank +
+MAX_Q=500 lift clear-candidate per-domain resolution to **92%** (confirmed on
+the actual live bank: 92.0%, median 279 questions, all-7 56%). Download cost is
+dominated by IIIC segments (1.69 MB each; spike ~free), so 100 IIIC/class is the
+resolution/size knee. `run_oc_validation.py` characterizes the
+false-PASS/FAIL/REFER operating curve that justifies ALPHA=0.05.
+
+### Implementation + tests
+
+* `scripts/cortex_policy.py` (`DEFAULT_ALPHA`), `session_controller.py`
+  (`MAX_QUESTIONS_DEFAULT`), `cortex_storage.py` (de-id + `_site_id`),
+  `eeg_bank_viewer.py` (consent/IRB).
+* New: `scripts/build_internal_bank_v1_3_6.py`, `freeze_instrument_v1_3_6.py`,
+  `cortex_policy_joint.py` (the parked joint-verdict prototype), the
+  `sim_v1_3_5/*.py` study harnesses, `tests/test_instrument_freeze.py`.
+* Tests: PHI de-identification + site_id coding + consent provenance
+  (`test_cortex_storage.py`), instrument drift-guard
+  (`test_instrument_freeze.py`), and larger-bank updates
+  (`test_cortex_engine_inputs.py` 300 → 600; `test_cortex_session_controller.py`
+  bank-exhaust). Ship gate (`test_cortex_viewer.py` + `test_phase9_*.py`)
+  **83/83**; full suite **467 passed / 11 skipped**.
+
+### Packaging
+
+* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.5 → 1.3.6`.
+* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+  for v1.3.6. **Before tagging:** upload the new 700-seg `eeg_bank.h5` as the
+  `build-data-v4-k7` release asset and bump the download tag reference
+  `build-data-v3-k7 → build-data-v4-k7`. Do NOT tag `cortex-v1.3.6` first, or
+  the release would build the new ALPHA=0.05 / MAX_Q=500 code against the OLD
+  350-seg bank (heavy REFER / censoring).
+* App download grows ~0.6 GB → ~1.0 GB (the larger bank).
+
+---
+
 ## ▶ CORTEX bundle (2026-05-30) — `cortex-v1.3.5` — break up long single-domain runs (consecutive-same-domain cap = 12)
 
 First **engine-behavior** change in the v1.3.x line (the earlier ones were
