@@ -111,12 +111,13 @@ _TASK_CODES = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]
 
 # trials.jsonl/CSV scalar columns — the per-task [6]-arrays stay in the
 # JSONL only; the CSV is kept flat for spreadsheet use.
-_DETAIL_COLS = ["session_id", "trial_index", "seg_id",
-                "task_code", "pattern_class_true", "response_label",
-                "response_y", "is_correct", "reaction_time_ms",
-                "answer_changes", "n_interactions", "select_ms", "montage",
-                "gain_uv", "bandpass", "notch", "window_s", "max_hw", "ess",
-                "total_var", "expected_loss_chosen", "rejuv"]
+_DETAIL_COLS = ["session_id", "participant_name", "trial_index", "seg_id",
+                "task_code", "pattern_class_true", "target_present",
+                "response_label", "response_y", "is_correct",
+                "reaction_time_ms", "answer_changes", "n_interactions",
+                "select_ms", "montage", "gain_uv", "bandpass", "notch",
+                "window_s", "max_hw", "ess", "total_var",
+                "expected_loss_chosen", "rejuv"]
 
 
 def load_synced_dir():
@@ -292,6 +293,27 @@ def _spike_correct(response_y, s_mean):
         return bool(int(response_y) == int(float(s_mean) > 0))
     except (TypeError, ValueError):
         return False
+
+
+def _target_present(trial):
+    """v1.3.9: explicit present/absent truth of the ASKED task for one trial —
+    1 if the segment truly contains the asked pattern, else 0 (or "" if unknown).
+    Spike: sign(s_mean) — fixes the misleading constant pattern_class_true='spike'
+    family label. IIIC: pattern_class_true matches the task ('seizure'→sz,
+    'other'→iic). This is the per-trial ground truth the PASS/FAIL calibration
+    needs (it makes HR/false-alarm per task computable directly)."""
+    code = trial.get("task_code")
+    if code == "spike":
+        sm = trial.get("s_mean")
+        try:
+            return int(float(sm) > 0) if sm is not None else ""
+        except (TypeError, ValueError):
+            return ""
+    pc = trial.get("pattern_class_true")
+    if pc is None:
+        return ""
+    target = {"sz": "seizure", "iic": "other"}.get(code, code)
+    return int(pc == target)
 
 
 def _as_list(v):
@@ -548,13 +570,15 @@ class SessionRecorder:
     def _write_result_csvs(self, result, finished_utc):
         """Write the detail + summary CSVs into the session directory; return
         their paths (the canonical local copies, distributed by finalize)."""
-        # v1.3.6 PHI fix: CSVs are de-identified (synced to the cloud) — keyed by
-        # session_id only, NO participant name in the filename or any row. The
-        # name<->session_id linkage stays LOCAL in participant.json /
-        # registrations.csv.
+        # v1.3.9: this is a CONTROLLED INTERNAL test (no leakage risk) and we need
+        # the name<->expertise linkage to calibrate the PASS/FAIL/REFER criteria,
+        # so the participant NAME is now included in the uploaded summary + trials
+        # CSVs (Eli + PI decision; supersedes the v1.3.6 de-identification for the
+        # internal test). The filename stays session_id-keyed.
         stem = self.session_id
         trials_path = self.dir / f"{stem}_trials.csv"
         summary_path = self.dir / f"{stem}_summary.csv"
+        name = self.participant.get("name", "")
         # detailed — one row per question
         with open(trials_path, "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=_DETAIL_COLS,
@@ -563,6 +587,8 @@ class SessionRecorder:
             for t in self._trials:
                 row = dict(t)
                 row["session_id"] = self.session_id
+                row["participant_name"] = name              # v1.3.9
+                row["target_present"] = _target_present(t)  # v1.3.9 asked-task truth
                 w.writerow(row)
         # summary — one row per session
         summ = self._summary_row(result, finished_utc)
@@ -582,12 +608,14 @@ class SessionRecorder:
         # mineable globally (registrations.csv stays local-only).
         # Missing keys default to "" — back-compatible with pre-v1.1.1
         # participant dicts that don't carry the new fields.
-        # v1.3.6 PHI fix: NO participant_name; institution NAME -> coded site_id
-        # (plaintext name never leaves the device). All other consented
-        # demographics are retained (keyed by session_id) for fairness analysis.
+        # v1.3.9 (controlled internal test): participant_name IS included — needed
+        # to associate each session with the reader's experience level for the
+        # PASS/FAIL/REFER calibration. institution NAME still -> coded site_id;
+        # other consented demographics retained (keyed by session_id).
         p = self.participant
         row = {
             "session_id": self.session_id,
+            "participant_name": p.get("name", ""),       # v1.3.9
             "expertise": p.get("expertise", ""),
             "site_id": _site_id(p.get("institution", "")),
             "started_utc": self._started_utc,

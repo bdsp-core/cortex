@@ -7,6 +7,45 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-03) — `cortex-v1.3.9` — AUROC results screen + ROC dropdowns, auto-advance, names in CSVs
+
+Post-pilot UX + data changes after the first human session. Same engine, policy,
+bank (`build-data-v4-k7`), and calibration — **no decision-criteria change**.
+
+### What
+
+* **Results screen shows AUROC, not a verdict.** The terminal screen replaces the
+  per-category PASS/FAIL/REFER table with each category's **AUROC ± 95% CI** and a
+  per-category **"Show ROC" dropdown** — the model ROC curve (area = AUROC) with the
+  reader's **empirical operating point** (false-positive vs true-positive rate from
+  their own answers) marked. The technical-details panel is slimmed to ℓ̂ + θ̂ (ℓ*,
+  π and the verdict removed). `scripts/eeg_bank_viewer.py` ResultsScreen.
+* **Auto-advance.** Selecting an answer commits it after a brief (~300 ms) highlight
+  and advances to the next recording — the **Confirm button and Enter-to-confirm are
+  gone, and the answer cannot be changed**. The tutorial states this in a bold,
+  underlined sentence.
+* **More transparent labeled-region box.** The IIIC red box fill alpha 45 → 30.
+* **Participant name in the uploaded CSVs.** For this controlled internal test (no
+  leakage risk), the summary + trials CSVs now carry `participant_name`, needed to
+  link each session to the reader's experience level for the PASS/FAIL/REFER
+  calibration. Email stays excluded; institution is still coded to a site_id; the
+  full identity remains local in `participant.json`. (Supersedes the v1.3.6 full
+  de-identification, for the internal test only.)
+* **Explicit asked-task truth column.** The trials CSV gains `target_present` (1/0 =
+  whether the asked pattern is truly present), fixing the previously misleading
+  constant `pattern_class_true='spike'` and making per-task hit / false-alarm rates
+  directly computable from the shared data.
+
+### Why
+
+The first human pilot showed that a verdict-only screen is opaque, and that the
+fully de-identified, verdict-gated data made it hard to calibrate the
+PASS/FAIL/REFER criteria across experience levels. These changes make the result
+interpretable to the taker and the data usable for calibration. No engine / policy /
+bank change. Full cortex suite green (97 passed); per-step smokes between each change.
+
+---
+
 ## ▶ CORTEX bundle (2026-06-02) — `cortex-v1.3.8` — IIIC viewer: labeled-epoch default, 10s pan, red box, spectrogram clip markers
 
 A viewer-only follow-up to v1.3.7. Same engine, policy, bank

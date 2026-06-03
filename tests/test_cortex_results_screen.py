@@ -86,10 +86,8 @@ def _labels(widget):
 
 
 def test_results_screen_builds(qapp, monkeypatch):
-    """v1.1.2 surface: per-task PASS/FAIL/REFER verdict with
-    threshold-relative skill narrative; no agreement-with-reference
-    line; no AUROC point estimates on the main panel (still in the
-    summary CSV for analysis)."""
+    """v1.3.9 surface: per-category AUROC ± 95% CI with a per-category 'Show
+    ROC' dropdown; NO PASS/FAIL/REFER verdict shown on the screen."""
     # Stub the ℓ* loader so the test doesn't require a cert_config on disk.
     import cortex_policy as cp
     monkeypatch.setattr(cp, "load_ell_star_iiic",
@@ -97,23 +95,24 @@ def test_results_screen_builds(qapp, monkeypatch):
     screen = ev.ResultsScreen(_result(), n_correct=30, n_answered=42)
     try:
         texts = _labels(screen)
+        joined = " ".join(texts)
         assert any("Assessment Complete" in t for t in texts)
         assert any("42 recordings reviewed" in t for t in texts)
         for lbl in ("Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"):
             assert lbl in texts
-        # v1.1.2 contract: agreement / accuracy line is gone, AUROC
-        # number is no longer on the main panel.
-        assert not any("Agreement with the reference label" in t
-                       for t in texts), (
-            "v1.1.2 removed the agreement-with-reference-label line "
-            "from the results screen (still in the summary CSV).")
-        assert "0.91" not in texts, (
-            "v1.1.2 removed the AUROC point-estimate column from the "
-            "main panel — replaced with PASS/FAIL/REFER verdicts.")
-        # v1.1.2 additions: clinician-friendly verdict label appears
-        assert any("Pass" in t for t in texts)
+        # v1.3.9: AUROC values are now ON the main panel (verdicts removed).
+        assert "0.910" in joined          # final_auroc_mean[0] = 0.91
+        assert "0.840" in joined          # final_auroc_mean[1] = 0.84
+        # No PASS/FAIL/REFER verdict is shown anywhere.
+        assert "Pass" not in texts
+        assert "Did not pass" not in texts
+        assert not any("Refer" in t for t in texts)
+        # Per-category ROC dropdown buttons exist (one per category).
+        from PyQt6.QtWidgets import QPushButton
+        btn_texts = [b.text() for b in screen.findChildren(QPushButton)]
+        assert sum("ROC" in b for b in btn_texts) >= 6
         assert screen.close_btn.text() == "CLOSE"
-        # Details panel is collapsed by default
+        # Slim technical-details panel still collapsed by default.
         assert screen._details_panel.isHidden() is True
         assert "Show technical details" in screen.details_btn.text()
     finally:

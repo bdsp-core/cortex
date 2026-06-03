@@ -17,9 +17,6 @@ asked for and nothing they didn't:
 Skipped on purpose: automated label/prediction overlays, IED/PDR
 detection, event tables, report generation, cluster review.
 
-Run:
-    /Users/mwestover/GithubRepos/morgoth-viewer/morgoth_viewer_app/venv/bin/python \
-        scripts/eeg_bank_viewer.py
 """
 from __future__ import annotations
 import csv
@@ -544,6 +541,9 @@ class TutorialOverlay(QWidget):
 
 
 class BankViewer(QMainWindow):
+    # v1.3.9: ms to highlight the chosen answer before auto-advancing to the
+    # next recording (no Confirm step; the answer cannot be changed).
+    _AUTOADVANCE_MS = 500
     # Tutorial state — class defaults, overridden once a tutorial starts.
     _tutorial_active = False
     _overlay = None
@@ -630,15 +630,17 @@ class BankViewer(QMainWindow):
         self._render(tutorial_sid, tutorial_domain)
         steps = [
             (self._region_top, "Choosing an answer",
+             # v1.3.9: HTML body so the no-change sentence is bold + underlined.
              "For each recording, choose the pattern that best matches "
-             "what you see, then press Confirm. You can change your "
-             "selection freely before confirming.\n\n"
-             "• Seizure:  an electrographic seizure\n"
-             "• LPD / GPD:  lateralized or generalized periodic "
-             "discharges\n"
+             "what you see.<br><br>"
+             "<b><u>Once you select an answer, the test immediately advances "
+             "to the next recording — you cannot change your answer.</u></b>"
+             "<br><br>"
+             "• Seizure:  an electrographic seizure<br>"
+             "• LPD / GPD:  lateralized or generalized periodic discharges<br>"
              "• LRDA / GRDA:  lateralized or generalized rhythmic delta "
-             "activity\n"
-             "• Other:  a pattern fitting none of the above\n\n"
+             "activity<br>"
+             "• Other:  a pattern fitting none of the above<br><br>"
              "Some recordings instead ask only whether an epileptiform "
              "spike is present."),
             (self.spec_container, "The spectrogram",
@@ -697,9 +699,10 @@ class BankViewer(QMainWindow):
         self.seg_info_lbl = QLabel("")
         top.addWidget(self.seg_info_lbl)
 
-        # Answer panel: 6 IIIC pattern-class options. A click or number key
-        # SELECTS (highlights) an option; the Confirm button or Enter commits.
-        # The selection can be changed freely before confirming.
+        # Answer panel: 6 IIIC pattern-class options. v1.3.9: a click or number
+        # key SELECTS an option, which auto-commits after a brief highlight and
+        # advances to the next recording — the answer CANNOT be changed (the
+        # Confirm step + Enter-to-confirm were removed).
         top.addStretch(1)
         self.answer_buttons = []
         for i in range(6):
@@ -709,13 +712,6 @@ class BankViewer(QMainWindow):
             btn.clicked.connect(lambda _=False, idx=i: self._select_answer(idx))
             top.addWidget(btn)
             self.answer_buttons.append(btn)
-        self.confirm_btn = QPushButton("Confirm ⏎")
-        self.confirm_btn.setMinimumWidth(120)
-        self.confirm_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.confirm_btn.setEnabled(False)
-        self.confirm_btn.clicked.connect(self._confirm_answer)
-        top.addSpacing(14)
-        top.addWidget(self.confirm_btn)
         self._region_top = QWidget()
         self._region_top.setLayout(top)
         outer.addWidget(self._region_top)
@@ -920,7 +916,6 @@ class BankViewer(QMainWindow):
         self._answer_changes = 0
         self._interaction = []
         self._awaiting_answer = True
-        self.confirm_btn.setEnabled(False)
         # Phase-9 K=7: determine the family from the engine's K=7 inputs.
         # The K=7 inputs expose .family(seg_id) → "spike" | "iiic".
         try:
@@ -945,21 +940,24 @@ class BankViewer(QMainWindow):
             "action": action, "detail": detail})
 
     def _select_answer(self, choice):
-        """Select (highlight) an answer option without advancing. Validates
-        the choice against the current family's option count (2 for spike;
-        6 for IIIC). The choice can be changed freely until Confirm."""
+        """v1.3.9: selecting an answer COMMITS it — highlight the chosen option
+        for `_AUTOADVANCE_MS` ms, then auto-advance to the next recording. The
+        answer cannot be changed (the first valid pick locks the panel). Validates
+        the choice against the current family's option count (2 spike; 6 IIIC)."""
         family = getattr(self, "_cur_family", "iiic")
         options = (self._SPIKE_OPTIONS if family == "spike"
                    else self._IIIC_OPTIONS)
-        if not self._awaiting_answer or choice >= len(options):
+        # Ignore re-selection once a choice is locked in (no answer change) and
+        # any input outside the awaiting-answer window.
+        if (not self._awaiting_answer or self._selected_choice is not None
+                or choice >= len(options)):
             return
-        if self._selected_choice is not None and self._selected_choice != choice:
-            self._answer_changes += 1
         self._selected_choice = choice
         for i, btn in enumerate(self.answer_buttons):
             btn.set_flash(i == choice)
-        self.confirm_btn.setEnabled(True)
         self._log_interaction("select", options[choice])
+        # Brief highlight, then commit + advance.
+        QTimer.singleShot(self._AUTOADVANCE_MS, self._confirm_answer)
 
     def _confirm_answer(self):
         """Commit the selected answer — record per-question GUI metadata
@@ -992,7 +990,6 @@ class BankViewer(QMainWindow):
             # IIIC button i ∈ {0..5} → engine task k ∈ {1..6} (spike=0 takes slot 0)
             raw = choice + 1
         self._awaiting_answer = False
-        self.confirm_btn.setEnabled(False)
         self.gui_trial_log.append({
             "trial_index": self._cur_trial,
             "seg_id": self._cur_seg,
@@ -1260,7 +1257,7 @@ class BankViewer(QMainWindow):
             _hi = IIIC_LABEL_START_S + IIIC_LABEL_LEN_S
             _box = pg.LinearRegionItem(
                 values=(_lo, _hi), movable=False,
-                brush=pg.mkBrush(255, 80, 80, 45),
+                brush=pg.mkBrush(255, 80, 80, 25),   # v1.3.9: more transparent fill (was 45)
                 pen=pg.mkPen((215, 45, 45), width=2))
             _box.setZValue(-10)   # behind the EEG traces
             self.eeg_plot.addItem(_box)
@@ -1442,8 +1439,7 @@ class BankViewer(QMainWindow):
           ← / →  : pan ±10 s (or ±half window if window shorter than 10s)
           ↑ / ↓  : step through gain ladder (↑ = bigger traces)
           Ctrl   : cycle montage bipolar → average → laplacian → bipolar
-          1-6    : select an IIIC answer option
-          Enter  : confirm the selected answer
+          1-6    : select an IIIC answer option (auto-commits + advances)
         """
         if self._tutorial_active or self._session_over:
             return            # viewer inert during the tutorial / after the test
@@ -1468,10 +1464,9 @@ class BankViewer(QMainWindow):
             order = ["bipolar", "average", "laplacian"]
             i = order.index(self.montage_box.currentText())
             self.montage_box.setCurrentText(order[(i + 1) % len(order)])
-        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            self._confirm_answer()
         elif key in self._ANSWER_KEYS:
-            # Number keys 1-6 select an IIIC option (same as a button click).
+            # Number keys 1-6 select an IIIC option (same as a button click) —
+            # v1.3.9: this auto-commits and advances (no Enter-to-confirm).
             self._select_answer(self._ANSWER_KEYS.index(key))
         else:
             super().keyPressEvent(event)
@@ -2645,7 +2640,21 @@ class ResultsScreen(QWidget):
         root.addWidget(sub)
 
         root.addSpacing(22)
-        root.addLayout(_hcenter(self._build_verdict_table(result)))
+        root.addLayout(_hcenter(self._build_auroc_table(result)))
+        _cap = QLabel(
+            "AUROC summarises how well you separated each pattern from the "
+            "rest (0.5 = chance, 1.0 = perfect). Open a category's ROC to see "
+            "the curve with your operating point — your false-positive vs "
+            "true-positive rate — marked.")
+        _cap.setWordWrap(True)
+        _cap.setFixedWidth(620)
+        _cf = QFont()
+        _cf.setPointSize(9)
+        _cap.setFont(_cf)
+        _cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        _cap.setStyleSheet("color: #767b87; background: transparent;")
+        root.addSpacing(10)
+        root.addWidget(_cap, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Collapsible details panel — hidden by default. The button text
         # toggles between "Show / Hide technical details".
@@ -2810,64 +2819,137 @@ class ResultsScreen(QWidget):
         strength = "Slight" if a < 0.25 else "Strong"
         return (f"{strength} {direction}", "#aab0ba")
 
-    def _build_verdict_table(self, result):
-        """Per-task table: TASK | VERDICT (colored) | NARRATIVE (2 lines:
-        skill summary above bias summary)."""
+    @staticmethod
+    def _binormal_roc(auroc, n=200):
+        """Equal-variance binormal ROC whose area equals `auroc`:
+        d' = √2·Φ⁻¹(auroc); HR = Φ(Φ⁻¹(FAR) + d'). Returns (far, hr) arrays."""
+        from scipy.stats import norm
+        a = float(min(max(auroc, 0.5001), 0.9999))   # finite d', curve above chance
+        dprime = np.sqrt(2.0) * norm.ppf(a)
+        far = np.linspace(1e-3, 1 - 1e-3, n)
+        hr = norm.cdf(norm.ppf(far) + dprime)
+        return far, hr
+
+    @staticmethod
+    def _empirical_point(trials, code):
+        """The taker's empirical operating point (FAR, HR) for task `code` from
+        their actual answers, or None if a single SDT arm is empty / data is
+        unavailable. Truth-present = sign(s_mean) for spike, pattern_class_true
+        for IIIC; response-present = response_y (engine y)."""
+        target = {"sz": "seizure", "iic": "other"}.get(code, code)
+        pres, absn = [], []
+        for t in (trials or []):
+            if t.get("task_code") != code:
+                continue
+            y = t.get("response_y")
+            if y is None:
+                continue
+            if code == "spike":
+                sm = t.get("s_mean")
+                if sm is None:
+                    continue
+                present = float(sm) > 0.0
+            else:
+                present = (t.get("pattern_class_true") == target)
+            (pres if present else absn).append(int(y))
+        if not pres or not absn:
+            return None
+        return (sum(absn) / len(absn), sum(pres) / len(pres))    # (FAR, HR)
+
+    def _build_roc_widget(self, auroc, point):
+        """Small ROC plot: the model curve (area = `auroc`) + chance diagonal +
+        the taker's empirical operating point (red dot) when available."""
+        pw = pg.PlotWidget()
+        pw.setFixedSize(300, 240)
+        pw.setBackground(_PAGE_BG)
+        pw.setMenuEnabled(False)
+        pw.setMouseEnabled(False, False)
+        pw.showGrid(x=True, y=True, alpha=0.12)
+        pw.setXRange(0, 1, padding=0.02)
+        pw.setYRange(0, 1, padding=0.02)
+        pw.setLabel("bottom", "False-positive rate")
+        pw.setLabel("left", "True-positive rate")
+        pw.plot([0, 1], [0, 1],
+                pen=pg.mkPen("#5c606a", style=Qt.PenStyle.DashLine))
+        far, hr = self._binormal_roc(auroc)
+        pw.plot(far, hr, pen=pg.mkPen("#0072b5", width=2))
+        if point is not None:
+            f, h = point
+            pw.addItem(pg.ScatterPlotItem(
+                [f], [h], size=13, brush=pg.mkBrush("#bc3c29"),
+                pen=pg.mkPen("white", width=1)))
+        return pw
+
+    def _build_auroc_table(self, result):
+        """v1.3.9: per-category AUROC ± 95% CI, each with a 'Show ROC' dropdown
+        revealing the model ROC curve + the taker's empirical operating point.
+        Replaces the PASS/FAIL/REFER verdict table — no verdict is shown."""
         codes = list(getattr(result, "task_codes", []) or [])
-        verdicts = list(getattr(result, "verdicts", None) or [])
-        lm = getattr(result, "final_l_mean", None)
-        tm = getattr(result, "final_t_mean", None)
-        lm = [] if lm is None else list(lm)
-        tm = [] if tm is None else list(tm)
+        am = getattr(result, "final_auroc_mean", None)
+        ah = getattr(result, "final_auroc_hw", None)
+        am = [] if am is None else list(am)
+        ah = [] if ah is None else list(ah)
+        trials = list(getattr(result, "trials", []) or [])
 
         box = QWidget()
-        box.setFixedWidth(700)
-        grid = QGridLayout(box)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(28)
-        grid.setVerticalSpacing(14)
-        grid.addWidget(self._cell("TASK", "#6b7280", 9, True), 0, 0)
-        grid.addWidget(self._cell("RESULT", "#6b7280", 9, True), 0, 1)
-        grid.addWidget(self._cell("SKILL & BIAS", "#6b7280", 9, True), 0, 2)
+        box.setFixedWidth(560)
+        col = QVBoxLayout(box)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(4)
+        hdr = QHBoxLayout()
+        hdr.addWidget(self._cell("CATEGORY", "#6b7280", 9, True), 2)
+        hdr.addWidget(self._cell("AUROC (95% CI)", "#6b7280", 9, True), 3)
+        hdr.addStretch(1)
+        col.addLayout(hdr)
         for i, code in enumerate(codes):
             label = self._TASK_LABELS.get(code, code)
-            grid.addWidget(self._cell(label, "#dde0e6", 13, True),
-                           i + 1, 0)
-            # Verdict cell — clinician-friendly label, color-coded
-            v = verdicts[i] if i < len(verdicts) else "PENDING"
-            v_text = self._VERDICT_LABEL.get(v, v)
-            v_color = self._VERDICT_COLOR.get(v, self._VERDICT_COLOR["PENDING"])
-            grid.addWidget(self._cell(v_text, v_color, 13, True),
-                           i + 1, 1)
-            # Narrative cell — two stacked lines (skill + bias)
-            l_hat = float(lm[i]) if i < len(lm) else None
-            t_hat = float(tm[i]) if i < len(tm) else None
-            l_star = (self._ell_star[i] if i < len(self._ell_star) else None)
-            skill_text, skill_color = self._skill_narrative(l_hat, l_star)
-            bias_text, bias_color = self._bias_narrative(t_hat)
-            narrative = QWidget()
-            nv = QVBoxLayout(narrative)
-            nv.setContentsMargins(0, 0, 0, 0)
-            nv.setSpacing(2)
-            nv.addWidget(self._cell(skill_text, skill_color, 12))
-            if bias_text:
-                nv.addWidget(self._cell(bias_text, bias_color, 10))
-            grid.addWidget(narrative, i + 1, 2)
+            auroc = float(am[i]) if i < len(am) else None
+            hw = float(ah[i]) if i < len(ah) else 0.0
+            row = QHBoxLayout()
+            row.addWidget(self._cell(label, "#dde0e6", 13, True), 2)
+            if auroc is not None:
+                lo = max(0.0, auroc - hw)
+                hi = min(1.0, auroc + hw)
+                row.addWidget(self._cell(
+                    f"{auroc:.3f}   [{lo:.3f}–{hi:.3f}]", "#eef1f5", 13), 3)
+            else:
+                row.addWidget(self._cell("—", "#9aa0ab", 13), 3)
+            toggle = QPushButton("Show ROC ▾")
+            toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+            toggle.setFixedHeight(26)
+            toggle.setStyleSheet(
+                "QPushButton { color: #9aa0ab; background: transparent;"
+                " border: 1px solid #3a3f4a; border-radius: 4px;"
+                " padding: 2px 10px; }"
+                " QPushButton:hover { color: #eef1f5; }")
+            row.addWidget(toggle)
+            row.addStretch(1)
+            col.addLayout(row)
+            if auroc is not None:
+                roc = self._build_roc_widget(
+                    auroc, self._empirical_point(trials, code))
+                roc.setVisible(False)
+                col.addWidget(roc, alignment=Qt.AlignmentFlag.AlignCenter)
+
+                def _mk(btn, w):
+                    def _toggle():
+                        vis = not w.isVisible()
+                        w.setVisible(vis)
+                        btn.setText("Hide ROC ▴" if vis else "Show ROC ▾")
+                    return _toggle
+                toggle.clicked.connect(_mk(toggle, roc))
+            else:
+                toggle.setEnabled(False)
         return box
 
     def _build_details_panel(self, result):
-        """Compact grid of raw posterior numbers: TASK | VERDICT | ℓ̂ |
-        ℓ* | θ̂ | π. Hidden by default; toggled via the details button."""
+        """v1.3.9 slim technical panel: TASK | ℓ̂ | θ̂. (The verdict, ℓ* and π
+        were removed with the PASS/FAIL/REFER display.) Hidden by default."""
         codes = list(getattr(result, "task_codes", []) or [])
-        verdicts = list(getattr(result, "verdicts", None) or [])
         lm = getattr(result, "final_l_mean", None)
         tm = getattr(result, "final_t_mean", None)
         lm = [] if lm is None else list(lm)
         tm = [] if tm is None else list(tm)
-        # π_k (posterior P(ℓ̂ > ℓ*)) is the AD6-policy quantity; available
-        # only when the session ran under AD6 (otherwise dict is None).
-        pd = getattr(result, "policy_diagnostics", None) or {}
-        pi = list(pd.get("pi") or []) if isinstance(pd, dict) else []
 
         panel = QWidget()
         pv = QVBoxLayout(panel)
@@ -2875,49 +2957,35 @@ class ResultsScreen(QWidget):
         pv.setSpacing(8)
 
         grid_box = QWidget()
-        grid_box.setFixedWidth(700)
+        grid_box.setFixedWidth(440)
         grid = QGridLayout(grid_box)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(20)
+        grid.setHorizontalSpacing(28)
         grid.setVerticalSpacing(6)
         right = Qt.AlignmentFlag.AlignRight
-        # Headers — small uppercase grey
-        for col, (text, align) in enumerate((
-            ("TASK", Qt.AlignmentFlag.AlignLeft),
-            ("VERDICT", Qt.AlignmentFlag.AlignLeft),
-            ("ℓ̂", right), ("ℓ*", right),
-            ("θ̂", right), ("π", right),
-        )):
-            grid.addWidget(self._cell(text, "#6b7280", 9, True, align),
-                           0, col)
+        grid.addWidget(self._cell("TASK", "#6b7280", 9, True,
+                                  Qt.AlignmentFlag.AlignLeft), 0, 0)
+        grid.addWidget(self._cell("ℓ̂", "#6b7280", 9, True, right), 0, 1)
+        grid.addWidget(self._cell("θ̂", "#6b7280", 9, True, right), 0, 2)
         for i, code in enumerate(codes):
-            grid.addWidget(self._cell(code, "#dde0e6", 11), i + 1, 0)
-            v = verdicts[i] if i < len(verdicts) else "PENDING"
-            grid.addWidget(self._cell(v, "#aab0ba", 10), i + 1, 1)
+            grid.addWidget(self._cell(self._TASK_LABELS.get(code, code),
+                                      "#dde0e6", 11), i + 1, 0)
             l_hat = lm[i] if i < len(lm) else None
             t_hat = tm[i] if i < len(tm) else None
-            l_star = self._ell_star[i] if i < len(self._ell_star) else None
-            pi_k = pi[i] if i < len(pi) else None
             grid.addWidget(self._cell(
                 f"{l_hat:.3f}" if l_hat is not None else "—",
-                "#eef1f5", 11, False, right), i + 1, 2)
-            grid.addWidget(self._cell(
-                f"{l_star:.3f}" if l_star is not None else "—",
-                "#aab0ba", 11, False, right), i + 1, 3)
+                "#eef1f5", 11, False, right), i + 1, 1)
             grid.addWidget(self._cell(
                 f"{t_hat:+.3f}" if t_hat is not None else "—",
-                "#eef1f5", 11, False, right), i + 1, 4)
-            grid.addWidget(self._cell(
-                f"{pi_k:.3f}" if pi_k is not None else "—",
-                "#eef1f5", 11, False, right), i + 1, 5)
+                "#eef1f5", 11, False, right), i + 1, 2)
         pv.addLayout(_hcenter(grid_box))
 
         cap = QLabel(
-            "ℓ̂ — posterior skill estimate · ℓ* — Youden-optimal passing "
-            "threshold · θ̂ — bias (positive = conservative; negative = "
-            "liberal) · π — posterior P(ℓ̂ > ℓ*).")
+            "ℓ̂ — your latent skill estimate (higher = better discrimination) · "
+            "θ̂ — your decision bias (positive = conservative / under-calls; "
+            "negative = liberal / over-calls).")
         cap.setWordWrap(True)
-        cap.setFixedWidth(700)
+        cap.setFixedWidth(560)
         cf = QFont()
         cf.setPointSize(9)
         cap.setFont(cf)

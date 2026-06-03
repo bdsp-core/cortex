@@ -94,18 +94,18 @@ def test_show_item_arms_panel(viewer):
     assert win._awaiting_answer is True
     assert win._cur_seg == segs[1]
     assert win._rt_t0 is not None
-    assert win.confirm_btn.isEnabled() is False
 
 
-def test_select_then_confirm(viewer):
+def test_select_commits_and_locks(viewer):
+    """v1.3.9: the first valid selection LOCKS the answer (no change); commit is
+    verified here via the direct _confirm_answer path (the auto-advance timer is
+    exercised in test_autoadvance_fires)."""
     app, fake, win, segs = viewer
     _show(app, win, segs[1])
-    win._select_answer(0)
-    assert win._selected_choice == 0
-    assert win.confirm_btn.isEnabled() is True
-    win._select_answer(3)                       # change the choice
+    win._select_answer(3)
     assert win._selected_choice == 3
-    assert win._answer_changes == 1
+    win._select_answer(0)                       # re-selection is ignored (no change)
+    assert win._selected_choice == 3
     win._confirm_answer()
     # Phase-9 K=7 contract: IIIC button index i → engine raw = i + 1
     # (spike=0 occupies engine task slot 0; IIIC tasks shift to k ∈ {1..6}).
@@ -115,11 +115,25 @@ def test_select_then_confirm(viewer):
     rec = win.gui_trial_log[0]
     assert rec["response_raw"] == 4
     assert rec["response_label"] == "LRDA"
-    assert rec["answer_changes"] == 1
+    assert rec["answer_changes"] == 0
     assert isinstance(rec["reaction_time_ms"], float)
     assert rec["reaction_time_ms"] >= 0.0
     assert rec["seg_id"] == segs[1]
     assert rec["trial_index"] == 0
+
+
+def test_autoadvance_fires(viewer):
+    """v1.3.9: selecting an answer auto-commits via the highlight timer — no
+    Confirm step. With _AUTOADVANCE_MS=0 the singleShot fires on the next tick."""
+    app, fake, win, segs = viewer
+    win._AUTOADVANCE_MS = 0
+    _show(app, win, segs[1])
+    win._select_answer(2)
+    assert fake.submitted == []          # waiting on the highlight timer
+    app.processEvents(); app.processEvents()
+    assert fake.submitted == [3]         # GPD button 2 → raw 3
+    assert not win._awaiting_answer
+    assert len(win.gui_trial_log) == 1
 
 
 def test_awaiting_answer_guard(viewer):
@@ -852,13 +866,10 @@ def test_results_screen_bias_narrative_function():
     assert "strong" in text.lower() and "liberal" in text.lower()
 
 
-def test_results_screen_renders_verdicts(qapp, monkeypatch):
-    """ResultsScreen builds the per-task verdict table with clinician-
-    friendly labels; the details panel starts hidden."""
-    # Stub load_ell_star_iiic so the test doesn't need cert_config on disk.
-    # Phase-9 K=7: ResultsScreen now imports load_ell_star_k7 from
-    # cortex_policy_k7 (Layer 6a change). Patch both sources so the test
-    # works regardless of how ResultsScreen resolves the loader at call time.
+def test_results_screen_renders_auroc(qapp, monkeypatch):
+    """v1.3.9: ResultsScreen shows per-category AUROC ± 95% CI + a per-category
+    ROC dropdown; NO PASS/FAIL/REFER verdict; the slim details panel shows ℓ̂
+    and θ̂ only (ℓ* and π were removed)."""
     import cortex_policy as cp
     import cortex_policy_k7 as cp_k7
     monkeypatch.setattr(cp, "load_ell_star_iiic",
@@ -868,43 +879,30 @@ def test_results_screen_renders_verdicts(qapp, monkeypatch):
     result = _synthetic_result()
     screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
     try:
-        # Verdict labels appear somewhere in the screen's child QLabels
-        all_text = " | ".join(
-            w.text() for w in screen.findChildren(__import__(
-                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
-        assert "Pass" in all_text
-        assert "Did not pass" in all_text
-        assert "Refer (borderline)" in all_text
-        assert "Refer (need more data)" in all_text
-        # Threshold-relative skill narratives
-        assert "Above threshold by 0.43" in all_text   # sz: 0.85 vs 0.42
-        assert "Below threshold by 0.12" in all_text   # gpd: 0.30 vs 0.42
-        # Bias narratives
-        assert "Strong conservative" in all_text       # gpd: θ=+0.35
-        # The agreement-with-reference-label line is GONE
-        assert "Agreement with" not in all_text
-        # Details panel starts hidden, toggles on, toggles off. Use
-        # isHidden() which reflects the explicit setVisible() state
-        # regardless of whether the parent window has been shown
-        # (Qt's isVisible() returns False until the top-level window
-        # is on screen — which is why _toggle_details internally uses
-        # isHidden() too, otherwise a second click would never hide).
+        from PyQt6.QtWidgets import QLabel, QPushButton
+        all_text = " | ".join(w.text() for w in screen.findChildren(QLabel))
+        # AUROC on the main panel; no verdict / threshold narrative anywhere.
+        assert "0.820" in all_text                      # final_auroc_mean = 0.82
+        assert "Pass" not in all_text and "Did not pass" not in all_text
+        assert "Refer" not in all_text
+        assert "Above threshold" not in all_text
+        assert "Below threshold" not in all_text
+        # One ROC dropdown per category.
+        btns = [b.text() for b in screen.findChildren(QPushButton)]
+        assert sum("ROC" in b for b in btns) >= 6
+        # Slim details panel: ℓ̂ + θ̂ once shown, but NOT ℓ* or π.
         assert screen._details_panel.isHidden() is True
         assert "Show" in screen.details_btn.text()
         screen._toggle_details()
         assert screen._details_panel.isHidden() is False
         assert "Hide" in screen.details_btn.text()
+        shown = " | ".join(w.text() for w in screen.findChildren(QLabel))
+        assert "0.850" in shown                          # ℓ̂ for sz
+        assert "+0.350" in shown or "+0.35" in shown     # θ̂ for gpd
+        assert "ℓ*" not in shown                          # ℓ* column removed
+        assert "0.980" not in shown                      # π (sz pass-mass) removed
         screen._toggle_details()
         assert screen._details_panel.isHidden() is True
-        assert "Show" in screen.details_btn.text()
-        # Raw posterior numbers are present once shown
-        all_text_now = " | ".join(
-            w.text() for w in screen.findChildren(__import__(
-                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
-        assert "0.850" in all_text_now                  # ℓ̂ for sz
-        assert "0.420" in all_text_now                  # ℓ* for any row
-        assert "+0.350" in all_text_now or "+0.35" in all_text_now  # θ̂ for gpd
-        assert "0.980" in all_text_now                  # π for sz
     finally:
         screen.deleteLater()
         qapp.processEvents()
@@ -1027,10 +1025,9 @@ def test_results_screen_show_folder_button_no_op_when_dir_missing(
 
 
 def test_results_screen_handles_missing_threshold(qapp, monkeypatch):
-    """If cert_config.yaml is missing / malformed, load_ell_star_k7
-    raises — the screen must still render with skill ℓ̂ shown but no
-    threshold-relative narrative."""
-    # Phase-9 K=7: patch BOTH loaders so the test covers both paths.
+    """v1.3.9: ℓ* is no longer displayed, but the loader still runs in __init__.
+    If it raises (missing/malformed cert_config), the screen must still render
+    the AUROC table + slim ℓ̂/θ̂ details without error."""
     import cortex_policy as cp
     import cortex_policy_k7 as cp_k7
 
@@ -1041,16 +1038,12 @@ def test_results_screen_handles_missing_threshold(qapp, monkeypatch):
     result = _synthetic_result()
     screen = ev.ResultsScreen(result, n_correct=20, n_answered=42)
     try:
-        all_text = " | ".join(
-            w.text() for w in screen.findChildren(__import__(
-                "PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel))
-        # Verdicts still shown
-        assert "Pass" in all_text
-        # Fallback narrative shows raw ℓ̂ without 'Above/Below threshold'
-        assert "Above threshold" not in all_text
-        assert "Below threshold" not in all_text
-        # Raw ℓ̂ surfaced via the fallback
-        assert "ℓ̂ = +0.85" in all_text
+        from PyQt6.QtWidgets import QLabel
+        all_text = " | ".join(w.text() for w in screen.findChildren(QLabel))
+        assert "0.820" in all_text                  # AUROC still rendered
+        screen._toggle_details()
+        shown = " | ".join(w.text() for w in screen.findChildren(QLabel))
+        assert "0.850" in shown                      # ℓ̂ shown — no ℓ* dependency
     finally:
         screen.deleteLater()
         qapp.processEvents()

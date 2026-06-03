@@ -159,18 +159,20 @@ def test_synced_csvs_on_clean_completion(tmp_path):
     assert len(trials) == 1 and len(summary) == 1
     rows = list(csv.DictReader(open(trials[0])))
     assert len(rows) == 2
-    assert "participant_name" not in rows[0]      # v1.3.6: de-identified
+    assert rows[0]["participant_name"] == "Jane Doe"   # v1.3.9: name included
+    assert "target_present" in rows[0]                  # v1.3.9: asked-task truth
     assert rows[0]["is_correct"] == "True"
     srow = list(csv.DictReader(open(summary[0])))[0]
     assert srow["n_questions"] == "2"
     assert "auroc_sz" in srow
 
 
-def test_synced_csvs_are_deidentified(tmp_path):
-    """v1.3.6 PHI fix: the synced/uploaded CSVs (filenames + contents) must carry
-    NO direct identifiers — no participant name, email, or institution NAME;
-    institution is coded to a site_id. All other consented study variables are
-    retained. The name<->session_id linkage stays LOCAL in participant.json."""
+def test_synced_csvs_include_name_protect_email_and_institution(tmp_path):
+    """v1.3.9 (controlled internal test): the synced/uploaded CSVs now INCLUDE the
+    participant NAME (needed to link sessions to experience level for the
+    PASS/FAIL/REFER calibration), but email is still excluded and the institution
+    NAME is still coded to a site_id. The full identity stays LOCAL in
+    participant.json. (Supersedes the v1.3.6 full de-identification.)"""
     rec = _recorder(tmp_path)                    # PARTICIPANT = Jane Doe / MGH / Fellow
     rec.write_trial(_telemetry(0), _gui(0))
     rec.write_trial(_telemetry(1, y=0), _gui(1, label="LPD"))
@@ -179,24 +181,26 @@ def test_synced_csvs_are_deidentified(tmp_path):
     synced = tmp_path / "synced"
     files = sorted(synced.glob("*.csv"))
     assert files, "no synced CSVs written"
-    # (a) filenames are session_id-keyed, no name embedded
+    # (a) filenames stay session_id-keyed (no name embedded)
     for f in files:
         assert f.name.startswith("sess-test_")
         assert "Jane" not in f.name and "Doe" not in f.name
-    # (b) NO direct identifier appears anywhere in the synced bytes
+    # (b) email + institution NAME still never appear in the synced bytes
     blob = "\n".join(f.read_text() for f in files)
-    for leak in ("Jane Doe", "jane@example.com", "MGH"):
-        assert leak not in blob, f"PHI leaked into synced CSV: {leak!r}"
-    # (c) summary: PHI columns gone; coded site_id + study variables retained
+    for leak in ("jane@example.com", "MGH"):
+        assert leak not in blob, f"identifier leaked into synced CSV: {leak!r}"
+    # (c) summary: name IS included; institution still coded; study vars retained
     srow = list(csv.DictReader((synced / "sess-test_summary.csv").open()))[0]
-    assert "participant_name" not in srow and "institution" not in srow
+    assert srow["participant_name"] == "Jane Doe"
+    assert "institution" not in srow
     assert srow["session_id"] == "sess-test"
     assert srow["expertise"] == "Fellow"                 # study variable retained
     assert srow["site_id"].startswith("site_") and srow["site_id"] != "MGH"
-    # (d) trials CSV has no name column
-    assert "participant_name" not in list(
-        csv.DictReader((synced / "sess-test_trials.csv").open()))[0]
-    # (e) LOCAL linkage preserved — participant.json still holds the real identity
+    # (d) trials CSV carries the name + the asked-task truth column
+    trow = list(csv.DictReader((synced / "sess-test_trials.csv").open()))[0]
+    assert trow["participant_name"] == "Jane Doe"
+    assert "target_present" in trow
+    # (e) full identity still LOCAL in participant.json
     doc = json.loads((rec.dir / "participant.json").read_text())
     assert doc["identity"]["name"] == "Jane Doe"
     assert doc["identity"]["institution"] == "MGH"
