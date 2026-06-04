@@ -220,7 +220,8 @@ def _load_session(session_dir: Path) -> dict:
                 dom = (task_codes[tk] if isinstance(tk, int)
                        and 0 <= tk < len(task_codes) else "iic")
             questions.append({"idx": int(rec.get("trial_index", len(questions))),
-                              "s": float(s), "domain": str(dom)})
+                              "s": float(s), "domain": str(dom),
+                              "correct": rec.get("is_correct")})  # bool or None (legacy)
 
     return {
         "session_dir": sd,
@@ -270,6 +271,8 @@ _AMBER = "#d4b169"
 _RED = "#d8806a"
 _TEXT = "#dde0e6"
 _MUTED = "#9aa0ab"
+_PROG_OK = "#5cb87a"      # progress bar: correct response
+_PROG_BAD = "#d9534f"     # progress bar: incorrect response
 
 
 def _style_axes_dark(ax, three_d=False):
@@ -414,21 +417,37 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
     first_block = (task_k == 0)
     reveal_j = j if first_block else (n_trials - 1)
     revealed = [q for q in questions if q["idx"] <= reveal_j]
+    # v1.4.0: reserve a thin lane just below the data for a per-question
+    # correctness progress bar (drawn below; ylo extends the y-axis to fit it).
+    _lo, _hi = q_ylim
+    _rng = (_hi - _lo) or 1.0
+    _bar_h = 0.045 * _rng
+    _bar_bot = _lo - 0.025 * _rng - _bar_h
+    _ylo = _bar_bot - 0.015 * _rng
     if revealed:
         xs = np.array([q["idx"] + 1 for q in revealed], dtype=float)
         ys = np.array([q["s"] for q in revealed], dtype=float)
-        cs = [DOMAIN_COLORS.get(q["domain"], _MUTED) for q in revealed]
+        cs = np.array([DOMAIN_COLORS.get(q["domain"], _MUTED) for q in revealed])
         if len(xs) >= 2:
             ax_q.plot(xs, ys, color=_MUTED, linewidth=0.8, alpha=0.5,
                       zorder=2)
-        ax_q.scatter(xs, ys, s=22, c=cs, edgecolor="none",
-                     alpha=0.9, zorder=3)
+        ax_q.scatter(xs, ys, s=22, c=list(cs), edgecolor="none",
+                     alpha=0.9, zorder=3)            # plain dots, colored by domain
+        # Per-question correctness progress bar along the x-axis: one gapless
+        # segment per question (green = correct, red = incorrect, grey =
+        # unknown/legacy). Reveals in step with the dots above.
+        seg_x = [(x - 0.5, 1.0) for x in xs]
+        seg_c = [(_PROG_OK if (c is not None and bool(c))
+                  else _PROG_BAD if c is not None else _MUTED)
+                 for c in (q.get("correct") for q in revealed)]
+        ax_q.broken_barh(seg_x, (_bar_bot, _bar_h), facecolors=seg_c,
+                         edgecolors="none", zorder=2)
         # Ring the most-recent question only while it is actively revealing
         # (first block); once frozen there is no "current" question to mark.
         if first_block:
             ax_q.scatter([xs[-1]], [ys[-1]], s=80, facecolor="none",
                          edgecolor="white", linewidth=1.1, zorder=4)
-    ax_q.set_xlim(*q_xlim); ax_q.set_ylim(*q_ylim)
+    ax_q.set_xlim(*q_xlim); ax_q.set_ylim(_ylo, _hi)
     ax_q.axhline(0.0, color=_GRID, lw=0.6, alpha=0.5, zorder=0)
     ax_q.set_xlabel("Question number")
     ax_q.set_ylabel("Signal strength  $s$\n(probit case difficulty)")
@@ -437,9 +456,19 @@ def _draw_frame(state, *, task_k, task_code, j, n_trials, frame,
     handles = [Line2D([0], [0], marker="o", linestyle="none", markersize=5,
                       markerfacecolor=DOMAIN_COLORS[d], markeredgecolor="none",
                       label=DOMAIN_TITLES.get(d, d)) for d in _DOMAIN_ORDER]
-    ax_q.legend(handles=handles, loc="upper left", ncol=len(_DOMAIN_ORDER),
-                fontsize=6, framealpha=0.0, handletextpad=0.2,
-                columnspacing=0.8, labelcolor=_TEXT)
+    leg_dom = ax_q.legend(handles=handles, loc="upper left",
+                          ncol=len(_DOMAIN_ORDER), fontsize=6, framealpha=0.0,
+                          handletextpad=0.2, columnspacing=0.8, labelcolor=_TEXT)
+    ax_q.add_artist(leg_dom)                          # keep color legend when adding the progress-bar one
+    # v1.4.0: a second legend explains the progress-bar COLOR (correctness)
+    prog_handles = [
+        Line2D([0], [0], marker="s", linestyle="none", markersize=5,
+               markerfacecolor=_PROG_OK, markeredgecolor="none", label="correct"),
+        Line2D([0], [0], marker="s", linestyle="none", markersize=5,
+               markerfacecolor=_PROG_BAD, markeredgecolor="none", label="incorrect")]
+    ax_q.legend(handles=prog_handles, loc="lower right", fontsize=6,
+                framealpha=0.0, handletextpad=0.2, columnspacing=0.8,
+                labelcolor=_TEXT)
 
 
 # ─── public API ───────────────────────────────────────────────────────

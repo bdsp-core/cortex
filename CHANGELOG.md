@@ -7,6 +7,35 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-03) — `cortex-v1.4.0` — ROC results-screen polish + explainer correctness progress bar
+
+Visual / UX refinements to the v1.3.9 results screen and the engine-explainer video,
+after the first local review of v1.3.9. Same engine, policy, bank (`build-data-v4-k7`),
+and calibration — **no decision-criteria change**.
+
+### What
+
+* **ROC dropdowns refined.** Each per-category ROC now draws as a fine empirical-style
+  **staircase** (area = AUROC), and the reader's operating point is placed **on the
+  curve** at their empirical false-positive rate — so its position reads as bias
+  (lower-left = conservative / under-calls, upper-right = liberal / over-calls). Axes
+  are restyled with white ticks on the dark page and show the full **0.0–1.0** range
+  on both axes. The skill (ℓ̂) / bias (θ̂) / AUROC reading guide moved into the
+  **Show technical details** panel. `scripts/eeg_bank_viewer.py` ResultsScreen.
+* **Engine-explainer correctness progress bar.** In the explainer video's "Question
+  difficulty by domain" panel, each question is a dot colored by domain, and a thin,
+  gapless **green / red progress bar** along the x-axis marks every response
+  correct (green) / incorrect (red). `scripts/render_engine_explainer.py`.
+
+### Why
+
+The local v1.3.9 review asked for a more conventional ROC look, an operating point that
+sits on the curve, axis ticks through 1.0, and an at-a-glance per-question correctness
+track in the explainer. Cosmetic / UX only — no engine / policy / bank / calibration
+change. Cortex suite green; per-step renders verified.
+
+---
+
 ## ▶ CORTEX bundle (2026-06-03) — `cortex-v1.3.9` — AUROC results screen + ROC dropdowns, auto-advance, names in CSVs
 
 Post-pilot UX + data changes after the first human session. Same engine, policy,

@@ -355,7 +355,7 @@ def test_v1_2_8_load_session_parses_questions(tmp_path):
     sess = ree._load_session(tmp_path)
     qs = sess["questions"]
     assert len(qs) == 6
-    assert set(qs[0]) == {"idx", "s", "domain"}
+    assert set(qs[0]) == {"idx", "s", "domain", "correct"}   # v1.4.0: + correctness
     assert qs[0]["idx"] == 0
     assert qs[0]["domain"] in ree.DOMAIN_COLORS
 

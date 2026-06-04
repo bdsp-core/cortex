@@ -543,7 +543,7 @@ class TutorialOverlay(QWidget):
 class BankViewer(QMainWindow):
     # v1.3.9: ms to highlight the chosen answer before auto-advancing to the
     # next recording (no Confirm step; the answer cannot be changed).
-    _AUTOADVANCE_MS = 500
+    _AUTOADVANCE_MS = 150
     # Tutorial state — class defaults, overridden once a tutorial starts.
     _tutorial_active = False
     _overlay = None
@@ -1257,7 +1257,7 @@ class BankViewer(QMainWindow):
             _hi = IIIC_LABEL_START_S + IIIC_LABEL_LEN_S
             _box = pg.LinearRegionItem(
                 values=(_lo, _hi), movable=False,
-                brush=pg.mkBrush(255, 80, 80, 25),   # v1.3.9: more transparent fill (was 45)
+                brush=pg.mkBrush(255, 80, 80, 35),   # v1.3.9: more transparent fill (was 45)
                 pen=pg.mkPen((215, 45, 45), width=2))
             _box.setZValue(-10)   # behind the EEG traces
             self.eeg_plot.addItem(_box)
@@ -2641,20 +2641,7 @@ class ResultsScreen(QWidget):
 
         root.addSpacing(22)
         root.addLayout(_hcenter(self._build_auroc_table(result)))
-        _cap = QLabel(
-            "AUROC summarises how well you separated each pattern from the "
-            "rest (0.5 = chance, 1.0 = perfect). Open a category's ROC to see "
-            "the curve with your operating point — your false-positive vs "
-            "true-positive rate — marked.")
-        _cap.setWordWrap(True)
-        _cap.setFixedWidth(620)
-        _cf = QFont()
-        _cf.setPointSize(9)
-        _cap.setFont(_cf)
-        _cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        _cap.setStyleSheet("color: #767b87; background: transparent;")
-        root.addSpacing(10)
-        root.addWidget(_cap, alignment=Qt.AlignmentFlag.AlignCenter)
+        # (AUROC caption was folded into the technical-details caption below.)
 
         # Collapsible details panel — hidden by default. The button text
         # toggles between "Show / Hide technical details".
@@ -2820,15 +2807,50 @@ class ResultsScreen(QWidget):
         return (f"{strength} {direction}", "#aab0ba")
 
     @staticmethod
-    def _binormal_roc(auroc, n=200):
-        """Equal-variance binormal ROC whose area equals `auroc`:
-        d' = √2·Φ⁻¹(auroc); HR = Φ(Φ⁻¹(FAR) + d'). Returns (far, hr) arrays."""
+    def _binormal_steps(auroc, n_each=48):
+        """Empirical-style ROC staircase for an equal-variance binormal model
+        with area = `auroc`. Rather than evenly-spaced criteria (which give a
+        sparse, mechanically-mirrored staircase), this draws deterministic score
+        quantiles of the present (N(d′,1)) and absent (N(0,1)) classes — d′ =
+        √2·Φ⁻¹(auroc) — and sweeps a threshold over all 2·n_each scores. The
+        result is a FINE, naturally-irregular staircase (steps denser where scores
+        are dense) like a real many-case empirical ROC. Deterministic ⇒ the same
+        AUROC always yields the same curve (no re-render flicker). Cosmetic: CORTEX
+        records binary Yes/No ⇒ one real operating point, not a data staircase.
+        Returns (xs, ys) for a steps-post path from (0,0) to (1,1)."""
         from scipy.stats import norm
         a = float(min(max(auroc, 0.5001), 0.9999))   # finite d', curve above chance
         dprime = np.sqrt(2.0) * norm.ppf(a)
-        far = np.linspace(1e-3, 1 - 1e-3, n)
-        hr = norm.cdf(norm.ppf(far) + dprime)
-        return far, hr
+        q = (np.arange(1, n_each + 1) - 0.5) / n_each   # midpoint quantiles (deterministic)
+        z = norm.ppf(q)
+        present, absent = z + dprime, z
+        thr = np.sort(np.concatenate([present, absent]))[::-1]   # high→low threshold sweep
+        far = [0.0]
+        hr = [0.0]
+        for t in thr:                                  # FAR/HR = fraction of each class ≥ t
+            far.append(float(np.mean(absent >= t)))
+            hr.append(float(np.mean(present >= t)))
+        far.append(1.0)
+        hr.append(1.0)
+        xs, ys = [far[0]], [hr[0]]                      # steps-post: go right, then up
+        for i in range(1, len(far)):
+            xs += [far[i], far[i]]
+            ys += [hr[i - 1], hr[i]]
+        return np.array(xs), np.array(ys)
+
+    @staticmethod
+    def _oncurve_point(auroc, far):
+        """Project a false-alarm rate onto the binormal ROC (area = `auroc`):
+        returns (far, HR) lying ON the curve, with HR = Φ(Φ⁻¹(far) + d′). The
+        taker's empirical FAR fixes the dot's horizontal position (their bias);
+        the hit-rate is read off the model curve at that FAR — so the dot sits
+        on the curve and its position encodes conservative (lower-left) vs
+        liberal (upper-right)."""
+        from scipy.stats import norm
+        a = float(min(max(auroc, 0.5001), 0.9999))
+        dprime = np.sqrt(2.0) * norm.ppf(a)
+        f = float(min(max(far, 1e-3), 1 - 1e-3))
+        return f, float(norm.cdf(norm.ppf(f) + dprime))
 
     @staticmethod
     def _empirical_point(trials, code):
@@ -2857,27 +2879,44 @@ class ResultsScreen(QWidget):
         return (sum(absn) / len(absn), sum(pres) / len(pres))    # (FAR, HR)
 
     def _build_roc_widget(self, auroc, point):
-        """Small ROC plot: the model curve (area = `auroc`) + chance diagonal +
-        the taker's empirical operating point (red dot) when available."""
+        """ROC plot for the per-category dropdown — BeautifulFigures aesthetic
+        (paper_sims/BeautifulFigures-main) adapted to the dark results screen:
+        WHITE axes/ticks/labels (near-black page bg), a square equal-aspect frame,
+        a subtle grid, and the example's palette (teal curve, neutral-grey chance
+        diagonal, purple operating point with a darker edge). The curve is drawn as
+        a fine STAIRCASE (typical empirical-ROC look) with area = `auroc`; the dot is
+        the taker's operating point projected ONTO the curve at their empirical
+        false-alarm rate. The skill/bias/AUROC reading guide lives in the
+        Show-technical-details panel. Returns the pyqtgraph PlotWidget."""
+        _FG = "#eef1f5"                                   # near-white axes on #0b0d12 bg
         pw = pg.PlotWidget()
-        pw.setFixedSize(300, 240)
+        pw.setFixedSize(300, 300)                         # square canvas for equal aspect
         pw.setBackground(_PAGE_BG)
         pw.setMenuEnabled(False)
         pw.setMouseEnabled(False, False)
-        pw.showGrid(x=True, y=True, alpha=0.12)
-        pw.setXRange(0, 1, padding=0.02)
-        pw.setYRange(0, 1, padding=0.02)
-        pw.setLabel("bottom", "False-positive rate")
-        pw.setLabel("left", "True-positive rate")
+        pw.getViewBox().setAspectLocked(True)            # set_aspect('equal') — square frame
+        for _side in ("bottom", "left"):                 # WHITE axes (visible on black bg)
+            _ax = pw.getAxis(_side)
+            _ax.setPen(pg.mkPen(_FG, width=1))           # axis line + tick marks
+            _ax.setTextPen(_FG)                           # tick labels
+        pw.showGrid(x=True, y=True, alpha=0.18)           # subtle grid (follows the white pen)
+        pw.setXRange(-0.06, 1.06, padding=0)   # symmetric margin so BOTH end-ticks (0.0 and
+        pw.setYRange(-0.06, 1.06, padding=0)   # 1.0) clear the corner/edge on each axis
+        _ticks = [[(v, f"{v:.1f}") for v in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)]]
+        pw.getAxis("bottom").setTicks([list(_ticks[0])])   # force the 1.0 end-tick on both axes
+        pw.getAxis("left").setTicks([list(_ticks[0])])
+        pw.setLabel("bottom", "False-positive rate", color=_FG)
+        pw.setLabel("left", "True-positive rate", color=_FG)
+        # chance diagonal (neutral grey, behind) then the ROC staircase (teal, on top)
         pw.plot([0, 1], [0, 1],
-                pen=pg.mkPen("#5c606a", style=Qt.PenStyle.DashLine))
-        far, hr = self._binormal_roc(auroc)
-        pw.plot(far, hr, pen=pg.mkPen("#0072b5", width=2))
-        if point is not None:
-            f, h = point
-            pw.addItem(pg.ScatterPlotItem(
-                [f], [h], size=13, brush=pg.mkBrush("#bc3c29"),
-                pen=pg.mkPen("white", width=1)))
+                pen=pg.mkPen("#8a8a8a", width=1.5, style=Qt.PenStyle.DashLine))
+        sx, sy = self._binormal_steps(auroc)
+        pw.plot(sx, sy, pen=pg.mkPen("#77b5b6", width=2.4))    # example teal staircase
+        if point is not None:                             # project onto the curve at the
+            f, h = self._oncurve_point(auroc, point[0])   # taker's empirical FAR (their bias)
+            pw.addItem(pg.ScatterPlotItem(                # example purple + dark-purple edge
+                [f], [h], size=14, brush=pg.mkBrush("#9671bd"),
+                pen=pg.mkPen("#6a408d", width=1.5)))
         return pw
 
     def _build_auroc_table(self, result):
@@ -2981,9 +3020,13 @@ class ResultsScreen(QWidget):
         pv.addLayout(_hcenter(grid_box))
 
         cap = QLabel(
-            "ℓ̂ — your latent skill estimate (higher = better discrimination) · "
-            "θ̂ — your decision bias (positive = conservative / under-calls; "
-            "negative = liberal / over-calls).")
+            "ℓ̂ = your latent skill estimate (higher = better discrimination). "
+            "θ̂ = your decision bias (positive = conservative / under-calls; "
+            "negative = liberal / over-calls). AUROC summarises how well you "
+            "separated each pattern from the rest (0.5 = chance, 1.0 = perfect). "
+            "In each category's ROC plot, the curve is your skill and its area is "
+            "the AUROC; the dot is your operating point — lower-left = conservative "
+            "(you under-call), upper-right = liberal (you over-call).")
         cap.setWordWrap(True)
         cap.setFixedWidth(560)
         cf = QFont()
