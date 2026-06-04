@@ -79,14 +79,30 @@ jobs:
         # same way (and broke v1.0.7 for users who had v1.0 cached).
         run: |
           STAGING=cortex_app/dist/CORTEX-dmg-staging
+          OUT=cortex_app/dist/CORTEX-mac.dmg
           rm -rf "$STAGING"
           mkdir -p "$STAGING"
           cp -R cortex_app/dist/CORTEX.app "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
-          hdiutil create -volname "CORTEX" \
-            -srcfolder "$STAGING" \
-            -ov -format UDZO \
-            cortex_app/dist/CORTEX-mac.dmg
+          # Retry hdiutil — the runner intermittently returns "Resource busy"
+          # (a stale attach / Spotlight momentarily holding the device), which
+          # broke the cortex-v1.4.1 build-mac-intel DMG step. Detach any leftover
+          # CORTEX mount between tries and back off before retrying.
+          attempt=1; max=4
+          until hdiutil create -volname "CORTEX" \
+                  -srcfolder "$STAGING" -ov -format UDZO "$OUT"; do
+            status=$?
+            if [ "$attempt" -ge "$max" ]; then
+              echo "hdiutil create failed after $attempt attempts (exit $status)"
+              exit "$status"
+            fi
+            echo "hdiutil create failed (exit $status) — attempt $attempt/$max; cleaning up + retrying…"
+            hdiutil info | awk '/CORTEX/ {print $1}' | grep '^/dev/' \
+              | xargs -r -n1 hdiutil detach -force || true
+            rm -f "$OUT"
+            sleep $((attempt * 5))
+            attempt=$((attempt + 1))
+          done
           rm -rf "$STAGING"
 
       - name: Upload Mac DMG artifact
@@ -172,14 +188,30 @@ jobs:
         # users drag-install rather than double-click in-place.
         run: |
           STAGING=cortex_app/dist/CORTEX-dmg-staging
+          OUT=cortex_app/dist/CORTEX-mac-intel.dmg
           rm -rf "$STAGING"
           mkdir -p "$STAGING"
           cp -R cortex_app/dist/CORTEX.app "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
-          hdiutil create -volname "CORTEX" \
-            -srcfolder "$STAGING" \
-            -ov -format UDZO \
-            cortex_app/dist/CORTEX-mac-intel.dmg
+          # Retry hdiutil — the runner intermittently returns "Resource busy"
+          # (a stale attach / Spotlight momentarily holding the device), which
+          # broke the cortex-v1.4.1 build-mac-intel DMG step. Detach any leftover
+          # CORTEX mount between tries and back off before retrying.
+          attempt=1; max=4
+          until hdiutil create -volname "CORTEX" \
+                  -srcfolder "$STAGING" -ov -format UDZO "$OUT"; do
+            status=$?
+            if [ "$attempt" -ge "$max" ]; then
+              echo "hdiutil create failed after $attempt attempts (exit $status)"
+              exit "$status"
+            fi
+            echo "hdiutil create failed (exit $status) — attempt $attempt/$max; cleaning up + retrying…"
+            hdiutil info | awk '/CORTEX/ {print $1}' | grep '^/dev/' \
+              | xargs -r -n1 hdiutil detach -force || true
+            rm -f "$OUT"
+            sleep $((attempt * 5))
+            attempt=$((attempt + 1))
+          done
           rm -rf "$STAGING"
 
       - name: Upload Mac Intel DMG artifact
