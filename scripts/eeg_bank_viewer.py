@@ -1775,10 +1775,14 @@ CONSENT_VERSION = "v1.3.6"
 # IRB_PROTOCOL_ID
 IRB_PROTOCOL_ID = "IRB 2016P000058 and IRB 2013P001024"
 
-# Required fields gate Continue on each wizard page. _EXPERTISE order is
-# stable — cortex_smoke.py:open_registration relies on index 4 == Fellow.
-_EXPERTISE = ["— select —", "Medical student", "Resident", "Nurse",
-              "Fellow", "Neurologist", "Epileptologist", "Other"]
+# Required fields gate Continue on each wizard page. _EXPERTISE is ordered most-
+# senior → most-junior for the lab internal-test cohort (2026-06-04; added Nurse
+# practitioner / Physician assistant / Physician / Intern). Index 4 is STILL
+# "Fellow" — cortex_smoke.py:open_registration + test_cortex_viewer rely on
+# setCurrentIndex(4) == Fellow, so keep "Fellow" at index 4 if you reorder again.
+_EXPERTISE = ["— select —", "Epileptologist", "Neurologist", "Physician",
+              "Fellow", "Resident", "Intern", "Physician assistant",
+              "Nurse practitioner", "Nurse", "Medical student", "Other"]
 _SEX = ["— select —", "Male", "Female", "Prefer not to say"]
 # v1.1.3: gender_identity field removed (sex is the canonical
 # demographic; the SAGER two-field convention was over-scoped for
@@ -3119,7 +3123,7 @@ def main():
         from cortex_engine_inputs_k7 import build_k7_engine_inputs
         from session_controller import (
             SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT,
-            MAX_CONSEC_SAME_DOMAIN_DEFAULT)
+            MAX_CONSEC_SAME_DOMAIN_DEFAULT, EXTENDED_DATA_COLLECTION_DEFAULT)
         from cortex_storage import SessionRecorder
         inputs = build_k7_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
@@ -3148,7 +3152,11 @@ def main():
             capture_clouds=True,
             max_questions=MAX_QUESTIONS_DEFAULT,
             # v1.3.5: break up long single-domain runs (sim-validated cap=12).
-            max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT)
+            max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT,
+            # Lab internal-test release: keep asking past the would-have-stopped
+            # point (to MAX_QUESTIONS_DEFAULT) for retrospective threshold
+            # recalibration. OFFICIAL result stays frozen at the v1.4.0 stop.
+            extended_data_collection=EXTENDED_DATA_COLLECTION_DEFAULT)
         # Record which termination policy actually drives this session —
         # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
         # legacy/audit paths — so participant.json reflects what stopped
@@ -3165,6 +3173,7 @@ def main():
              "policy": type(controller.session.policy).__name__,
              "n_particles": N_PARTICLES,
              "max_questions": MAX_QUESTIONS_DEFAULT,
+             "extended_data_collection": EXTENDED_DATA_COLLECTION_DEFAULT,
              "tutorial_seg_id": int(tutorial_sid)},
             render_videos=is_opt_in_for_visualizations(reg.registration))
         win = BankViewer(controller, reg.session_id, tutorial_sid, recorder)

@@ -7,6 +7,41 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-04) — `cortex-v1.4.1` — extended data-collection mode + expertise dropdown
+
+Lab internal-test release. Adds an **extended data-collection mode** so the live test keeps
+asking past the point the AD6 rule would have stopped, and expands the expertise dropdown.
+**Engine, policy, bank (`build-data-v4-k7`), and calibration are UNCHANGED** — the official
+PASS/FAIL/REFER decision is byte-identical to v1.4.0.
+
+### What
+
+* **Extended data-collection mode** (default ON for the live test; `EXTENDED_DATA_COLLECTION_DEFAULT`).
+  The session runs the existing AD6 stopping rule exactly as v1.4.0, **records where it would have
+  stopped and the statistics there**, then keeps asking questions — adaptively across **all 7
+  domains** — up to the **500-question ceiling** (or until the bank is exhausted). If one domain's
+  bank is used up it continues on the remaining domains until the ceiling. The participant-facing
+  **results screen, certificate, and AUROC/ROC visualizations are FROZEN at the v1.4.0
+  would-have-stopped point**; the extra questions are logged for retrospective recalibration of the
+  PASS/FAIL/REFER thresholds (suspected too strict for expert human raters — the MBW pilot). Each
+  question carries a `post_decision` flag in `trials.jsonl` / the detail CSV; the summary/certificate
+  add `n_questions_total` / `n_post_decision` / `extended_stop_reason`. `scripts/session_controller.py`,
+  `scripts/cortex_storage.py`, `scripts/eeg_bank_viewer.py`. Set the constant `False` to restore
+  v1.4.0 early-stop for the public build.
+* **Expertise dropdown** reordered most-senior → most-junior and expanded: now
+  Epileptologist, Neurologist, Physician, Fellow, Resident, Intern, Physician assistant,
+  Nurse practitioner, Nurse, Medical student, Other. `scripts/eeg_bank_viewer.py`.
+
+### Why
+
+To collect per-domain data across the full range of lab expertise (epileptologists → interns,
+nurses, NPs, PAs) so the PASS/FAIL/REFER thresholds can be retrospectively recalibrated before the
+public release and ILAE endorsement, without changing what counts as a verdict today. Drift-guard
+tests pin the v1.4.0-identical default behavior + the extended-mode contract; cortex suites green
+(2 render tests need `ffmpeg` only).
+
+---
+
 ## ▶ CORTEX bundle (2026-06-03) — `cortex-v1.4.0` — ROC results-screen polish + explainer correctness progress bar
 
 Visual / UX refinements to the v1.3.9 results screen and the engine-explainer video,

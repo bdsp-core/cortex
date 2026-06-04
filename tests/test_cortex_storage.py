@@ -508,3 +508,34 @@ def test_finalize_emits_progress_stages(tmp_path):
     assert "Saving results" in stages
     # ETA is None or a non-negative number of seconds
     assert all(e is None or e >= 0 for _, _, e in events)
+
+
+def test_extended_collection_partitions_official_stats(tmp_path):
+    """Lab internal-test extended mode: OFFICIAL certificate/summary stats use
+    the pre-decision trials only; the post_decision extras are retained in the
+    detail CSV and noted via the total/post_decision columns."""
+    rec = _recorder(tmp_path)
+    for i in range(3):                       # official (pre-decision)
+        rec.write_trial(dict(_telemetry(i), post_decision=False), _gui(i))
+    for i in range(3, 5):                    # extended (post_decision)
+        rec.write_trial(dict(_telemetry(i), post_decision=True), _gui(i))
+    result = _result(n=3)
+    result.extended_stop_reason = "bank_exhausted"
+    rec.finalize(result)
+
+    cert = json.loads((rec.dir / "certificate.json").read_text())
+    assert cert["total_trials"] == 3          # official only
+    assert cert["total_trials_all"] == 5
+    assert cert["n_post_decision"] == 2
+    assert cert["extended_stop_reason"] == "bank_exhausted"
+
+    summ = next(csv.DictReader((rec.dir / "sess-test_summary.csv").open()))
+    assert int(summ["n_questions"]) == 3
+    assert int(summ["n_questions_total"]) == 5
+    assert int(summ["n_post_decision"]) == 2
+    assert summ["extended_stop_reason"] == "bank_exhausted"
+
+    rows = list(csv.DictReader((rec.dir / "sess-test_trials.csv").open()))
+    assert len(rows) == 5                     # all questions retained
+    assert [r["post_decision"] for r in rows] == \
+        ["False", "False", "False", "True", "True"]

@@ -96,6 +96,16 @@ MAX_QUESTIONS_DEFAULT = 500
 # sweep found HELPS resolution) at the cost of slightly more domain-hopping. Re-run
 # sim_v1_3_5/run_consec_sweep.py at cap=5 if a fresh OC characterization is wanted.
 MAX_CONSEC_SAME_DOMAIN_DEFAULT = 5
+# Lab internal-test release (2026-06-04): keep asking questions PAST the point
+# the AD6 rule would have stopped the session, up to MAX_QUESTIONS_DEFAULT, to
+# gather per-domain data across expertise levels for retrospective recalibration
+# of the PASS/FAIL/REFER thresholds (the MBW pilot showed they are likely too
+# strict — corpus §11). The OFFICIAL verdict/AUROC/visualizations stay FROZEN at
+# the v1.4.0 would-have-stopped point; the extra questions are logged + flagged
+# post_decision in the report CSVs only. Only the live viewer path turns this on;
+# CortexSession defaults it OFF so every test / sim / audit is byte-identical to
+# v1.4.0. Set to False here to ship the public version (early-stop restored).
+EXTENDED_DATA_COLLECTION_DEFAULT = True
 # delta=0.15 is the legacy DeltaStop target (Mode-A / methodology path).
 # AD6Policy (production) does not use delta. See docs/AD6_RESOLUTION.md.
 DELTA_AUROC = 0.15
@@ -146,6 +156,15 @@ class SessionResult:
     # NoStop / Delta legacy paths — those policies do not render verdicts.
     verdicts: list = None
     policy_diagnostics: dict = None
+    # Extended data-collection mode (lab internal-test release). When the
+    # session keeps asking past the would-have-stopped point to gather more
+    # per-domain calibration data, EVERY field above is FROZEN at the v1.4.0
+    # decision point (so ResultsScreen / certificate / the AUROC+ROC
+    # visualizations are byte-identical to v1.4.0); the additional questions
+    # exist only in the recorder's trials.jsonl/CSV, flagged post_decision.
+    # These two record the actual extended run for retrospective analysis.
+    n_questions_total: int = None      # questions actually answered (≤ 500)
+    extended_stop_reason: str = None   # what ended the extended run
 
 
 def _posterior_summary(state):
@@ -175,7 +194,8 @@ class CortexSession:
                  n_mh_steps=N_MH_STEPS, seed=None, selection="adaptive",
                  policy=None, capture_clouds=False,
                  first_item_topn=FIRST_ITEM_TOPN,
-                 max_consecutive_same_domain=None):
+                 max_consecutive_same_domain=None,
+                 extended_data_collection=False):
         self.inputs = inputs
         self.session_id = str(session_id)
         self.N = int(n_particles)
@@ -209,6 +229,12 @@ class CortexSession:
                             if max_consecutive_same_domain else None)
         self._last_task = None
         self._consec_count = 0
+        # Extended data-collection (default OFF — see EXTENDED_DATA_COLLECTION_
+        # DEFAULT). When ON, run() captures a v1.4.0 snapshot at the would-have-
+        # stopped point then keeps asking (all domains active) to max_questions.
+        self._extended = bool(extended_data_collection)
+        self._post_decision = False           # True once past the snapshot
+        self._decision_snapshot = None        # frozen v1.4.0 result fields
         self.proposal_scale = 2.38 / np.sqrt(2 * self.K)
 
     def _compute_active_domains(self, bank_signals):
@@ -237,13 +263,21 @@ class CortexSession:
         verdicts = (self.policy._verdicts if (hasattr(self.policy, "_verdicts")
                                                and self.policy._verdicts is not None)
                     else [PENDING] * K)
-        # Phase A — K=7 spike sectioning (the spike block is deliberate; the
-        # consecutive-cap does NOT apply here).
-        if (K == 7 and verdicts[0] == PENDING and len(bank_signals[0]) > 0):
-            return [0]
-        # Phase B / K=6 — all unresolved tasks with non-empty banks
-        base = [k for k in range(K)
-                if len(bank_signals[k]) > 0 and verdicts[k] == PENDING]
+        # Extended data-collection (post-decision): the v1.4.0 stopping point has
+        # already passed and its result is frozen. Keep ALL 7 domains active
+        # (ignore verdict locks + spike-first sectioning) so the engine keeps
+        # adaptively probing every domain for more calibration data. The
+        # consecutive-cap variety rule below still applies.
+        if self._post_decision:
+            base = [k for k in range(K) if len(bank_signals[k]) > 0]
+        else:
+            # Phase A — K=7 spike sectioning (the spike block is deliberate; the
+            # consecutive-cap does NOT apply here).
+            if (K == 7 and verdicts[0] == PENDING and len(bank_signals[0]) > 0):
+                return [0]
+            # Phase B / K=6 — all unresolved tasks with non-empty banks
+            base = [k for k in range(K)
+                    if len(bank_signals[k]) > 0 and verdicts[k] == PENDING]
         # v1.3.5 consecutive-same-domain cap (default OFF). After `_max_consec`
         # questions in a row on one task, force the NEXT question onto a
         # different domain. Prefer other UNRESOLVED tasks; if the dominant task
@@ -325,6 +359,28 @@ class CortexSession:
                 float(np.asarray(bank_signals[k])[idx]),
                 float(np.asarray(bank_sds[k])[idx]))
 
+    def _make_decision_snapshot(self, state, trials, served, t_traj_len,
+                                stop_reason, decision):
+        """Freeze the result fields exactly as v1.4.0 would have produced them
+        at the would-have-stopped point. Called ONCE (extended mode), the first
+        time the session would have terminated. finalize_verdicts() returns a
+        fresh list, so later (post-decision) policy updates can't leak in."""
+        var_t, var_l, t_mean, l_mean = _posterior_summary(state)
+        return {
+            "n_questions": len(trials),
+            "stop_reason": stop_reason,
+            "verdicts": self.policy.finalize_verdicts(),
+            "policy_diagnostics": (decision.diagnostics
+                                   if decision is not None else None),
+            "final_auroc_mean": auroc_mean_from_particles_hier(state),
+            "final_auroc_hw": auroc_halfwidths_hier(state, alpha=ALPHA),
+            "final_l_mean": l_mean,
+            "final_t_mean": t_mean,
+            "trials": list(trials),
+            "served_seg_ids": list(served),
+            "t_traj_len": int(t_traj_len),
+        }
+
     def run(self, y_source, on_item=None, on_trial=None):
         """Run the adaptive loop. ``y_source(k, seg_id, s) -> int`` returns
         the binary response; it may block (the live GUI path). ``on_item`` /
@@ -342,6 +398,8 @@ class CortexSession:
         self.policy.reset(self.K)
         self._last_task = None        # v1.3.5: reset consecutive-cap state
         self._consec_count = 0
+        self._post_decision = False   # extended mode: reset per run
+        self._decision_snapshot = None
         n_per_task = [0] * self.K
         decision = None
 
@@ -355,8 +413,21 @@ class CortexSession:
                 # candidate (all banks empty for unresolved tasks OR all
                 # tasks already resolved). Stop the session cleanly.
                 if _selected is None:
-                    stop_reason = "all_active_resolved"
-                    break
+                    # Extended mode: v1.4.0 would stop here (all_active_resolved).
+                    # Freeze the snapshot, then re-select with ALL domains active
+                    # so data-collection continues even past resolution.
+                    if self._extended and self._decision_snapshot is None:
+                        self._decision_snapshot = self._make_decision_snapshot(
+                            state, trials, served, len(t_traj),
+                            "all_active_resolved", decision)
+                        self._post_decision = True
+                        _selected = self._select(state, remaining, rng,
+                                                 trial_index)
+                    if _selected is None:
+                        stop_reason = ("all_active_resolved"
+                                       if self._decision_snapshot is None
+                                       else "bank_exhausted")
+                        break
                 k, seg_id, s, s_sd, expected_loss = _selected
                 select_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -406,6 +477,12 @@ class CortexSession:
                     "l_post_mean": l_mean.tolist(),
                     "ess": float(ess(state["w"])), "rejuv": rejuv,
                     "n_per_task": list(n_per_task),
+                    # Extended data-collection: True once the session has passed
+                    # the v1.4.0 would-have-stopped point. Always False in normal
+                    # (non-extended) sessions. The recorder uses it to flag the
+                    # extra calibration questions and to keep the OFFICIAL
+                    # summary/certificate stats on the pre-decision trials only.
+                    "post_decision": self._post_decision,
                 }
 
                 # AD6: policy sees post-update state, post-increment n_per_task.
@@ -428,8 +505,19 @@ class CortexSession:
                     on_trial(tel)
 
                 if decision.stop:
-                    stop_reason = decision.stop_reason
-                    break
+                    if not self._extended:
+                        stop_reason = decision.stop_reason
+                        break
+                    # Extended mode: freeze the v1.4.0 result the first time the
+                    # session would have stopped, then keep collecting. Once past
+                    # the snapshot, decision.stop is ignored (verdicts are locked
+                    # monotonically, so the official result never changes) — the
+                    # loop now ends only at max_questions or bank exhaustion.
+                    if self._decision_snapshot is None:
+                        self._decision_snapshot = self._make_decision_snapshot(
+                            state, trials, served, len(t_traj),
+                            decision.stop_reason, decision)
+                        self._post_decision = True
         except SessionAborted:
             aborted = True
             stop_reason = "aborted"
@@ -437,6 +525,34 @@ class CortexSession:
         # Always finalize — partial PASS/FAIL verdicts already locked in stay,
         # PENDING tasks become REFER_BORDERLINE / REFER_UNINFORMATIVE. Safe to
         # call on aborted or zero-trial sessions; returns None on NoStop/Delta.
+        n_total = len(trials)
+        snap = self._decision_snapshot
+        if snap is not None:
+            # Extended data-collection: the OFFICIAL result is FROZEN at the
+            # v1.4.0 would-have-stopped point. The extra (post_decision) trials
+            # were streamed to on_trial and live only in the recorder's
+            # trials.jsonl/CSV; here we surface only the frozen result + counts.
+            clen = snap["t_traj_len"]
+            result = SessionResult(
+                session_id=self.session_id, seed=self.seed,
+                selection=self.selection,
+                n_questions=snap["n_questions"], stop_reason=snap["stop_reason"],
+                delta_auroc=self.delta_auroc, n_particles=self.N,
+                task_codes=list(inp.task_codes), trials=snap["trials"],
+                served_seg_ids=snap["served_seg_ids"],
+                final_auroc_mean=snap["final_auroc_mean"],
+                final_auroc_hw=snap["final_auroc_hw"],
+                final_t_mean=snap["final_t_mean"],
+                final_l_mean=snap["final_l_mean"],
+                t_traj=np.array(t_traj[:clen]) if t_traj else None,
+                l_traj=np.array(l_traj[:clen]) if l_traj else None,
+                w_traj=np.array(w_traj[:clen]) if w_traj else None,
+                aborted=aborted,
+                verdicts=snap["verdicts"],
+                policy_diagnostics=snap["policy_diagnostics"],
+                n_questions_total=n_total, extended_stop_reason=stop_reason)
+            return result
+
         verdicts = self.policy.finalize_verdicts()
         policy_diagnostics = (decision.diagnostics if decision is not None
                               else None)
@@ -457,7 +573,8 @@ class CortexSession:
             l_traj=np.array(l_traj) if l_traj else None,
             w_traj=np.array(w_traj) if w_traj else None,
             aborted=aborted,
-            verdicts=verdicts, policy_diagnostics=policy_diagnostics)
+            verdicts=verdicts, policy_diagnostics=policy_diagnostics,
+            n_questions_total=n_total, extended_stop_reason=stop_reason)
 
 
 def make_simulated_y_source(true_t, true_l, seed=0):

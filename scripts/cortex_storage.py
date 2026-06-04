@@ -117,7 +117,11 @@ _DETAIL_COLS = ["session_id", "participant_name", "trial_index", "seg_id",
                 "reaction_time_ms", "answer_changes", "n_interactions",
                 "select_ms", "montage", "gain_uv", "bandpass", "notch",
                 "window_s", "max_hw", "ess", "total_var",
-                "expected_loss_chosen", "rejuv"]
+                "expected_loss_chosen", "rejuv", "post_decision"]
+# post_decision (last col) — lab internal-test extended data-collection flag:
+# True for questions asked AFTER the v1.4.0 would-have-stopped point (the extra
+# calibration questions). Always False/empty in normal sessions. The OFFICIAL
+# per-task verdict/AUROC stats are computed on the post_decision==False trials.
 
 
 def load_synced_dir():
@@ -515,6 +519,18 @@ class SessionRecorder:
             _dropbox_upload(self.dropbox_cfg, csv_paths)
         emit("Done", 1.0)
 
+    def _official_extended(self):
+        """Split recorded trials into the OFFICIAL (pre-decision) set and the
+        extended (post_decision) set. In a normal session every trial is
+        official (post_decision absent/False), so callers behave exactly as
+        before. In the lab internal-test extended-collection mode, the OFFICIAL
+        verdict statistics are computed on the pre-decision trials only — the
+        v1.4.0 result — while the extra questions are retained for retrospective
+        calibration."""
+        official = [t for t in self._trials if not t.get("post_decision")]
+        extended = [t for t in self._trials if t.get("post_decision")]
+        return official, extended
+
     def _write_certificate(self, result, finished_utc):
         per_task = []
         codes = list(getattr(result, "task_codes", _TASK_CODES) or _TASK_CODES)
@@ -532,8 +548,10 @@ class SessionRecorder:
                 "t_mean": float(tm[i]) if i < len(tm) else None,
                 "verdict": verdicts[i] if i < len(verdicts) else None,
             })
-        n = len(self._trials)
-        n_correct = sum(1 for t in self._trials if t.get("is_correct"))
+        # OFFICIAL stats (v1.4.0) on the pre-decision trials; extras noted below.
+        official, extended = self._official_extended()
+        n = len(official)
+        n_correct = sum(1 for t in official if t.get("is_correct"))
         doc = {
             "session_id": self.session_id,
             "finished_utc": finished_utc,
@@ -544,6 +562,12 @@ class SessionRecorder:
             "delta_auroc": getattr(result, "delta_auroc", None),
             "aborted": bool(getattr(result, "aborted", False)),
             "per_task": per_task,
+            # Extended data-collection (lab internal test): all-trials totals and
+            # the post-decision question count. Equal to total_trials / 0 in a
+            # normal session.
+            "total_trials_all": len(self._trials),
+            "n_post_decision": len(extended),
+            "extended_stop_reason": getattr(result, "extended_stop_reason", None),
         }
         (self.dir / "certificate.json").write_text(
             json.dumps(doc, indent=2), encoding="utf-8")
@@ -599,9 +623,12 @@ class SessionRecorder:
         return [trials_path, summary_path]
 
     def _summary_row(self, result, finished_utc):
-        n = len(self._trials)
-        n_correct = sum(1 for t in self._trials if t.get("is_correct"))
-        rts = [t["reaction_time_ms"] for t in self._trials
+        # OFFICIAL aggregates (v1.4.0) on the pre-decision trials; the extra
+        # extended-collection questions are reported separately below.
+        official, extended = self._official_extended()
+        n = len(official)
+        n_correct = sum(1 for t in official if t.get("is_correct"))
+        rts = [t["reaction_time_ms"] for t in official
                if t.get("reaction_time_ms") is not None]
         # Surface demographic + clinical-background fields from the
         # RegistrationPage row into the uploaded summary so the data is
@@ -625,6 +652,12 @@ class SessionRecorder:
             "accuracy": round(n_correct / n, 4) if n else None,
             "mean_rt_ms": round(float(np.mean(rts)), 1) if rts else None,
             "delta_auroc": getattr(result, "delta_auroc", None),
+            # Extended data-collection (lab internal test). n_questions above is
+            # the OFFICIAL v1.4.0 count (pre-decision); these note the extra
+            # calibration questions. n_post_decision==0 in a normal session.
+            "n_questions_total": len(self._trials),
+            "n_post_decision": len(extended),
+            "extended_stop_reason": getattr(result, "extended_stop_reason", None),
             # v1.1.1 mineable demographic fields
             "practice_setting": p.get("practice_setting", ""),
             "years_reading_eeg": p.get("years_reading_eeg", ""),
