@@ -53,6 +53,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QComboBox, QFrame, QPushButton, QLabel, QCheckBox, QSplitter,
     QGridLayout, QLineEdit, QFormLayout, QStackedWidget, QProgressBar,
+    QScrollArea,
 )
 from scipy import signal as sig
 
@@ -2607,7 +2608,20 @@ class ResultsScreen(QWidget):
         codes = list(getattr(result, "task_codes", []) or [])
         self._ell_star = self._safe_load_ell_star(codes)
 
-        root = QVBoxLayout(self)
+        # v1.4.2: the whole page lives inside a QScrollArea so that expanding
+        # several per-category ROC dropdowns scrolls instead of overlapping the
+        # rows. With no scroll container the fixed-size ROC plots collided once
+        # the content grew past the window height (one open looked fine). The
+        # page is built into `content`; the top/bottom stretches stay INSIDE it,
+        # so a short page still centers vertically (setWidgetResizable grows
+        # `content` to the viewport when content < viewport) while a tall page
+        # scrolls.
+        content = QWidget()
+        content.setObjectName("resultsContent")
+        content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        content.setStyleSheet(
+            f"#resultsContent {{ background-color: {_PAGE_BG}; }}")
+        root = QVBoxLayout(content)
         root.setContentsMargins(0, 0, 0, 0)
         root.addStretch(1)
 
@@ -2710,6 +2724,25 @@ class ResultsScreen(QWidget):
         btn_row.addStretch(1)
         root.addLayout(btn_row)
         root.addStretch(2)
+
+        # v1.4.2: mount `content` in a vertical-only scroll area; this is the
+        # sole child of the ResultsScreen. Horizontal scrolling is disabled (the
+        # AUROC table is a fixed 560 px, centered), and the vertical bar appears
+        # only when several ROC dropdowns push the page past the viewport.
+        scroll = QScrollArea()
+        scroll.setWidget(content)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_PAGE_BG}; }}")
+        scroll.viewport().setStyleSheet(f"background: {_PAGE_BG};")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
 
     def _open_session_folder(self):
         """Open the per-session output dir in the OS file manager.

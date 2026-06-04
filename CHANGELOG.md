@@ -7,6 +7,25 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ CORTEX bundle (2026-06-04) — `cortex-v1.4.2` — scrollable results screen
+
+UI fix. **Engine, policy, bank, and calibration UNCHANGED** — no decision or statistic changes.
+
+### What
+
+* **Results screen now scrolls.** `ResultsScreen` builds its page into a `QScrollArea`
+  (`setWidgetResizable(True)`, horizontal bar off, vertical bar as-needed). Expanding several
+  per-category "Show ROC ▾" dropdowns at once now scrolls instead of overlapping the rows; a
+  short page (0–1 ROC open) still centers vertically and looks identical to v1.4.1.
+  `scripts/eeg_bank_viewer.py`.
+
+### Why
+
+With no scroll container the fixed-size ROC plots collided once the expanded content grew past the
+window height (one dropdown open looked fine; multiple overlapped — Eli's report). Cosmetic / UX only.
+
+---
+
 ## ▶ CORTEX bundle (2026-06-04) — `cortex-v1.4.1` — extended data-collection mode + expertise dropdown
 
 Lab internal-test release. Adds an **extended data-collection mode** so the live test keeps
