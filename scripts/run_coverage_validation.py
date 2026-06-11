@@ -56,7 +56,12 @@ from bridge._common import (
 )
 
 
-DOMAINS = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]
+DOMAINS = ["sz", "lpd", "gpd", "lrda", "grda", "iic"]  # K=6 default (shipped coverage methodology)
+# K=7 (2026-06-11): spike-first order matches Sigma_l_fitted_k7.npy domains + TASK_CODES.
+DOMAINS_K7 = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
+SIGMA_FILE_K6 = "Sigma_l_fitted.npy"
+SIGMA_FILE_K7 = "Sigma_l_fitted_k7.npy"
+SPIKE_BANK_FILE = "combined_spike.json"  # curated spike bank (combined_, not sparcnet_); same schema
 OUT_DIR = os.path.join(ENGINE_REPO, "results", "phase2_validation")
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -67,14 +72,34 @@ os.makedirs(OUT_DIR, exist_ok=True)
 _SHARED: Dict[str, Any] = {}
 
 
-def _get_shared() -> Dict[str, Any]:
-    if not _SHARED:
-        obj = load_fitted_Sigma(os.path.join(ENGINE_REPO, "Sigma_l_fitted.npy"))
-        _SHARED["Corr_l"] = np.asarray(obj["Corr_l"], dtype=float)
-        _SHARED["bank_signals"] = load_bank_signals(
-            _autodetect_banks_dir(), DOMAINS
-        )
-    return _SHARED
+def _load_bank_with_spike(banks_dir, domains):
+    """Bank signals positional-aligned to ``domains``.  IIIC domains via the
+    shared loader (sparcnet_{d}.json); spike from combined_spike.json (same
+    schema, ``s_probit`` key).  K=6 default path (no spike) is byte-identical
+    to the legacy ``load_bank_signals(banks_dir, DOMAINS)``."""
+    import json as _json
+    iiic = [d for d in domains if d != "spike"]
+    by_dom = dict(zip(iiic, load_bank_signals(banks_dir, iiic)))
+    if "spike" in domains:
+        with open(os.path.join(banks_dir, SPIKE_BANK_FILE)) as f:
+            sp = _json.load(f)
+        by_dom["spike"] = np.array(sp["s_probit"], dtype=float)
+    return [by_dom[d] for d in domains]
+
+
+def _get_shared(sigma_file: str, domains: tuple) -> Dict[str, Any]:
+    """Per-(sigma_file, domains) read-only cache: fitted Corr_l / Corr_t +
+    positional bank signals.  Keyed so a worker can serve multiple configs."""
+    key = (sigma_file, domains)
+    if key not in _SHARED:
+        obj = load_fitted_Sigma(os.path.join(ENGINE_REPO, sigma_file))
+        _SHARED[key] = {
+            "Corr_l": np.asarray(obj["Corr_l"], dtype=float),
+            "Corr_t": np.asarray(obj["Corr_t"], dtype=float),
+            "bank_signals": _load_bank_with_spike(
+                _autodetect_banks_dir(), list(domains)),
+        }
+    return _SHARED[key]
 
 # CI levels evaluated.  Tail alphas come in pairs so (1-2alpha) is the
 # nominal CI level.
@@ -125,9 +150,12 @@ def _coverage_worker(task: Dict[str, Any]) -> List[Dict[str, Any]]:
     Self-contained and picklable.  Shared read-only data (Corr_l, bank
     signals) is loaded once per worker process via `_get_shared()`.
     """
-    shared = _get_shared()
+    domains = task["domains"]
+    shared = _get_shared(task["sigma_file"], tuple(domains))
     Corr_l = shared["Corr_l"]
+    Corr_t = shared["Corr_t"]
     bank_signals = shared["bank_signals"]
+    Sigma_t = Corr_t if task["bias_prior"] == "corr_t" else Corr_l
 
     ri = task["rater_idx"]
     K = task["K"]
@@ -139,12 +167,12 @@ def _coverage_worker(task: Dict[str, Any]) -> List[Dict[str, Any]]:
     state = run_session_fixed_budget(
         true_params=true_params, K=K, max_q=task["max_q"],
         N=task["N_particles"], seed=task["seed"],
-        Sigma_l=Corr_l, Sigma_t=Corr_l, bank_signals=bank_signals,
+        Sigma_l=Corr_l, Sigma_t=Sigma_t, bank_signals=bank_signals,
     )
     ci_set = auroc_quantiles_at_levels(state, CI_LEVELS)
 
     rows: List[Dict[str, Any]] = []
-    for k, d in enumerate(DOMAINS):
+    for k, d in enumerate(domains):
         row = {
             "rater_idx": ri,
             "domain": d,
@@ -173,22 +201,39 @@ def main():
                    help="Starting RNG seed (default 42).")
     p.add_argument("--max-workers", type=int, default=None,
                    help="Parallel worker processes (default: 14 / cpu-2).")
+    p.add_argument("--k7", action="store_true",
+                   help="K=7 (spike + 6 IIIC) using Sigma_l_fitted_k7.npy "
+                        "(default: K=6 shipped).")
+    p.add_argument("--corr-t", dest="corr_t", action="store_true",
+                   help="Use fitted Corr_t for the t-block prior (matches the "
+                        "live bias_prior='corr_t'); default Corr_l (shipped).")
     args = p.parse_args()
 
-    K = 6
-    obj = load_fitted_Sigma(os.path.join(ENGINE_REPO, "Sigma_l_fitted.npy"))
+    # ── config selection (default = byte-identical legacy K=6 / Corr_l-both) ──
+    if args.k7:
+        domains, sigma_file = DOMAINS_K7, SIGMA_FILE_K7
+    else:
+        domains, sigma_file = DOMAINS, SIGMA_FILE_K6
+    bias_prior = "corr_t" if args.corr_t else "corr_l"
+    K = len(domains)
+    obj = load_fitted_Sigma(os.path.join(ENGINE_REPO, sigma_file))
     Corr_l = np.asarray(obj["Corr_l"], dtype=float)
+    Corr_t = np.asarray(obj["Corr_t"], dtype=float)
+    Sigma_t = Corr_t if bias_prior == "corr_t" else Corr_l
 
     print(f"\n=== F2.2 AUROC CI coverage validation ===", flush=True)
     print(f"  N_raters={args.n_raters} max_q={args.max_q} "
           f"N_particles={args.N_particles}", flush=True)
-    print(f"  Prior: Corr_l (unit-diagonal, K=6); l_prior_mean=0", flush=True)
+    print(f"  Prior: Sigma_l=Corr_l, Sigma_t={bias_prior} "
+          f"(unit-diagonal, K={K}); l_prior_mean=0  [{sigma_file}]", flush=True)
 
     # Pre-draw all true (t, l) from the prior (single RNG, deterministic).
+    # SBC self-consistency: truth t-block drawn from the SAME Sigma_t the engine
+    # assumes (Corr_l for shipped, Corr_t for the corr_t config).
     truth_rng = np.random.default_rng(args.seed_base + 100000)
     t_true_all, l_true_all = sample_prior_hier_K(
         N=args.n_raters, K=K, r=0.378, rng=truth_rng,
-        Sigma_l=Corr_l, Sigma_t=Corr_l,
+        Sigma_l=Corr_l, Sigma_t=Sigma_t,
     )
     print(f"  drew {args.n_raters} synthetic raters from prior; "
           f"l_true range = [{l_true_all.min():.2f}, {l_true_all.max():.2f}]",
@@ -206,6 +251,9 @@ def main():
         tasks.append({
             "rater_idx": ri,
             "K": K,
+            "domains": domains,
+            "sigma_file": sigma_file,
+            "bias_prior": bias_prior,
             "true_params": true_params,
             "t_true": t_true.tolist(),
             "l_true": l_true.tolist(),
@@ -242,7 +290,7 @@ def main():
     for lvl in CI_LEVELS:
         nominal = float(lvl.rstrip("%")) / 100.0
         per_domain = {}
-        for d in DOMAINS:
+        for d in domains:
             covers = [r[f"covered_{lvl}"] for r in rows if r["domain"] == d]
             cov = float(np.mean(covers)) if covers else float("nan")
             per_domain[d] = cov
@@ -275,8 +323,10 @@ def main():
                 "max_q": args.max_q,
                 "N_particles": args.N_particles,
                 "K": K,
-                "domains": DOMAINS,
-                "prior": "Corr_l unit-diagonal, zero mean",
+                "domains": domains,
+                "sigma_file": sigma_file,
+                "bias_prior": bias_prior,
+                "prior": f"Sigma_l=Corr_l, Sigma_t={bias_prior}, unit-diagonal, zero mean",
             },
             "summary": summary,
             "total_seconds": time.time() - t0,
@@ -288,8 +338,9 @@ def main():
         f.write("# AUROC CI Coverage Validation (F2.2)\n\n")
         f.write(f"Synthetic raters: N = {args.n_raters}, max_q = {args.max_q}, "
                 f"N_particles = {args.N_particles}.  "
-                f"Prior: Corr_l (unit-diagonal, K=6).\n\n")
-        f.write("## Summary (overall, all 6 domains pooled)\n\n")
+                f"Prior: Sigma_l=Corr_l, Sigma_t={bias_prior} "
+                f"(unit-diagonal, K={K}).\n\n")
+        f.write(f"## Summary (overall, all {K} domains pooled)\n\n")
         f.write("| CI level | Nominal | Empirical | Δ | Status |\n")
         f.write("|---|---|---|---|---|\n")
         for lvl, s in summary.items():

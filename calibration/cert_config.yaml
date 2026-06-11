@@ -490,3 +490,118 @@ ell_star_unified_v14:
       expert_ell_mean: 0.7138492605529919
       non_expert_ell_mean: -0.0530074259874197
 
+# ── v15: CREDENTIALED-panel K=7 Youden (STAGED — NOT the live default) ──
+# Source: results/calibration_study/ell_star_v15.json
+# (sha256: 48c0e91d7f8cb176b0a9113bd513efc2b23c31d37d9a9ad8f95dcd350555eab4)
+# Generated: 2026-06-11T20:21:07+00:00
+#
+# Credentialed expert panels (spike=Super8; IIIC=Super8∪Bonobo), the
+# exogenous gold-standard definition (raters.csv:groups) — replaces v14's
+# data-driven CV-top-14 panel. lpd uses a robust trim (drop credentialed
+# experts with lpd ell<=0.19; non-expert range).
+# PI-confirmed 2026-06-10 (docs/POST_PILOT_PRODUCTION_INSTRUMENT.md §Change-2).
+# STAGED for the post-pilot re-freeze: the live loader default stays v14;
+# consumers opt in via load_ell_star_k7(block_name='ell_star_unified_v15').
+# Overall: min J = 0.6690; mean J = 0.7602
+
+ell_star_unified_v15:
+  method: youden_index_credentialed_panel_k7_v15
+  panels: {'spike': 'Super8', 'IIIC': 'Super8∪Bonobo'}
+  lpd_trim_ell: 0.19
+  bootstrap_n: 2000
+  seed: 42
+  sigma_floor: 0.025
+  candidate_pool: 'credentialed groups from data/labels/raters.csv (Super8, Bonobo)'
+  source_sha256: 48c0e91d7f8cb176b0a9113bd513efc2b23c31d37d9a9ad8f95dcd350555eab4
+  raters_csv_sha256: bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f
+  sdt_fits_k7_sha256: c0a261b2d184c40d3605ec3c041e2d744aaba9bc8bb27dc85b0a9a2604263a54
+  phase: 9
+  K: 7
+  staged: true   # NOT the live default; post-pilot re-freeze gates adoption
+  generated_utc: 2026-06-11T20:21:07+00:00
+  pi_confirmed: '2026-06-10 (docs/POST_PILOT_PRODUCTION_INSTRUMENT.md §Change-2)'
+  description: |
+    Credentialed-panel Youden ell* (v15). spike=Super8; IIIC=Super8∪Bonobo
+    (exogenous gold-standard panels from raters.csv:groups). lpd robust-trim:
+    credentialed experts scoring in the non-expert range (lpd ell<=0.19) are
+    dropped, tightening the unstable lpd CI (0.588 -> 0.23). Same byte-pinned
+    Youden + bootstrap machinery as v14; only the panel-selection rule differs.
+  tasks:
+    combined_spike:
+      task_code: spike
+      ell_star: 0.2382694370243232
+      sigma_star: 0.7879903487138527
+      youden_J: 0.6928820308611250
+      ci_low_2_5: 0.2374027779056746
+      ci_high_97_5: 0.3479169849457960
+      n_expert: 8
+      n_non_expert: 2009
+      expert_ell_mean: 0.4060763219209274
+      non_expert_ell_mean: -0.0610953623377177
+    sparcnet_sz:
+      task_code: sz
+      ell_star: 0.1548131161373049
+      sigma_star: 0.8565752426163816
+      youden_J: 0.6689509752240379
+      ci_low_2_5: 0.1530056270373615
+      ci_high_97_5: 0.3669160096691733
+      n_expert: 15
+      n_non_expert: 1897
+      expert_ell_mean: 0.7278027665746989
+      non_expert_ell_mean: -0.0925799387497619
+    sparcnet_lpd:
+      task_code: lpd
+      ell_star: 0.3059231418723579
+      sigma_star: 0.7364432189279291
+      youden_J: 0.8326133909287257
+      ci_low_2_5: 0.2977307333084090
+      ci_high_97_5: 0.5310380753441558
+      n_expert: 12
+      n_non_expert: 1852
+      expert_ell_mean: 0.6625054948528666
+      non_expert_ell_mean: -0.1652586939316961
+    sparcnet_gpd:
+      task_code: gpd
+      ell_star: 0.2569706571684701
+      sigma_star: 0.7733909069115952
+      youden_J: 0.8039647577092511
+      ci_low_2_5: 0.2525041089308874
+      ci_high_97_5: 0.4738096771752672
+      n_expert: 14
+      n_non_expert: 1816
+      expert_ell_mean: 0.6071706664286960
+      non_expert_ell_mean: -0.1501362804591685
+    sparcnet_lrda:
+      task_code: lrda
+      ell_star: 0.3213979957403151
+      sigma_star: 0.7251345930724427
+      youden_J: 0.7828447339847991
+      ci_low_2_5: 0.3130182926584545
+      ci_high_97_5: 0.5082283424117156
+      n_expert: 15
+      n_non_expert: 1842
+      expert_ell_mean: 0.6729695624602204
+      non_expert_ell_mean: -0.0145344338702560
+    sparcnet_grda:
+      task_code: grda
+      ell_star: 0.3539561460242777
+      sigma_star: 0.7019057480380952
+      youden_J: 0.7605943863511282
+      ci_low_2_5: 0.3406502641788936
+      ci_high_97_5: 0.5245715141992237
+      n_expert: 15
+      n_non_expert: 1817
+      expert_ell_mean: 0.7397093010794814
+      non_expert_ell_mean: 0.0238772226501553
+    sparcnet_iic:
+      task_code: iic
+      ell_star: 0.3042300471351564
+      sigma_star: 0.7376911431950430
+      youden_J: 0.7798913043478261
+      ci_low_2_5: 0.2948802326580144
+      ci_high_97_5: 0.4875800765104522
+      n_expert: 14
+      n_non_expert: 1840
+      expert_ell_mean: 0.6392080369456032
+      non_expert_ell_mean: -0.0524395036338853
+
