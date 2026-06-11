@@ -1,5 +1,0 @@
-# Derived experiment outputs are gitignored: results_real.csv keys rows by
-# canonical clinician name (re-identifiable rater identity — PHI per
-# data/SENSITIVE.md) and the plots/logs derive from it. Regenerate locally with
-# run_experiment.py + make_plots.py. Only the code is committed.
-out/
