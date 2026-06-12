@@ -79,6 +79,18 @@ def load_ell_star_k7(task_codes, config_path=None,
             "the Youden ℓ\\*_k cut-scores.")
     with open(path) as fh:
         data = yaml.safe_load(fh) or {}
+    if block_name not in data:
+        # Post-freeze blocks (v15+) live in a sibling `cert_config_<suffix>.yaml`
+        # so the FROZEN cert_config.yaml stays bit-identical during the in-flight
+        # pilot (the instrument-freeze guard pins its hash). v14/v13 read the main
+        # file unchanged; v15 is opt-in and resolves here.
+        suffix = block_name.rsplit("_", 1)[-1]          # ell_star_unified_v15 -> v15
+        sib = path.parent / f"cert_config_{suffix}.yaml"
+        if sib.exists():
+            with open(sib) as fh2:
+                sib_data = yaml.safe_load(fh2) or {}
+            if block_name in sib_data:
+                data = sib_data
     try:
         tasks = data[block_name]["tasks"]
     except KeyError as e:

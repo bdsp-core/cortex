@@ -22,7 +22,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 V15_JSON = REPO / "results" / "calibration_study" / "ell_star_v15.json"
-CERT_CONFIG = REPO / "calibration" / "cert_config.yaml"
+# v15 lives in a SIBLING file (not appended to the frozen cert_config.yaml) so the
+# in-flight pilot's instrument-freeze hash on cert_config.yaml stays bit-identical.
+CERT_CONFIG_V15 = REPO / "calibration" / "cert_config_v15.yaml"
 
 # Same K=7 code → cert_config YAML key mapping used by v13/v14 + the loader.
 KEY_FOR_CODE = {
@@ -54,9 +56,8 @@ def main(argv=None) -> int:
     prov = payload["provenance"]
     src_sha = _sha256_file(V15_JSON)
 
-    cfg_text = CERT_CONFIG.read_text()
-    if "ell_star_unified_v15:" in cfg_text:
-        print(f"WARN: {CERT_CONFIG} already has ell_star_unified_v15 block; "
+    if CERT_CONFIG_V15.exists():
+        print(f"WARN: {CERT_CONFIG_V15} already exists; "
               "remove it first to regenerate. Aborting (no change).")
         return 1
 
@@ -120,8 +121,9 @@ def main(argv=None) -> int:
         L.append(f"      non_expert_ell_mean: {r['non_expert_ell_mean']:.16f}")
     L.append("")
 
-    CERT_CONFIG.write_text(cfg_text.rstrip() + "\n" + "\n".join(L) + "\n")
-    print(f"Appended ell_star_unified_v15 block to {CERT_CONFIG}")
+    CERT_CONFIG_V15.write_text("\n".join(L).lstrip("\n") + "\n")
+    print(f"Wrote ell_star_unified_v15 to {CERT_CONFIG_V15} "
+          "(sibling; frozen cert_config.yaml stays bit-identical)")
     print(f"  v15 source sha256: {src_sha}")
     print(f"  {'task':>6}  {'ell*':>9}  {'sigma*':>7}  {'J':>7}")
     for code in order:
