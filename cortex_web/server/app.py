@@ -44,7 +44,7 @@ BUNDLE_DIR = WEB_ROOT / "public" / "bundle"
 DIST_DIR = WEB_ROOT / "dist"
 
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
-DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.1-local")
+DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
 DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "500"))
 TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 

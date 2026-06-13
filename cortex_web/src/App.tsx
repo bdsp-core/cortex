@@ -113,6 +113,11 @@ export function App() {
             pi: d?.pi,
             R: d?.R,
             nPerTask: d?.nPerTask,
+            // Carry the bundle's task list so the Results table reads the
+            // right labels at any K and indexes verdicts by real task idx.
+            taskCodes: inputs.taskCodes,
+            taskLabels: inputs.taskLabels,
+            taskClasses: inputs.taskClasses,
           };
           setSummary(sum);
           // Persist-then-deliver: the payload is saved locally before the

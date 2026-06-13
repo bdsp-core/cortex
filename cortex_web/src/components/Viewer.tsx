@@ -9,10 +9,11 @@ import { Bundle, SegmentData } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
 import { Progress } from "../progress";
+import { iiicTasks } from "../tasks";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import {
-  COLORS, FONTS, IIIC_OPTIONS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
+  COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
   NOTCH_OPTIONS, WINDOW_OPTIONS,
 } from "../../ui/theme";
 
@@ -42,11 +43,18 @@ export function Viewer({
   const [panStart, setPanStart] = useState(0);
   const [pick, setPick] = useState<number | null>(null);
 
+  // IIIC answer options derived from the bundle's task list, so the button
+  // index ↔ engine task index mapping is correct for both K=6 (idx 0..5)
+  // and K=7 (idx 1..6 — spike at 0 has its own screen).
+  const iiicOpts = useMemo(() => iiicTasks(bundle.inputs), [bundle]);
+
   // Refs let the once-bound keydown handler read fresh values without stale
   // closures (the bug in the previous version). `answered` guards against a
   // double-submit while the next item loads.
   const segRef = useRef<SegmentData | null>(null);
   segRef.current = seg;
+  const iiicOptsRef = useRef(iiicOpts);
+  iiicOptsRef.current = iiicOpts;
   const itemRef = useRef<Item | null>(null);
   itemRef.current = item;
   const windowSRef = useRef(windowS);
@@ -100,9 +108,15 @@ export function Viewer({
   submitRef.current = submit;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key >= "1" && e.key <= "6") {
+      // 1–N selects the N-th IIIC button (N = iiicOpts.length, typically 6).
+      // We submit the *engine task index* (iiicOpts[i].idx), not the button
+      // position, so K=7 bundles where IIIC tasks live at indices 1..6 also
+      // produce y = (pick === chosen.k) correctly.
+      const opts = iiicOptsRef.current;
+      if (e.key >= "1" && e.key <= String(opts.length)) {
         e.preventDefault();
-        submitRef.current(parseInt(e.key, 10) - 1);
+        const i = parseInt(e.key, 10) - 1;
+        submitRef.current(opts[i].idx);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         setPanStart((p) => Math.max(0, p - windowSRef.current / 2));
@@ -147,14 +161,14 @@ export function Viewer({
         <span style={{ fontWeight: 600, marginRight: 8 }}>
           Question {item ? item.trialIndex + 1 : "—"} of up to {progress.maxQ || "—"}
         </span>
-        {IIIC_OPTIONS.map((o, i) => (
-          <button key={o.code} onClick={() => submit(i)}
-            style={{ minWidth: 135, padding: "10px 8px", ...sel(pick === i) }}>
+        {iiicOpts.map((o, i) => (
+          <button key={o.code} onClick={() => submit(o.idx)}
+            style={{ minWidth: 135, padding: "10px 8px", ...sel(pick === o.idx) }}>
             {i + 1} · {o.label}
           </button>
         ))}
         <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1–6 to answer
+          press 1–{iiicOpts.length} to answer
         </span>
         <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
           Confidence of reaching a verdict (most-uncertain task):{" "}

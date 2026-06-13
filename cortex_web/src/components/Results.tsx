@@ -4,7 +4,7 @@
 // certificates are the v1.0 policy).
 
 import { useState } from "react";
-import { COLORS, FONTS, IIIC_OPTIONS, VERDICT_STYLE } from "../../ui/theme";
+import { COLORS, FONTS, VERDICT_STYLE } from "../../ui/theme";
 import { Button, Card, Heading, Stage } from "./ui";
 
 export interface ResultSummary {
@@ -14,6 +14,34 @@ export interface ResultSummary {
   pi?: number[];
   R?: number[];
   nPerTask?: number[];
+  // K=7 manifests pass these so the verdict table reads the right labels.
+  // Optional for back-compat with the older K=6 hard-coded path.
+  taskCodes?: string[];
+  taskLabels?: string[];
+  taskClasses?: ("iiic" | "spike")[];
+}
+
+const DEFAULT_IIIC = [
+  { code: "sz",   label: "Seizure" },
+  { code: "lpd",  label: "LPD" },
+  { code: "gpd",  label: "GPD" },
+  { code: "lrda", label: "LRDA" },
+  { code: "grda", label: "GRDA" },
+  { code: "iic",  label: "Other" },
+];
+
+/** Row plan for the results table: every task in bundle order, with its real
+ *  engine index, code, label, and which screen handled it. Falls back to the
+ *  K=6 IIIC list when the older manifest didn't carry these fields. */
+function rowPlan(s: ResultSummary):
+  Array<{ idx: number; code: string; label: string; cls: "iiic" | "spike" }> {
+  if (s.taskCodes && s.taskLabels) {
+    return s.taskCodes.map((code, idx) => ({
+      idx, code, label: s.taskLabels![idx],
+      cls: (s.taskClasses?.[idx] ?? "iiic"),
+    }));
+  }
+  return DEFAULT_IIIC.map((o, idx) => ({ ...o, idx, cls: "iiic" as const }));
 }
 
 const STOP_REASON_LABEL: Record<string, string> = {
@@ -27,6 +55,7 @@ const STOP_REASON_LABEL: Record<string, string> = {
 
 export function Results({ summary, onFinish }: { summary: ResultSummary; onFinish?: () => void }) {
   const [showTech, setShowTech] = useState(false);
+  const rows = rowPlan(summary);
   return (
     <Stage maxW={720}>
       <Card>
@@ -36,8 +65,8 @@ export function Results({ summary, onFinish }: { summary: ResultSummary; onFinis
           {STOP_REASON_LABEL[summary.stopReason] || summary.stopReason}
         </div>
         <div style={{ marginTop: 16 }}>
-          {IIIC_OPTIONS.map((o, k) => {
-            const v = summary.verdicts[k] ?? "PENDING";
+          {rows.map((o) => {
+            const v = summary.verdicts[o.idx] ?? "PENDING";
             const st = VERDICT_STYLE[v] ?? VERDICT_STYLE.PENDING;
             return (
               <div key={o.code} style={{
@@ -46,6 +75,11 @@ export function Results({ summary, onFinish }: { summary: ResultSummary; onFinis
               }}>
                 <span style={{ color: COLORS.textSecondary, fontWeight: 600, fontSize: 15 }}>
                   {o.label}
+                  {o.cls === "spike" && (
+                    <span style={{ color: COLORS.textTertiary, fontSize: 12, marginLeft: 6 }}>
+                      (spike)
+                    </span>
+                  )}
                 </span>
                 <span style={{ color: st.color, fontWeight: 700, fontSize: 15 }}>{st.label}</span>
               </div>
@@ -71,9 +105,9 @@ export function Results({ summary, onFinish }: { summary: ResultSummary; onFinis
               <span style={{ color: COLORS.textTertiary }}>π (pass)</span>
               <span style={{ color: COLORS.textTertiary }}>info R</span>
               <span style={{ color: COLORS.textTertiary }}>n</span>
-              {IIIC_OPTIONS.map((o, k) => (
+              {rows.map((o) => (
                 <Row key={o.code} label={o.label}
-                     pi={summary.pi?.[k]} R={summary.R?.[k]} n={summary.nPerTask?.[k]} />
+                     pi={summary.pi?.[o.idx]} R={summary.R?.[o.idx]} n={summary.nPerTask?.[o.idx]} />
               ))}
             </div>
           </div>
