@@ -27,13 +27,19 @@ export interface SpecCanvasProps {
   spec: { data: Uint8Array; shape: number[] } | null;
   width: number;
   height: number;
-  // Fractional x-position (0..1) of the dashed marker showing where the
-  // displayed EEG segment sits in the 10-min spectrogram. The 30-sec EEG is
-  // centered in the 600-sec spectrogram, so this is 0.5. null = no marker.
+  // Fractional x-position (0..1) of an optional single dashed marker (legacy
+  // centered "you are here" marker — superseded by clipBoundsFrac for IIIC).
   markerFrac?: number | null;
+  // Fractional x-positions of the 30-s EEG clip's bounds within the 10-min
+  // spectrogram (desktop v1.3.8: two dotted-white verticals at 285 s and
+  // 315 s = 0.475 and 0.525). When provided, drawn across all 4 region
+  // panels and takes priority over markerFrac.
+  clipBoundsFrac?: [number, number] | null;
 }
 
-export function SpecCanvas({ spec, width, height, markerFrac = null }: SpecCanvasProps) {
+export function SpecCanvas({
+  spec, width, height, markerFrac = null, clipBoundsFrac = null,
+}: SpecCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -86,21 +92,32 @@ export function SpecCanvas({ spec, width, height, markerFrac = null }: SpecCanva
       ctx.fillText(SPEC_REGIONS[reg], 4, y0 + 12);
     }
 
-    // dashed white vertical marker — location of the displayed EEG segment
-    // (centered in the 10-min spectrogram). Spans all four region panels.
-    if (markerFrac != null) {
-      const mx = labelW + Math.max(0, Math.min(1, markerFrac)) * plotW;
+    // dotted-white verticals at the 30-s clip bounds (desktop v1.3.8) or
+    // legacy single centered marker. Spans all four region panels.
+    const drawDottedV = (frac: number) => {
+      const x = labelW + Math.max(0, Math.min(1, frac)) * plotW;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    };
+    if (clipBoundsFrac) {
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.5;
+      drawDottedV(clipBoundsFrac[0]);
+      drawDottedV(clipBoundsFrac[1]);
+      ctx.restore();
+    } else if (markerFrac != null) {
       ctx.save();
       ctx.setLineDash([5, 4]);
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(mx, 0);
-      ctx.lineTo(mx, height);
-      ctx.stroke();
+      drawDottedV(markerFrac);
       ctx.restore();
     }
-  }, [spec, width, height, markerFrac]);
+  }, [spec, width, height, markerFrac, clipBoundsFrac]);
 
   return <canvas ref={ref} style={{ width, height }} />;
 }

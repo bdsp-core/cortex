@@ -14,6 +14,11 @@ export interface EegCanvasProps {
   panStartS: number;
   width: number;
   height: number;
+  // Optional labeled-epoch overlay (the desktop's "red box" — v1.3.8). When
+  // provided AND the labeled region intersects the visible window, a
+  // translucent red rectangle + red border is drawn so the rater knows which
+  // portion of the clip is being scored. Hidden for spike clips.
+  labeledEpoch?: { startS: number; endS: number };
 }
 
 export function EegCanvas(props: EegCanvasProps) {
@@ -28,7 +33,7 @@ export function EegCanvas(props: EegCanvasProps) {
     cv.height = props.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const { rows, fsHz, gainUv, windowS, panStartS, width, height } = props;
+    const { rows, fsHz, gainUv, windowS, panStartS, width, height, labeledEpoch } = props;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
@@ -39,6 +44,34 @@ export function EegCanvas(props: EegCanvasProps) {
     const rowH = plotH / Math.max(nRows, 1);
     const s0 = Math.round(panStartS * fsHz);
     const nWin = Math.round(windowS * fsHz);
+
+    // labeled-epoch overlay (drawn BEFORE traces so lines stay crisp on top).
+    // Intersect the labeled span with the visible window and paint a
+    // translucent red rectangle + red border. Mirrors the desktop's
+    // LinearRegionItem framing the central scored 10 s.
+    if (labeledEpoch) {
+      const visLo = Math.max(labeledEpoch.startS, panStartS);
+      const visHi = Math.min(labeledEpoch.endS, panStartS + windowS);
+      if (visHi > visLo) {
+        const xL = padL + ((visLo - panStartS) / windowS) * plotW;
+        const xR = padL + ((visHi - panStartS) / windowS) * plotW;
+        ctx.save();
+        ctx.fillStyle = "rgba(245, 90, 75, 0.10)";
+        ctx.fillRect(xL, padT, xR - xL, plotH);
+        ctx.strokeStyle = "rgba(216, 80, 70, 0.85)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        // only stroke the visible edges (so panning hides edges that are off-screen)
+        if (visLo >= panStartS && labeledEpoch.startS >= panStartS) {
+          ctx.moveTo(xL, padT); ctx.lineTo(xL, padT + plotH);
+        }
+        if (visHi <= panStartS + windowS && labeledEpoch.endS <= panStartS + windowS) {
+          ctx.moveTo(xR, padT); ctx.lineTo(xR, padT + plotH);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // time grid (1-sec)
     ctx.strokeStyle = "rgba(0,0,0,0.12)";

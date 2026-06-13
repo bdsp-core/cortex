@@ -89,6 +89,22 @@ export const SPEC_REGIONS = ["LL", "RL", "LP", "RP"] as const;
 // gain_uv µV.
 export const EEG_CLIP_MULT = 3;
 
+// IIIC clip geometry (desktop v1.3.8 alignment, scripts/eeg_bank_viewer.py).
+// A 30-s clip whose central 10 s is the panel-labeled epoch; the test only
+// scores the labeled portion, panning reveals context on either side.
+export const IIIC_CLIP_S = 30;
+export const IIIC_LABEL_START_S = 10; // start of labeled epoch in clip coords
+export const IIIC_LABEL_LEN_S = 10;   // length of labeled epoch
+export const IIIC_LABEL_END_S = IIIC_LABEL_START_S + IIIC_LABEL_LEN_S;
+
+// Spectrogram clip-marker geometry. The 30-s EEG clip sits at the centre of a
+// 10-minute spectrogram, so the clip bounds are 285 s and 315 s in spec time
+// (fractions 0.475 and 0.525). Used for the dotted-white verticals marking
+// "this is where the EEG you're seeing lives in the 10-min context."
+export const SPEC_TOTAL_S = 600;
+export const SPEC_CLIP_START_FRAC = (SPEC_TOTAL_S / 2 - IIIC_CLIP_S / 2) / SPEC_TOTAL_S;
+export const SPEC_CLIP_END_FRAC = (SPEC_TOTAL_S / 2 + IIIC_CLIP_S / 2) / SPEC_TOTAL_S;
+
 // Verdict → color + display label (Results screen).
 export const VERDICT_STYLE: Record<string, { color: string; label: string }> = {
   PASS: { color: COLORS.pass, label: "PASS" },

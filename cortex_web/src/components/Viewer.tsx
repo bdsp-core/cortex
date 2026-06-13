@@ -15,6 +15,8 @@ import { SpecCanvas } from "./SpecCanvas";
 import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
   NOTCH_OPTIONS, WINDOW_OPTIONS,
+  IIIC_LABEL_START_S, IIIC_LABEL_END_S,
+  SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
 
 export interface Item {
@@ -40,7 +42,7 @@ export function Viewer({
   const [bandpass, setBandpass] = useState(BANDPASS_OPTIONS[0]);
   const [notchHz, setNotchHz] = useState(NOTCH_OPTIONS[0]);
   const [windowS, setWindowS] = useState(10);
-  const [panStart, setPanStart] = useState(0);
+  const [panStart, setPanStart] = useState(IIIC_LABEL_START_S);
   const [pick, setPick] = useState<number | null>(null);
 
   // IIIC answer options derived from the bundle's task list, so the button
@@ -67,7 +69,9 @@ export function Viewer({
     let alive = true;
     setSeg(null);
     setPick(null);
-    setPanStart(0);
+    // Open on the labeled epoch (clip-local 10–20 s), not 0 s — desktop
+    // v1.3.8. Pan reveals the {0–10, 20–30}-s context windows.
+    setPanStart(IIIC_LABEL_START_S);
     answered.current = false; // new question → allow a new answer
     bundle.segment(item.segId).then((s) => alive && setSeg(s));
     return () => { alive = false; };
@@ -119,12 +123,14 @@ export function Viewer({
         submitRef.current(opts[i].idx);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
-        setPanStart((p) => Math.max(0, p - windowSRef.current / 2));
+        // Full-window pan (v1.3.8) → cycles through {0, 10, 20}-s context
+        // windows on a 30-s clip with a 10-s window.
+        setPanStart((p) => Math.max(0, p - windowSRef.current));
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         setPanStart((p) => {
           const s = segRef.current;
-          return s ? Math.min(s.nSamp / s.fsHz - windowSRef.current, p + windowSRef.current / 2) : p;
+          return s ? Math.min(s.nSamp / s.fsHz - windowSRef.current, p + windowSRef.current) : p;
         });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
@@ -178,15 +184,24 @@ export function Viewer({
         </span>
       </div>
 
+      {/* IIIC scoring hint — desktop v1.3.8 text */}
+      <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>
+        Classify the pattern found <b style={{ color: COLORS.fail }}>within the red
+        box</b>. The box marks the 10-second region scored by the panel; pan
+        with ◀/▶ or ←/→ to see neighbouring context.
+      </div>
+
       {/* middle: spectrogram (left) + EEG (right) */}
       <div style={{ display: "flex", gap: 8, flex: 1, minHeight: 0, marginTop: 8 }}>
         <div style={{ width: 280, background: "#fff", borderRadius: 4 }}>
-          <SpecCanvas spec={seg?.spec ?? null} width={280} height={760} markerFrac={0.5} />
+          <SpecCanvas spec={seg?.spec ?? null} width={280} height={760}
+            clipBoundsFrac={[SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC]} />
         </div>
         <div style={{ flex: 1, background: "#fff", borderRadius: 4 }}>
           {seg ? (
             <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={windowS}
-              panStartS={panStart} width={1140} height={760} />
+              panStartS={panStart} width={1140} height={760}
+              labeledEpoch={{ startS: IIIC_LABEL_START_S, endS: IIIC_LABEL_END_S }} />
           ) : (
             <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>
           )}
@@ -220,8 +235,8 @@ export function Viewer({
             {WINDOW_OPTIONS.map((w) => <option key={w} value={w}>{w} s</option>)}
           </select>
         </label>
-        <button onClick={() => setPanStart((p) => Math.max(0, p - windowS / 2))}>◀ Pan</button>
-        <button onClick={() => setPanStart((p) => Math.min(Math.max(0, dur - windowS), p + windowS / 2))}>Pan ▶</button>
+        <button onClick={() => setPanStart((p) => Math.max(0, p - windowS))}>◀ Pan</button>
+        <button onClick={() => setPanStart((p) => Math.min(Math.max(0, dur - windowS), p + windowS))}>Pan ▶</button>
         <span style={{ color: COLORS.textTertiary }}>
           {item && seg ? `EEG ${panStart.toFixed(1)}–${(panStart + windowS).toFixed(1)} s of ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div` : ""}
         </span>
