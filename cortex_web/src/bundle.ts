@@ -48,6 +48,8 @@ export class Bundle {
       taskCodes: m.taskCodes,
       taskLabels: m.taskLabels,
       taskPatternWords: m.taskPatternWords,
+      taskClasses: m.taskClasses,   // K=7 routing — Viewer/Results need this
+      certBlock: m.certBlock,       // ℓ* lineage provenance for the result file
       corrL: m.corrL,
       ellStar: m.ellStar,
       segments: m.segments,

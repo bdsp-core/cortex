@@ -69,6 +69,16 @@ PATTERN_TO_TASK_IDX = {t[2]: i for i, t in enumerate(TASKS)}
 EEG_SCALE = 4.0
 SPEC_DB_LO, SPEC_DB_HI = -10.0, 25.0
 
+# Canonical 20-channel order for IIIC clips (10–20 system + EKG). The v4-k7
+# bank stores the array channels-first in this order but DOESN'T carry a
+# channel_names attr — the desktop knows it implicitly. We hardcode it as the
+# default so the web montage layer (which looks up bipolar pairs by name) can
+# render correctly when the attr is absent. Spike clips use the same first 20.
+CHANNELS_IIIC_20 = [
+    "Fp1", "F3", "C3", "P3", "F7", "T3", "T5", "O1", "Fz", "Cz", "Pz",
+    "Fp2", "F4", "C4", "P4", "F8", "T4", "T6", "O2", "EKG",
+]
+
 # cert_config key naming differs by domain (combined_spike vs sparcnet_<iiic>).
 _CERT_KEY = {
     "spike": "combined_spike", "sz": "sparcnet_sz", "lpd": "sparcnet_lpd",
@@ -124,6 +134,10 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
         for c in ds.attrs.get("channel_names", g.attrs.get("channel_names", []))
     ]
     n_ch, n_samp = eeg.shape
+    # v4-k7 IIIC bank doesn't carry channel_names — fall back to the canonical
+    # 20-channel ordering so the bipolar montage renders correctly.
+    if not ch_names and test_class == "iiic" and n_ch == len(CHANNELS_IIIC_20):
+        ch_names = list(CHANNELS_IIIC_20)
     q = np.clip(np.round(eeg * EEG_SCALE), -32768, 32767).astype("<i2")
     (seg_dir / f"{sid}.eeg").write_bytes(q.tobytes())
 
