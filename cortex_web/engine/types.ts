@@ -2,7 +2,8 @@
 
 export interface SegmentMeta {
   segId: number;
-  patternClass: string; // "seizure" | "lpd" | "gpd" | "lrda" | "grda" | "other"
+  patternClass: string; // "spike" | "seizure" | "lpd" | "gpd" | "lrda" | "grda" | "other"
+  testClass?: "iiic" | "spike"; // K=7 manifests carry this; pre-K=7 bundles omit it
   sMean: number[]; // length K, per-task signal mean
   sSd: number[]; // length K, per-task signal posterior SD
   fsHz: number;
@@ -14,11 +15,17 @@ export interface SegmentMeta {
 }
 
 export interface EngineInputs {
-  taskCodes: string[]; // ["sz","lpd","gpd","lrda","grda","iic"]
-  taskLabels: string[]; // ["Seizure","LPD","GPD","LRDA","GRDA","Other"]
-  taskPatternWords: string[]; // ["seizure","lpd","gpd","lrda","grda","other"]
+  taskCodes: string[]; // K=7: ["spike","sz","lpd","gpd","lrda","grda","iic"]
+  taskLabels: string[]; // K=7: ["Spike","Seizure","LPD","GPD","LRDA","GRDA","Other"]
+  taskPatternWords: string[]; // K=7: ["spike","seizure","lpd","gpd","lrda","grda","other"]
+  // Per-task UI routing class. "spike" → SpikeViewer (binary mark-or-not);
+  // "iiic" → the 6-button IIIC viewer. Optional for pre-K=7 bundle compat.
+  taskClasses?: ("iiic" | "spike")[];
+  // cert_config block the bundle was built against ("ell_star_unified_v14"
+  // default; "v13" for the old K=6 bundles, "v15" for the post-pilot freeze).
+  certBlock?: string;
   corrL: number[][]; // (K×K) fitted prior correlation (both blocks)
-  ellStar: number[]; // (K) Youden cut-scores from cert_config v13
+  ellStar: number[]; // (K) Youden cut-scores from the cert_config block
   segments: SegmentMeta[];
 }
 

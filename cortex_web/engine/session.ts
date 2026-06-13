@@ -14,10 +14,17 @@ import { AD6Policy } from "./policy";
 import { Rng } from "./rng";
 
 export const N_PARTICLES = 600;
-export const MAX_QUESTIONS = 300;
+// Paper-grade max (v1.3.6 instrument freeze): 500 questions cap, matching
+// the desktop. Most sessions finish well before this.
+export const MAX_QUESTIONS = 500;
 export const N_MH_STEPS = 15;
 export const ESS_THRESHOLD_FRAC = 0.5;
 export const FIRST_ITEM_TOPN = 10;
+// Variety cap (v1.3.7 alignment): after this many consecutive picks from the
+// same task, that task is excluded from the next pick so the session doesn't
+// streak one domain for ten in a row. Fallback inside the loop restores the
+// excluded task if no others have remaining items.
+export const MAX_CONSECUTIVE_SAME_DOMAIN = 5;
 
 // SHA-256(sessionId) → 32-bit int seed, matching the desktop's
 // int(hashlib.sha256(session_id)[:8], 16).
@@ -114,13 +121,34 @@ export class WebCortexSession {
     let stopReason = "bank_exhausted";
     const maxQ = Math.min(MAX_QUESTIONS, this.inputs.segments.length);
 
+    // Variety-cap streak tracking. lastTaskK = the task served on the previous
+    // trial (or -1 if none); streakCount = how many in a row that task has run.
+    let lastTaskK = -1;
+    let streakCount = 0;
+
     for (let trialIndex = 0; trialIndex < maxQ; trialIndex++) {
       if (this.remaining.size === 0 || this.aborted) break;
       const bank = this.bankArrays();
-      const chosen: Chosen =
+
+      // If the same task has held the run for MAX_CONSECUTIVE_SAME_DOMAIN
+      // picks, exclude it from this trial — unless that would leave no task
+      // with remaining items (e.g. only one task still has bank entries), in
+      // which case we honor the bank constraint over the variety cap.
+      let excluded: Set<number> | undefined;
+      if (trialIndex > 0 && streakCount >= MAX_CONSECUTIVE_SAME_DOMAIN) {
+        const otherHasBank = bank.sMean.some(
+          (arr, k) => k !== lastTaskK && arr.length > 0,
+        );
+        if (otherHasBank) excluded = new Set([lastTaskK]);
+      }
+
+      let chosen: Chosen =
         trialIndex === 0
           ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng)
-          : chooseItem(this.state, bank);
+          : chooseItem(this.state, bank, excluded);
+      // chooseItem signals "no candidate" with segId === -1 (defensive — the
+      // exclusion check above should prevent this in practice).
+      if (chosen.segId === -1) chosen = chooseItem(this.state, bank);
 
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
 
@@ -141,6 +169,9 @@ export class WebCortexSession {
       this.served.push(chosen.segId);
       this.remaining.delete(chosen.segId);
       this.nPerTask[chosen.k] += 1;
+      // update variety-cap streak
+      if (chosen.k === lastTaskK) streakCount += 1;
+      else { lastTaskK = chosen.k; streakCount = 1; }
 
       const res = this.policy.evaluate(this.state, this.nPerTask);
       const { tMean, lMean } = posteriorMeans(this.state);

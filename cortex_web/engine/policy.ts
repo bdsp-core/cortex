@@ -21,10 +21,12 @@ export const VERDICT = {
   REFER_UNINFORMATIVE: "REFER_UNINFORMATIVE",
 } as const;
 
-// Production defaults (v1.1.0 calibration midpoints; see docs/AD6_RESOLUTION.md).
-export const DEFAULT_N_MIN = 15;
+// Paper-grade thresholds — synced with the v1.3.6 instrument freeze
+// (data/INSTRUMENT_FREEZE_v1_3_6.json). Tighter α + higher N_min trade some
+// questions for confidence; matches the desktop's shipped config.
+export const DEFAULT_N_MIN = 20;
 export const DEFAULT_R_STAR = 0.3;
-export const DEFAULT_ALPHA = 0.1;
+export const DEFAULT_ALPHA = 0.05;
 export const DEFAULT_Z = 2.0;
 
 export interface PolicyResult {

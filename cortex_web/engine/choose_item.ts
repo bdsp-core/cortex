@@ -94,10 +94,17 @@ export interface Chosen {
   loss: number;
 }
 
-// Global argmin over all tasks × remaining candidates.
-export function chooseItem(st: ParticleState, bank: BankArrays): Chosen {
+// Global argmin over all tasks × remaining candidates. `excludedTasks` (used
+// by the session-level variety cap) skips whole task indices; if nothing
+// remains, returns segId === -1 so the caller can retry without exclusions.
+export function chooseItem(
+  st: ParticleState,
+  bank: BankArrays,
+  excludedTasks?: ReadonlySet<number>,
+): Chosen {
   let best: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
   for (let k = 0; k < st.K; k++) {
+    if (excludedTasks?.has(k)) continue;
     const sigs = bank.sMean[k];
     const sds = bank.sSd[k];
     const ids = bank.segId[k];
