@@ -92,7 +92,12 @@ export class WebCortexSession {
     return new Promise((resolve) => (this.answerResolver = resolve));
   }
 
-  // build per-task candidate arrays over the remaining (unserved) bank
+  // Build per-task candidate arrays over the remaining (unserved) bank. A
+  // segment only contributes to the task indices listed in its
+  // applicableTaskIdx — IIIC items to the 6 IIIC tasks, spike items to spike
+  // — so the engine can't accidentally select an IIIC clip for the spike task
+  // (sMean/sSd at the inapplicable indices are sentinel 0.0, not real signals).
+  // Pre-K=7 bundles omit applicableTaskIdx; we then fall back to "all K tasks".
   private bankArrays(): BankArrays {
     const K = this.inputs.taskCodes.length;
     const sMean: number[][] = Array.from({ length: K }, () => []);
@@ -100,10 +105,19 @@ export class WebCortexSession {
     const segId: number[][] = Array.from({ length: K }, () => []);
     for (const seg of this.inputs.segments) {
       if (!this.remaining.has(seg.segId)) continue;
-      for (let k = 0; k < K; k++) {
-        sMean[k].push(seg.sMean[k]);
-        sSd[k].push(seg.sSd[k]);
-        segId[k].push(seg.segId);
+      const applicable = seg.applicableTaskIdx;
+      if (applicable) {
+        for (const k of applicable) {
+          sMean[k].push(seg.sMean[k]);
+          sSd[k].push(seg.sSd[k]);
+          segId[k].push(seg.segId);
+        }
+      } else {
+        for (let k = 0; k < K; k++) {
+          sMean[k].push(seg.sMean[k]);
+          sSd[k].push(seg.sSd[k]);
+          segId[k].push(seg.segId);
+        }
       }
     }
     return { sMean, sSd, segId };

@@ -4,8 +4,12 @@ export interface SegmentMeta {
   segId: number;
   patternClass: string; // "spike" | "seizure" | "lpd" | "gpd" | "lrda" | "grda" | "other"
   testClass?: "iiic" | "spike"; // K=7 manifests carry this; pre-K=7 bundles omit it
-  sMean: number[]; // length K, per-task signal mean
-  sSd: number[]; // length K, per-task signal posterior SD
+  // Indices of tasks this segment can serve as a candidate for. IIIC segments
+  // → [1..6]; spike segments → [0]. Pre-K=7 bundles omit this — the engine
+  // falls back to "applies to all K tasks" for backward compat.
+  applicableTaskIdx?: number[];
+  sMean: number[]; // length K, per-task signal mean (sentinel 0 at inapplicable idx)
+  sSd: number[]; // length K, per-task signal posterior SD (sentinel 0 at inapplicable idx)
   fsHz: number;
   nCh: number;
   nSamp: number;

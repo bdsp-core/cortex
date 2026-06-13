@@ -41,7 +41,9 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent.parent  # ideal-test-multi/
 BANK = REPO / "data" / "eeg_bank.h5"
-SIGNALS = REPO / "data" / "labels" / "iiic_segment_signals.csv"
+# K=7 unified signals (spike + 6 IIIC; NaN where not applicable). The pre-K=7
+# iiic_segment_signals.csv only had the 6 IIIC columns.
+SIGNALS = REPO / "data" / "labels" / "segment_signals.csv"
 SIGMA = REPO / "Sigma_l_fitted_k7.npy"
 CERT = REPO / "calibration" / "cert_config.yaml"
 CERT_V15 = REPO / "calibration" / "cert_config_v15.yaml"   # opt-in (post-pilot)
@@ -102,6 +104,13 @@ def load_corr_l() -> list[list[float]]:
     return C.tolist()
 
 
+def _applicable_task_idx(test_class: str) -> list[int]:
+    """Which task indices a segment of this test_class is informative about.
+    IIIC segments only carry IIIC signals (tasks 1..6); spike segments only
+    carry the spike signal (task 0). The engine must not draw cross-family."""
+    return [i for i, c in enumerate(TASK_CLASSES) if c == test_class]
+
+
 def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
                   s_mean: list[float], s_sd: list[float], seg_dir: Path,
                   ) -> tuple[dict, bool]:
@@ -135,8 +144,11 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
         "segId": sid,
         "testClass": test_class,
         "patternClass": pattern,
+        # Engine reads sMean/sSd only at applicable indices; the rest are
+        # sentinel 0.0 to keep the array length-K but the mask is authoritative.
         "sMean": s_mean,
         "sSd": s_sd,
+        "applicableTaskIdx": _applicable_task_idx(test_class),
         "fsHz": fs,
         "nCh": int(n_ch),
         "nSamp": int(n_samp),
@@ -168,6 +180,8 @@ def main():
 
     ell_star = load_ell_star(args.cert_block)
     corr_l = load_corr_l()
+    # K=7 signals CSV carries all 7 task columns; NaN where a segment isn't
+    # informative about that task (e.g. spike segs have NaN in IIIC columns).
     iss = pd.read_csv(SIGNALS).set_index("seg_id")
     sig_cols = [f"s_mean_{c}" for c in TASK_CODES] + [f"s_sd_{c}" for c in TASK_CODES]
     missing = [c for c in sig_cols if c not in iss.columns]
@@ -204,11 +218,19 @@ def main():
                     n_skip_signal += 1
                     continue
                 row = iss.loc[sid]
-                s_mean = [float(row[f"s_mean_{c}"]) for c in TASK_CODES]
-                s_sd = [float(row[f"s_sd_{c}"]) for c in TASK_CODES]
-                if any(np.isnan(s_mean)) or any(np.isnan(s_sd)):
+                # NaN at inapplicable task indices is expected (spike segs have
+                # NaN IIIC signals and vice versa); we replace with sentinel
+                # 0.0 and rely on applicableTaskIdx as the authoritative mask.
+                # NaN at an APPLICABLE index is real bad data → skip the seg.
+                applicable = _applicable_task_idx(test_class)
+                s_mean_raw = [float(row[f"s_mean_{c}"]) for c in TASK_CODES]
+                s_sd_raw = [float(row[f"s_sd_{c}"]) for c in TASK_CODES]
+                if any(np.isnan(s_mean_raw[k]) or np.isnan(s_sd_raw[k])
+                       for k in applicable):
                     n_skip_nan += 1
                     continue
+                s_mean = [0.0 if np.isnan(v) else v for v in s_mean_raw]
+                s_sd = [0.0 if np.isnan(v) else v for v in s_sd_raw]
                 entry, had_spec = _emit_segment(g, sid, test_class, pattern,
                                                 s_mean, s_sd, seg_dir)
                 segments.append(entry)
