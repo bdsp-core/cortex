@@ -1,0 +1,13 @@
+[Unit]
+Description=CORTEX — snapshot DB + results to Box
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cortex
+Group=cortex
+EnvironmentFile=/etc/cortex/cortex.env
+ExecStart=/opt/cortex/deploy/scripts/backup_to_box.sh
+StandardOutput=append:/var/log/cortex/backup.log
+StandardError=inherit

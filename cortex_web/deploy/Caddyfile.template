@@ -1,0 +1,39 @@
+# Caddy config for the CORTEX web deploy. Caddy handles TLS automatically
+# (Let's Encrypt + HTTP-01) and reverse-proxies all traffic to uvicorn on
+# :8000. Substitute {{DOMAIN}} → your actual host before installing this
+# to /etc/caddy/Caddyfile. provision.sh does this for you.
+#
+# Caching strategy:
+#   - /bundle/<version>/seg/<id>.eeg, .spec  → versioned + immutable (1 year)
+#     The SPA path includes the bundle version, so a new bundle is a new URL.
+#   - /bundle/<version>/manifest.json        → 5-minute cache (a re-bundle
+#     with the same version should propagate quickly; usually we bump the
+#     version when content changes).
+#   - everything else                        → no aggressive cache.
+
+{{DOMAIN}} {
+    encode gzip zstd
+
+    # Aggressive cache for blob assets (versioned URL → safe to make immutable).
+    @bundle_blobs path_regexp bundle_blobs ^/bundle/[^/]+/seg/.+\.(eeg|spec)$
+    header @bundle_blobs Cache-Control "public, max-age=31536000, immutable"
+
+    # Modest cache for manifest (re-bundle with same version should refresh).
+    @manifest path_regexp manifest ^/bundle/[^/]+/manifest\.json$
+    header @manifest Cache-Control "public, max-age=300"
+
+    # Security headers — minimal but worthwhile.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    reverse_proxy 127.0.0.1:8000 {
+        # The SPA + bundle + /api are all served by the same uvicorn process.
+        transport http {
+            keepalive 60s
+        }
+    }
+}

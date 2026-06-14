@@ -1,8 +1,12 @@
 # CORTEX web backend — intentionally minimal.
-# Auth (PBKDF2 + HS256 JWT) and storage (SQLite) use only the stdlib, so the
-# only third-party deps are the web framework and the dev/test tooling.
+# Auth (PBKDF2 + HS256 JWT) is stdlib-only; SQLite is the dev default; Postgres
+# is opt-in for prod via CORTEX_DB=postgresql://… (provisioned by
+# deploy/scripts/provision.sh).
 fastapi>=0.110
 uvicorn[standard]>=0.27
+# Prod-only: pick up via `pip install -r requirements.txt` on the deploy box;
+# dev installs can skip it (the SQLite branch in db.py doesn't import psycopg).
+psycopg[binary]>=3.1
 # Tests:
 httpx>=0.27          # FastAPI TestClient transport
 pytest>=8.0

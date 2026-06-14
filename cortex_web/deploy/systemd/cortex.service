@@ -1,0 +1,26 @@
+[Unit]
+Description=CORTEX web — FastAPI + uvicorn (serves SPA + bundle + /api)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=cortex
+Group=cortex
+WorkingDirectory=/opt/cortex
+EnvironmentFile=/etc/cortex/cortex.env
+# uvicorn reads CORTEX_HOST/CORTEX_PORT/CORTEX_DB/CORTEX_BUNDLE_URL/
+# CORTEX_JWT_SECRET/CORTEX_ADMIN_TOKEN from the EnvironmentFile.
+ExecStart=/opt/cortex/.venv/bin/python -m uvicorn server.app:app \
+    --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+# Modest hardening.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/cortex /var/log/cortex
+
+[Install]
+WantedBy=multi-user.target

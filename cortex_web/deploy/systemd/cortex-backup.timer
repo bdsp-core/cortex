@@ -1,0 +1,13 @@
+[Unit]
+Description=Run CORTEX Box backup every 6 hours
+
+[Timer]
+# Every 6 hours, on the wall clock (00:00, 06:00, 12:00, 18:00 UTC).
+OnCalendar=00,06,12,18:00:00
+# Catch up if the box was off when a tick was due.
+Persistent=true
+# Stagger lightly so simultaneous reboots don't all hit Box at once.
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
