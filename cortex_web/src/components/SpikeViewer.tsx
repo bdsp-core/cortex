@@ -1,0 +1,217 @@
+// Spike-block viewer — the binary spike-or-not screen the desktop runs FIRST
+// at K=7 (scripts/session_controller.py "Phase A"). A 10-s clip @ 128 Hz, no
+// spectrogram, no panning (the whole clip is the question), with two large
+// Yes / No buttons (and 1 / 2 keys). The IIIC Viewer takes over for Phase B.
+//
+// Submit semantics: the engine reads y = (pick === chosen.k). For a spike
+// question chosen.k is the spike task index. "Yes" submits that index → y=1
+// (a spike). "No" submits an out-of-range sentinel (K) → y=0 (no spike).
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bundle, SegmentData } from "../bundle";
+import { applyMontage, MontageRow } from "../montage";
+import { buildCascade, filtfilt } from "../dsp";
+import { Progress } from "../progress";
+import { EegCanvas } from "./EegCanvas";
+import {
+  COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS, NOTCH_OPTIONS,
+} from "../../ui/theme";
+
+export interface Item {
+  trialIndex: number;
+  taskK: number;
+  segId: number;
+}
+
+export function SpikeViewer({
+  bundle, item, progress, onAnswer, spikeTaskIdx, totalTasks,
+}: {
+  bundle: Bundle;
+  item: Item | null;
+  progress: Progress;
+  onAnswer: (pick: number) => void;
+  spikeTaskIdx: number;        // engine task index for spike (typically 0)
+  totalTasks: number;          // K — used as the "No" sentinel pick (out of range)
+}) {
+  const [seg, setSeg] = useState<SegmentData | null>(null);
+  const [montage, setMontage] = useState<string>("bipolar");
+  const [gain, setGain] = useState(100);
+  const [bandpass, setBandpass] = useState(BANDPASS_OPTIONS[0]);
+  const [notchHz, setNotchHz] = useState(NOTCH_OPTIONS[0]);
+  const [pick, setPick] = useState<number | null>(null);
+
+  const segRef = useRef<SegmentData | null>(null);
+  segRef.current = seg;
+  const itemRef = useRef<Item | null>(null);
+  itemRef.current = item;
+  const answered = useRef(false);
+
+  useEffect(() => {
+    if (!item) return;
+    let alive = true;
+    setSeg(null);
+    setPick(null);
+    answered.current = false;
+    bundle.segment(item.segId).then((s) => alive && setSeg(s));
+    return () => { alive = false; };
+  }, [item, bundle]);
+
+  const rows: MontageRow[] = useMemo(() => {
+    if (!seg) return [];
+    const base = applyMontage(montage, seg.eeg, seg.channelNames, seg.nSamp);
+    const cascade = buildCascade(bandpass, notchHz, seg.fsHz);
+    if (!cascade.length) return base;
+    return base.map((r) => (r.data ? { ...r, data: filtfilt(r.data, cascade) } : r));
+  }, [seg, montage, bandpass, notchHz]);
+
+  // Pick-and-advance: Yes = spikeTaskIdx (y=1); No = totalTasks (out-of-range, y=0).
+  const submit = useCallback(
+    (k: number) => {
+      if (answered.current || !itemRef.current || !segRef.current) return;
+      answered.current = true;
+      setPick(k);
+      onAnswer(k);
+      setSeg(null);
+    },
+    [onAnswer],
+  );
+
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  const spikeIdxRef = useRef(spikeTaskIdx);
+  spikeIdxRef.current = spikeTaskIdx;
+  const totalRef = useRef(totalTasks);
+  totalRef.current = totalTasks;
+
+  // Keyboard: 1 = Yes, 2 = No. Capture phase so dropdowns/buttons don't eat it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "1" || e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        submitRef.current(spikeIdxRef.current);
+      } else if (e.key === "2" || e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        submitRef.current(totalRef.current);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setGain((g) => GAIN_LADDER[Math.max(0, GAIN_LADDER.indexOf(g) - 1)]);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setGain((g) => GAIN_LADDER[Math.min(GAIN_LADDER.length - 1, GAIN_LADDER.indexOf(g) + 1)]);
+      } else if (e.key === "Control") {
+        setMontage((m) => MONTAGES[(MONTAGES.indexOf(m as any) + 1) % MONTAGES.length]);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  const dur = seg ? seg.nSamp / seg.fsHz : 0;
+  const sel = (v: boolean) => ({
+    outline: v ? `3px solid ${COLORS.accent}` : "none",
+    borderRadius: 6,
+  });
+
+  // Page focus + responsive EEG sizing.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { rootRef.current?.focus(); }, []);
+  const eegBoxRef = useRef<HTMLDivElement>(null);
+  const [eegSize, setEegSize] = useState({ w: 1440, h: 760 });
+  useEffect(() => {
+    const el = eegBoxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const cr = e.contentRect;
+        if (cr.width > 0 && cr.height > 0) {
+          setEegSize({ w: Math.floor(cr.width), h: Math.floor(cr.height) });
+        }
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // The spike clip is the whole question; no labeled-epoch overlay, no pan.
+  const yesPick = pick === spikeTaskIdx;
+  const noPick = pick === totalTasks;
+  const isYes = (v: boolean) => sel(v);
+
+  return (
+    <div ref={rootRef} tabIndex={0}
+      style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
+               height: "100vh", display: "flex", flexDirection: "column", padding: 12,
+               boxSizing: "border-box", outline: "none" }}>
+      {/* top: question counter + Yes / No */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, marginRight: 8 }}>
+          Question {item ? item.trialIndex + 1 : "—"} of up to {progress.maxQ || "—"}
+        </span>
+        <span style={{ color: COLORS.accent, fontWeight: 700, letterSpacing: 1 }}>
+          SPIKE BLOCK
+        </span>
+        <button onClick={() => submit(spikeTaskIdx)}
+          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700,
+                   color: COLORS.pass, ...isYes(yesPick) }}>
+          1 · YES — spike
+        </button>
+        <button onClick={() => submit(totalTasks)}
+          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700,
+                   color: COLORS.fail, ...isYes(noPick) }}>
+          2 · NO — no spike
+        </button>
+        <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
+          press 1 / Y for yes, 2 / N for no
+        </span>
+        <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
+          Confidence of reaching a verdict (most-uncertain task):{" "}
+          <b style={{ color: COLORS.textPrimary }}>
+            {progress.resolveConf == null ? "—" : `${Math.round(progress.resolveConf * 100)}%`}
+          </b>
+        </span>
+      </div>
+
+      <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>
+        Does this 10-second clip contain at least one <b style={{ color: COLORS.textPrimary }}>epileptiform spike or sharp wave</b>?
+      </div>
+
+      {/* full-width EEG (no spectrogram for spike) */}
+      <div ref={eegBoxRef}
+        style={{ flex: 1, background: "#fff", borderRadius: 4, minWidth: 0, marginTop: 8 }}>
+        {seg ? (
+          <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={dur || 10}
+            panStartS={0} width={eegSize.w} height={eegSize.h} />
+        ) : (
+          <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>
+        )}
+      </div>
+
+      {/* bottom: display controls (no window/pan — the whole clip IS the question) */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+        <label>Montage{" "}
+          <select value={montage} onChange={(e) => setMontage(e.target.value)}>
+            {MONTAGES.map((m) => <option key={m}>{m}</option>)}
+          </select>
+        </label>
+        <label>Gain{" "}
+          <select value={gain} onChange={(e) => setGain(parseInt(e.target.value, 10))}>
+            {GAIN_LADDER.map((g) => <option key={g} value={g}>{g} µV/div</option>)}
+          </select>
+        </label>
+        <label>Bandpass{" "}
+          <select value={bandpass} onChange={(e) => setBandpass(e.target.value)}>
+            {BANDPASS_OPTIONS.map((b) => <option key={b}>{b}</option>)}
+          </select>
+        </label>
+        <label>Notch{" "}
+          <select value={notchHz} onChange={(e) => setNotchHz(e.target.value)}>
+            {NOTCH_OPTIONS.map((n) => <option key={n}>{n}</option>)}
+          </select>
+        </label>
+        <span style={{ color: COLORS.textTertiary, marginLeft: "auto" }}>
+          {item && seg ? `EEG ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div · ${seg.fsHz} Hz` : ""}
+        </span>
+      </div>
+    </div>
+  );
+}

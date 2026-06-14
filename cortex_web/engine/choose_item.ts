@@ -120,14 +120,18 @@ export function chooseItem(
 
 // Trial-0 variation: collect all (loss, k, i), take the top-N lowest, pick one
 // uniformly (per-examinee opening question). Mirrors CortexSession._pick_top_n.
+// `excludedTasks` is honored the same way as in chooseItem so the phase-aware
+// session can scope trial 0 to (e.g.) the spike block only.
 export function chooseFirstItem(
   st: ParticleState,
   bank: BankArrays,
   topN: number,
   rng: { int: (n: number) => number },
+  excludedTasks?: ReadonlySet<number>,
 ): Chosen {
   const scored: Chosen[] = [];
   for (let k = 0; k < st.K; k++) {
+    if (excludedTasks?.has(k)) continue;
     const sigs = bank.sMean[k];
     for (let i = 0; i < sigs.length; i++) {
       scored.push({

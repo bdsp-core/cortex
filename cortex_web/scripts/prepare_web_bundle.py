@@ -125,25 +125,34 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
                   s_mean: list[float], s_sd: list[float], seg_dir: Path,
                   ) -> tuple[dict, bool]:
     """Quantize one h5 segment's EEG (+ spectrogram if present) to disk and
-    return (manifest entry, had_spectrogram)."""
-    ds = g["eeg30s"]
+    return (manifest entry, had_spectrogram). Branches on test_class:
+       iiic  → /eeg30s, 200 Hz default, sdata→spec if present
+       spike → /eeg10s, 128 Hz default, no spectrogram (spike clips don't carry one)
+    """
+    if test_class == "spike":
+        ds_name, fs_default = "eeg10s", 128.0
+    else:
+        ds_name, fs_default = "eeg30s", 200.0
+    ds = g[ds_name]
     eeg = np.nan_to_num(np.asarray(ds, dtype=np.float64), nan=0.0)
-    fs = float(ds.attrs.get("fs_hz", g.attrs.get("fs_hz", 200.0)))
+    fs = float(ds.attrs.get("fs_hz", g.attrs.get("fs_hz", fs_default)))
     ch_names = [
         (c.decode() if isinstance(c, bytes) else str(c))
         for c in ds.attrs.get("channel_names", g.attrs.get("channel_names", []))
     ]
     n_ch, n_samp = eeg.shape
-    # v4-k7 IIIC bank doesn't carry channel_names — fall back to the canonical
-    # 20-channel ordering so the bipolar montage renders correctly.
-    if not ch_names and test_class == "iiic" and n_ch == len(CHANNELS_IIIC_20):
+    # v4-k7 bank doesn't carry channel_names on either iiic or spike groups —
+    # fall back to the canonical 20-channel ordering so the bipolar montage
+    # renders correctly (both schemas use the same first 20 channels).
+    if not ch_names and n_ch == len(CHANNELS_IIIC_20):
         ch_names = list(CHANNELS_IIIC_20)
     q = np.clip(np.round(eeg * EEG_SCALE), -32768, 32767).astype("<i2")
     (seg_dir / f"{sid}.eeg").write_bytes(q.tobytes())
 
     spec_name = ""
     spec_shape = None
-    if "sdata" in g:
+    # Only IIIC clips carry a spectrogram; spike clips render EEG only.
+    if test_class != "spike" and "sdata" in g:
         sdata = np.asarray(g["sdata"], dtype=np.float64)
         db = 10.0 * np.log10(sdata + 1e-12)
         qd = np.clip(
@@ -225,6 +234,10 @@ def main():
             for sid in seg_ids:
                 g = f[grp_name][str(sid)]
                 pattern = str(g.attrs.get("pattern_class", ""))
+                # The v4-k7 spike group doesn't carry pattern_class (it's
+                # implicitly "spike"); fall back to the group's test_class.
+                if not pattern and test_class == "spike":
+                    pattern = "spike"
                 if pattern not in PATTERN_TO_TASK_IDX:
                     n_skip_pattern += 1
                     continue

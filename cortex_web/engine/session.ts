@@ -135,6 +135,16 @@ export class WebCortexSession {
     let stopReason = "bank_exhausted";
     const maxQ = Math.min(MAX_QUESTIONS, this.inputs.segments.length);
 
+    // Phase-aware selection (desktop session_controller.py l.241+). For K=7
+    // bundles with spike at index 0 we run the spike block first (Phase A:
+    // only spike is selectable) until either the spike verdict locks or the
+    // spike bank exhausts, then switch to Phase B (only IIIC). Pre-K=7
+    // bundles have no phase concept and select across all tasks.
+    const tc = this.inputs.taskClasses;
+    const spikeIdx = tc ? tc.findIndex((c) => c === "spike") : -1;
+    const k7Spike = spikeIdx >= 0;
+    let lastVerdicts: string[] = new Array(K).fill("PENDING");
+
     // Variety-cap streak tracking. lastTaskK = the task served on the previous
     // trial (or -1 if none); streakCount = how many in a row that task has run.
     let lastTaskK = -1;
@@ -144,24 +154,44 @@ export class WebCortexSession {
       if (this.remaining.size === 0 || this.aborted) break;
       const bank = this.bankArrays();
 
-      // If the same task has held the run for MAX_CONSECUTIVE_SAME_DOMAIN
-      // picks, exclude it from this trial — unless that would leave no task
-      // with remaining items (e.g. only one task still has bank entries), in
-      // which case we honor the bank constraint over the variety cap.
-      let excluded: Set<number> | undefined;
-      if (trialIndex > 0 && streakCount >= MAX_CONSECUTIVE_SAME_DOMAIN) {
+      // Phase exclusion: in K=7, Phase A only allows spike; Phase B excludes
+      // spike. The spike bank being empty (no spike items in the bundle yet,
+      // or already exhausted) transitions us into Phase B even if spike is
+      // still PENDING.
+      const phaseExcluded = new Set<number>();
+      if (k7Spike) {
+        const spikePending = lastVerdicts[spikeIdx] === "PENDING";
+        const spikeBankNonEmpty = bank.sMean[spikeIdx]?.length > 0;
+        if (spikePending && spikeBankNonEmpty) {
+          // Phase A: exclude every non-spike task.
+          for (let k = 0; k < K; k++) if (k !== spikeIdx) phaseExcluded.add(k);
+        } else {
+          // Phase B: exclude spike.
+          phaseExcluded.add(spikeIdx);
+        }
+      }
+
+      // Variety cap composed with phase: don't exclude a task if doing so
+      // would empty the candidate set.
+      const excluded = new Set(phaseExcluded);
+      if (trialIndex > 0 && streakCount >= MAX_CONSECUTIVE_SAME_DOMAIN
+            && !excluded.has(lastTaskK)) {
         const otherHasBank = bank.sMean.some(
-          (arr, k) => k !== lastTaskK && arr.length > 0,
+          (arr, k) => k !== lastTaskK && !excluded.has(k) && arr.length > 0,
         );
-        if (otherHasBank) excluded = new Set([lastTaskK]);
+        if (otherHasBank) excluded.add(lastTaskK);
       }
 
       let chosen: Chosen =
         trialIndex === 0
-          ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng)
+          ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng, excluded)
           : chooseItem(this.state, bank, excluded);
-      // chooseItem signals "no candidate" with segId === -1 (defensive — the
-      // exclusion check above should prevent this in practice).
+      // Defensive fallbacks: if variety+phase leaves nothing, drop the
+      // variety cap; if still nothing (degenerate), drop the phase too.
+      if (chosen.segId === -1)
+        chosen = trialIndex === 0
+          ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng, phaseExcluded)
+          : chooseItem(this.state, bank, phaseExcluded);
       if (chosen.segId === -1) chosen = chooseItem(this.state, bank);
 
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
@@ -188,6 +218,7 @@ export class WebCortexSession {
       else { lastTaskK = chosen.k; streakCount = 1; }
 
       const res = this.policy.evaluate(this.state, this.nPerTask);
+      lastVerdicts = res.verdicts;   // feeds the next trial's phase check
       const { tMean, lMean } = posteriorMeans(this.state);
       const diag: TrialDiag = {
         trialIndex,

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bundle } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
+import { SpikeViewer } from "./components/SpikeViewer";
 import { resolutionConfidence, Progress } from "./progress";
 import { sampleSession } from "./sampleSession";
 import { MAX_QUESTIONS } from "../engine/session";
@@ -176,10 +177,23 @@ export function App() {
       return <Computing note="Loading the test bank…" />;
     case "computing":
       return <Computing note="Computing your results…" />;
-    case "running":
+    case "running": {
+      // Route by the current item's task class — spike → SpikeViewer (binary
+      // Yes/No, no spectrogram, 10-s clip), IIIC → the 6-button viewer.
+      const tc = bundle?.inputs.taskClasses;
+      const k = item?.taskK;
+      const isSpike = tc != null && k != null && tc[k] === "spike";
+      if (isSpike) {
+        return (
+          <SpikeViewer bundle={bundle!} item={item} progress={progress}
+            onAnswer={onAnswer} spikeTaskIdx={k!}
+            totalTasks={bundle!.inputs.taskCodes.length} />
+        );
+      }
       return (
         <Viewer bundle={bundle!} item={item} progress={progress} onAnswer={onAnswer} />
       );
+    }
     case "done":
       return summary ? <Results summary={summary} /> : <Computing />;
     case "error":
