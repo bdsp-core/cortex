@@ -219,7 +219,7 @@ export class WebCortexSession {
 
       const res = this.policy.evaluate(this.state, this.nPerTask);
       lastVerdicts = res.verdicts;   // feeds the next trial's phase check
-      const { tMean, lMean } = posteriorMeans(this.state);
+      const { tMean, lMean, lSd } = posteriorMeans(this.state);
       const diag: TrialDiag = {
         trialIndex,
         taskK: chosen.k,
@@ -236,6 +236,7 @@ export class WebCortexSession {
         nPerTask: [...this.nPerTask],
         tMean,
         lMean,
+        lSd,
       };
       this.trials.push(diag);
       this.cb.onTrial?.(diag);

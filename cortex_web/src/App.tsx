@@ -114,6 +114,10 @@ export function App() {
             pi: d?.pi,
             R: d?.R,
             nPerTask: d?.nPerTask,
+            // Posterior summaries for the AUROC table on the Results screen.
+            lMean: d?.lMean,
+            lSd: d?.lSd,
+            ellStar: inputs.ellStar,
             // Carry the bundle's task list so the Results table reads the
             // right labels at any K and indexes verdicts by real task idx.
             taskCodes: inputs.taskCodes,

@@ -69,4 +69,7 @@ export interface TrialDiag {
   nPerTask: number[];
   tMean: number[];
   lMean: number[];
+  // SD of the marginal ℓ-posterior per task; consumed by the Results screen
+  // to derive an AUROC 95% CrI (auroc.ts). Pre-step-5 bundles omit this.
+  lSd?: number[];
 }
