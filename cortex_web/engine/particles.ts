@@ -163,17 +163,32 @@ export function resampleAndRejuvenate(
   return accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);
 }
 
-// weighted per-task posterior means (telemetry).
-export function posteriorMeans(st: ParticleState): { tMean: number[]; lMean: number[] } {
+// weighted per-task posterior means + standard deviations (telemetry).
+// Single pass: accumulates first and second moments simultaneously.
+export function posteriorMeans(st: ParticleState): {
+  tMean: number[]; lMean: number[]; tSd: number[]; lSd: number[];
+} {
   const { N, K, t, l, w } = st;
   const tMean = new Array(K).fill(0);
   const lMean = new Array(K).fill(0);
+  const tM2 = new Array(K).fill(0);
+  const lM2 = new Array(K).fill(0);
   for (let n = 0; n < N; n++) {
     const wn = w[n];
     for (let k = 0; k < K; k++) {
-      tMean[k] += wn * t[n * K + k];
-      lMean[k] += wn * l[n * K + k];
+      const tk = t[n * K + k];
+      const lk = l[n * K + k];
+      tMean[k] += wn * tk;
+      lMean[k] += wn * lk;
+      tM2[k] += wn * tk * tk;
+      lM2[k] += wn * lk * lk;
     }
   }
-  return { tMean, lMean };
+  const tSd = new Array(K).fill(0);
+  const lSd = new Array(K).fill(0);
+  for (let k = 0; k < K; k++) {
+    tSd[k] = Math.sqrt(Math.max(0, tM2[k] - tMean[k] * tMean[k]));
+    lSd[k] = Math.sqrt(Math.max(0, lM2[k] - lMean[k] * lMean[k]));
+  }
+  return { tMean, lMean, tSd, lSd };
 }

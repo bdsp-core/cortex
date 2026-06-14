@@ -73,7 +73,11 @@ export function Results({ summary, onFinish, onDownloadVideos }: {
   const [vidErr, setVidErr] = useState("");
   const rows = rowPlan(summary);
   return (
-    <Stage maxW={720}>
+    <Stage maxW={820}>
+      {/* maxHeight + overflowY makes the whole results page scroll on
+          short viewports (desktop v1.4.2 parity). */}
+      <div style={{ maxHeight: "calc(100vh - 48px)", overflowY: "auto",
+                    width: "100%" }}>
       <Card>
         <Heading>Assessment Complete</Heading>
         <div style={{ color: COLORS.textBody, marginBottom: 8 }}>
@@ -189,6 +193,7 @@ export function Results({ summary, onFinish, onDownloadVideos }: {
           </div>
         )}
       </Card>
+      </div>
     </Stage>
   );
 }
