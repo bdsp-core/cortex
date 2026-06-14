@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=exec
 User=cortex
 Group=cortex
-WorkingDirectory=/opt/cortex
+WorkingDirectory=/opt/cortex/cortex_web
 EnvironmentFile=/etc/cortex/cortex.env
 # uvicorn reads CORTEX_HOST/CORTEX_PORT/CORTEX_DB/CORTEX_BUNDLE_URL/
 # CORTEX_JWT_SECRET/CORTEX_ADMIN_TOKEN from the EnvironmentFile.
