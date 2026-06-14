@@ -51,9 +51,16 @@ try {
   await page.getByRole("button", { name: "Continue to tutorial" }).click();
   log("registration ✓");
 
-  // Tutorial → Begin the test
-  await page.getByRole("button", { name: "Begin the test" }).click();
-  log("tutorial → begin ✓");
+  // In-context tutorial overlay (over an example IIIC segment): walk the 5
+  // coach-marks (NEXT ×4 → BEGIN), which then starts the real test.
+  await page.getByText(/STEP 1 OF 5/).waitFor({ timeout: 30000 });
+  log("tutorial overlay shown (STEP 1 OF 5) ✓");
+  for (let s = 0; s < 4; s++) {
+    await page.getByRole("button", { name: "NEXT" }).click();
+    await page.waitForTimeout(120);
+  }
+  await page.getByRole("button", { name: "BEGIN" }).click();
+  log("tutorial walkthrough → begin ✓");
 
   // ── SPIKE phase (served first): SpikeViewer Yes/No, EEG only (no spectrogram)
   await page.getByRole("button", { name: /YES — spike/ }).waitFor({ timeout: 30000 });

@@ -11,6 +11,7 @@ import { buildCascade, filtfilt } from "../dsp";
 import { iiicTasks } from "../tasks";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
+import { TutorialOverlay, TutorialStep } from "./TutorialOverlay";
 import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
   NOTCH_OPTIONS, WINDOW_OPTIONS,
@@ -28,10 +29,14 @@ export function Viewer({
   bundle,
   item,
   onAnswer,
+  tutorial,
 }: {
   bundle: Bundle;
   item: Item | null;
   onAnswer: (pick: number) => void;
+  // When set, the Viewer is the in-context tutorial backdrop: answering is
+  // disabled and a coach-marks overlay walks the user through the UI regions.
+  tutorial?: { onFinish: () => void };
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
   const [montage, setMontage] = useState<string>("bipolar");
@@ -86,13 +91,14 @@ export function Viewer({
   // Pick-and-advance: a single choice (key or click) selects AND submits.
   const submit = useCallback(
     (k: number) => {
+      if (tutorial) return; // tutorial backdrop: answering is disabled
       if (answered.current || !itemRef.current || !segRef.current) return;
       answered.current = true;
       setPick(k);
       onAnswer(k);
       setSeg(null); // clear until the next item loads
     },
-    [onAnswer],
+    [onAnswer, tutorial],
   );
 
   // keyboard. Bound ONCE for the component's life (empty deps) with a stable
@@ -154,6 +160,12 @@ export function Viewer({
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => { rootRef.current?.focus(); }, []);
 
+  // Region refs the tutorial overlay spotlights (answer row, spectrogram, EEG,
+  // controls) — specBoxRef/eegBoxRef already exist for the ResizeObserver.
+  const answerRowRef = useRef<HTMLDivElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const tut = !!tutorial;
+
   // Track the EEG pane's actual size so the canvas fills the available space
   // (the spectrogram on the left is fixed 280 px, the EEG pane is flex:1 —
   // pre-resize-observer the canvas was hard-coded 1140×760 and left a strip
@@ -186,10 +198,10 @@ export function Viewer({
                   boxSizing: "border-box", outline: "none" }}>
       {/* top: question counter + answer buttons (pick-and-advance) + the red
           IIIC scoring banner inline (eeg_bank_viewer.py:723-727). */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+      <div ref={answerRowRef} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
               flexShrink: 0, paddingBottom: 8, borderBottom: `1px solid ${COLORS.borderInactive}` }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
-          Question {item ? item.trialIndex + 1 : "—"}
+          {tut ? "Tutorial example" : `Question ${item ? item.trialIndex + 1 : "—"}`}
         </span>
         {iiicOpts.map((o, i) => (
           <button key={o.code} onClick={() => submit(o.idx)}
@@ -224,7 +236,7 @@ export function Viewer({
 
       {/* bottom: display controls — fixed height + wrap so the EEG/spectrogram
           area never overruns them. */}
-      <div style={{ display: "flex", gap: 16, rowGap: 8, alignItems: "center", flexWrap: "wrap",
+      <div ref={controlsRef} style={{ display: "flex", gap: 16, rowGap: 8, alignItems: "center", flexWrap: "wrap",
               flexShrink: 0, marginTop: 8, paddingTop: 8, fontSize: 13,
               borderTop: `1px solid ${COLORS.borderInactive}` }}>
         <label>Montage{" "}
@@ -258,6 +270,89 @@ export function Viewer({
           {item && seg ? `EEG ${panStart.toFixed(1)}–${(panStart + windowS).toFixed(1)} s of ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div` : ""}
         </span>
       </div>
+
+      {tutorial && seg && (
+        <TutorialOverlay onFinish={tutorial.onFinish}
+          steps={tutorialSteps(answerRowRef, specBoxRef, eegBoxRef, controlsRef)} />
+      )}
     </div>
   );
+}
+
+// The 5 coach-marks, verbatim from the desktop (eeg_bank_viewer.py:632-677).
+function tutorialSteps(
+  answerRow: React.RefObject<HTMLDivElement>,
+  spec: React.RefObject<HTMLDivElement>,
+  eeg: React.RefObject<HTMLDivElement>,
+  controls: React.RefObject<HTMLDivElement>,
+): TutorialStep[] {
+  return [
+    {
+      target: answerRow, title: "Choosing an answer",
+      body: (
+        <>
+          For each recording, choose the pattern that best matches what you see.
+          <br /><br />
+          <b><u>Once you select an answer, the test immediately advances to the next
+          recording — you cannot change your answer.</u></b>
+          <br /><br />
+          • Seizure: an electrographic seizure<br />
+          • LPD / GPD: lateralized or generalized periodic discharges<br />
+          • LRDA / GRDA: lateralized or generalized rhythmic delta activity<br />
+          • Other: a pattern fitting none of the above<br /><br />
+          Some recordings instead ask only whether an epileptiform spike is present.
+        </>
+      ),
+    },
+    {
+      target: spec, title: "The spectrogram",
+      body: (
+        <>
+          A compressed time-frequency summary of the recording. A quick way to spot
+          rhythmic or evolving activity before reading the waveforms.
+          <br /><br />
+          The four panels are brain regions: LL and RL are the left and right temporal
+          chains; LP and RP are the left and right parasagittal chains.
+          <br /><br />
+          The spectrogram appears only for these pattern-classification recordings. The
+          spike-present questions show the EEG on its own, with no spectrogram panel.
+        </>
+      ),
+    },
+    {
+      target: eeg, title: "The EEG",
+      body: (
+        <>
+          The raw tracings. Each row is a derivation between two electrodes. Pan through
+          the recording with the ◀ ▶ buttons or the left / right arrow keys. Adjust the
+          gain with the ▲ ▼ buttons or the up / down arrow keys.
+        </>
+      ),
+    },
+    {
+      target: controls, title: "Display controls",
+      body: (
+        <>
+          These change how the EEG is displayed — never your answer:
+          <br /><br />
+          • Montage: how electrode pairs are combined (bipolar, average, Laplacian).{" "}
+          <b><u>Press the Ctrl key to flip through the montages</u></b> without leaving
+          the keyboard.<br />
+          • Gain: vertical scale, in µV per division<br />
+          • Bandpass: keeps a frequency band, removing slow drift and high-frequency noise<br />
+          • Notch: removes 50 / 60 Hz mains interference<br />
+          • Window: how many seconds of EEG are shown at once
+        </>
+      ),
+    },
+    {
+      target: null, title: "Ready to begin",
+      body: (
+        <>
+          That is the full interface. When you select Begin, the assessment starts and
+          this example is replaced by the first recording.
+        </>
+      ),
+    },
+  ];
 }

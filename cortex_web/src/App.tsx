@@ -22,7 +22,6 @@ import { Landing } from "./components/Landing";
 import { Auth } from "./components/Auth";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
-import { Tutorial } from "./components/Tutorial";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
 import { Stage, Card, Heading, Button } from "./components/ui";
@@ -44,6 +43,7 @@ export function App() {
   const [phase, setPhase] = useState<Phase>("landing");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
+  const [tutorialItem, setTutorialItem] = useState<Item | null>(null);
   const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, resolveConf: null });
   const [summary, setSummary] = useState<ResultSummary | null>(null);
   const [msg, setMsg] = useState("");
@@ -63,15 +63,37 @@ export function App() {
     if (api.isAuthed()) void api.flushPendingResults();
   }, [phase]);
 
+  const bundleRef = useRef<Bundle | null>(null);
+
   // ── flow transitions ──────────────────────────────────────────
   const begin = () => setPhase(api.isAuthed() ? "consent" : "auth");
+
+  // Load the bundle and show the in-context tutorial over an IIIC example seg
+  // (the tutorial walks the IIIC UI — spectrogram, red box).
+  const enterTutorial = useCallback(async () => {
+    setPhase("loading");
+    try {
+      const manifest = await api.getManifest();
+      const b = await Bundle.load(manifest.bundleUrl);
+      bundleRef.current = b;
+      setBundle(b);
+      const example = b.inputs.segments.find((s) => (s as { testClass?: string }).testClass !== "spike")
+        ?? b.inputs.segments[0];
+      setTutorialItem({ trialIndex: 0, taskK: 1, segId: example.segId });
+      setPhase("tutorial");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+      setPhase("error");
+    }
+  }, []);
 
   // Launch the assessment: manifest → bundle → fresh sample → session → engine.
   const startTest = useCallback(async () => {
     setPhase("loading");
     try {
       const manifest = await api.getManifest();
-      const b = await Bundle.load(manifest.bundleUrl);
+      const b = bundleRef.current ?? await Bundle.load(manifest.bundleUrl);
+      bundleRef.current = b;
       setBundle(b);
       const { inputs, info } = sampleSession(b.inputs, manifest.sessionSample);
       console.info(
@@ -212,11 +234,18 @@ export function App() {
       return (
         <Registration
           onBack={() => setPhase("consent")}
-          onComplete={(p) => { participantRef.current = p; setPhase("tutorial"); }}
+          onComplete={(p) => { participantRef.current = p; void enterTutorial(); }}
         />
       );
     case "tutorial":
-      return <Tutorial onStart={startTest} onBack={() => setPhase("registration")} />;
+      // In-context tutorial: the real IIIC Viewer on an example segment, with the
+      // coach-marks overlay walking the UI; the overlay's "Begin" → startTest.
+      return bundle && tutorialItem ? (
+        <Viewer bundle={bundle} item={tutorialItem} onAnswer={() => {}}
+          tutorial={{ onFinish: startTest }} />
+      ) : (
+        <Computing note="Loading the tutorial…" />
+      );
     case "loading":
       return <Computing note="Loading the test bank…" />;
     case "computing":
