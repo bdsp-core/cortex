@@ -204,3 +204,33 @@ export async function flushPendingResults(): Promise<string[]> {
   savePending(remaining);
   return delivered;
 }
+
+// ── visualization videos (#8) ─────────────────────────────────────
+// POST the particle-cloud trajectory (binary Float32 t/l/w) + a JSON meta to
+// the backend, which runs the desktop renderers and returns a zip of the 4 MP4s.
+export interface VizPayload {
+  shape: [number, number, number];
+  taskCodes: string[];
+  segIds: number[];
+  trials: unknown[];
+  certificate: unknown;
+  participantName?: string;
+  t: Float32Array;
+  l: Float32Array;
+  w: Float32Array;
+}
+
+export async function requestVideos(p: VizPayload): Promise<Blob> {
+  const { t, l, w, ...meta } = p;
+  const fd = new FormData();
+  fd.append("meta", JSON.stringify(meta));
+  fd.append("t", new Blob([t.buffer as ArrayBuffer]), "t.f32");
+  fd.append("l", new Blob([l.buffer as ArrayBuffer]), "l.f32");
+  fd.append("w", new Blob([w.buffer as ArrayBuffer]), "w.f32");
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/videos`, { method: "POST", body: fd, headers });
+  if (!res.ok) throw new Error(`render failed (${res.status}): ${await res.text().catch(() => "")}`);
+  return res.blob();
+}

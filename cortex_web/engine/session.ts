@@ -9,6 +9,7 @@
 import { EngineInputs, ParticleState, TrialDiag } from "./types";
 import { precomputePrior } from "./prior";
 import { makeState, update, ess, resampleAndRejuvenate, posteriorMeans } from "./particles";
+import { aurocSummary } from "./auroc";
 import { BankArrays, chooseItem, chooseFirstItem, Chosen } from "./choose_item";
 import { AD6Policy } from "./policy";
 import { Rng } from "./rng";
@@ -48,6 +49,12 @@ export interface SessionResult {
   verdicts: string[];
   servedSegIds: number[];
   trials: TrialDiag[];
+  finalAuroc: number[]; // per-task posterior-mean AUROC (final cloud)
+  finalAurocHw: number[]; // per-task (1-α) credible halfwidth
+  // Particle-cloud trajectory for the visualization videos (#8). Flattened
+  // Float32: t/l are [T,N,K] row-major; w is [T,N]. Fed to the desktop
+  // renderers server-side as trajectory.npz (cortex_storage.py schema).
+  traj: { t: Float32Array; l: Float32Array; w: Float32Array; shape: [number, number, number] };
 }
 
 export class WebCortexSession {
@@ -61,6 +68,10 @@ export class WebCortexSession {
   private nPerTask!: number[];
   private trials: TrialDiag[] = [];
   private served: number[] = [];
+  // Per-question particle-cloud snapshots for the visualization videos (#8).
+  private tTraj: Float64Array[] = [];
+  private lTraj: Float64Array[] = [];
+  private wTraj: Float64Array[] = [];
   private proposalScale: number;
   private cb: SessionCallbacks;
   private answerResolver: ((pick: number) => void) | null = null;
@@ -213,6 +224,11 @@ export class WebCortexSession {
       this.served.push(chosen.segId);
       this.remaining.delete(chosen.segId);
       this.nPerTask[chosen.k] += 1;
+      // Snapshot the (post-update) particle cloud for the visualization videos
+      // (mirrors session_controller.py t_traj/l_traj/w_traj capture).
+      this.tTraj.push(this.state.t.slice());
+      this.lTraj.push(this.state.l.slice());
+      this.wTraj.push(this.state.w.slice());
       // update variety-cap streak
       if (chosen.k === lastTaskK) streakCount += 1;
       else { lastTaskK = chosen.k; streakCount = 1; }
@@ -236,6 +252,7 @@ export class WebCortexSession {
         nPerTask: [...this.nPerTask],
         tMean,
         lMean,
+        aurocHw: aurocSummary(this.state.l, this.state.w, this.state.N, K).hw,
       };
       this.trials.push(diag);
       this.cb.onTrial?.(diag);
@@ -247,6 +264,17 @@ export class WebCortexSession {
     }
 
     const verdicts = this.policy.finalize();
+    const { mean: finalAuroc, hw: finalAurocHw } = aurocSummary(
+      this.state.l, this.state.w, this.state.N, K,
+    );
+    // Flatten the snapshots into [T,N,K] (t,l) and [T,N] (w) Float32 buffers.
+    const T = this.tTraj.length, N = this.state.N;
+    const t = new Float32Array(T * N * K), l = new Float32Array(T * N * K), w = new Float32Array(T * N);
+    for (let i = 0; i < T; i++) {
+      t.set(this.tTraj[i], i * N * K);
+      l.set(this.lTraj[i], i * N * K);
+      w.set(this.wTraj[i], i * N);
+    }
     const result: SessionResult = {
       sessionId: this.sessionId,
       nQuestions: this.trials.length,
@@ -254,6 +282,9 @@ export class WebCortexSession {
       verdicts,
       servedSegIds: this.served,
       trials: this.trials,
+      finalAuroc,
+      finalAurocHw,
+      traj: { t, l, w, shape: [T, N, K] },
     };
     this.cb.onDone?.(result);
     return result;

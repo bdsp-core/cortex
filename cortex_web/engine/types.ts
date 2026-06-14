@@ -69,4 +69,5 @@ export interface TrialDiag {
   nPerTask: number[];
   tMean: number[];
   lMean: number[];
+  aurocHw: number[]; // per-task AUROC credible halfwidth (for the collapse video)
 }

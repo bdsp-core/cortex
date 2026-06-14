@@ -13,6 +13,7 @@ import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
 import { SpikeViewer } from "./components/SpikeViewer";
 import { resolutionConfidence, Progress } from "./progress";
+import { empiricalPoint, onCurvePoint } from "./roc";
 import { sampleSession } from "./sampleSession";
 import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
@@ -54,6 +55,7 @@ export function App() {
   const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
+  const vizRef = useRef<api.VizPayload | null>(null); // trajectory for the video zip (#8)
 
   // Retry any results that failed to upload in a previous sitting, as soon as
   // we have a token (crash-safety reconnect, PLAN §8).
@@ -107,6 +109,17 @@ export function App() {
         onDone: async (r) => {
           setPhase("computing");
           const d = lastDiagRef.current;
+          // Per-task ROC: posterior-mean AUROC + the examinee's empirical
+          // operating point projected onto the binormal curve. Spike truth =
+          // sign(s_mean); IIIC truth = segment pattern class.
+          const truth = new Map(inputs.segments.map((s) => [s.segId, s.patternClass]));
+          const words = inputs.taskPatternWords;
+          const roc = (r.finalAuroc ?? []).map((auroc, k) => {
+            const spike = inputs.taskClasses?.[k] === "spike";
+            const emp = empiricalPoint(r.trials, k, words[k], (id) => truth.get(id), spike);
+            const op = emp ? onCurvePoint(auroc, emp[0]) : null;
+            return { auroc, hw: r.finalAurocHw?.[k] ?? 0, opFar: op?.[0] ?? null, opHr: op?.[1] ?? null };
+          });
           const sum: ResultSummary = {
             nQuestions: r.nQuestions,
             stopReason: r.stopReason,
@@ -119,8 +132,24 @@ export function App() {
             taskCodes: inputs.taskCodes,
             taskLabels: inputs.taskLabels,
             taskClasses: inputs.taskClasses,
+            roc,
           };
           setSummary(sum);
+          // Build the visualization-video payload (trajectory + the trial fields
+          // the desktop renderers read) for the optional download (#8).
+          vizRef.current = {
+            shape: r.traj.shape,
+            taskCodes: inputs.taskCodes,
+            segIds: r.servedSegIds,
+            trials: r.trials.map((dd) => ({
+              trial_index: dd.trialIndex, task_k: dd.taskK, task_code: inputs.taskCodes[dd.taskK],
+              response_y: dd.y, s_mean: dd.s, is_correct: null,
+              auroc_hw: dd.aurocHw, policy_diag: { pi: dd.pi, mcse: dd.mcse }, verdicts: dd.verdicts,
+            })),
+            certificate: { stop_reason: r.stopReason, per_task: r.verdicts.map((v) => ({ verdict: v })) },
+            participantName: (participantRef.current as { name?: string } | null)?.name ?? "Anonymous",
+            t: r.traj.t, l: r.traj.l, w: r.traj.w,
+          };
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
           // rather than lost (PLAN §8).
@@ -149,6 +178,21 @@ export function App() {
     lastPickRef.current = pick;
     lastRtRef.current = Math.round(performance.now() - shownAtRef.current);
     clientRef.current?.answer(pick);
+  }, []);
+
+  // Render + download the visualization MP4 zip (#8). Throws on failure so the
+  // Results button can surface it.
+  const downloadVideos = useCallback(async () => {
+    if (!vizRef.current) throw new Error("no session data");
+    const blob = await api.requestVideos(vizRef.current);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cortex_visualizations.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }, []);
 
   // ── render ────────────────────────────────────────────────────
@@ -195,7 +239,7 @@ export function App() {
       );
     }
     case "done":
-      return summary ? <Results summary={summary} /> : <Computing />;
+      return summary ? <Results summary={summary} onDownloadVideos={downloadVideos} /> : <Computing />;
     case "error":
       return (
         <Stage maxW={520}>
