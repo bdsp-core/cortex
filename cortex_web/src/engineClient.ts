@@ -14,6 +14,9 @@ export interface EngineClientHandlers {
     verdicts: string[];
     servedSegIds: number[];
     trials: TrialDiag[];
+    finalAuroc: number[];
+    finalAurocHw: number[];
+    traj: { t: Float32Array; l: Float32Array; w: Float32Array; shape: [number, number, number] };
   }) => void;
   onError?: (message: string) => void;
 }

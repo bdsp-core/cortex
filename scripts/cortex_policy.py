@@ -126,6 +126,12 @@ DEFAULT_ALPHA = 0.05      # v1.3.6: 0.25 -> 0.05, the panel-derived PRODUCTION /
                           # per-domain resolution (sim_v1_3_5/run_bank_size_sweep
                           # + run_v1_3_6_confirm). See cortex-nejm-ai-v1_3_6.
 DEFAULT_Z = 2.0           # MC-error buffer (engine's existing Z_BUFFER)
+# NB (engine-improvement program, 2026-06-10): two Rao-Blackwellized π_k
+# estimators (kernel-smoothed crossing; Gaussian-tail Φ((μ−ℓ*)/sd)) were
+# evaluated as alternatives to the hard indicator below and BOTH REDUCED PASS
+# resolution (the ℓ-posterior is right-skewed for skilled raters; any smoothing
+# understates the tail). The hard indicator is retained — see
+# docs/ENGINE_IMPROVEMENT_RESULTS.md Step-1 and PROJECT_CORPUS.md §14.
 
 
 @dataclass
@@ -278,6 +284,8 @@ class AD6Policy(TerminationPolicy):
         R = np.zeros(K)
         for k in range(K):
             ell_k = L[:, k]
+            mu_k = float((w * ell_k).sum())
+            var_post = float((w * (ell_k - mu_k) ** 2).sum())
             pi_k = float((w * (ell_k > self.ell_star[k])).sum())
             mu_k = float((w * ell_k).sum())
             var_post = float((w * (ell_k - mu_k) ** 2).sum())

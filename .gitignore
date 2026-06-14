@@ -147,3 +147,6 @@ first-test-csv-results/
 # public repo; local bank backups are too large + redundant for git.
 paper/
 data/eeg_bank_pre_*.h5
+
+# NEJM AI Paper-2 simulation suite (design + throwaway sim infra; never vendored)
+paper_sims/

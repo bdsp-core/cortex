@@ -53,6 +53,8 @@ N_MH = 15
 ESS_FRAC = 0.5
 
 _W = {}
+_ELL_STAR_JSON = None   # set in main(); per-pattern DECISION ℓ* override path
+_RATER_BIAS = "zero"    # set in main(); "zero" (true θ=0) | "population" (θ~N(μ_t,Σ_t))
 
 
 def _init_worker():
@@ -67,9 +69,25 @@ def _init_worker():
     base = ein.build_k7_engine_inputs()
     codes = list(base.task_codes)
     ell_star = np.asarray(load_ell_star_k7(codes), float)
+    # Optional per-pattern DECISION ℓ* override (calibration-study path; true
+    # rater skill stays defined by the SHIPPED ell_star). _ELL_STAR_JSON is a
+    # module global set in main() before the pool forks (inherited by workers).
+    decision_ell = np.array(ell_star, dtype=float)
+    if _ELL_STAR_JSON:
+        ov = json.loads(Path(_ELL_STAR_JSON).read_text())
+        decision_ell = np.array([float(ov[c]) for c in codes], dtype=float)
     manifest = json.loads(MANIFEST_PATH.read_text())
+    # SANDBOX (Step-4 EB): load the empirical-Bayes θ-prior if present.
+    eb = None
+    eb_path = REPO / "sandbox_bias_prior" / "eb_prior.json"
+    if eb_path.exists():
+        ebj = json.loads(eb_path.read_text())
+        assert list(ebj["domains"]) == codes
+        eb = {"mu_t": np.asarray(ebj["mu_t"], float),
+              "Sigma_t": np.asarray(ebj["Sigma_t"], float)}
     _W.update(base=base, ein=ein, fetch=fetch, codes=codes, K=len(codes),
-              ell_star=ell_star, manifest=manifest)
+              ell_star=ell_star, decision_ell=decision_ell, manifest=manifest,
+              eb=eb)
 
 
 def _session_inputs(segs):
@@ -111,8 +129,21 @@ def _run_one(task):
                                          per_task=task["per_task"])
     inp, man = _session_inputs(segs)
 
-    true_l = ell + task["offset"]           # offset from each domain's cut
-    true_t = np.zeros(K)
+    # The rater's TRUE skill is defined relative to the ORIGINAL (calibrated)
+    # cut; the ell-offset lever lowers only the DECISION cut used by AD6 (the
+    # §11 "recalibrate ℓ* to achievable expert performance" demonstration).
+    true_l = ell + task["offset"]           # offset from each domain's ORIGINAL cut
+    # Decision cut = per-pattern override (if any, from --ell-star-json) plus a
+    # uniform ell-offset. Defaults to the shipped ell (override absent, offset 0).
+    decision_ell = _W["decision_ell"] + task.get("ell_offset", 0.0)
+    # True examinee bias θ. "zero" (shipped-OC default) = unbiased; "population"
+    # draws θ ~ N(μ_t, Σ_t) — the realistic-bias scenario the EB prior assumes
+    # (Step-4 sandbox: fairly tests the EB θ-prior under matched truth).
+    if _RATER_BIAS == "population" and _W.get("eb") is not None:
+        rng_t = np.random.default_rng(task["seed"] + 303)
+        true_t = rng_t.multivariate_normal(_W["eb"]["mu_t"], _W["eb"]["Sigma_t"])
+    else:
+        true_t = np.zeros(K)
     # Model B truth: s_mean + N(0, s_sd) per (seg, code)
     rng_n = np.random.default_rng(task["seed"] + 101)
     true_sig = {}
@@ -128,13 +159,29 @@ def _run_one(task):
         s_true = true_sig.get((int(seg_id), codes[k]), s)
         return simulate_response(s_true, true_t[k], true_l[k], rng_ans)
 
-    policy = AD6Policy(list(ell), list(np.diag(np.asarray(inp.Corr_l, float))),
+    policy = AD6Policy(list(decision_ell),
+                       list(np.diag(np.asarray(inp.Corr_l, float))),
                        n_min=SHIP["n_min"], R_star=SHIP["R_star"],
                        alpha=task["alpha"], Z=SHIP["Z"])
+    # SANDBOX (Step-4): "empirical_bayes" → full-EB θ-prior via CortexSession
+    # overrides (Σ_t + μ_t); the engine's bias_prior validation stays corr_l|corr_t.
+    bp = task.get("bias_prior", "corr_l")
+    sig_t_ov = t_mean_ov = None
+    cs_bias = bp
+    if bp == "empirical_bayes":
+        eb = _W["eb"]
+        if eb is None:
+            raise RuntimeError("empirical_bayes requested but eb_prior.json absent "
+                               "(run sandbox_bias_prior/build_eb_prior.py)")
+        sig_t_ov, t_mean_ov, cs_bias = eb["Sigma_t"], eb["mu_t"], "corr_l"
     sess = CortexSession(inp, session_id=task["sid"], seed=task["seed"],
                          max_questions=MAX_Q, n_particles=N_PARTICLES,
                          policy=policy, ess_threshold_frac=ESS_FRAC,
-                         n_mh_steps=N_MH, max_consecutive_same_domain=12)
+                         n_mh_steps=N_MH, max_consecutive_same_domain=12,
+                         selection_objective=task.get("selection_objective",
+                                                      "variance"),
+                         bias_prior=cs_bias, sigma_t_override=sig_t_ov,
+                         t_prior_mean=t_mean_ov)
     res = sess.run(y_source)
     verdicts = res.verdicts or ["PENDING"] * K
 
@@ -152,7 +199,8 @@ def _run_one(task):
     return row
 
 
-def build_tasks(npc, seed_base=88000):
+def build_tasks(npc, seed_base=88000, selection_objective="variance",
+                ell_offset=0.0, bias_prior="corr_l"):
     tasks = []
     i = 0
     for alpha in ALPHAS:
@@ -162,6 +210,9 @@ def build_tasks(npc, seed_base=88000):
                     tasks.append({"alpha": alpha, "per_task": per_task,
                                   "offset": offset, "rep": rep,
                                   "seed": seed_base + i,
+                                  "selection_objective": selection_objective,
+                                  "ell_offset": ell_offset,
+                                  "bias_prior": bias_prior,
                                   "sid": f"a{alpha}_pt{per_task}_o{offset:+.2f}_n{rep:04d}"})
                     i += 1
     return tasks
@@ -220,22 +271,93 @@ def main():
     ap.add_argument("--pilot", action="store_true")
     ap.add_argument("--n-per-cell", type=int, default=100)
     ap.add_argument("--procs", type=int, default=max(1, (os.cpu_count() or 2) - 2))
+    # Scope flags (added for the engine-improvement plan): restrict the sweep
+    # to a subset of the alpha / per_task grid to control compute. Defaults
+    # reproduce the original full sweep. e.g. --alphas 0.05 --per-tasks 60
+    ap.add_argument("--alphas", type=str, default=None,
+                    help="comma-separated alpha values (default: full grid)")
+    ap.add_argument("--per-tasks", type=str, default=None,
+                    help="comma-separated per_task values (default: full grid)")
+    ap.add_argument("--n-particles", type=int, default=None,
+                    help="override SMC particle count N (default: 600, shipped)")
+    ap.add_argument("--selection-objective", type=str, default="variance",
+                    choices=("variance", "ell_variance", "decision"),
+                    help="item-selection objective: 'variance' (shipped "
+                         "A-optimal), 'ell_variance' (ℓ-only trace), or "
+                         "'decision' (Step-3 indicator-variance)")
+    ap.add_argument("--ell-offset", type=float, default=0.0,
+                    help="shift ALL decision cut-scores ℓ* by this amount "
+                         "(negative lowers the bar; the §11 recalibration "
+                         "lever). True rater skill is unchanged.")
+    ap.add_argument("--ell-star-json", type=str, default=None,
+                    help="path to a per-pattern DECISION ℓ* override (JSON "
+                         "{task_code: ℓ*}); true rater skill stays on the "
+                         "shipped ℓ*. The calibration-study recalibration path.")
+    ap.add_argument("--bias-prior", type=str, default="corr_l",
+                    choices=("corr_l", "corr_t", "empirical_bayes"),
+                    help="θ-block prior: 'corr_l' (shipped), 'corr_t' (fitted "
+                         "bias corr), or 'empirical_bayes' (SANDBOX: Σ_t + μ_t)")
+    ap.add_argument("--rater-bias", type=str, default="zero",
+                    choices=("zero", "population"),
+                    help="simulated examinee TRUE bias: 'zero' (shipped-OC "
+                         "default) or 'population' θ~N(μ_t,Σ_t) (EB-fair test)")
+    ap.add_argument("--max-q", type=int, default=None,
+                    help="override MAX_Q (default 300; live production = 500)")
     args = ap.parse_args()
+    global _ELL_STAR_JSON, _RATER_BIAS
+    _ELL_STAR_JSON = args.ell_star_json
+    _RATER_BIAS = args.rater_bias
     if not MANIFEST_PATH.exists():
         sys.exit(f"production MANIFEST not found at {MANIFEST_PATH}")
+    global ALPHAS, PER_TASKS, N_PARTICLES, MAX_Q
+    if args.alphas:
+        ALPHAS = tuple(float(a) for a in args.alphas.split(","))
+    if args.per_tasks:
+        PER_TASKS = tuple(int(p) for p in args.per_tasks.split(","))
+    if args.n_particles:
+        N_PARTICLES = int(args.n_particles)
+    if args.max_q:
+        MAX_Q = int(args.max_q)
     npc = 1 if args.pilot else args.n_per_cell
     procs = 1 if args.pilot else args.procs
-    tasks = build_tasks(npc)
+    tasks = build_tasks(npc, selection_objective=args.selection_objective,
+                        ell_offset=args.ell_offset, bias_prior=args.bias_prior)
     print(f"running {len(tasks)} sessions ({len(ALPHAS)} alpha x {len(PER_TASKS)} "
           f"per_task x {len(OFFSETS)} offsets x {npc} reps) on {procs} procs, "
-          f"N={N_PARTICLES}...", flush=True)
+          f"N={N_PARTICLES}, objective={args.selection_objective}, "
+          f"ell_offset={args.ell_offset}, bias_prior={args.bias_prior}, "
+          f"rater_bias={args.rater_bias}, "
+          f"ell_star_json={args.ell_star_json}...", flush=True)
     t0 = time.time()
+    total = len(tasks)
+    rows = []
+
+    def _report(done):
+        el = time.time() - t0
+        rate = el / max(done, 1)
+        eta = rate * (total - done)
+        print(f"  progress {done}/{total} ({100*done/total:.0f}%)  "
+              f"elapsed {el:.0f}s  eta {eta:.0f}s  "
+              f"({1000*rate:.0f} ms/session avg)", flush=True)
+
+    # ~20 progress+ETA updates over the run. imap_unordered yields results as
+    # workers finish; the ETA is optimistic early (fast clear-skill sessions
+    # complete before slow borderline ones) and tightens as the run proceeds.
+    # Row ORDER is not preserved, but analyze()/the CSV are keyed by row fields
+    # (alpha, per_task, offset), so order is irrelevant.
+    step = max(1, total // 20)
     if procs == 1:
         _init_worker()
-        rows = [_run_one(t) for t in tasks]
+        for i, t in enumerate(tasks, 1):
+            rows.append(_run_one(t))
+            if i % step == 0 or i == total:
+                _report(i)
     else:
         with Pool(procs, initializer=_init_worker) as pool:
-            rows = pool.map(_run_one, tasks)
+            for i, row in enumerate(pool.imap_unordered(_run_one, tasks), 1):
+                rows.append(row)
+                if i % step == 0 or i == total:
+                    _report(i)
     dt = time.time() - t0
     print(f"compute done in {dt:.1f}s ({1000*dt/max(len(tasks),1):.1f} ms/session)")
     RESULTS.mkdir(parents=True, exist_ok=True)

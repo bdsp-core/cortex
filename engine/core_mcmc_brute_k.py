@@ -298,7 +298,7 @@ def _coarse_to_fine_argmin(loss_of, n, n_coarse, m_bracket=3):
 
 
 def choose_item_brute_k(states, bank_signals=None, active_domains=None,
-                        n_subsample=None):
+                        n_subsample=None, bank_segids=None):
     """Pick (k, s) globally minimizing expected total posterior variance.
 
     bank_signals: optional list of K arrays (one per domain). If None, uses
@@ -308,12 +308,18 @@ def choose_item_brute_k(states, bank_signals=None, active_domains=None,
                  points + a local full-resolution refine per domain
                  (~5–6× faster; recovers the exact argmin, no n_q bias).
                  None = full grid.
+    bank_segids: optional list of K arrays parallel to bank_signals giving each
+                 candidate's seg_id. When provided, the chosen item's seg_id is
+                 APPENDED to the return → (k, s, seg_id) — parity with
+                 `core_mcmc.choose_item`'s Phase-7 sub-3-C real-rater-lookup
+                 extension. None (default) ⇒ (k, s), BYTE-IDENTICAL to pre-edit.
     """
     K = len(states)
     candidates = bank_signals if bank_signals is not None else [SIGNAL_GRID] * K
     domains = active_domains if active_domains is not None else list(range(K))
     best_loss = np.inf
     best_k, best_s = domains[0], float(np.asarray(candidates[domains[0]])[0])
+    best_segid = -1
     for k in domains:
         sigs = np.asarray(candidates[k])
         idx = _coarse_to_fine_argmin(
@@ -324,10 +330,15 @@ def choose_item_brute_k(states, bank_signals=None, active_domains=None,
             best_loss = loss
             best_k = k
             best_s = float(sigs[idx])
+            if bank_segids is not None:
+                best_segid = int(np.asarray(bank_segids[k])[idx])
+    if bank_segids is not None:
+        return best_k, best_s, best_segid
     return best_k, best_s
 
 
-def random_item_brute_k(states, rng, bank_signals=None, active_domains=None):
+def random_item_brute_k(states, rng, bank_signals=None, active_domains=None,
+                        bank_segids=None):
     """Null baseline: pick (k, s) uniformly at random.
 
     The TRUE base comparison for the Phase-1 ablation — no adaptive item
@@ -335,13 +346,22 @@ def random_item_brute_k(states, rng, bank_signals=None, active_domains=None):
     Uniform(that domain's bank).  Uses the session `rng` so the sequence
     is deterministic and consistent with the parallel-determinism
     guarantee (a worker seeded with `seed` reproduces it bitwise).
+
+    bank_segids: optional list of K arrays parallel to bank_signals; when
+                 given, the chosen seg_id is APPENDED to the return →
+                 (k, s, seg_id). None (default) ⇒ (k, s).  RNG consumption is
+                 IDENTICAL either way (one integers() per draw), so seeding /
+                 bit-reproducibility is unchanged.
     """
     K = len(states)
     candidates = bank_signals if bank_signals is not None else [SIGNAL_GRID] * K
     domains = active_domains if active_domains is not None else list(range(K))
     k = int(domains[rng.integers(0, len(domains))])
     sigs = np.asarray(candidates[k], dtype=float)
-    s = float(sigs[rng.integers(0, len(sigs))])
+    si = int(rng.integers(0, len(sigs)))
+    s = float(sigs[si])
+    if bank_segids is not None:
+        return k, s, int(np.asarray(bank_segids[k])[si])
     return k, s
 
 
@@ -362,6 +382,48 @@ def simulate_response(s, t_true, l_true, rng):
     return int(rng.random() < p)
 
 
+# ── PUB-CLEANUP[estimation-ladder]: posterior read-out (opt-in; paper-sim only) ──
+# These two helpers + the `capture_posterior`/`y_source`/`bank_segids` kwargs on
+# run_session_mcmc_brute_k (and the seg_id threading in choose_item_brute_k /
+# random_item_brute_k) exist ONLY to support the random→brute→hier estimation
+# ablation (NEJM-AI Paper-2). The shipped CORTEX app never calls this driver.
+# Strip or guard before the public paper-code release — see
+# docs/PUBLICATION_CODE_CLEANUP.md (grep "PUB-CLEANUP[estimation-ladder]").
+
+def _wquantile(values, weights, q):
+    """Weighted quantile via linear interpolation on the weighted CDF.
+
+    Mirrors `core.weighted_quantile` (kept local to avoid an import).
+    """
+    order = np.argsort(values)
+    cw = np.cumsum(weights[order])
+    cw /= cw[-1]
+    return float(np.interp(q, cw, values[order]))
+
+
+def _posterior_summary_brute_k(states):
+    """Per-task weighted posterior mean/SD/central-95% interval of (ℓ, θ).
+
+    Returns 8 arrays of shape (K,): mean_l, sd_l, q025_l, q975_l, then the
+    θ analogues. Used only when `capture_posterior=True`; the K independent
+    clouds each contribute their own marginal (no pooling — by construction).
+    """
+    K = len(states)
+    ml = np.empty(K); sl = np.empty(K); q025l = np.empty(K); q975l = np.empty(K)
+    mt = np.empty(K); st = np.empty(K); q025t = np.empty(K); q975t = np.empty(K)
+    for k in range(K):
+        w = states[k]["w"]
+        w = w / w.sum()
+        l = states[k]["l"]; t = states[k]["t"]
+        ml[k] = float((w * l).sum())
+        sl[k] = float(np.sqrt(max((w * (l - ml[k]) ** 2).sum(), 0.0)))
+        mt[k] = float((w * t).sum())
+        st[k] = float(np.sqrt(max((w * (t - mt[k]) ** 2).sum(), 0.0)))
+        q025l[k] = _wquantile(l, w, 0.025); q975l[k] = _wquantile(l, w, 0.975)
+        q025t[k] = _wquantile(t, w, 0.025); q975t[k] = _wquantile(t, w, 0.975)
+    return ml, sl, q025l, q975l, mt, st, q025t, q975t
+
+
 # ───────────── session driver ─────────────
 
 def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
@@ -370,7 +432,9 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
                               n_mh_steps=15, proposal_scale=1.5,
                               ess_threshold_frac=0.5,
                               bank_signals=None, select="ev",
-                              n_subsample=None):
+                              n_subsample=None,
+                              bank_segids=None, y_source=None,
+                              capture_posterior=False):
     """Methodology-compliant brute force session with MCMC-rejuvenation SMC.
 
     Args:
@@ -385,6 +449,19 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
               true null baseline; same independent posterior, no adaptive
               selection).  `method="random"` in `run_session_mcmc_auroc`
               forwards here with select="random".
+      bank_segids: optional list of K arrays parallel to bank_signals giving
+              each candidate's seg_id.  Brings this path to parity with
+              `core_mcmc.run_session_mcmc_auroc`'s hier real-rater-lookup
+              interface — when given, the chosen seg_id is passed to `y_source`.
+              None (default) ⇒ unchanged.
+      y_source: optional callable `y_source(k, seg_id, s) → int Y ∈ {0,1}` used
+              to obtain the response instead of the default `simulate_response`
+              draw at true_params.  Mirrors `core_mcmc.run_session_mcmc_auroc`.
+              None (default) ⇒ BYTE-IDENTICAL Bernoulli draw at true_params.
+      capture_posterior: if True, record per-question weighted posterior
+              mean/sd/central-95% interval of (ℓ, θ) per task into the output
+              (`mean_l_traj`/`sd_l_traj`/`q025_l_traj`/`q975_l_traj` + `_t_`
+              analogues, shape (n_q+1, K)).  Off (default) ⇒ output unchanged.
 
     Returns dict matching `core_mcmc.run_session_mcmc_auroc`'s output (same keys).
     The `method` key in the returned dict reflects `select`.
@@ -401,19 +478,33 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
     lo, hi = auroc_ci_brute_k(states, alpha)
     if log_trajectory:
         los, his = [lo.copy()], [hi.copy()]
+    if capture_posterior:
+        ml, sl, q025l, q975l, mt, st, q025t, q975t = _posterior_summary_brute_k(states)
+        pml, psl, pq025l, pq975l = [ml], [sl], [q025l], [q975l]
+        pmt, pst, pq025t, pq975t = [mt], [st], [q025t], [q975t]
     n_q = 0
     stop_step = None
     accept_rates = []
 
     for q in range(max_q):
         if select == "random":
-            k, s = random_item_brute_k(states, rng, bank_signals)
+            sel = random_item_brute_k(states, rng, bank_signals,
+                                      bank_segids=bank_segids)
         else:
-            k, s = choose_item_brute_k(states, bank_signals,
-                                       n_subsample=n_subsample)
-        t_true = true_params[k * 2]
-        l_true = true_params[k * 2 + 1]
-        y = simulate_response(s, t_true, l_true, rng)
+            sel = choose_item_brute_k(states, bank_signals,
+                                      n_subsample=n_subsample,
+                                      bank_segids=bank_segids)
+        if bank_segids is not None:
+            k, s, seg_id = sel
+        else:
+            k, s = sel
+            seg_id = None
+        if y_source is None:
+            t_true = true_params[k * 2]
+            l_true = true_params[k * 2 + 1]
+            y = simulate_response(s, t_true, l_true, rng)
+        else:
+            y = int(y_source(k, seg_id, s))
         update_brute_k(states, k, s, y)
         if ess(states[k]["w"]) < ess_threshold_frac * N:
             ar = resample_and_rejuvenate_2d(states[k], rng, n_mh_steps, proposal_scale)
@@ -423,6 +514,10 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
         if log_trajectory:
             los.append(lo.copy())
             his.append(hi.copy())
+        if capture_posterior:
+            ml, sl, q025l, q975l, mt, st, q025t, q975t = _posterior_summary_brute_k(states)
+            pml.append(ml); psl.append(sl); pq025l.append(q025l); pq975l.append(q975l)
+            pmt.append(mt); pst.append(st); pq025t.append(q025t); pq975t.append(q975t)
         if stop_step is None:
             hw = (hi - lo) / 2.0
             if np.max(hw) < delta_auroc:
@@ -444,6 +539,11 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
     if log_trajectory:
         out["lo_traj"] = np.array(los)
         out["hi_traj"] = np.array(his)
+    if capture_posterior:
+        out["mean_l_traj"] = np.array(pml); out["sd_l_traj"] = np.array(psl)
+        out["q025_l_traj"] = np.array(pq025l); out["q975_l_traj"] = np.array(pq975l)
+        out["mean_t_traj"] = np.array(pmt); out["sd_t_traj"] = np.array(pst)
+        out["q025_t_traj"] = np.array(pq025t); out["q975_t_traj"] = np.array(pq975t)
     return out
 
 

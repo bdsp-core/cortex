@@ -94,10 +94,13 @@ export interface Chosen {
   loss: number;
 }
 
-// Global argmin over all tasks × remaining candidates.
-export function chooseItem(st: ParticleState, bank: BankArrays): Chosen {
+// Global argmin over the ACTIVE tasks × their remaining candidates. `active`
+// restricts which task indices are considered (spike-first sectioning passes
+// [0]; otherwise all unresolved tasks with a non-empty bank). Defaults to all.
+export function chooseItem(st: ParticleState, bank: BankArrays, active?: number[]): Chosen {
+  const tasks = active ?? Array.from({ length: st.K }, (_, k) => k);
   let best: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
-  for (let k = 0; k < st.K; k++) {
+  for (const k of tasks) {
     const sigs = bank.sMean[k];
     const sds = bank.sSd[k];
     const ids = bank.segId[k];
@@ -118,9 +121,11 @@ export function chooseFirstItem(
   bank: BankArrays,
   topN: number,
   rng: { int: (n: number) => number },
+  active?: number[],
 ): Chosen {
+  const tasks = active ?? Array.from({ length: st.K }, (_, k) => k);
   const scored: Chosen[] = [];
-  for (let k = 0; k < st.K; k++) {
+  for (const k of tasks) {
     const sigs = bank.sMean[k];
     for (let i = 0; i < sigs.length; i++) {
       scored.push({

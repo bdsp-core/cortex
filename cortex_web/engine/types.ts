@@ -2,9 +2,15 @@
 
 export interface SegmentMeta {
   segId: number;
-  patternClass: string; // "seizure" | "lpd" | "gpd" | "lrda" | "grda" | "other"
-  sMean: number[]; // length K, per-task signal mean
-  sSd: number[]; // length K, per-task signal posterior SD
+  family?: string; // "iiic" | "spike" (display only; the engine gates on NaN sMean)
+  patternClass: string; // "seizure" | "lpd" | … | "spike"
+  // length K, per-task signal mean/SD. The slot for a task this segment is NOT
+  // a candidate for is NaN (spike seg → [val, NaN×6]; IIIC → [NaN, 6 vals]).
+  // Bundle.load converts the manifest's JSON `null`s to NaN; the engine
+  // family-gates the per-task candidate banks on isNaN (mirrors the desktop
+  // cortex_engine_inputs_k7.as_engine_arrays NaN masking).
+  sMean: number[];
+  sSd: number[];
   fsHz: number;
   nCh: number;
   nSamp: number;
@@ -58,4 +64,5 @@ export interface TrialDiag {
   nPerTask: number[];
   tMean: number[];
   lMean: number[];
+  aurocHw: number[]; // per-task AUROC credible halfwidth (for the collapse video)
 }

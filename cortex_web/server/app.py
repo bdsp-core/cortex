@@ -23,17 +23,23 @@ or  python -m server.run
 """
 from __future__ import annotations
 
+import json
 import os
 import secrets
+import shutil
+import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from . import security
 from .db import Database
@@ -98,16 +104,23 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ── auth dependencies ──────────────────────────────────────
+    # ── identity (auth removed) ─────────────────────────────────
+    # The username/password gate was removed: the test is open. We keep an
+    # anonymous identity so session/result rows still persist (and the
+    # sessions.code → participants(code) FK is satisfied). If a Bearer token is
+    # present it's still honored (back-compat), else everyone is ANON_CODE.
+    ANON_CODE = "anon"
+    if db.get_participant(ANON_CODE) is None:
+        db.add_participant(ANON_CODE, security.hash_password(secrets.token_urlsafe(12)), "anonymous")
+
     def require_auth(authorization: str = Header(default="")) -> str:
-        if not authorization.lower().startswith("bearer "):
-            raise HTTPException(401, "missing bearer token")
-        token = authorization[7:].strip()
-        try:
-            claims = security.decode_token(token)
-        except security.TokenError as e:
-            raise HTTPException(401, f"invalid token: {e}")
-        return claims["sub"]
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+            try:
+                return security.decode_token(token)["sub"]
+            except security.TokenError:
+                pass
+        return ANON_CODE
 
     def require_admin(x_admin_token: str = Header(default="")) -> bool:
         expected = os.environ.get("CORTEX_ADMIN_TOKEN")
@@ -163,6 +176,61 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         db.store_result(body.sessionId, body.result)
         db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
         return {"ok": True}
+
+    # ── visualization videos (#8) ───────────────────────────────
+    # The browser posts the particle-cloud trajectory (t/l/w Float32 blobs +
+    # a JSON meta) captured during the session; we reconstruct the desktop
+    # session-dir schema (trajectory.npz + trials.jsonl + certificate.json) and
+    # run the EXACT desktop renderers (scripts/cortex_render_videos.py +
+    # render_engine_explainer.py), then stream back a zip of the 4 MP4s.
+    @app.post("/api/videos")
+    async def videos(meta: str = Form(...), t: UploadFile = File(...),
+                     l: UploadFile = File(...), w: UploadFile = File(...)):
+        try:
+            import numpy as np
+        except Exception as e:  # heavy render deps are optional at boot
+            raise HTTPException(503, f"render deps unavailable: {e}")
+        info = json.loads(meta)
+        T, N, K = (int(x) for x in info["shape"])
+        tb = np.frombuffer(await t.read(), dtype="<f4").reshape(T, N, K).astype(np.float64)
+        lb = np.frombuffer(await l.read(), dtype="<f4").reshape(T, N, K).astype(np.float64)
+        wb = np.frombuffer(await w.read(), dtype="<f4").reshape(T, N).astype(np.float64)
+
+        sd = Path(tempfile.mkdtemp(prefix="cortex_viz_"))
+        np.savez_compressed(
+            sd / "trajectory.npz", t_traj=tb, l_traj=lb, w_traj=wb,
+            task_codes=np.array(list(info["taskCodes"])),
+            seg_ids=np.array(list(info["segIds"]), dtype=np.int64),
+            delta_auroc=np.float64("nan"), n_questions=int(T))
+        with open(sd / "trials.jsonl", "w") as fh:
+            for tr in info["trials"]:
+                fh.write(json.dumps(tr) + "\n")
+        (sd / "certificate.json").write_text(json.dumps(info["certificate"]))
+        (sd / "participant.json").write_text(
+            json.dumps({"identity": {"name": info.get("participantName", "Anonymous")}}))
+
+        def _render():
+            scripts = str((WEB_ROOT.parent / "scripts").resolve())
+            if scripts not in sys.path:
+                sys.path.insert(0, scripts)
+            from cortex_render_videos import render_all
+            from render_engine_explainer import render_engine_explainer
+            outs = list(render_all(sd).values()) + [render_engine_explainer(sd)]
+            zpath = sd / "cortex_visualizations.zip"
+            import zipfile
+            with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+                for p in outs:
+                    z.write(p, arcname=Path(p).name)
+            return zpath
+
+        try:
+            zpath = await run_in_threadpool(_render)
+        except Exception as e:
+            shutil.rmtree(sd, ignore_errors=True)
+            raise HTTPException(500, f"render failed: {e}")
+        return FileResponse(
+            zpath, media_type="application/zip", filename="cortex_visualizations.zip",
+            background=BackgroundTask(shutil.rmtree, sd, True))
 
     # ── admin ───────────────────────────────────────────────────
     @app.get("/api/admin/participants")

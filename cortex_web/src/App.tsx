@@ -11,16 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bundle } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
-import { resolutionConfidence, Progress } from "./progress";
+import { empiricalPoint, onCurvePoint } from "./roc";
 import { sampleSession } from "./sampleSession";
-import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { Landing } from "./components/Landing";
-import { Login } from "./components/Login";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
-import { Tutorial } from "./components/Tutorial";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
 import { Stage, Card, Heading, Button } from "./components/ui";
@@ -28,7 +25,6 @@ import { COLORS } from "../ui/theme";
 
 type Phase =
   | "landing"
-  | "login"
   | "consent"
   | "registration"
   | "tutorial"
@@ -42,7 +38,7 @@ export function App() {
   const [phase, setPhase] = useState<Phase>("landing");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
-  const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, resolveConf: null });
+  const [tutorialItem, setTutorialItem] = useState<Item | null>(null);
   const [summary, setSummary] = useState<ResultSummary | null>(null);
   const [msg, setMsg] = useState("");
 
@@ -53,22 +49,46 @@ export function App() {
   const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
+  const vizRef = useRef<api.VizPayload | null>(null); // trajectory for the video zip (#8)
 
-  // Retry any results that failed to upload in a previous sitting, as soon as
-  // we have a token (crash-safety reconnect, PLAN §8).
+  // Retry any results that failed to upload in a previous sitting (crash-safety
+  // reconnect, PLAN §8). Auth was removed, so this runs unconditionally.
   useEffect(() => {
-    if (api.isAuthed()) void api.flushPendingResults();
+    void api.flushPendingResults();
   }, [phase]);
 
+  const bundleRef = useRef<Bundle | null>(null);
+
   // ── flow transitions ──────────────────────────────────────────
-  const begin = () => setPhase(api.isAuthed() ? "consent" : "login");
+  // Auth removed: Begin goes straight to consent (no login screen).
+  const begin = () => setPhase("consent");
+
+  // Load the bundle and show the in-context tutorial over an example segment.
+  const enterTutorial = useCallback(async () => {
+    setPhase("loading");
+    try {
+      const manifest = await api.getManifest();
+      const b = await Bundle.load(manifest.bundleUrl);
+      bundleRef.current = b;
+      setBundle(b);
+      // The tutorial walks the IIIC UI (spectrogram, red box), so pick an IIIC
+      // example segment, not a spike one.
+      const example = b.inputs.segments.find((s) => s.family === "iiic") ?? b.inputs.segments[0];
+      setTutorialItem({ trialIndex: 0, taskK: 1, segId: example.segId });
+      setPhase("tutorial");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+      setPhase("error");
+    }
+  }, []);
 
   // Launch the assessment: manifest → bundle → fresh sample → session → engine.
   const startTest = useCallback(async () => {
     setPhase("loading");
     try {
       const manifest = await api.getManifest();
-      const b = await Bundle.load(manifest.bundleUrl);
+      const b = bundleRef.current ?? await Bundle.load(manifest.bundleUrl);
+      bundleRef.current = b;
       setBundle(b);
       const { inputs, info } = sampleSession(b.inputs, manifest.sessionSample);
       console.info(
@@ -80,9 +100,6 @@ export function App() {
       );
       sessionIdRef.current = sessionId;
 
-      const maxQ = Math.min(MAX_QUESTIONS, inputs.segments.length);
-      setProgress({ answered: 0, maxQ, resolveConf: null });
-
       const client = new EngineClient({
         onItem: (it) => {
           shownAtRef.current = performance.now();
@@ -90,8 +107,6 @@ export function App() {
         },
         onTrial: (diag: TrialDiag) => {
           lastDiagRef.current = diag;
-          const answered = diag.nPerTask.reduce((a, n) => a + n, 0);
-          setProgress({ answered, maxQ, resolveConf: resolutionConfidence(diag) });
           // crash-safe per-trial checkpoint (fire-and-forget)
           api.postProgress(sessionId, {
             trialIndex: diag.trialIndex,
@@ -106,15 +121,42 @@ export function App() {
         onDone: async (r) => {
           setPhase("computing");
           const d = lastDiagRef.current;
+          // Per-task ROC: posterior-mean AUROC + the examinee's empirical
+          // operating point projected onto the binormal curve (desktop parity).
+          const truth = new Map(b.inputs.segments.map((s) => [s.segId, s.patternClass]));
+          const words = b.inputs.taskPatternWords;
+          const roc = (r.finalAuroc ?? []).map((auroc, k) => {
+            const spike = words[k] === "spike";
+            const emp = empiricalPoint(r.trials, k, words[k], (id) => truth.get(id), spike);
+            const op = emp ? onCurvePoint(auroc, emp[0]) : null;
+            return { auroc, hw: r.finalAurocHw?.[k] ?? 0, opFar: op?.[0] ?? null, opHr: op?.[1] ?? null };
+          });
           const sum: ResultSummary = {
             nQuestions: r.nQuestions,
             stopReason: r.stopReason,
             verdicts: r.verdicts,
+            taskLabels: b.inputs.taskLabels,
             pi: d?.pi,
             R: d?.R,
             nPerTask: d?.nPerTask,
+            roc,
           };
           setSummary(sum);
+          // Build the visualization-video payload (trajectory + the trial fields
+          // the desktop renderers read) for the optional download (#8).
+          vizRef.current = {
+            shape: r.traj.shape,
+            taskCodes: b.inputs.taskCodes,
+            segIds: r.servedSegIds,
+            trials: r.trials.map((dd) => ({
+              trial_index: dd.trialIndex, task_k: dd.taskK, task_code: b.inputs.taskCodes[dd.taskK],
+              response_y: dd.y, s_mean: dd.s, is_correct: null,
+              auroc_hw: dd.aurocHw, policy_diag: { pi: dd.pi, mcse: dd.mcse }, verdicts: dd.verdicts,
+            })),
+            certificate: { stop_reason: r.stopReason, per_task: r.verdicts.map((v) => ({ verdict: v })) },
+            participantName: (participantRef.current as { name?: string } | null)?.name ?? "Anonymous",
+            t: r.traj.t, l: r.traj.l, w: r.traj.w,
+          };
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
           // rather than lost (PLAN §8).
@@ -145,12 +187,25 @@ export function App() {
     clientRef.current?.answer(pick);
   }, []);
 
+  // Render + download the visualization MP4 zip (#8). Throws on failure so the
+  // Results button can surface it.
+  const downloadVideos = useCallback(async () => {
+    if (!vizRef.current) throw new Error("no session data");
+    const blob = await api.requestVideos(vizRef.current);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cortex_visualizations.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
   // ── render ────────────────────────────────────────────────────
   switch (phase) {
     case "landing":
       return <Landing onBegin={begin} />;
-    case "login":
-      return <Login onAuthed={() => setPhase("consent")} onBack={() => setPhase("landing")} />;
     case "consent":
       return (
         <Consent
@@ -162,21 +217,32 @@ export function App() {
       return (
         <Registration
           onBack={() => setPhase("consent")}
-          onComplete={(p) => { participantRef.current = p; setPhase("tutorial"); }}
+          onComplete={(p) => { participantRef.current = p; void enterTutorial(); }}
         />
       );
     case "tutorial":
-      return <Tutorial onStart={startTest} onBack={() => setPhase("registration")} />;
+      // In-context tutorial: the real Viewer on an example segment, with the
+      // coach-marks overlay walking the UI; the overlay's "Begin" → startTest.
+      return bundle && tutorialItem ? (
+        <Viewer
+          bundle={bundle}
+          item={tutorialItem}
+          onAnswer={() => {}}
+          tutorial={{ onFinish: startTest }}
+        />
+      ) : (
+        <Computing note="Loading the tutorial…" />
+      );
     case "loading":
       return <Computing note="Loading the test bank…" />;
     case "computing":
       return <Computing note="Computing your results…" />;
     case "running":
       return (
-        <Viewer bundle={bundle!} item={item} progress={progress} onAnswer={onAnswer} />
+        <Viewer bundle={bundle!} item={item} onAnswer={onAnswer} />
       );
     case "done":
-      return summary ? <Results summary={summary} /> : <Computing />;
+      return summary ? <Results summary={summary} onDownloadVideos={downloadVideos} /> : <Computing />;
     case "error":
       return (
         <Stage maxW={520}>

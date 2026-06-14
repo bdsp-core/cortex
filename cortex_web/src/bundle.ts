@@ -15,6 +15,8 @@ export interface BundleManifest extends EngineInputs {
   nSegments: number;
   segments: (EngineInputs["segments"][number] & {
     specShape: number[] | null;
+    specTime: number[] | null; // [t0,t1] seconds — spectrogram x-axis extent
+    specFreq: number[] | null; // [f0,f1] Hz      — spectrogram y-axis extent
   })[];
 }
 
@@ -23,8 +25,9 @@ export interface SegmentData {
   nCh: number;
   nSamp: number;
   fsHz: number;
+  family: string; // "iiic" | "spike"
   channelNames: string[];
-  spec: { data: Uint8Array; shape: number[] } | null;
+  spec: { data: Uint8Array; shape: number[]; time: number[] | null; freq: number[] | null } | null;
 }
 
 export class Bundle {
@@ -39,6 +42,12 @@ export class Bundle {
 
   static async load(base: string): Promise<Bundle> {
     const manifest = (await (await fetch(`${base}/manifest.json`)).json()) as BundleManifest;
+    // JSON can't carry NaN, so cross-family signal slots arrive as `null`;
+    // convert to NaN here so the engine's isNaN family-gating works.
+    for (const s of manifest.segments) {
+      s.sMean = s.sMean.map((v) => (v == null ? NaN : v));
+      s.sSd = s.sSd.map((v) => (v == null ? NaN : v));
+    }
     return new Bundle(base, manifest);
   }
 
@@ -70,7 +79,12 @@ export class Bundle {
     let spec: SegmentData["spec"] = null;
     if (meta.spec) {
       const sBuf = await cachedArrayBuffer(`${this.base}/${meta.spec}`, `${ver}/${meta.spec}`);
-      spec = { data: new Uint8Array(sBuf), shape: meta.specShape ?? [] };
+      spec = {
+        data: new Uint8Array(sBuf),
+        shape: meta.specShape ?? [],
+        time: meta.specTime ?? null,
+        freq: meta.specFreq ?? null,
+      };
     }
 
     const data: SegmentData = {
@@ -78,6 +92,7 @@ export class Bundle {
       nCh: meta.nCh,
       nSamp: meta.nSamp,
       fsHz: meta.fsHz,
+      family: meta.family ?? "iiic",
       channelNames: meta.channelNames,
       spec,
     };

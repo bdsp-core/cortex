@@ -69,6 +69,12 @@ build_iiic_engine_inputs = build_k7_engine_inputs   # back-compat alias
 default_policy_for = default_policy_for_k7          # back-compat alias
 
 # ── engine hyperparameters (the methodology config — viz_smc_collapse.py) ──
+# STAGED (Eli 2026-06-10, NOT YET ACTIVE): bump to 1200 at the POST-PILOT
+# production re-freeze. N=600 mildly under-covers (95% CI 0.932); N=1200 restores
+# nominal (0.946) at fine GUI latency (p95 0.86s) — see docs/ENGINE_IMPROVEMENT_
+# RESULTS.md Step 2 + docs/POST_PILOT_PRODUCTION_INSTRUMENT.md. Kept at 600 NOW so
+# the in-flight tiered pilot cohort stays on a bit-identical instrument
+# (instrument_freeze pins n_particles=600). Flipping it = a new instrument freeze.
 N_PARTICLES = 600
 # v1.1.0: live-test hard cap. Independent of bank size so a future
 # bank expansion (500/1000 segs) doesn't implicitly lengthen the test.
@@ -195,7 +201,10 @@ class CortexSession:
                  policy=None, capture_clouds=False,
                  first_item_topn=FIRST_ITEM_TOPN,
                  max_consecutive_same_domain=None,
-                 extended_data_collection=False):
+                 extended_data_collection=False,
+                 selection_objective="variance",
+                 bias_prior="corr_l",
+                 sigma_t_override=None, t_prior_mean=None):
         self.inputs = inputs
         self.session_id = str(session_id)
         self.N = int(n_particles)
@@ -211,6 +220,33 @@ class CortexSession:
         if selection not in ("adaptive", "random"):
             raise ValueError(f"selection must be adaptive|random, got {selection!r}")
         self.selection = selection
+        # engine-improvement Step 3: item-selection objective.
+        #   "variance"     — A-optimal Σ Var(θ)+Σ Var(ℓ) (SHIPPED default;
+        #                    byte-identical to pre-Step-3).
+        #   "ell_variance" — ℓ-only trace Σ Var(ℓ): drops the nuisance bias
+        #                    block so the budget tightens the certified skill.
+        #   "decision"     — minimise expected Σ π_k(1−π_k) over still-PENDING
+        #                    tasks. Requires a policy exposing `ell_star`. NB
+        #                    rejected (π=0.5 barrier) — see ENGINE_IMPROVEMENT_
+        #                    RESULTS.md; kept selectable for the record.
+        if selection_objective not in ("variance", "ell_variance", "decision"):
+            raise ValueError(
+                f"selection_objective must be variance|ell_variance|decision, "
+                f"got {selection_objective!r}")
+        self.selection_objective = selection_objective
+        # Step 4: θ-block prior structure (see run()). "corr_l" = shipped.
+        if bias_prior not in ("corr_l", "corr_t"):
+            raise ValueError(
+                f"bias_prior must be corr_l|corr_t, got {bias_prior!r}")
+        self.bias_prior = bias_prior
+        # Step 4 (SANDBOX, empirical-Bayes test): explicit θ-block covariance +
+        # prior mean. Both default None ⇒ the engine's zero-mean unit/corr path
+        # (BYTE-IDENTICAL). The caller (sandbox harness) supplies the fitted
+        # Σ_t + population μ_t; the engine stays data-agnostic.
+        self._sigma_t_override = (None if sigma_t_override is None
+                                  else np.asarray(sigma_t_override, dtype=float))
+        self._t_prior_mean = (None if t_prior_mean is None
+                              else np.asarray(t_prior_mean, dtype=float))
         if seed is None:
             seed = int(hashlib.sha256(self.session_id.encode()).hexdigest()[:8], 16)
         self.seed = int(seed)
@@ -319,10 +355,31 @@ class CortexSession:
                     state, bank_signals, bank_sds, bank_segids, rng,
                     active_domains=active_domains)
             else:
+                # Step 3: select the item-selection objective. "variance"
+                # (default) ⇒ engine A-optimal, byte-identical. "ell_variance"
+                # ⇒ ℓ-only trace. "decision" ⇒ needs the policy cut-scores +
+                # the still-PENDING task set (scored over every open verdict,
+                # not just the spike-first active set).
+                objective = self.selection_objective
+                ell_star = None
+                decision_tasks = None
+                if objective == "decision":
+                    ell_star = getattr(self.policy, "ell_star", None)
+                    if ell_star is None:          # policy has no cut-scores
+                        objective = "variance"
+                    else:
+                        verdicts = getattr(self.policy, "_verdicts", None)
+                        decision_tasks = (
+                            [k for k in range(self.K) if verdicts[k] == PENDING]
+                            if verdicts is not None else list(range(self.K)))
+                        if not decision_tasks:    # all resolved → score all
+                            decision_tasks = list(range(self.K))
                 k, s, s_sd, seg_id = choose_item(
                     state, bank_signals, bank_sds=bank_sds,
                     active_domains=active_domains,
-                    return_sd=True, bank_segids=bank_segids)
+                    return_sd=True, bank_segids=bank_segids,
+                    objective=objective, ell_star=ell_star,
+                    decision_tasks=decision_tasks)
         else:  # random null baseline — the Phase-1 ablation comparator
             seg_id = int(rng.choice(remaining))
             k = int(rng.integers(self.K))
@@ -388,8 +445,20 @@ class CortexSession:
         """
         rng = np.random.default_rng(self.seed)
         inp = self.inputs
+        # Step 4 (engine-improvement): θ-block prior. "corr_l" (SHIPPED default,
+        # byte-identical) reuses the SKILL correlation; "corr_t" uses the fitted
+        # BIAS correlation the inputs already carry (`inp.Corr_t`) but the
+        # shipped wiring ignores. Both are unit-diagonal (zero-mean, unit-var);
+        # only the off-diagonal pooling structure differs.
+        if self._sigma_t_override is not None:       # sandbox EB path
+            sigma_t = self._sigma_t_override
+        elif self.bias_prior == "corr_t":
+            sigma_t = inp.Corr_t
+        else:
+            sigma_t = inp.Corr_l
         state = make_state_hier(self.N, self.K, R_ASSUMED, rng,
-                                Sigma_l=inp.Corr_l, Sigma_t=inp.Corr_l)
+                                Sigma_l=inp.Corr_l, Sigma_t=sigma_t,
+                                t_prior_mean=self._t_prior_mean)
         remaining = list(inp.all_seg_ids)
         trials, served = [], []
         t_traj, l_traj, w_traj = [], [], []

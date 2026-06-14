@@ -164,26 +164,30 @@ def _precompute_prior_pieces(Sigma_l, Sigma_t, K):
     }
 
 
-def log_prior_hier(t, l, r, K, Sigma_l=None, Sigma_t=None, _pieces=None, l_prior_mean=None):
+def log_prior_hier(t, l, r, K, Sigma_l=None, Sigma_t=None, _pieces=None,
+                   l_prior_mean=None, t_prior_mean=None):
     """log p(t, l) under hierarchical prior.
 
     FIX-T1.6: now supports an unstructured Sigma_l (and Sigma_t).  Backward-
     compat: if Sigma_l is None, falls back to compound-symmetry Sigma = (1-r) I + r J.
     FIX-T1.8: l_prior_mean shifts the l block; evaluates log N(l | l_prior_mean, Sigma_l).
+    Step-4 (sandbox): t_prior_mean shifts the t (bias) block symmetrically;
+    None ⇒ zero-mean (BYTE-IDENTICAL to pre-Step-4).
 
     t, l shape (N, K).  Returns shape (N,) (up to a constant that cancels in the
     Metropolis ratio).
     """
     l_c = l if l_prior_mean is None else (l - np.asarray(l_prior_mean, dtype=float))
+    t_c = t if t_prior_mean is None else (t - np.asarray(t_prior_mean, dtype=float))
     if _pieces is not None:
-        return _log_mvn_zero_mean(t, _pieces["Sigma_t_inv"], _pieces["log_det_t"]) + \
+        return _log_mvn_zero_mean(t_c, _pieces["Sigma_t_inv"], _pieces["log_det_t"]) + \
                _log_mvn_zero_mean(l_c, _pieces["Sigma_l_inv"], _pieces["log_det_l"])
     if Sigma_l is None:
         Sigma_l = _compound_symmetry_cov(r, K)
     if Sigma_t is None:
         Sigma_t = Sigma_l  # historically Sigma_t = Sigma_l under symmetry
     pieces = _precompute_prior_pieces(Sigma_l, Sigma_t, K)
-    return _log_mvn_zero_mean(t, pieces["Sigma_t_inv"], pieces["log_det_t"]) + \
+    return _log_mvn_zero_mean(t_c, pieces["Sigma_t_inv"], pieces["log_det_t"]) + \
            _log_mvn_zero_mean(l_c, pieces["Sigma_l_inv"], pieces["log_det_l"])
 
 
@@ -244,13 +248,16 @@ def _log_lik_history(t, l, history, history_s_sd=None):
 
 # ───────────── prior sampling ─────────────
 
-def sample_prior_hier_K(N, K, r, rng, Sigma_l=None, Sigma_t=None, _pieces=None, l_prior_mean=None):
+def sample_prior_hier_K(N, K, r, rng, Sigma_l=None, Sigma_t=None, _pieces=None,
+                        l_prior_mean=None, t_prior_mean=None):
     """Sample from the hierarchical prior. Returns t, l of shape (N, K).
 
     FIX-T1.6: when Sigma_l (and/or Sigma_t) is provided, samples from
     N(0, Sigma) for each block via Cholesky.  Falls back to compound-symmetry
     Sigma = (1-r) I + r J when Sigma_l is None.
     FIX-T1.8: l_prior_mean shifts the l block to N(l_prior_mean, Sigma_l).
+    Step-4 (sandbox): t_prior_mean shifts the t block to N(t_prior_mean, Sigma_t);
+    None ⇒ zero-mean (BYTE-IDENTICAL).
     """
     if _pieces is not None:
         eps_t = rng.standard_normal((N, K))
@@ -277,6 +284,8 @@ def sample_prior_hier_K(N, K, r, rng, Sigma_l=None, Sigma_t=None, _pieces=None, 
         l = eps_l @ pieces["L_l"].T
     if l_prior_mean is not None:
         l = l + np.asarray(l_prior_mean, dtype=float)
+    if t_prior_mean is not None:
+        t = t + np.asarray(t_prior_mean, dtype=float)
     return t, l
 
 
@@ -287,12 +296,15 @@ def sample_prior_brute_K(N, K, rng):
 
 # ───────────── state object ─────────────
 
-def make_state_hier(N, K, r_assumed, rng, Sigma_l=None, Sigma_t=None, l_prior_mean=None):
+def make_state_hier(N, K, r_assumed, rng, Sigma_l=None, Sigma_t=None,
+                    l_prior_mean=None, t_prior_mean=None):
     """Initialise particles from hierarchical prior.
 
     FIX-T1.6: Sigma_l (and Sigma_t) override r_assumed.  When neither is given,
     falls back to compound-symmetry Sigma = (1-r) I + r J.
     FIX-T1.8: l_prior_mean shifts the l prior mean; pass l_star for boundary prior.
+    Step-4 (sandbox): t_prior_mean shifts the t (bias) prior mean; None ⇒
+    zero-mean (BYTE-IDENTICAL).
     """
     pieces = None
     if Sigma_l is not None:
@@ -301,10 +313,10 @@ def make_state_hier(N, K, r_assumed, rng, Sigma_l=None, Sigma_t=None, l_prior_me
         pieces = _precompute_prior_pieces(Sigma_l, Sigma_t, K)
     t, l = sample_prior_hier_K(N, K, r_assumed, rng,
                                 Sigma_l=Sigma_l, Sigma_t=Sigma_t, _pieces=pieces,
-                                l_prior_mean=l_prior_mean)
+                                l_prior_mean=l_prior_mean, t_prior_mean=t_prior_mean)
     lp = log_prior_hier(t, l, r_assumed, K,
                          Sigma_l=Sigma_l, Sigma_t=Sigma_t, _pieces=pieces,
-                         l_prior_mean=l_prior_mean)
+                         l_prior_mean=l_prior_mean, t_prior_mean=t_prior_mean)
     return {
         "t": t, "l": l,
         "w": np.full(N, 1.0 / N),
@@ -316,6 +328,7 @@ def make_state_hier(N, K, r_assumed, rng, Sigma_l=None, Sigma_t=None, l_prior_me
         "is_hier": True,
         "_prior_pieces": pieces,      # may be None (legacy CS path)
         "_l_prior_mean": l_prior_mean,  # FIX-T1.8: stored for MH rejuvenation
+        "_t_prior_mean": t_prior_mean,  # Step-4: stored for MH rejuvenation
     }
 
 
@@ -337,7 +350,8 @@ def _log_prior_of(state, t, l):
     if state["is_hier"]:
         return log_prior_hier(t, l, state["r_assumed"], state["K"],
                                _pieces=state.get("_prior_pieces"),
-                               l_prior_mean=state.get("_l_prior_mean"))
+                               l_prior_mean=state.get("_l_prior_mean"),
+                               t_prior_mean=state.get("_t_prior_mean"))
     return log_prior_brute_K(t, l, state["K"])
 
 
@@ -469,7 +483,7 @@ def resample_and_rejuvenate(state, rng, n_mh_steps=15, proposal_scale=0.5,
 SIGNAL_GRID = np.linspace(-3.0, 3.0, 11)
 
 
-def _expected_loss_vec(state, k, signals, signal_sds=None):
+def _expected_loss_vec(state, k, signals, signal_sds=None, include_theta=True):
     """Expected total posterior variance over (t_1..t_K, l_1..l_K) after one
     question on task k at each signal level. Vectorized across signals.
 
@@ -477,6 +491,10 @@ def _expected_loss_vec(state, k, signals, signal_sds=None):
     Phase 3.5: signal_sds (per-candidate s posterior SD) marginalizes each
     candidate item over its s posterior so item selection prefers
     high-precision items; signal_sds=None (default) ⇒ BIT-IDENTICAL.
+    Step 3b (engine-improvement): include_theta=True (default) ⇒ the shipped
+    A-optimal trace Σ Var(θ)+Σ Var(ℓ) (BYTE-IDENTICAL). include_theta=False ⇒
+    the ℓ-only trace Σ Var(ℓ) (drops the nuisance bias block so the selector
+    spends its budget tightening the certified skill, not bias).
     """
     K = state["t"].shape[1]
     t_k = state["t"][:, k]
@@ -498,11 +516,89 @@ def _expected_loss_vec(state, k, signals, signal_sds=None):
         mu = (weights * arr).sum(axis=1)
         return (weights * (arr - mu[:, None]) ** 2).sum(axis=1)
 
-    total_y1 = sum(var_vec(state["t"][:, kk], w_y1) for kk in range(K)) + \
-               sum(var_vec(state["l"][:, kk], w_y1) for kk in range(K))
-    total_y0 = sum(var_vec(state["t"][:, kk], w_y0) for kk in range(K)) + \
-               sum(var_vec(state["l"][:, kk], w_y0) for kk in range(K))
+    total_y1 = sum(var_vec(state["l"][:, kk], w_y1) for kk in range(K))
+    total_y0 = sum(var_vec(state["l"][:, kk], w_y0) for kk in range(K))
+    if include_theta:
+        total_y1 = total_y1 + sum(var_vec(state["t"][:, kk], w_y1)
+                                  for kk in range(K))
+        total_y0 = total_y0 + sum(var_vec(state["t"][:, kk], w_y0)
+                                  for kk in range(K))
     return p_yes * total_y1 + (1.0 - p_yes) * total_y0
+
+
+def _expected_loss_vec_chunked(state, k, signals, signal_sds=None,
+                               include_theta=True, chunk=64):
+    """Cache-friendly `_expected_loss_vec`: BIT-IDENTICAL by construction (each
+    candidate's expected-loss only touches its own row of the (n_sig × N) arrays,
+    so processing candidates in blocks changes nothing numerically — it just
+    keeps the working set in cache). At large N (e.g. 1200) the stock vectorized
+    form is memory-bandwidth bound; chunking gives ~1.5–1.8× with zero error.
+    Added for the web deployment (N=1200); the default engine path is unchanged.
+    """
+    signals = np.asarray(signals)
+    n = len(signals)
+    if n <= chunk:
+        return _expected_loss_vec(state, k, signals, signal_sds=signal_sds,
+                                  include_theta=include_theta)
+    sds = None if signal_sds is None else np.asarray(signal_sds)
+    out = np.empty(n, dtype=float)
+    for i in range(0, n, chunk):
+        sl = slice(i, min(i + chunk, n))
+        out[sl] = _expected_loss_vec(
+            state, k, signals[sl],
+            signal_sds=(None if sds is None else sds[sl]),
+            include_theta=include_theta)
+    return out
+
+
+def _expected_decision_loss_vec(state, k, signals, ell_star, decision_tasks,
+                                signal_sds=None):
+    """Decision-aligned item-selection objective (engine-improvement Step 3).
+
+    Instead of the A-optimal total-parameter variance (`_expected_loss_vec`),
+    minimise the EXPECTED post-answer Bernoulli variance of the per-task PASS
+    indicators that actually drive the verdict:
+
+        loss = Σ_{kk ∈ decision_tasks}  π_kk · (1 − π_kk)
+        π_kk = P(ℓ_kk > ℓ*_kk | data)              (weighted particle mass)
+
+    averaged over the (y=1, y=0) branches of asking item (k, signal). π(1−π) is
+    maximal at π=0.5 and →0 as π→0/1, so this drives each UNDECIDED task toward
+    a verdict (and, via the joint cloud, sharpens correlated tasks too) — it
+    spends the question budget on resolution, not on the nuisance biases or on
+    skills already far from their cut-score. Vectorized across `signals`.
+
+    ell_star:        array of per-task cut-scores ℓ*_k (length K).
+    decision_tasks:  iterable of task indices whose verdict is still open
+                     (the sum runs over these). Empty ⇒ returns zeros.
+    Reuses the same reweighting machinery as `_expected_loss_vec`.
+    """
+    t_k = state["t"][:, k]
+    l_k = state["l"][:, k]
+    el = np.exp(l_k)[None, :]
+    z = el * (signals[:, None] + t_k[None, :])
+    if signal_sds is not None:
+        z = z / np.sqrt(1.0 + (el * np.asarray(signal_sds)[:, None]) ** 2)
+    p = _p_response_yes(z)
+    p = np.clip(p, 1e-9, 1.0 - 1e-9)
+    w = state["w"]
+    p_yes = (p * w).sum(axis=1)
+    w_y1 = p * w
+    w_y1 = w_y1 / w_y1.sum(axis=1, keepdims=True)
+    w_y0 = (1.0 - p) * w
+    w_y0 = w_y0 / w_y0.sum(axis=1, keepdims=True)
+
+    ell_star = np.asarray(ell_star, dtype=float)
+    n_sig = signals.shape[0]
+    loss_y1 = np.zeros(n_sig)
+    loss_y0 = np.zeros(n_sig)
+    for kk in decision_tasks:
+        ind = (state["l"][:, kk] > ell_star[kk]).astype(np.float64)  # (N,)
+        pi1 = (w_y1 * ind[None, :]).sum(axis=1)                      # (n_sig,)
+        pi0 = (w_y0 * ind[None, :]).sum(axis=1)
+        loss_y1 += pi1 * (1.0 - pi1)
+        loss_y0 += pi0 * (1.0 - pi0)
+    return p_yes * loss_y1 + (1.0 - p_yes) * loss_y0
 
 
 def _coarse_to_fine_argmin(loss_of, n, n_coarse, m_bracket=3):
@@ -565,7 +661,8 @@ def _coarse_to_fine_argmin(loss_of, n, n_coarse, m_bracket=3):
 
 def choose_item(state, bank_signals=None, active_domains=None,
                 n_subsample=None, bank_sds=None, return_sd=False,
-                bank_segids=None):
+                bank_segids=None, objective="variance",
+                ell_star=None, decision_tasks=None, chunk=None):
     """Pick (k, s) globally minimising expected total posterior variance.
 
     bank_signals: optional list of K arrays (one per domain) of candidate
@@ -599,10 +696,43 @@ def choose_item(state, bank_signals=None, active_domains=None,
                  Recovers the exact argmin on the smooth EV surface (no
                  n_q bias) at ~5–6× lower cost.  None (default) = full
                  grid (backward-compatible, byte-identical to pre-F4.1).
+    objective:   engine-improvement Step 3 — item-selection objective.
+                 "variance" (DEFAULT) ⇒ A-optimal Σ Var(θ)+Σ Var(ℓ)
+                 (BYTE-IDENTICAL to the prior selector). "ell_variance" ⇒
+                 ℓ-only trace Σ Var(ℓ) (drops the nuisance bias block).
+                 "decision" ⇒ minimise expected Σ π_kk(1−π_kk) over
+                 `decision_tasks` (requires `ell_star`; NB this has a
+                 π=0.5 barrier — see docs/ENGINE_IMPROVEMENT_RESULTS.md).
+    ell_star:    per-task cut-scores ℓ*_k (length K). Required for
+                 objective="decision"; ignored otherwise.
+    decision_tasks: task indices whose verdict is still open (the sum in
+                 the decision objective runs over these). Only used for
+                 objective="decision"; defaults to all K tasks.
     """
     K = state["t"].shape[1]
     candidates = bank_signals if bank_signals is not None else [SIGNAL_GRID] * K
     domains = active_domains if active_domains is not None else list(range(K))
+    if objective not in ("variance", "ell_variance", "decision"):
+        raise ValueError(
+            f"objective must be variance|ell_variance|decision, got "
+            f"{objective!r}")
+    if objective == "decision" and ell_star is None:
+        raise ValueError("objective='decision' requires ell_star")
+    dtasks = (list(range(K)) if decision_tasks is None
+              else list(decision_tasks)) if objective == "decision" else None
+    include_theta = (objective != "ell_variance")
+
+    def _loss_at(kk, sigs_sub, sds_sub):
+        if objective == "decision":
+            return _expected_decision_loss_vec(
+                state, kk, sigs_sub, ell_star, dtasks, signal_sds=sds_sub)
+        if chunk is not None:                         # web N=1200 fast kernel
+            return _expected_loss_vec_chunked(
+                state, kk, sigs_sub, signal_sds=sds_sub,
+                include_theta=include_theta, chunk=chunk)
+        return _expected_loss_vec(state, kk, sigs_sub, signal_sds=sds_sub,
+                                  include_theta=include_theta)
+
     best_loss = np.inf
     best_k, best_s = domains[0], float(np.asarray(candidates[domains[0]])[0])
     best_sd = 0.0
@@ -611,13 +741,12 @@ def choose_item(state, bank_signals=None, active_domains=None,
         sigs = np.asarray(candidates[k])
         sds = (np.asarray(bank_sds[k]) if bank_sds is not None else None)
         idx = _coarse_to_fine_argmin(
-            lambda ii: _expected_loss_vec(
-                state, k, sigs[ii],
-                signal_sds=(sds[ii] if sds is not None else None)),
+            lambda ii: _loss_at(
+                k, sigs[ii], (sds[ii] if sds is not None else None)),
             len(sigs), n_subsample)
-        loss = float(_expected_loss_vec(
-            state, k, sigs[idx:idx + 1],
-            signal_sds=(sds[idx:idx + 1] if sds is not None else None))[0])
+        loss = float(_loss_at(
+            k, sigs[idx:idx + 1],
+            (sds[idx:idx + 1] if sds is not None else None))[0])
         if loss < best_loss:
             best_loss = loss
             best_k = k
@@ -642,6 +771,44 @@ def _auroc_ci(state, alpha=0.05):
     return q[:, 0], q[:, 1]
 
 
+# ── PUB-CLEANUP[estimation-ladder]: posterior read-out (opt-in; paper-sim only) ──
+# `_wquantile_col`, `_posterior_summary_hier`, and the `capture_posterior` kwarg on
+# run_session_mcmc_auroc (+ its forward into the brute/random dispatch) support
+# ONLY the random→brute→hier estimation ablation (NEJM-AI Paper-2). The shipped
+# CORTEX app drives the engine primitives directly (CortexSession), never this
+# driver. Strip or guard before the public paper-code release — see
+# docs/PUBLICATION_CODE_CLEANUP.md (grep "PUB-CLEANUP[estimation-ladder]").
+
+def _wquantile_col(values, weights, q):
+    """Weighted quantile of a 1-D array via linear interp on the weighted CDF."""
+    order = np.argsort(values)
+    cw = np.cumsum(weights[order])
+    cw /= cw[-1]
+    return float(np.interp(q, cw, values[order]))
+
+
+def _posterior_summary_hier(state):
+    """Per-task weighted posterior mean/SD/central-95% interval of (ℓ, θ) from
+    the joint 2K-D cloud.  Returns 8 arrays of shape (K,): mean_l, sd_l, q025_l,
+    q975_l, then the θ analogues.  Used only when `capture_posterior=True`.
+    The marginals here are POOLED (the joint cloud's cross-task structure), in
+    contrast to the per-task independent clouds in core_mcmc_brute_k.
+    """
+    w = state["w"]
+    w = w / w.sum()
+    L = state["l"]; T = state["t"]
+    K = L.shape[1]
+    ml = (w[:, None] * L).sum(axis=0)
+    sl = np.sqrt(np.maximum((w[:, None] * (L - ml[None, :]) ** 2).sum(axis=0), 0.0))
+    mt = (w[:, None] * T).sum(axis=0)
+    st = np.sqrt(np.maximum((w[:, None] * (T - mt[None, :]) ** 2).sum(axis=0), 0.0))
+    q025l = np.array([_wquantile_col(L[:, k], w, 0.025) for k in range(K)])
+    q975l = np.array([_wquantile_col(L[:, k], w, 0.975) for k in range(K)])
+    q025t = np.array([_wquantile_col(T[:, k], w, 0.025) for k in range(K)])
+    q975t = np.array([_wquantile_col(T[:, k], w, 0.975) for k in range(K)])
+    return ml, sl, q025l, q975l, mt, st, q025t, q975t
+
+
 # ───────────── session driver ─────────────
 
 def simulate_response(s, t_true, l_true, rng):
@@ -663,7 +830,8 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
                             bank_signals=None,
                             Sigma_l=None, Sigma_t=None,
                             n_subsample=None, bank_sds=None,
-                            bank_segids=None, y_source=None):
+                            bank_segids=None, y_source=None,
+                            capture_posterior=False):
     """Session with MCMC-rejuvenation SMC + AUROC-based stopping (Mode-A).
 
     Multi-AUROC Precision Protocol (Paper 1, 2026-05-15):
@@ -723,6 +891,8 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
             bank_signals=bank_signals,
             select=("random" if method == "random" else "ev"),
             n_subsample=n_subsample,
+            bank_segids=bank_segids, y_source=y_source,
+            capture_posterior=capture_posterior,
         )
 
     rng = np.random.default_rng(seed)
@@ -741,6 +911,10 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
     lo, hi = _auroc_ci(state, alpha)
     if log_trajectory:
         los, his = [lo.copy()], [hi.copy()]
+    if capture_posterior:
+        ml, sl, q025l, q975l, mt, st, q025t, q975t = _posterior_summary_hier(state)
+        pml, psl, pq025l, pq975l = [ml], [sl], [q025l], [q975l]
+        pmt, pst, pq025t, pq975t = [mt], [st], [q025t], [q975t]
     n_q = 0
     stop_step = None
     accept_rates = []
@@ -792,6 +966,10 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
         if log_trajectory:
             los.append(lo.copy())
             his.append(hi.copy())
+        if capture_posterior:
+            ml, sl, q025l, q975l, mt, st, q025t, q975t = _posterior_summary_hier(state)
+            pml.append(ml); psl.append(sl); pq025l.append(q025l); pq975l.append(q975l)
+            pmt.append(mt); pst.append(st); pq025t.append(q025t); pq975t.append(q975t)
         if stop_step is None:
             hw = (hi - lo) / 2.0
             if np.max(hw) < delta_auroc:
@@ -813,6 +991,11 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
     if log_trajectory:
         out["lo_traj"] = np.array(los)
         out["hi_traj"] = np.array(his)
+    if capture_posterior:
+        out["mean_l_traj"] = np.array(pml); out["sd_l_traj"] = np.array(psl)
+        out["q025_l_traj"] = np.array(pq025l); out["q975_l_traj"] = np.array(pq975l)
+        out["mean_t_traj"] = np.array(pmt); out["sd_t_traj"] = np.array(pst)
+        out["q025_t_traj"] = np.array(pq025t); out["q975_t_traj"] = np.array(pq975t)
     return out
 
 

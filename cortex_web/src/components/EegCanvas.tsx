@@ -14,6 +14,11 @@ export interface EegCanvasProps {
   panStartS: number;
   width: number;
   height: number;
+  // The expert-labeled scoring epoch in CLIP-time seconds (IIIC = [10,20]).
+  // When set, a translucent red box marks it (matches the desktop
+  // LinearRegionItem, eeg_bank_viewer.py:1256-1264). Omit for spike clips.
+  labelStartS?: number | null;
+  labelLenS?: number | null;
 }
 
 export function EegCanvas(props: EegCanvasProps) {
@@ -28,11 +33,14 @@ export function EegCanvas(props: EegCanvasProps) {
     cv.height = props.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const { rows, fsHz, gainUv, windowS, panStartS, width, height } = props;
+    const { rows, fsHz, gainUv, windowS, panStartS, width, height,
+            labelStartS, labelLenS } = props;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
-    const padL = 64, padR = 70, padT = 8, padB = 24;
+    // padR is now small (scale bar moved inline, not at the right edge) so the
+    // traces fill the width; padL fits the larger channel labels.
+    const padL = 70, padR = 16, padT = 8, padB = 28;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
     const nRows = rows.length;
@@ -40,11 +48,28 @@ export function EegCanvas(props: EegCanvasProps) {
     const s0 = Math.round(panStartS * fsHz);
     const nWin = Math.round(windowS * fsHz);
 
+    // Scoring-epoch box (clip-time [labelStartS, labelStartS+labelLenS]),
+    // drawn behind the grid + traces. Translucent red fill + solid border,
+    // matching the desktop. Clamped to the visible [panStartS, panStartS+windowS].
+    if (labelStartS != null && labelLenS != null) {
+      const lo = Math.max(labelStartS, panStartS);
+      const hi = Math.min(labelStartS + labelLenS, panStartS + windowS);
+      if (hi > lo) {
+        const xLo = padL + ((lo - panStartS) / windowS) * plotW;
+        const xHi = padL + ((hi - panStartS) / windowS) * plotW;
+        ctx.fillStyle = "rgba(255,80,80,0.137)"; // (255,80,80,35/255)
+        ctx.fillRect(xLo, padT, xHi - xLo, plotH);
+        ctx.strokeStyle = "rgb(215,45,45)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(xLo, padT, xHi - xLo, plotH);
+      }
+    }
+
     // time grid (1-sec)
     ctx.strokeStyle = "rgba(0,0,0,0.12)";
     ctx.lineWidth = 1;
     ctx.fillStyle = "#333";
-    ctx.font = "10px system-ui";
+    ctx.font = "12px system-ui";
     ctx.textAlign = "center";
     for (let sec = 0; sec <= windowS; sec++) {
       const x = padL + (sec / windowS) * plotW;
@@ -63,7 +88,7 @@ export function EegCanvas(props: EegCanvasProps) {
       // channel label
       if (row.name) {
         ctx.fillStyle = "#222";
-        ctx.font = "10px system-ui";
+        ctx.font = "12px system-ui";
         ctx.fillText(row.name, padL - 6, yMid + 3);
       }
       if (!row.data) continue; // separator
@@ -85,24 +110,28 @@ export function EegCanvas(props: EegCanvasProps) {
       ctx.stroke();
     }
 
-    // scale bar: 1 sec + gain_uv µV, bottom-right
-    const bx = padL + plotW - 4;
-    const by = padT + plotH - 4;
+    // scale bar (1 s + gain µV): placed at the Fz-Cz / Cz-Pz boundary of the
+    // bipolar montage, within the second-to-last second of the window. Falls
+    // back to a low-central position for montages without a Cz-Pz row.
+    const idxCzPz = rows.findIndex((r) => r.name === "Cz-Pz");
+    const yA = idxCzPz >= 0 ? padT + idxCzPz * rowH : padT + plotH - rowH * 1.5;
+    const xR = padL + ((windowS - 1) / windowS) * plotW; // corner at the (last-1)s mark
+    const xL = padL + ((windowS - 2) / windowS) * plotW; // 1 s wide to its left
+    const gainPx = rowH / 2; // gain_uv µV in pixels (1 div = rowH; ½ div shown)
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    const oneSecPx = plotW / windowS;
-    ctx.moveTo(bx - oneSecPx, by);
-    ctx.lineTo(bx, by);
-    ctx.lineTo(bx, by - rowH / 2);
+    ctx.moveTo(xL, yA);
+    ctx.lineTo(xR, yA); // horizontal: 1 s
+    ctx.moveTo(xR, yA);
+    ctx.lineTo(xR, yA - gainPx); // vertical: gain µV, up from the corner
     ctx.stroke();
     ctx.fillStyle = "#000";
-    ctx.font = "10px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillText("1 s", bx, by + 14);
-    ctx.textAlign = "left";
-    ctx.fillText(`${gainUv} µV`, bx + 4, by - rowH / 4);
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("1 s", (xL + xR) / 2, yA + 15);
+    ctx.fillText(`${gainUv} µV`, xR, yA - gainPx - 5);
   }, [props]);
 
-  return <canvas ref={ref} style={{ width: props.width, height: props.height }} />;
+  return <canvas ref={ref} style={{ width: props.width, height: props.height, display: "block" }} />;
 }

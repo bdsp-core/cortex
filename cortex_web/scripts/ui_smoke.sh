@@ -14,6 +14,15 @@ rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true
 
 [ -d dist ] || npm run build
 
+# Build a SMALL K=7 smoke bundle (few spike segs) so the smoke can walk the
+# spike phase to exhaustion and reach the IIIC phase quickly, then serve it.
+if [ -z "${CORTEX_SMOKE_NOBUILD:-}" ]; then
+  python3 scripts/prepare_web_bundle.py --version _smoke --max 14 >/tmp/cortex_smoke_bundle.log 2>&1 \
+    && echo "▸ built small K=7 smoke bundle (public/bundle/_smoke)" \
+    || { echo "smoke bundle build failed:"; tail -5 /tmp/cortex_smoke_bundle.log; exit 1; }
+fi
+export CORTEX_BUNDLE_URL="/bundle/_smoke"
+
 python3 -m uvicorn server.app:app --port "$PORT" --log-level warning >/tmp/cortex_ui_smoke.log 2>&1 &
 UV=$!
 cleanup() { kill $UV 2>/dev/null || true; rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true; }
