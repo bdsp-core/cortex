@@ -53,7 +53,6 @@ fi
 
 # ── 2. mineable exports (CSV sessions + per-result JSON) ──────────
 say "admin exports"
-sudo -u root true   # noop; we already run as the cortex user from systemd
 ( cd "$WEB" && CORTEX_DB="$CORTEX_DB" \
     "$PY" -m server.admin export-sessions --out "$WORK/sessions.csv" >/dev/null )
 ( cd "$WEB" && CORTEX_DB="$CORTEX_DB" \
