@@ -68,14 +68,23 @@ chown -R "$CORTEX_USER:$CORTEX_USER" "$APP" "$DATA" "$LOG"
 chmod 750 "$CONF"
 
 # ── source ─────────────────────────────────────────────────────────
-say "fetching source (branch: $CORTEX_BRANCH)…"
+# Three modes are supported, picked automatically:
+#   (a) repo already cloned at /opt/cortex with .git  → fetch + reset
+#   (b) only /opt/cortex/cortex_web is present (operator rsynced the tree
+#       from their workstation; the simple first-deploy path when the repo
+#       is private and the box has no GitHub creds) → keep what's there
+#   (c) nothing present → git clone from CORTEX_REPO
+WEB="$APP/cortex_web"
 if [ -d "$APP/.git" ]; then
+  say "fetching source (branch: $CORTEX_BRANCH)…"
   sudo -u "$CORTEX_USER" git -C "$APP" fetch --depth=1 origin "$CORTEX_BRANCH"
   sudo -u "$CORTEX_USER" git -C "$APP" reset --hard "origin/$CORTEX_BRANCH"
+elif [ -d "$WEB" ]; then
+  say "using pre-populated /opt/cortex/cortex_web (rsync deploy) — skipping git clone."
 else
+  say "cloning source (branch: $CORTEX_BRANCH)…"
   sudo -u "$CORTEX_USER" git clone --depth=1 --branch "$CORTEX_BRANCH" "$CORTEX_REPO" "$APP"
 fi
-WEB="$APP/cortex_web"
 
 # ── python venv ────────────────────────────────────────────────────
 say "creating Python venv + installing requirements…"
