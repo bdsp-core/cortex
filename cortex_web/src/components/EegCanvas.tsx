@@ -137,5 +137,9 @@ export function EegCanvas(props: EegCanvasProps) {
     ctx.fillText(`${gainUv} µV`, bx + 4, by - rowH / 4);
   }, [props]);
 
-  return <canvas ref={ref} style={{ width: props.width, height: props.height }} />;
+  // display:block prevents the inline-baseline descender that lets the
+  // canvas's height drift up by a few pixels per ResizeObserver cycle in a
+  // column-flex parent (SpikeViewer's "slowly stretching" bug).
+  return <canvas ref={ref}
+    style={{ display: "block", width: props.width, height: props.height }} />;
 }

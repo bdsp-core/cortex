@@ -175,9 +175,12 @@ export function SpikeViewer({
         Does this 10-second clip contain at least one <b style={{ color: COLORS.textPrimary }}>epileptiform spike or sharp wave</b>?
       </div>
 
-      {/* full-width EEG (no spectrogram for spike) */}
+      {/* full-width EEG (no spectrogram for spike). minHeight:0 is essential —
+          without it column-flex auto-min lets the canvas push the box to
+          grow each ResizeObserver cycle (slow "stretching" loop). */}
       <div ref={eegBoxRef}
-        style={{ flex: 1, background: "#fff", borderRadius: 4, minWidth: 0, marginTop: 8 }}>
+        style={{ flex: 1, background: "#fff", borderRadius: 4,
+                 minWidth: 0, minHeight: 0, marginTop: 8 }}>
         {seg ? (
           <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={dur || 10}
             panStartS={0} width={eegSize.w} height={eegSize.h} />

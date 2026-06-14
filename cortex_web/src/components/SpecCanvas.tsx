@@ -119,5 +119,5 @@ export function SpecCanvas({
     }
   }, [spec, width, height, markerFrac, clipBoundsFrac]);
 
-  return <canvas ref={ref} style={{ width, height }} />;
+  return <canvas ref={ref} style={{ display: "block", width, height }} />;
 }
