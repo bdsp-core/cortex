@@ -8,6 +8,6 @@ Type=oneshot
 User=cortex
 Group=cortex
 EnvironmentFile=/etc/cortex/cortex.env
-ExecStart=/opt/cortex/deploy/scripts/backup_to_box.sh
+ExecStart=/opt/cortex/cortex_web/deploy/scripts/backup_to_box.sh
 StandardOutput=append:/var/log/cortex/backup.log
 StandardError=inherit
