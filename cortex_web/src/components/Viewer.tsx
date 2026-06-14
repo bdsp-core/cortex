@@ -157,6 +157,27 @@ export function Viewer({
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => { rootRef.current?.focus(); }, []);
 
+  // Track the EEG pane's actual size so the canvas fills the available space
+  // (the spectrogram on the left is fixed 280 px, the EEG pane is flex:1 —
+  // pre-resize-observer the canvas was hard-coded 1140×760 and left a strip
+  // of white on wide displays).
+  const eegBoxRef = useRef<HTMLDivElement>(null);
+  const [eegSize, setEegSize] = useState({ w: 1140, h: 760 });
+  useEffect(() => {
+    const el = eegBoxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const cr = e.contentRect;
+        if (cr.width > 0 && cr.height > 0) {
+          setEegSize({ w: Math.floor(cr.width), h: Math.floor(cr.height) });
+        }
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div ref={rootRef} tabIndex={0}
       style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
@@ -197,10 +218,11 @@ export function Viewer({
           <SpecCanvas spec={seg?.spec ?? null} width={280} height={760}
             clipBoundsFrac={[SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC]} />
         </div>
-        <div style={{ flex: 1, background: "#fff", borderRadius: 4 }}>
+        <div ref={eegBoxRef}
+          style={{ flex: 1, background: "#fff", borderRadius: 4, minWidth: 0 }}>
           {seg ? (
             <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={windowS}
-              panStartS={panStart} width={1140} height={760}
+              panStartS={panStart} width={eegSize.w} height={eegSize.h}
               labeledEpoch={{ startS: IIIC_LABEL_START_S, endS: IIIC_LABEL_END_S }} />
           ) : (
             <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>
