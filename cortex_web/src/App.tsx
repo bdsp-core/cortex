@@ -18,7 +18,7 @@ import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { Landing } from "./components/Landing";
-import { Login } from "./components/Login";
+import { Auth } from "./components/Auth";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
 import { Tutorial } from "./components/Tutorial";
@@ -29,7 +29,7 @@ import { COLORS } from "../ui/theme";
 
 type Phase =
   | "landing"
-  | "login"
+  | "auth"
   | "consent"
   | "registration"
   | "tutorial"
@@ -62,7 +62,7 @@ export function App() {
   }, [phase]);
 
   // ── flow transitions ──────────────────────────────────────────
-  const begin = () => setPhase(api.isAuthed() ? "consent" : "login");
+  const begin = () => setPhase(api.isAuthed() ? "consent" : "auth");
 
   // Launch the assessment: manifest → bundle → fresh sample → session → engine.
   const startTest = useCallback(async () => {
@@ -155,8 +155,8 @@ export function App() {
   switch (phase) {
     case "landing":
       return <Landing onBegin={begin} />;
-    case "login":
-      return <Login onAuthed={() => setPhase("consent")} onBack={() => setPhase("landing")} />;
+    case "auth":
+      return <Auth onAuthed={() => setPhase("consent")} onBack={() => setPhase("landing")} />;
     case "consent":
       return (
         <Consent

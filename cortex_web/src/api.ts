@@ -72,14 +72,35 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<any> {
 }
 
 // ── public ───────────────────────────────────────────────────────
-export async function login(code: string, password: string): Promise<void> {
+export async function login(email: string, password: string): Promise<{
+  email: string; displayName: string;
+}> {
   const res = await fetch(`${API_BASE}/api/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, password }),
+    body: JSON.stringify({ email, password }),
   });
   const body = await parse(res);
   setToken(body.token);
+  return { email: body.email, displayName: body.displayName };
+}
+
+// Public open-signup. `honeypot` is the hidden form field; humans leave it
+// empty. The backend accepts a non-empty value silently to avoid tipping off
+// scanners that a bot trap exists.
+export async function register(
+  email: string, password: string, displayName: string, expertise: string,
+  honeypot: string,
+): Promise<{ email: string; displayName: string }> {
+  const res = await fetch(`${API_BASE}/api/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, displayName, expertise, honeypot }),
+  });
+  const body = await parse(res);
+  // honeypot case: server returned 200 but no token. Don't store anything.
+  if (body?.token) setToken(body.token);
+  return { email: body?.email ?? email, displayName: body?.displayName ?? displayName };
 }
 
 export async function health(): Promise<boolean> {

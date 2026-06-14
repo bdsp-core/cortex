@@ -24,12 +24,16 @@ or  python -m server.run
 from __future__ import annotations
 
 import os
+import re
 import secrets
+import threading
+import time
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -52,8 +56,19 @@ TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 # ───────────────────────── request models ─────────────────────────
 
 class AuthIn(BaseModel):
-    code: str
+    email: str
     password: str
+
+
+class RegisterIn(BaseModel):
+    """Public signup payload. `honeypot` should be empty — it's a hidden form
+    field most bots auto-fill. Any non-empty value gets a 200 OK with no
+    side-effects so the bot moves on without learning it was blocked."""
+    email: str
+    password: str
+    displayName: str
+    expertise: str = ""        # optional self-reported expertise dropdown
+    honeypot: str = ""         # bot trap; must be empty
 
 
 class SessionIn(BaseModel):
@@ -79,12 +94,73 @@ class AdminGenIn(BaseModel):
     label: str = ""
 
 
+# ───────────────────────── validation helpers ─────────────────
+# RFC 5322 is overkill; this matches what every real email service accepts
+# and rejects obvious garbage. We DON'T verify deliverability — the policy
+# tonight is "anyone with the URL can sign up; we trust the email at face
+# value." Add MX-record / SES verification later if spam shows up.
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
+_MIN_PASSWORD_LEN = 8
+_MAX_FIELD_LEN = 200       # tame oversized payloads (display_name etc.)
+
+
+def _norm_email(s: str) -> str:
+    return s.strip().lower()
+
+
+def _is_email(s: str) -> bool:
+    return bool(_EMAIL_RE.match(s)) and len(s) <= _MAX_FIELD_LEN
+
+
+# ───────────────────────── rate limiter ────────────────────────
+# In-memory sliding-window counter per (route, IP). Resets on restart, which
+# is fine at this scale — restarts are rare and a determined attacker can do
+# damage with a single window anyway. Two routes are protected:
+#   /api/register : 5 attempts / hour / IP
+#   /api/auth     : 20 attempts / hour / IP
+
+_RATE_LIMITS = {
+    "register": (5,  3600),
+    "auth":     (20, 3600),
+}
+
+
+class _RateLimiter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._hits: dict[tuple[str, str], deque[float]] = {}
+
+    def hit(self, bucket: str, ip: str) -> bool:
+        """Return True if allowed, False if over the per-window cap."""
+        max_n, window_s = _RATE_LIMITS[bucket]
+        now = time.time()
+        with self._lock:
+            q = self._hits.setdefault((bucket, ip), deque())
+            while q and now - q[0] > window_s:
+                q.popleft()
+            if len(q) >= max_n:
+                return False
+            q.append(now)
+        return True
+
+
 # ───────────────────────── app factory ─────────────────────────
+
+def _client_ip(req: Request) -> str:
+    """Pull the originating IP. Caddy forwards real-ip via X-Forwarded-For;
+    --proxy-headers makes uvicorn populate req.client. Falls back to direct
+    socket IP if neither is set."""
+    xff = req.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return req.client.host if req.client else "unknown"
+
 
 def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     app = FastAPI(title="CORTEX Web API", version="1.0")
     db = Database(db_path)
     app.state.db = db
+    limiter = _RateLimiter()
 
     origins = os.environ.get(
         "CORTEX_CORS_ORIGINS",
@@ -122,15 +198,65 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     def health():
         return {"ok": True, "service": "cortex-web", "version": app.version}
 
+    @app.post("/api/register")
+    def register(body: RegisterIn, req: Request):
+        ip = _client_ip(req)
+        # Honeypot: silently 200 a bot that filled the trap field. The
+        # response is intentionally indistinguishable from success so it
+        # doesn't tip off scanners; nothing is actually written.
+        if body.honeypot:
+            return {"ok": True}
+        if not limiter.hit("register", ip):
+            raise HTTPException(429, "too many signups from this IP — try again later")
+        email = _norm_email(body.email)
+        if not _is_email(email):
+            raise HTTPException(400, "invalid email")
+        if len(body.password) < _MIN_PASSWORD_LEN:
+            raise HTTPException(400, f"password must be at least {_MIN_PASSWORD_LEN} characters")
+        display = body.displayName.strip()[:_MAX_FIELD_LEN]
+        if not display:
+            raise HTTPException(400, "displayName required")
+        if db.get_participant_by_email(email) is not None:
+            raise HTTPException(409, "an account with this email already exists")
+        code = "u-" + secrets.token_urlsafe(12)
+        try:
+            db.register_participant(
+                code=code,
+                password_hash=security.hash_password(body.password),
+                email=email,
+                display_name=display,
+                signup_ip=ip,
+            )
+        except Exception as e:
+            # UNIQUE-index violation race (two concurrent signups, same email).
+            # Translate to 409 instead of a 500.
+            if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+                raise HTTPException(409, "an account with this email already exists")
+            raise
+        token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
+                                     extra={"email": email,
+                                            "expertise": body.expertise[:80]})
+        return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
+                "email": email, "displayName": display}
+
     @app.post("/api/auth")
-    def auth(body: AuthIn):
-        row = db.get_participant(body.code)
+    def auth(body: AuthIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("auth", ip):
+            raise HTTPException(429, "too many login attempts — try again later")
+        email = _norm_email(body.email)
+        if not _is_email(email):
+            raise HTTPException(401, "invalid credentials")
+        row = db.get_participant_by_email(email)
         if row is None or not row["active"]:
             raise HTTPException(401, "invalid credentials")
         if not security.verify_password(body.password, row["password_hash"]):
             raise HTTPException(401, "invalid credentials")
-        token = security.issue_token(body.code, ttl_seconds=TOKEN_TTL)
-        return {"token": token, "expiresIn": TOKEN_TTL, "code": body.code}
+        code = row["code"]
+        token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
+                                     extra={"email": email})
+        return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
+                "email": email, "displayName": row.get("display_name") or ""}
 
     # ── gated ───────────────────────────────────────────────────
     @app.get("/api/manifest")
@@ -171,12 +297,20 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
 
     @app.post("/api/admin/participants")
     def admin_gen(body: AdminGenIn, _: bool = Depends(require_admin)):
+        """Seed test accounts. Since accounts are email+password since the
+        public-signup change, this auto-generates synthetic emails so the
+        seeded accounts can still authenticate via /api/auth — distinguishable
+        from real signups by the @cortex.seed suffix."""
         created = []
         for _i in range(body.count):
             code = f"{body.prefix}-{secrets.token_hex(4)}"
             password = secrets.token_urlsafe(9)
-            db.add_participant(code, security.hash_password(password), body.label)
-            created.append({"code": code, "password": password})
+            email = f"{code}@cortex.seed"
+            db.register_participant(
+                code=code, password_hash=security.hash_password(password),
+                email=email, display_name=code, signup_ip="admin",
+            )
+            created.append({"code": code, "email": email, "password": password})
         return created
 
     @app.get("/api/admin/sessions")

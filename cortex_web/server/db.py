@@ -36,7 +36,10 @@ _SCHEMA_STATEMENTS = [
         password_hash  TEXT NOT NULL,
         label          TEXT DEFAULT '',
         active         INTEGER NOT NULL DEFAULT 1,
-        created_utc    TEXT NOT NULL
+        created_utc    TEXT NOT NULL,
+        email          TEXT,
+        display_name   TEXT,
+        signup_ip      TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS sessions (
         session_id     TEXT PRIMARY KEY,
@@ -69,6 +72,18 @@ _SCHEMA_STATEMENTS = [
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code)",
+    # The email-unique index is created in _migrate_participants AFTER the
+    # ALTER TABLE that ensures the column exists (an older schema may not
+    # have it yet on an existing DB).
+]
+
+
+# Columns added to participants after the original schema. Idempotent
+# ALTERs run at startup so an existing database upgrades in place.
+_PARTICIPANTS_MIGRATION_COLUMNS = [
+    ("email",        "TEXT"),
+    ("display_name", "TEXT"),
+    ("signup_ip",    "TEXT"),
 ]
 
 
@@ -106,7 +121,27 @@ class Database:
         with self._lock:
             for stmt in _SCHEMA_STATEMENTS:
                 self._exec(stmt)
+            self._migrate_participants()
             self._conn.commit()
+
+    def _migrate_participants(self) -> None:
+        """Add columns to participants that didn't exist in earlier schemas
+        (email, display_name, signup_ip). Idempotent on both engines."""
+        if self._pg:
+            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+                self._exec(f"ALTER TABLE participants ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            cur = self._exec("PRAGMA table_info(participants)")
+            existing = {dict(r)["name"] for r in cur.fetchall()}
+            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+                if col not in existing:
+                    self._exec(f"ALTER TABLE participants ADD COLUMN {col} {typ}")
+        # Now that the email column is guaranteed to exist, the unique-when-
+        # set index is safe to create on both engines.
+        self._exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_email "
+            "ON participants(email) WHERE email IS NOT NULL"
+        )
 
     # ── low-level helpers (backend-aware) ─────────────────────────
     def _q(self, sql: str) -> str:
@@ -166,6 +201,28 @@ class Database:
             self._exec("UPDATE participants SET active=? WHERE code=?",
                        (1 if active else 0, code))
             self._conn.commit()
+
+    # ── public-signup helpers ─────────────────────────────────────
+    def register_participant(self, *, code: str, password_hash: str,
+                              email: str, display_name: str,
+                              signup_ip: Optional[str] = None) -> None:
+        """Insert a new email-based account. Caller is responsible for
+        generating `code` (the stable internal id stored in JWT subjects);
+        UNIQUE constraint on email surfaces as a backend-specific IntegrityError
+        the caller catches to return a clean 409."""
+        with self._lock:
+            self._exec(
+                "INSERT INTO participants(code, password_hash, email, "
+                "display_name, signup_ip, created_utc) "
+                "VALUES (?,?,?,?,?,?)",
+                (code, password_hash, email, display_name, signup_ip, utc_now()),
+            )
+            self._conn.commit()
+
+    def get_participant_by_email(self, email: str) -> Optional[dict]:
+        with self._lock:
+            return self._fetchone(
+                "SELECT * FROM participants WHERE email=?", (email,))
 
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,

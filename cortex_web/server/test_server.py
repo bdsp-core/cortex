@@ -59,17 +59,24 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
+_REG_COUNTER = [0]
+
+
 def _make_participant(client) -> tuple[str, str]:
-    r = client.post("/api/admin/participants",
-                    headers={"X-Admin-Token": "test-admin"},
-                    json={"count": 1, "prefix": "cortex"})
+    """Create an account via the public /api/register endpoint; return
+    (email, password) so the caller can also authenticate later."""
+    _REG_COUNTER[0] += 1
+    email = f"t{_REG_COUNTER[0]}@example.test"
+    pw = "test-pw-1234567890"
+    r = client.post("/api/register",
+                    json={"email": email, "password": pw,
+                          "displayName": f"Test User {_REG_COUNTER[0]}"})
     assert r.status_code == 200, r.text
-    cred = r.json()[0]
-    return cred["code"], cred["password"]
+    return email, pw
 
 
-def _auth_header(client, code, password) -> dict:
-    r = client.post("/api/auth", json={"code": code, "password": password})
+def _auth_header(client, email, password) -> dict:
+    r = client.post("/api/auth", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['token']}"}
 
@@ -79,9 +86,48 @@ def test_health(client):
 
 
 def test_auth_rejects_bad_password(client):
-    code, _pw = _make_participant(client)
-    r = client.post("/api/auth", json={"code": code, "password": "nope"})
+    email, _pw = _make_participant(client)
+    r = client.post("/api/auth", json={"email": email, "password": "nope"})
     assert r.status_code == 401
+
+
+def test_register_rejects_short_password(client):
+    r = client.post("/api/register",
+                    json={"email": "x@y.com", "password": "short",
+                          "displayName": "X"})
+    assert r.status_code == 400
+
+
+def test_register_rejects_bad_email(client):
+    r = client.post("/api/register",
+                    json={"email": "not-an-email", "password": "test-pw-1234567890",
+                          "displayName": "X"})
+    assert r.status_code == 400
+
+
+def test_register_dup_email_is_409(client):
+    email, _pw = _make_participant(client)
+    r = client.post("/api/register",
+                    json={"email": email,
+                          "password": "anotherpw1234567890",
+                          "displayName": "Y"})
+    assert r.status_code == 409
+
+
+def test_register_honeypot_silently_drops_bot(client):
+    r = client.post("/api/register",
+                    json={"email": "bot@example.test",
+                          "password": "test-pw-1234567890",
+                          "displayName": "Bot",
+                          "honeypot": "https://spam.example.com"})
+    assert r.status_code == 200
+    # but the bot's "account" was NOT actually created — proves it by
+    # registering with the same email succeeding normally.
+    r2 = client.post("/api/register",
+                     json={"email": "bot@example.test",
+                           "password": "test-pw-1234567890",
+                           "displayName": "Real human"})
+    assert r2.status_code == 200, r2.text
 
 
 def test_gated_requires_token(client):
@@ -150,12 +196,13 @@ def test_admin_requires_token(client):
 
 
 def test_disabled_participant_cannot_auth(client, tmp_path):
-    code, pw = _make_participant(client)
+    email, pw = _make_participant(client)
     # works while active
-    assert client.post("/api/auth", json={"code": code, "password": pw}).status_code == 200
+    assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 200
     # disable it directly in the DB the app is using, then auth must fail
-    client.app.state.db.set_participant_active(code, False)
-    assert client.post("/api/auth", json={"code": code, "password": pw}).status_code == 401
+    row = client.app.state.db.get_participant_by_email(email)
+    client.app.state.db.set_participant_active(row["code"], False)
+    assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 401
 
 
 def test_expired_token_rejected_by_api(client, monkeypatch):
