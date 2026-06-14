@@ -5,7 +5,7 @@ Reads the same artifacts the desktop K=7 engine uses
   data/eeg_bank.h5                          h5 with /iiic/<id> and /spike/<id>
   data/labels/iiic_segment_signals.csv      per-task s_mean / s_sd
   Sigma_l_fitted_k7.npy                     K=7 fitted Corr_l prior
-  calibration/cert_config.yaml              ell_star_unified_v14 cut-scores
+  calibration/cert_config_v15.yaml          ell_star_unified_v15 cut-scores (default)
 
 Writes (default: cortex_web/public/bundle/<version>/):
   manifest.json     engine inputs + per-segment metadata (PLAN.md §5)
@@ -16,16 +16,14 @@ Writes (default: cortex_web/public/bundle/<version>/):
 The browser engine needs nothing beyond manifest.json to run the particle
 filter; the .eeg / .spec blobs are pulled lazily for display.
 
-The web is now K=7 in framework — spike sits at task 0 — but spike *segments*
-are not yet included pending the SpikeViewer UI (per the deploy roadmap, step
-2). With no spike items in the bank, the engine simply leaves the spike task
-PENDING → REFER, while resolving the 6 IIIC tasks as before.
+The web is K=7 — spike at task 0, served first — and spike segments ARE now
+included by default (the SpikeViewer UI is wired). ℓ* defaults to the v15
+credentialed-panel cut-scores. Pass --no-spike for an IIIC-only build.
 
 USAGE
     python cortex_web/scripts/prepare_web_bundle.py --version v1.5-k7
-    python cortex_web/scripts/prepare_web_bundle.py --bank data/eeg_bank.h5
-    python cortex_web/scripts/prepare_web_bundle.py --cert-block ell_star_unified_v15
-    python cortex_web/scripts/prepare_web_bundle.py --include-spike   # once UI ready
+    python cortex_web/scripts/prepare_web_bundle.py --cert-block ell_star_unified_v14  # override
+    python cortex_web/scripts/prepare_web_bundle.py --no-spike        # IIIC only
     python cortex_web/scripts/prepare_web_bundle.py --max 50          # smoke
 """
 from __future__ import annotations
@@ -151,6 +149,8 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
 
     spec_name = ""
     spec_shape = None
+    spec_time = None  # [t0,t1] s — spectrogram x-axis extent (from stimes)
+    spec_freq = None  # [f0,f1] Hz — spectrogram y-axis extent (from sfreqs)
     # Only IIIC clips carry a spectrogram; spike clips render EEG only.
     if test_class != "spike" and "sdata" in g:
         sdata = np.asarray(g["sdata"], dtype=np.float64)
@@ -161,7 +161,15 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
         ).astype(np.uint8)
         (seg_dir / f"{sid}.spec").write_bytes(qd.tobytes())
         spec_name = f"seg/{sid}.spec"
-        spec_shape = list(np.asarray(g["sdata"]).shape)
+        spec_shape = list(sdata.shape)
+        if "stimes" in g:
+            st = np.asarray(g["stimes"], dtype=float)
+            if st.size:
+                spec_time = [float(st[0]), float(st[-1])]
+        if "sfreqs" in g:
+            sf = np.asarray(g["sfreqs"], dtype=float)
+            if sf.size:
+                spec_freq = [float(sf[0]), float(sf[-1])]
 
     return ({
         "segId": sid,
@@ -177,6 +185,8 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
         "nSamp": int(n_samp),
         "channelNames": ch_names,
         "specShape": spec_shape,
+        "specTime": spec_time,
+        "specFreq": spec_freq,
         "eeg": f"seg/{sid}.eeg",
         "spec": spec_name,
     }, spec_shape is not None)
@@ -188,14 +198,19 @@ def main():
     ap.add_argument("--out", type=Path, default=REPO / "cortex_web" / "public" / "bundle")
     ap.add_argument("--bank", type=Path, default=BANK,
                     help=f"source h5 bank with /iiic and /spike groups (default {BANK}).")
-    ap.add_argument("--cert-block", default="ell_star_unified_v14",
-                    help="cert_config block to read ℓ* from (v14 default; v15 opt-in).")
+    ap.add_argument("--cert-block", default="ell_star_unified_v15",
+                    help="cert_config block to read ℓ* from (v15 default; v14 via override).")
     ap.add_argument("--include-spike", action="store_true",
-                    help="include /spike segments. Requires the SpikeViewer UI; "
-                         "off by default until that lands (engine still runs K=7 — "
-                         "spike just REFERs with no items).")
-    ap.add_argument("--max", type=int, default=None, help="cap #segments (smoke)")
+                    help="(deprecated: spike is now included by default).")
+    ap.add_argument("--no-spike", action="store_true",
+                    help="exclude /spike segments (spike is included by default now "
+                         "that the SpikeViewer UI is wired).")
+    ap.add_argument("--max", type=int, default=None, help="cap #segments/group (smoke)")
+    ap.add_argument("--max-spike", type=int, default=None,
+                    help="separate cap for #spike segments (keeps spike-first from "
+                         "dominating a small test bundle). Defaults to --max.")
     args = ap.parse_args()
+    include_spike = not args.no_spike
 
     out_root = args.out / args.version
     seg_dir = out_root / "seg"
@@ -219,18 +234,19 @@ def main():
         groups = []
         if "iiic" in f:
             groups.append(("iiic", "iiic"))
-        if "spike" in f and args.include_spike:
+        if "spike" in f and include_spike:
             groups.append(("spike", "spike"))
         elif "spike" in f:
-            print(f"  (skipping {len(f['spike'])} spike segments — "
-                  f"pass --include-spike once the SpikeViewer is wired)")
+            print(f"  (skipping {len(f['spike'])} spike segments — --no-spike)")
         if not groups:
             raise SystemExit(f"{args.bank} has no /iiic or /spike group")
 
         for grp_name, test_class in groups:
             seg_ids = sorted(int(s) for s in f[grp_name] if str(s).lstrip("-").isdigit())
-            if args.max:
-                seg_ids = seg_ids[: args.max]
+            cap = (args.max_spike if (test_class == "spike" and args.max_spike is not None)
+                   else args.max)
+            if cap:
+                seg_ids = seg_ids[:cap]
             for sid in seg_ids:
                 g = f[grp_name][str(sid)]
                 pattern = str(g.attrs.get("pattern_class", ""))

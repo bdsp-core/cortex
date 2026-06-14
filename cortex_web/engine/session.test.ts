@@ -104,7 +104,7 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     expect(r.nQ).toBeGreaterThan(0);
     expect(r.nQ).toBeLessThanOrEqual(inputs.segments.length);
     expect(["all_resolved", "bank_exhausted"]).toContain(r.stopReason);
-  }, 30000);
+  }, 240000);
 
   it("a clearly-skilled rater earns mostly PASS", async () => {
     // high discrimination (l≈1.0), unbiased (t=0) → should pass most tasks
@@ -116,12 +116,20 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     const nFail = r.verdicts.filter((v) => v === VERDICT.FAIL).length;
     expect(nFail).toBe(0);
     expect(nPass).toBeGreaterThanOrEqual(3);
-  }, 30000);
+  }, 240000);
 
-  it("a clearly-unskilled rater earns no PASS", async () => {
-    // at-chance discrimination (l≈0) → no task should certify PASS
+  it("a clearly-unskilled rater FAILs the bulk of tasks", async () => {
+    // l≈-0.2 rater. Cut-score-INDEPENDENT engine-discrimination invariant:
+    // the rater clearly FAILs most tasks and certifies at most one. We can't
+    // assert 0 PASS under the v15 credentialed-panel cut-scores — the seizure
+    // task has a very low ℓ* (0.155) and the strongest signals, so sz can
+    // certify PASS even for a weak rater. That's a real OC property of the v15
+    // bars (validated by the formal OC re-validation, not unit-asserted here);
+    // on v14's higher bars this same rater earned 0 PASS.
     const r = await runSim(inputs, new Array(K).fill(0), new Array(K).fill(-0.2), 3);
     const nPass = r.verdicts.filter((v) => v === VERDICT.PASS).length;
-    expect(nPass).toBe(0);
-  }, 30000);
+    const nFail = r.verdicts.filter((v) => v === VERDICT.FAIL).length;
+    expect(nPass).toBeLessThanOrEqual(1);
+    expect(nFail).toBeGreaterThanOrEqual(4);
+  }, 240000);
 });

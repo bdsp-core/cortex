@@ -1,22 +1,17 @@
 // Headless UI smoke — drives the whole participant flow in a real browser
-// (system Chrome via Playwright) against a running server, to validate the
-// integration the unit/API tests can't: the screen chain, engine-worker boot,
-// EEG/spectrogram render, and 1–6 pick-and-advance answering.
+// (system Chrome via Playwright) against a running server: public signup →
+// consent → registration → tutorial → spike phase (SpikeViewer) → IIIC phase.
+// Validates the integration the unit/API tests can't: the screen chain,
+// engine-worker boot, EEG/spectrogram render, spike-first sectioning, and
+// pick-and-advance answering.
 //
-// Prereq: the app is served somewhere (default http://localhost:8079) AND a
-// participant credential is passed in. Usage:
-//   node scripts/ui_smoke.mjs <baseUrl> <code> <password>
-//
-// Exits 0 on success, 1 on any failed milestone. Designed to be invoked by
-// scripts/ui_smoke.sh which boots the server + mints the credential.
+//   node scripts/ui_smoke.mjs <baseUrl>
+// Exits 0 on success, 1 on any failed milestone. Invoked by ui_smoke.sh.
 
 import { chromium } from "playwright";
 
-const [baseUrl, code, password] = process.argv.slice(2);
-if (!baseUrl || !code || !password) {
-  console.error("usage: ui_smoke.mjs <baseUrl> <code> <password>");
-  process.exit(2);
-}
+const [baseUrl] = process.argv.slice(2);
+if (!baseUrl) { console.error("usage: ui_smoke.mjs <baseUrl>"); process.exit(2); }
 
 const log = (m) => console.log(`  ${m}`);
 let browser;
@@ -25,71 +20,74 @@ try {
   browser = await chromium.launch({ channel: "chrome", headless: true });
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
   page.on("pageerror", (e) => console.error("  [pageerror]", e.message));
-
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
   // Landing → BEGIN
   await page.getByText("BEGIN ASSESSMENT").click();
   log("landing → begin ✓");
 
-  // Login
-  await page.getByPlaceholder("cortex-xxxxxxxx").fill(code);
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole("button", { name: "Continue" }).click();
-  log("login submitted ✓");
+  // Auth: public email/password signup (required-field labels carry a " *",
+  // so select by input type / placeholder instead of by label text).
+  const email = `qa+${Date.now()}@example.org`;
+  await page.locator('input[type="email"]').fill(email);
+  const pw = page.locator('input[type="password"]');
+  await pw.nth(0).fill("smoke-pass-123");   // Password
+  await pw.nth(1).fill("smoke-pass-123");   // Confirm password
+  await page.getByPlaceholder("e.g. J. Doe, MD").fill("QA Bot");
+  await page.getByRole("button", { name: "Create account" }).click();
+  log("signup (email/password) ✓");
 
   // Consent
   await page.getByRole("button", { name: "I Accept" }).waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "I Accept" }).click();
-  log("consent accepted ✓");
+  log("consent ✓");
 
-  // Registration page 0 (required fields)
+  // Registration (3-page wizard; page 0 requires name + expertise + institution)
   await page.getByPlaceholder("e.g. J.D.").fill("QA Bot");
-  // expertise + institution
-  const selects = page.locator("select");
-  await selects.first().selectOption({ index: 1 });
-  await page.locator('input[type="text"]').nth(1).fill("Test Institution");
+  await page.locator("select").first().selectOption({ index: 1 });   // expertise
+  await page.locator('input[type="text"]:not([placeholder])').first().fill("Test Institution");
   await page.getByRole("button", { name: "Next" }).click();
-  log("registration p1 ✓");
-  // page 1 → Next (all optional)
   await page.getByRole("button", { name: "Next" }).click();
-  log("registration p2 ✓");
-  // page 2 → Continue to tutorial
   await page.getByRole("button", { name: "Continue to tutorial" }).click();
-  log("registration p3 ✓");
+  log("registration ✓");
 
   // Tutorial → Begin the test
   await page.getByRole("button", { name: "Begin the test" }).click();
   log("tutorial → begin ✓");
 
-  // Viewer: wait for the question counter to appear
-  await page.getByText(/Question\s+\d+\s+of up to/).waitFor({ timeout: 30000 });
-  log("viewer rendered (counter visible) ✓");
-
-  // wait for the first EEG to load (loading text disappears), then answer
-  await page.waitForFunction(
-    () => !document.body.innerText.includes("loading EEG"),
-    { timeout: 20000 },
-  ).catch(() => log("  (eeg load text check skipped)"));
-
-  // Read the counter, answer 5 questions via the keyboard, assert it advances.
-  const counterText = async () =>
-    (await page.getByText(/Question\s+\d+\s+of up to/).innerText()).match(/\d+/)[0];
-  const before = await counterText();
-  for (let i = 0; i < 5; i++) {
-    await page.keyboard.press(String((i % 6) + 1));
-    await page.waitForTimeout(400); // let the worker pick + the next item load
+  // ── SPIKE phase (served first): SpikeViewer Yes/No, EEG only (no spectrogram)
+  await page.getByRole("button", { name: /YES — spike/ }).waitFor({ timeout: 30000 });
+  log("spike phase: Yes/No panel ✓");
+  await page.waitForTimeout(700);
+  if ((await page.locator("canvas").count()) !== 1) {
+    throw new Error("spike phase should show ONLY the EEG canvas (no spectrogram)");
   }
-  const after = await counterText();
-  if (Number(after) <= Number(before)) {
-    throw new Error(`counter did not advance (${before} → ${after})`);
-  }
-  log(`answered via keyboard: question ${before} → ${after} ✓`);
+  log("spike phase: no spectrogram (1 canvas) ✓");
 
-  // spectrogram + eeg canvases present
+  // Answer spike (press "1" = Yes) until the IIIC phase begins (Seizure button).
+  let reachedIIIC = false;
+  for (let i = 0; i < 24 && !reachedIIIC; i++) {
+    await page.keyboard.press("1");
+    await page.waitForTimeout(450);
+    reachedIIIC = (await page.getByRole("button", { name: /Seizure/ }).count()) > 0;
+  }
+  if (!reachedIIIC) throw new Error("never transitioned spike → IIIC");
+  log("transitioned spike → IIIC ✓");
+
+  // ── IIIC phase: spectrogram + EEG, 6-button viewer
+  await page.getByText(/Question\s+\d+/).first().waitFor({ timeout: 15000 });
+  await page.waitForTimeout(700);
   const canvases = await page.locator("canvas").count();
-  if (canvases < 2) throw new Error(`expected ≥2 canvases (eeg+spec), got ${canvases}`);
-  log(`canvases present: ${canvases} ✓`);
+  if (canvases < 2) throw new Error(`IIIC expected ≥2 canvases (eeg+spec), got ${canvases}`);
+  log(`IIIC phase: ${canvases} canvases (eeg + spectrogram) ✓`);
+
+  const counterNum = async () =>
+    Number((await page.getByText(/Question\s+\d+/).first().innerText()).match(/\d+/)[0]);
+  const before = await counterNum();
+  for (let i = 0; i < 4; i++) { await page.keyboard.press(String((i % 6) + 1)); await page.waitForTimeout(450); }
+  const after = await counterNum();
+  if (after <= before) throw new Error(`counter did not advance (${before} → ${after})`);
+  log(`answered IIIC via keyboard: question ${before} → ${after} ✓`);
 
   console.log("UI SMOKE: PASS");
   await browser.close();
