@@ -37,7 +37,10 @@ export function EegCanvas(props: EegCanvasProps) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
-    const padL = 64, padR = 70, padT = 8, padB = 24;
+    // padR is small (the scale bar is now inline at the Fz-Cz/Cz-Pz boundary,
+    // not at the right edge) so the traces fill the width; padL fits the larger
+    // channel labels.
+    const padL = 70, padR = 16, padT = 8, padB = 28;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
     const nRows = rows.length;
@@ -55,21 +58,11 @@ export function EegCanvas(props: EegCanvasProps) {
       if (visHi > visLo) {
         const xL = padL + ((visLo - panStartS) / windowS) * plotW;
         const xR = padL + ((visHi - panStartS) / windowS) * plotW;
-        ctx.save();
-        ctx.fillStyle = "rgba(245, 90, 75, 0.10)";
+        ctx.fillStyle = "rgba(255,80,80,0.137)"; // (255,80,80,35/255)
         ctx.fillRect(xL, padT, xR - xL, plotH);
-        ctx.strokeStyle = "rgba(216, 80, 70, 0.85)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        // only stroke the visible edges (so panning hides edges that are off-screen)
-        if (visLo >= panStartS && labeledEpoch.startS >= panStartS) {
-          ctx.moveTo(xL, padT); ctx.lineTo(xL, padT + plotH);
-        }
-        if (visHi <= panStartS + windowS && labeledEpoch.endS <= panStartS + windowS) {
-          ctx.moveTo(xR, padT); ctx.lineTo(xR, padT + plotH);
-        }
-        ctx.stroke();
-        ctx.restore();
+        ctx.strokeStyle = "rgb(215,45,45)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(xL, padT, xR - xL, plotH);
       }
     }
 
@@ -77,7 +70,7 @@ export function EegCanvas(props: EegCanvasProps) {
     ctx.strokeStyle = "rgba(0,0,0,0.12)";
     ctx.lineWidth = 1;
     ctx.fillStyle = "#333";
-    ctx.font = "10px system-ui";
+    ctx.font = "12px system-ui";
     ctx.textAlign = "center";
     for (let sec = 0; sec <= windowS; sec++) {
       const x = padL + (sec / windowS) * plotW;
@@ -96,7 +89,7 @@ export function EegCanvas(props: EegCanvasProps) {
       // channel label
       if (row.name) {
         ctx.fillStyle = "#222";
-        ctx.font = "10px system-ui";
+        ctx.font = "12px system-ui";
         ctx.fillText(row.name, padL - 6, yMid + 3);
       }
       if (!row.data) continue; // separator
@@ -118,23 +111,25 @@ export function EegCanvas(props: EegCanvasProps) {
       ctx.stroke();
     }
 
-    // scale bar: 1 sec + gain_uv µV, bottom-right
-    const bx = padL + plotW - 4;
-    const by = padT + plotH - 4;
+    // scale bar (1 s + gain µV): placed at the Fz-Cz / Cz-Pz boundary of the
+    // bipolar montage, within the second-to-last second of the window. Falls
+    // back to a low-central position for montages without a Cz-Pz row.
+    const idxCzPz = rows.findIndex((r) => r.name === "Cz-Pz");
+    const yA = idxCzPz >= 0 ? padT + idxCzPz * rowH : padT + plotH - rowH * 1.5;
+    const xR = padL + ((windowS - 1) / windowS) * plotW; // corner at the (last-1)s mark
+    const xL = padL + ((windowS - 2) / windowS) * plotW; // 1 s wide to its left
+    const gainPx = rowH / 2; // gain_uv µV in pixels (1 div = rowH; ½ div shown)
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    const oneSecPx = plotW / windowS;
-    ctx.moveTo(bx - oneSecPx, by);
-    ctx.lineTo(bx, by);
-    ctx.lineTo(bx, by - rowH / 2);
+    ctx.moveTo(xL, yA); ctx.lineTo(xR, yA); // horizontal: 1 s
+    ctx.moveTo(xR, yA); ctx.lineTo(xR, yA - gainPx); // vertical: gain µV
     ctx.stroke();
     ctx.fillStyle = "#000";
-    ctx.font = "10px system-ui";
-    ctx.textAlign = "right";
-    ctx.fillText("1 s", bx, by + 14);
-    ctx.textAlign = "left";
-    ctx.fillText(`${gainUv} µV`, bx + 4, by - rowH / 4);
+    ctx.font = "12px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("1 s", (xL + xR) / 2, yA + 15);
+    ctx.fillText(`${gainUv} µV`, xR, yA - gainPx - 5);
   }, [props]);
 
   // display:block prevents the inline-baseline descender that lets the

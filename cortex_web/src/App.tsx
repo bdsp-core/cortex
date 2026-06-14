@@ -191,7 +191,7 @@ export function App() {
         );
       }
       return (
-        <Viewer bundle={bundle!} item={item} progress={progress} onAnswer={onAnswer} />
+        <Viewer bundle={bundle!} item={item} onAnswer={onAnswer} />
       );
     }
     case "done":

@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bundle, SegmentData } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
-import { Progress } from "../progress";
 import { iiicTasks } from "../tasks";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
@@ -28,12 +27,10 @@ export interface Item {
 export function Viewer({
   bundle,
   item,
-  progress,
   onAnswer,
 }: {
   bundle: Bundle;
   item: Item | null;
-  progress: Progress;
   onAnswer: (pick: number) => void;
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
@@ -163,19 +160,23 @@ export function Viewer({
   // of white on wide displays).
   const eegBoxRef = useRef<HTMLDivElement>(null);
   const [eegSize, setEegSize] = useState({ w: 1140, h: 760 });
+  const specBoxRef = useRef<HTMLDivElement>(null);
+  const [specSize, setSpecSize] = useState({ w: 280, h: 760 });
   useEffect(() => {
-    const el = eegBoxRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        const cr = e.contentRect;
-        if (cr.width > 0 && cr.height > 0) {
-          setEegSize({ w: Math.floor(cr.width), h: Math.floor(cr.height) });
+    const observe = (el: HTMLElement | null, set: (s: { w: number; h: number }) => void) => {
+      if (!el) return () => {};
+      const ro = new ResizeObserver((entries) => {
+        for (const e of entries) {
+          const cr = e.contentRect;
+          if (cr.width > 0 && cr.height > 0) set({ w: Math.floor(cr.width), h: Math.floor(cr.height) });
         }
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+    };
+    const d1 = observe(eegBoxRef.current, setEegSize);
+    const d2 = observe(specBoxRef.current, setSpecSize);
+    return () => { d1(); d2(); };
   }, []);
 
   return (
@@ -183,10 +184,12 @@ export function Viewer({
       style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
                   height: "100vh", display: "flex", flexDirection: "column", padding: 12,
                   boxSizing: "border-box", outline: "none" }}>
-      {/* top: question counter + answer buttons (pick-and-advance) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {/* top: question counter + answer buttons (pick-and-advance) + the red
+          IIIC scoring banner inline (eeg_bank_viewer.py:723-727). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+              flexShrink: 0, paddingBottom: 8, borderBottom: `1px solid ${COLORS.borderInactive}` }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
-          Question {item ? item.trialIndex + 1 : "—"} of up to {progress.maxQ || "—"}
+          Question {item ? item.trialIndex + 1 : "—"}
         </span>
         {iiicOpts.map((o, i) => (
           <button key={o.code} onClick={() => submit(o.idx)}
@@ -194,32 +197,21 @@ export function Viewer({
             {i + 1} · {o.label}
           </button>
         ))}
-        <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1–{iiicOpts.length} to answer
-        </span>
-        <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
-          Confidence of reaching a verdict (most-uncertain task):{" "}
-          <b style={{ color: COLORS.textPrimary }}>
-            {progress.resolveConf == null ? "—" : `${Math.round(progress.resolveConf * 100)}%`}
-          </b>
+        <span style={{ color: "#ff5c5c", fontWeight: 600, marginLeft: 8 }}>
+          Classify the pattern found within the red box. Pan left or right to gain context.
         </span>
       </div>
 
-      {/* IIIC scoring hint — desktop v1.3.8 text */}
-      <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>
-        Classify the pattern found <b style={{ color: COLORS.fail }}>within the red
-        box</b>. The box marks the 10-second region scored by the panel; pan
-        with ◀/▶ or ←/→ to see neighbouring context.
-      </div>
-
-      {/* middle: spectrogram (left) + EEG (right) */}
-      <div style={{ display: "flex", gap: 8, flex: 1, minHeight: 0, marginTop: 8 }}>
-        <div style={{ width: 280, background: "#fff", borderRadius: 4 }}>
-          <SpecCanvas spec={seg?.spec ?? null} width={280} height={760}
+      {/* middle: spectrogram (left) + EEG (right) — both sized to their panes */}
+      <div style={{ display: "flex", gap: 8, flex: 1, minHeight: 0, marginTop: 8, overflow: "hidden" }}>
+        <div ref={specBoxRef} style={{ flex: "0 0 280px", minWidth: 0, minHeight: 0, overflow: "hidden",
+              background: "#fff", borderRadius: 4, border: `1px solid ${COLORS.borderInactive}` }}>
+          <SpecCanvas spec={seg?.spec ?? null} width={specSize.w || 280} height={specSize.h || 760}
             clipBoundsFrac={[SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC]} />
         </div>
         <div ref={eegBoxRef}
-          style={{ flex: 1, background: "#fff", borderRadius: 4, minWidth: 0 }}>
+          style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden",
+                   background: "#fff", borderRadius: 4, border: `1px solid ${COLORS.borderInactive}` }}>
           {seg ? (
             <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={windowS}
               panStartS={panStart} width={eegSize.w} height={eegSize.h}
@@ -230,8 +222,11 @@ export function Viewer({
         </div>
       </div>
 
-      {/* bottom: display controls */}
-      <div style={{ display: "flex", gap: 16, alignItems: "center", marginTop: 8, fontSize: 13 }}>
+      {/* bottom: display controls — fixed height + wrap so the EEG/spectrogram
+          area never overruns them. */}
+      <div style={{ display: "flex", gap: 16, rowGap: 8, alignItems: "center", flexWrap: "wrap",
+              flexShrink: 0, marginTop: 8, paddingTop: 8, fontSize: 13,
+              borderTop: `1px solid ${COLORS.borderInactive}` }}>
         <label>Montage{" "}
           <select value={montage} onChange={(e) => setMontage(e.target.value)}>
             {MONTAGES.map((m) => <option key={m}>{m}</option>)}

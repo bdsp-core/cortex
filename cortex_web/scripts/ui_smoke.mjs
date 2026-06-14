@@ -81,6 +81,29 @@ try {
   if (canvases < 2) throw new Error(`IIIC expected ≥2 canvases (eeg+spec), got ${canvases}`);
   log(`IIIC phase: ${canvases} canvases (eeg + spectrogram) ✓`);
 
+  // cosmetics: inline red scoring banner + bare "Question N" (no "of up to"),
+  // confidence readout gone.
+  if ((await page.getByText(/Classify the pattern found within the red box/).count()) === 0)
+    throw new Error("red scoring banner missing");
+  if ((await page.getByText(/of up to/).count()) > 0) throw new Error('counter still shows "of up to"');
+  if ((await page.getByText(/Confidence of reaching/).count()) > 0) throw new Error("confidence readout still present");
+  log("cosmetics: red banner + bare 'Question N' + no confidence readout ✓");
+
+  // responsive: EEG/spectrogram never overrun the controls at several widths.
+  for (const vw of [1500, 1180, 960]) {
+    await page.setViewportSize({ width: vw, height: 820 });
+    await page.waitForTimeout(250);
+    const lay = await page.evaluate(() => {
+      const c = [...document.querySelectorAll("canvas")].sort((a, b) => b.width - a.width)[0];
+      const ctrl = [...document.querySelectorAll("button, select")]
+        .find((e) => /Pan|Montage/.test(e.textContent || "") || e.tagName === "SELECT");
+      return { cb: c.getBoundingClientRect().bottom, ct: ctrl ? ctrl.getBoundingClientRect().top : Infinity };
+    });
+    if (lay.ct < lay.cb - 4) throw new Error(`EEG spills into controls at ${vw}px`);
+  }
+  await page.setViewportSize({ width: 1500, height: 950 });
+  log("responsive: EEG/spectrogram stay above controls at 1500/1180/960px ✓");
+
   const counterNum = async () =>
     Number((await page.getByText(/Question\s+\d+/).first().innerText()).match(/\d+/)[0]);
   const before = await counterNum();

@@ -15,6 +15,8 @@ export interface BundleManifest extends EngineInputs {
   nSegments: number;
   segments: (EngineInputs["segments"][number] & {
     specShape: number[] | null;
+    specTime?: number[] | null; // [t0,t1] s — spectrogram x-axis extent
+    specFreq?: number[] | null; // [f0,f1] Hz — spectrogram y-axis extent
   })[];
 }
 
@@ -24,7 +26,7 @@ export interface SegmentData {
   nSamp: number;
   fsHz: number;
   channelNames: string[];
-  spec: { data: Uint8Array; shape: number[] } | null;
+  spec: { data: Uint8Array; shape: number[]; time?: number[] | null; freq?: number[] | null } | null;
 }
 
 export class Bundle {
@@ -72,7 +74,8 @@ export class Bundle {
     let spec: SegmentData["spec"] = null;
     if (meta.spec) {
       const sBuf = await cachedArrayBuffer(`${this.base}/${meta.spec}`, `${ver}/${meta.spec}`);
-      spec = { data: new Uint8Array(sBuf), shape: meta.specShape ?? [] };
+      spec = { data: new Uint8Array(sBuf), shape: meta.specShape ?? [],
+               time: meta.specTime ?? null, freq: meta.specFreq ?? null };
     }
 
     const data: SegmentData = {
