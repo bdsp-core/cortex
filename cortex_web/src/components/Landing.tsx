@@ -2,9 +2,9 @@
 // backdrop, with a single "BEGIN ASSESSMENT" call to action. Matches the
 // desktop landing (980×660, backdrop pen #2e425e, button 252×50).
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COLORS, FONTS } from "../../ui/theme";
-import { Button, Stage, Wordmark } from "./ui";
+import { Button, Wordmark } from "./ui";
 
 // 16 channels of deterministic pseudo-EEG drawn once as a decorative backdrop.
 function EegBackdrop({ width, height }: { width: number; height: number }) {
@@ -51,42 +51,66 @@ function EegBackdrop({ width, height }: { width: number; height: number }) {
 }
 
 export function Landing({ onBegin }: { onBegin: () => void }) {
+  // Fill the whole browser viewport (not a fixed 980×660 card), and keep the
+  // EEG backdrop sized to the window as it resizes.
+  const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   return (
-    <Stage maxW={980}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
+        background: COLORS.bg,
+        color: COLORS.textBody,
+        fontFamily: FONTS.sans,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <EegBackdrop width={vp.w} height={vp.h} />
+      <div style={{ position: "relative", textAlign: "center" }}>
+        <Wordmark size={84} />
+        <div
+          style={{
+            fontFamily: FONTS.serif,
+            color: COLORS.textBody,
+            fontSize: 18,
+            letterSpacing: 2,
+            marginTop: 4,
+            marginBottom: 48,
+          }}
+        >
+          EEG Skill Certification
+        </div>
+        <Button onClick={onBegin} style={{ width: 252, height: 50, fontSize: 16, letterSpacing: 1 }}>
+          BEGIN ASSESSMENT
+        </Button>
+      </div>
       <div
         style={{
-          position: "relative",
-          borderRadius: 12,
-          overflow: "hidden",
-          border: `1px solid ${COLORS.borderInactive}`,
-          background: COLORS.bg,
-          aspectRatio: "980 / 660",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
+          position: "absolute",
+          bottom: 34,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          color: COLORS.textFaint,
+          fontSize: 13,
+          letterSpacing: 1,
+          lineHeight: 1.5,
         }}
       >
-        <EegBackdrop width={980} height={660} />
-        <div style={{ position: "relative", textAlign: "center" }}>
-          <Wordmark size={84} />
-          <div
-            style={{
-              fontFamily: FONTS.serif,
-              color: COLORS.textBody,
-              fontSize: 18,
-              letterSpacing: 2,
-              marginTop: 4,
-              marginBottom: 48,
-            }}
-          >
-            EEG Skill Certification
-          </div>
-          <Button onClick={onBegin} style={{ width: 252, height: 50, fontSize: 16, letterSpacing: 1 }}>
-            BEGIN ASSESSMENT
-          </Button>
+        <div>Developed by:<br />Elijah W. Keldsen and M. Brandon Westover</div>
+        <div style={{ marginTop: 8 }}>
+          A project sponsored by the Clinical Data Animation Center (CDAC)
         </div>
       </div>
-    </Stage>
+    </div>
   );
 }
