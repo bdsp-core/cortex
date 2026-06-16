@@ -69,6 +69,12 @@ try {
   await page.getByRole("button", { name: /Sign in/ }).click();
   log("sign in (post-verify) ✓");
 
+  // Post-verify sign-in now lands on the DASHBOARD shell, not consent. Launch
+  // the certification test from the rail CTA to reach the consent screen.
+  await page.getByRole("button", { name: "Re-take certification test" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Re-take certification test" }).click();
+  log("dashboard → re-take certification test ✓");
+
   // Consent
   await page.getByRole("button", { name: "I Accept" }).waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "I Accept" }).click();

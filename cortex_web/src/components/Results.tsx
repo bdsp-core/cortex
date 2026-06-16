@@ -63,10 +63,11 @@ const STOP_REASON_LABEL: Record<string, string> = {
   REFER_UNINFORMATIVE: "Referred — uninformative",
 };
 
-export function Results({ summary, onFinish, onDownloadVideos }: {
+export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
   summary: ResultSummary;
   onFinish?: () => void;
   onDownloadVideos?: () => Promise<void>;
+  onReturn?: () => void;
 }) {
   const [showTech, setShowTech] = useState(false);
   const [openRoc, setOpenRoc] = useState<number | null>(null);
@@ -188,9 +189,10 @@ export function Results({ summary, onFinish, onDownloadVideos }: {
           </div>
         )}
 
-        {onFinish && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
-            <Button onClick={onFinish}>Done</Button>
+        {(onFinish || onReturn) && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+            {onReturn && <Button kind="ghost" onClick={onReturn}>Return to dashboard</Button>}
+            {onFinish && <Button onClick={onFinish}>Done</Button>}
           </div>
         )}
       </Card>

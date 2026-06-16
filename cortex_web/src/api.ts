@@ -9,6 +9,7 @@
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const TOKEN_KEY = "cortex_token";
+const DISPLAY_NAME_KEY = "cortex_display_name";
 
 export interface Manifest {
   bundleUrl: string;
@@ -52,6 +53,22 @@ export function clearToken(): void {
 }
 export function isAuthed(): boolean {
   return !!getToken();
+}
+
+// Logged-in display name, persisted alongside the token so the shell can greet
+// the clinician without an extra round-trip. Set on login/register success.
+export function getDisplayName(): string | null {
+  return localStorage.getItem(DISPLAY_NAME_KEY);
+}
+export function setDisplayName(name: string): void {
+  if (name) localStorage.setItem(DISPLAY_NAME_KEY, name);
+}
+
+// Sign out: drop the token AND the display name. Pending results stay queued
+// (they belong to the device, not the session) and flush on the next sign-in.
+export function logout(): void {
+  clearToken();
+  localStorage.removeItem(DISPLAY_NAME_KEY);
 }
 
 async function parse(res: Response): Promise<any> {
@@ -99,6 +116,7 @@ export async function login(email: string, password: string): Promise<{
   }
   const body = await parse(res);
   setToken(body.token);
+  setDisplayName(body.displayName);
   return { email: body.email, displayName: body.displayName };
 }
 
@@ -117,6 +135,7 @@ export async function register(
     body: JSON.stringify({ email, password, displayName, expertise, honeypot }),
   });
   const body = await parse(res);
+  setDisplayName(body?.displayName ?? displayName);
   return {
     needsVerification: !!body?.needsVerification,
     email: body?.email ?? email,
@@ -184,6 +203,35 @@ export async function health(): Promise<boolean> {
 // ── gated ────────────────────────────────────────────────────────
 export function getManifest(): Promise<Manifest> {
   return authedFetch("/api/manifest");
+}
+
+// ── dashboard / learning-protocol (Phase 2 backend) ───────────────
+// Read-only surfaces backing the shell. KPIs + sample task ℓ/θ/RT are
+// illustrative until the trainer is ported (flagged `sample: true`).
+export interface DashboardKpis {
+  streak: number;
+  dueToday: { new: number; learning: number; review: number };
+  nextRecertDays: number;
+}
+export interface DashboardData {
+  result: unknown | null;
+  hasResult: boolean;
+  tasks: unknown[];
+  kpis: DashboardKpis;
+  sample: boolean;
+}
+
+export function getDashboard(): Promise<DashboardData> {
+  return authedFetch("/api/dashboard");
+}
+export function getRegimen(): Promise<{ regimen: unknown; sample: boolean }> {
+  return authedFetch("/api/regimen");
+}
+export function getTrajectories(): Promise<{ trajectories: unknown[]; sample: boolean }> {
+  return authedFetch("/api/trajectories");
+}
+export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
+  return authedFetch("/api/training-sessions");
 }
 
 export async function createSession(
