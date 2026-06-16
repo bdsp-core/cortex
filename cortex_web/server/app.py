@@ -51,6 +51,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from . import email as email_mod
+from . import sample_data
 from . import security
 from .db import Database
 
@@ -119,6 +120,20 @@ class AdminGenIn(BaseModel):
     count: int = Field(ge=1, le=1000)
     prefix: str = "cortex"
     label: str = ""
+
+
+class TrainingStartIn(BaseModel):
+    taskFocus: Optional[str] = None
+
+
+class TrainingFinalizeIn(BaseModel):
+    trainingId: str
+    nItems: Optional[int] = None
+    summary: Optional[dict[str, Any]] = None
+
+
+class TrajectoryIn(BaseModel):
+    points: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ───────────────────────── validation helpers ─────────────────
@@ -433,6 +448,60 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(404, "unknown session")
         db.store_result(body.sessionId, body.result)
         db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
+        return {"ok": True}
+
+    # ── dashboard / learning-protocol (Phase 2) ─────────────────
+    # The dashboard surfaces. Real certification results (verdicts/AUROC) come
+    # from the results table; ℓ/θ/RT TRAINING trajectories + the protocol plan
+    # are sample data (flagged `sample: true`) until the trainer is ported.
+    @app.get("/api/dashboard")
+    def dashboard(code: str = Depends(require_auth)):
+        result = db.latest_result_for_code(code)
+        return {
+            "result": result,                    # latest real cert result, or null
+            "hasResult": result is not None,
+            "tasks": sample_data.tasks(),         # sample mastery-grid summaries
+            "kpis": sample_data.kpis(),
+            "sample": True,                       # KPIs + task ℓ/θ/RT are illustrative
+        }
+
+    @app.get("/api/regimen")
+    def regimen(code: str = Depends(require_auth)):
+        reg = db.get_active_regimen(code)
+        if reg is not None:
+            return {"regimen": reg["plan"], "sample": False}
+        return {"regimen": sample_data.regimen_plan(), "sample": True}
+
+    @app.get("/api/trajectories")
+    def trajectories(code: str = Depends(require_auth)):
+        rows = db.get_trajectories(code)
+        if rows:
+            pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
+                    "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
+                   for r in rows]
+            return {"trajectories": pts, "sample": False}
+        return {"trajectories": sample_data.trajectories(), "sample": True}
+
+    @app.get("/api/training-sessions")
+    def training_list(code: str = Depends(require_auth)):
+        return {"sessions": db.list_training_sessions(code)}
+
+    @app.post("/api/training-sessions")
+    def training_start(body: TrainingStartIn, code: str = Depends(require_auth)):
+        training_id = uuid.uuid4().hex
+        db.create_training_session(training_id, code, body.taskFocus)
+        return {"trainingId": training_id}
+
+    @app.post("/api/training-sessions/finalize")
+    def training_finalize(body: TrainingFinalizeIn, code: str = Depends(require_auth)):
+        ok = db.finalize_training_session(body.trainingId, code, body.nItems, body.summary)
+        if not ok:
+            raise HTTPException(404, "unknown training session")
+        return {"ok": True}
+
+    @app.post("/api/trajectories")
+    def trajectories_append(body: TrajectoryIn, code: str = Depends(require_auth)):
+        db.append_trajectory_points(code, body.points)
         return {"ok": True}
 
     # ── visualization videos (#8) ───────────────────────────────

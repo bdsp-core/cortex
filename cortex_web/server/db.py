@@ -72,6 +72,42 @@ _SCHEMA_STATEMENTS = [
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code)",
+    # ── dashboard / learning-protocol tables (Phase 2) ──
+    # A participant's training protocol, generated from a certification result:
+    # per-task target ℓ* + a scheduled deck plan (stored as JSON in `plan`).
+    """CREATE TABLE IF NOT EXISTS regimens (
+        regimen_id        TEXT PRIMARY KEY,
+        code              TEXT NOT NULL,
+        source_session_id TEXT,
+        plan              TEXT NOT NULL,
+        active            INTEGER NOT NULL DEFAULT 1,
+        created_utc       TEXT NOT NULL
+    )""",
+    # One row per daily training sitting (training-mode analogue of sessions).
+    """CREATE TABLE IF NOT EXISTS training_sessions (
+        training_id   TEXT PRIMARY KEY,
+        code          TEXT NOT NULL,
+        task_focus    TEXT,
+        started_utc   TEXT NOT NULL,
+        finished_utc  TEXT,
+        status        TEXT NOT NULL DEFAULT 'in_progress',
+        n_items       INTEGER,
+        summary       TEXT
+    )""",
+    # Append-only time series of (task, ℓ, θ, sd, rt) for the evolution charts.
+    """CREATE TABLE IF NOT EXISTS param_trajectories (
+        code        TEXT NOT NULL,
+        task_k      INTEGER NOT NULL,
+        phase       TEXT NOT NULL,
+        ell         REAL,
+        theta       REAL,
+        sd          REAL,
+        rt          REAL,
+        ts          TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_regimens_code ON regimens(code)",
+    "CREATE INDEX IF NOT EXISTS idx_training_code ON training_sessions(code)",
+    "CREATE INDEX IF NOT EXISTS idx_param_traj_code ON param_trajectories(code)",
     # Short-lived 6-digit codes for email verification + password reset.
     # One unconsumed (code, purpose) row is kept at a time (put replaces).
     """CREATE TABLE IF NOT EXISTS auth_codes (
@@ -380,3 +416,84 @@ class Database:
         with self._lock:
             return self._fetchall(
                 "SELECT * FROM sessions ORDER BY started_utc")
+
+    # ── dashboard: latest certification result for a participant ──
+    def latest_result_for_code(self, code: str) -> Optional[dict]:
+        """The most recent completed-session result JSON for `code`, or None."""
+        with self._lock:
+            row = self._fetchone(
+                "SELECT r.result AS result FROM results r "
+                "JOIN sessions s ON s.session_id = r.session_id "
+                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC "
+                "LIMIT 1",
+                (code,))
+        return json.loads(row["result"]) if row else None
+
+    # ── regimens (training protocol) ──────────────────────────────
+    def create_regimen(self, regimen_id: str, code: str,
+                        source_session_id: Optional[str], plan: dict) -> None:
+        with self._lock:
+            self._exec("UPDATE regimens SET active=0 WHERE code=?", (code,))
+            self._exec(
+                "INSERT INTO regimens(regimen_id, code, source_session_id, plan, "
+                "active, created_utc) VALUES (?,?,?,?,1,?)",
+                (regimen_id, code, source_session_id, json.dumps(plan), utc_now()))
+            self._conn.commit()
+
+    def get_active_regimen(self, code: str) -> Optional[dict]:
+        with self._lock:
+            row = self._fetchone(
+                "SELECT * FROM regimens WHERE code=? AND active=1 "
+                "ORDER BY created_utc DESC LIMIT 1", (code,))
+        if not row:
+            return None
+        row["plan"] = json.loads(row["plan"])
+        return row
+
+    # ── training sessions ─────────────────────────────────────────
+    def create_training_session(self, training_id: str, code: str,
+                                task_focus: Optional[str]) -> None:
+        with self._lock:
+            self._exec(
+                "INSERT INTO training_sessions(training_id, code, task_focus, "
+                "started_utc, status) VALUES (?,?,?,?, 'in_progress')",
+                (training_id, code, task_focus, utc_now()))
+            self._conn.commit()
+
+    def finalize_training_session(self, training_id: str, code: str,
+                                  n_items: Optional[int], summary: Optional[dict]) -> bool:
+        with self._lock:
+            cur = self._exec(
+                "UPDATE training_sessions SET status='complete', finished_utc=?, "
+                "n_items=?, summary=? WHERE training_id=? AND code=?",
+                (utc_now(), n_items,
+                 json.dumps(summary) if summary is not None else None,
+                 training_id, code))
+            self._conn.commit()
+            return (cur.rowcount or 0) > 0 if hasattr(cur, "rowcount") else True
+
+    def list_training_sessions(self, code: str) -> list[dict]:
+        with self._lock:
+            return self._fetchall(
+                "SELECT * FROM training_sessions WHERE code=? "
+                "ORDER BY started_utc DESC", (code,))
+
+    # ── parameter trajectories ────────────────────────────────────
+    def append_trajectory_points(self, code: str, points: list[dict]) -> None:
+        if not points:
+            return
+        with self._lock:
+            for p in points:
+                self._exec(
+                    "INSERT INTO param_trajectories(code, task_k, phase, ell, "
+                    "theta, sd, rt, ts) VALUES (?,?,?,?,?,?,?,?)",
+                    (code, int(p["taskK"]), str(p.get("phase", "train")),
+                     p.get("ell"), p.get("theta"), p.get("sd"), p.get("rt"),
+                     p.get("ts") or utc_now()))
+            self._conn.commit()
+
+    def get_trajectories(self, code: str) -> list[dict]:
+        with self._lock:
+            return self._fetchall(
+                "SELECT task_k, phase, ell, theta, sd, rt, ts "
+                "FROM param_trajectories WHERE code=? ORDER BY task_k, ts", (code,))

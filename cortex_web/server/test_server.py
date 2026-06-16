@@ -304,6 +304,87 @@ def test_forgot_unknown_email_is_200(client):
     assert "devCode" not in r.json()
 
 
+# ───────────────── dashboard / learning-protocol (Phase 2) ─────────────────
+
+def test_dashboard_requires_auth(client):
+    assert client.get("/api/dashboard").status_code == 401
+    assert client.get("/api/trajectories").status_code == 401
+    assert client.get("/api/regimen").status_code == 401
+
+
+def test_dashboard_empty_returns_sample(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    d = client.get("/api/dashboard", headers=hdr).json()
+    assert d["hasResult"] is False and d["result"] is None
+    assert len(d["tasks"]) == 7 and d["sample"] is True
+    assert d["kpis"]["streak"] >= 0
+
+
+def test_dashboard_reflects_latest_result(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    client.post("/api/results", headers=hdr,
+                json={"sessionId": sid, "result": {"verdicts": ["PASS"] * 7},
+                      "stopReason": "all_resolved", "nQuestions": 30})
+    d = client.get("/api/dashboard", headers=hdr).json()
+    assert d["hasResult"] is True
+    assert d["result"]["verdicts"] == ["PASS"] * 7
+
+
+def test_trajectories_sample_then_real(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    t0 = client.get("/api/trajectories", headers=hdr).json()
+    assert t0["sample"] is True and len(t0["trajectories"]) == 7 * 9
+    client.post("/api/trajectories", headers=hdr,
+                json={"points": [{"taskK": 0, "phase": "train", "ell": 0.9,
+                                  "theta": 0.1, "sd": 0.12, "rt": 2000}]})
+    t1 = client.get("/api/trajectories", headers=hdr).json()
+    assert t1["sample"] is False and len(t1["trajectories"]) == 1
+
+
+def test_regimen_sample_then_real(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    assert client.get("/api/regimen", headers=hdr).json()["sample"] is True
+    row = client.app.state.db.get_participant_by_email(email)
+    client.app.state.db.create_regimen("rg-1", row["code"], None,
+                                        {"weeks": 6, "deck": []})
+    r = client.get("/api/regimen", headers=hdr).json()
+    assert r["sample"] is False and r["regimen"]["weeks"] == 6
+
+
+def test_training_session_lifecycle(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    tid = client.post("/api/training-sessions", headers=hdr,
+                      json={"taskFocus": "gpd"}).json()["trainingId"]
+    lst = client.get("/api/training-sessions", headers=hdr).json()["sessions"]
+    assert len(lst) == 1 and lst[0]["status"] == "in_progress"
+    assert client.post("/api/training-sessions/finalize", headers=hdr,
+                       json={"trainingId": tid, "nItems": 40,
+                             "summary": {"correct": 33}}).status_code == 200
+    lst2 = client.get("/api/training-sessions", headers=hdr).json()["sessions"]
+    assert lst2[0]["status"] == "complete" and lst2[0]["n_items"] == 40
+    # finalizing an unknown id is a 404
+    assert client.post("/api/training-sessions/finalize", headers=hdr,
+                       json={"trainingId": "nope"}).status_code == 404
+
+
+def test_training_session_isolation(client):
+    """A participant cannot finalize another participant's training session."""
+    e1, p1 = _make_participant(client)
+    e2, p2 = _make_participant(client)
+    h1 = _auth_header(client, e1, p1)
+    h2 = _auth_header(client, e2, p2)
+    tid = client.post("/api/training-sessions", headers=h1, json={}).json()["trainingId"]
+    assert client.post("/api/training-sessions/finalize", headers=h2,
+                       json={"trainingId": tid}).status_code == 404
+
+
 def test_db_direct_participant():
     import tempfile, os
     with tempfile.TemporaryDirectory() as d:
