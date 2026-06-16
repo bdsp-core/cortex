@@ -55,6 +55,8 @@ def test_jwt_tamper_rejected():
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CORTEX_ADMIN_TOKEN", "test-admin")
     monkeypatch.setenv("CORTEX_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CORTEX_EMAIL_BACKEND", "dev")        # no real SES in tests
+    monkeypatch.setenv("CORTEX_EMAIL_EXPOSE_CODE", "1")      # echo codes for the flow
     app = create_app(db_path=tmp_path / "t.db")
     return TestClient(app)
 
@@ -62,15 +64,23 @@ def client(tmp_path, monkeypatch):
 _REG_COUNTER = [0]
 
 
-def _make_participant(client) -> tuple[str, str]:
-    """Create an account via the public /api/register endpoint; return
-    (email, password) so the caller can also authenticate later."""
+def _register(client) -> tuple[str, str, str]:
+    """Register a fresh account (still unverified). Return (email, pw, devCode)."""
     _REG_COUNTER[0] += 1
     email = f"t{_REG_COUNTER[0]}@example.test"
     pw = "test-pw-1234567890"
     r = client.post("/api/register",
                     json={"email": email, "password": pw,
                           "displayName": f"Test User {_REG_COUNTER[0]}"})
+    assert r.status_code == 200, r.text
+    assert r.json().get("needsVerification") is True
+    return email, pw, r.json()["devCode"]
+
+
+def _make_participant(client) -> tuple[str, str]:
+    """Register AND verify an account; return (email, password) ready to auth."""
+    email, pw, code = _register(client)
+    r = client.post("/api/verify/confirm", json={"email": email, "code": code})
     assert r.status_code == 200, r.text
     return email, pw
 
@@ -212,6 +222,86 @@ def test_expired_token_rejected_by_api(client, monkeypatch):
     tok = security.issue_token(code, ttl_seconds=-1)
     r = client.get("/api/manifest", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 401
+
+
+# ───────────────── email verification + password reset ─────────────────
+
+def test_unverified_account_cannot_auth(client):
+    email, pw, _code = _register(client)
+    r = client.post("/api/auth", json={"email": email, "password": pw})
+    assert r.status_code == 403
+    assert r.json()["error"] == "email_not_verified"
+
+
+def test_verify_then_auth_succeeds(client):
+    email, pw, code = _register(client)
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": code}).status_code == 200
+    r = client.post("/api/auth", json={"email": email, "password": pw})
+    assert r.status_code == 200, r.text
+    assert r.json()["token"]
+
+
+def test_verify_rejects_wrong_code(client):
+    email, _pw, code = _register(client)
+    wrong = "000000" if code != "000000" else "111111"
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": wrong}).status_code == 400
+
+
+def test_verify_attempt_cap(client):
+    email, _pw, code = _register(client)
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(security.CODE_MAX_ATTEMPTS):
+        assert client.post("/api/verify/confirm",
+                           json={"email": email, "code": wrong}).status_code == 400
+    # even the CORRECT code is now refused — the code is locked out
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": code}).status_code == 400
+
+
+def test_resend_issues_new_code_and_verifies(client):
+    email, _pw, _old = _register(client)
+    r = client.post("/api/verify/resend", json={"email": email})
+    assert r.status_code == 200
+    new_code = r.json()["devCode"]
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": new_code}).status_code == 200
+
+
+def test_resend_unknown_email_is_200_no_code(client):
+    r = client.post("/api/verify/resend", json={"email": "nobody@example.test"})
+    assert r.status_code == 200
+    assert "devCode" not in r.json()
+
+
+def test_forgot_reset_flow(client):
+    email, pw = _make_participant(client)
+    r = client.post("/api/forgot", json={"email": email})
+    assert r.status_code == 200
+    code = r.json()["devCode"]
+    newpw = "brand-new-pw-9876543210"
+    assert client.post("/api/reset",
+                       json={"email": email, "code": code,
+                             "newPassword": newpw}).status_code == 200
+    # old password no longer works, new one does
+    assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 401
+    assert client.post("/api/auth", json={"email": email, "password": newpw}).status_code == 200
+
+
+def test_reset_rejects_wrong_code(client):
+    email, _pw = _make_participant(client)
+    client.post("/api/forgot", json={"email": email})
+    r = client.post("/api/reset",
+                    json={"email": email, "code": "000000",
+                          "newPassword": "another-good-pw-123"})
+    assert r.status_code == 400
+
+
+def test_forgot_unknown_email_is_200(client):
+    r = client.post("/api/forgot", json={"email": "ghost@example.test"})
+    assert r.status_code == 200
+    assert "devCode" not in r.json()
 
 
 def test_db_direct_participant():

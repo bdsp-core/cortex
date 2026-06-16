@@ -72,6 +72,18 @@ _SCHEMA_STATEMENTS = [
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code)",
+    # Short-lived 6-digit codes for email verification + password reset.
+    # One unconsumed (code, purpose) row is kept at a time (put replaces).
+    """CREATE TABLE IF NOT EXISTS auth_codes (
+        participant_code  TEXT NOT NULL,
+        purpose           TEXT NOT NULL,
+        code_hash         TEXT NOT NULL,
+        created_utc       TEXT NOT NULL,
+        expires_utc       TEXT NOT NULL,
+        consumed_utc      TEXT,
+        attempts          INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (participant_code, purpose)
+    )""",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -81,9 +93,10 @@ _SCHEMA_STATEMENTS = [
 # Columns added to participants after the original schema. Idempotent
 # ALTERs run at startup so an existing database upgrades in place.
 _PARTICIPANTS_MIGRATION_COLUMNS = [
-    ("email",        "TEXT"),
-    ("display_name", "TEXT"),
-    ("signup_ip",    "TEXT"),
+    ("email",             "TEXT"),
+    ("display_name",      "TEXT"),
+    ("signup_ip",         "TEXT"),
+    ("email_verified_utc", "TEXT"),
 ]
 
 
@@ -223,6 +236,62 @@ class Database:
         with self._lock:
             return self._fetchone(
                 "SELECT * FROM participants WHERE email=?", (email,))
+
+    def mark_email_verified(self, code: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE participants SET email_verified_utc=? WHERE code=?",
+                (utc_now(), code))
+            self._conn.commit()
+
+    def set_password_hash(self, code: str, password_hash: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE participants SET password_hash=? WHERE code=?",
+                (password_hash, code))
+            self._conn.commit()
+
+    # ── auth codes (email verify + password reset) ────────────────
+    def put_auth_code(self, participant_code: str, purpose: str,
+                      code_hash: str, expires_utc: str) -> None:
+        """Store (replacing any existing) the active code for (account, purpose)."""
+        if self._pg:
+            sql = ("INSERT INTO auth_codes(participant_code, purpose, code_hash, "
+                   "created_utc, expires_utc, consumed_utc, attempts) "
+                   "VALUES (?,?,?,?,?,NULL,0) "
+                   "ON CONFLICT (participant_code, purpose) DO UPDATE SET "
+                   "code_hash=EXCLUDED.code_hash, created_utc=EXCLUDED.created_utc, "
+                   "expires_utc=EXCLUDED.expires_utc, consumed_utc=NULL, attempts=0")
+        else:
+            sql = ("INSERT OR REPLACE INTO auth_codes(participant_code, purpose, "
+                   "code_hash, created_utc, expires_utc, consumed_utc, attempts) "
+                   "VALUES (?,?,?,?,?,NULL,0)")
+        with self._lock:
+            self._exec(sql, (participant_code, purpose, code_hash,
+                             utc_now(), expires_utc))
+            self._conn.commit()
+
+    def get_auth_code(self, participant_code: str, purpose: str) -> Optional[dict]:
+        with self._lock:
+            return self._fetchone(
+                "SELECT * FROM auth_codes WHERE participant_code=? AND purpose=?",
+                (participant_code, purpose))
+
+    def increment_auth_attempts(self, participant_code: str, purpose: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE auth_codes SET attempts=attempts+1 "
+                "WHERE participant_code=? AND purpose=?",
+                (participant_code, purpose))
+            self._conn.commit()
+
+    def consume_auth_code(self, participant_code: str, purpose: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE auth_codes SET consumed_utc=? "
+                "WHERE participant_code=? AND purpose=?",
+                (utc_now(), participant_code, purpose))
+            self._conn.commit()
 
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,

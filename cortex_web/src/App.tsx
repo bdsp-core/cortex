@@ -19,7 +19,7 @@ import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { Landing } from "./components/Landing";
-import { Auth } from "./components/Auth";
+import { AuthFlow } from "./components/AuthFlow";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
 import { Computing } from "./components/Computing";
@@ -222,7 +222,7 @@ export function App() {
     case "landing":
       return <Landing onBegin={begin} />;
     case "auth":
-      return <Auth onAuthed={() => setPhase("consent")} onBack={() => setPhase("landing")} />;
+      return <AuthFlow onAuthed={() => setPhase("consent")} />;
     case "consent":
       return (
         <Consent

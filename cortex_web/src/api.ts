@@ -32,6 +32,15 @@ export class ApiError extends Error {
   }
 }
 
+// Raised by login() when the server says the account exists but the email
+// isn't verified yet (403 {error:"email_not_verified"}). The UI catches this
+// to route to the verify screen rather than show a generic credentials error.
+export class EmailNotVerifiedError extends Error {
+  constructor(public email: string) {
+    super("email_not_verified");
+  }
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -72,6 +81,9 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<any> {
 }
 
 // ── public ───────────────────────────────────────────────────────
+// Sign in. On success stores the JWT. A 403 {error:"email_not_verified"} is
+// re-thrown as EmailNotVerifiedError so the UI can route to the verify screen
+// instead of showing a credentials error.
 export async function login(email: string, password: string): Promise<{
   email: string; displayName: string;
 }> {
@@ -80,6 +92,11 @@ export async function login(email: string, password: string): Promise<{
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null);
+    if (body?.error === "email_not_verified") throw new EmailNotVerifiedError(email);
+    throw new ApiError(403, body?.error || res.statusText);
+  }
   const body = await parse(res);
   setToken(body.token);
   return { email: body.email, displayName: body.displayName };
@@ -87,20 +104,72 @@ export async function login(email: string, password: string): Promise<{
 
 // Public open-signup. `honeypot` is the hidden form field; humans leave it
 // empty. The backend accepts a non-empty value silently to avoid tipping off
-// scanners that a bot trap exists.
+// scanners that a bot trap exists. Register no longer returns a token: the
+// participant must verify their email then sign in. `devCode` is only present
+// in dev/CI (CORTEX_EMAIL_EXPOSE_CODE=1) and is never relied on in real UX.
 export async function register(
   email: string, password: string, displayName: string, expertise: string,
   honeypot: string,
-): Promise<{ email: string; displayName: string }> {
+): Promise<{ needsVerification: boolean; email: string; displayName: string; devCode?: string }> {
   const res = await fetch(`${API_BASE}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, displayName, expertise, honeypot }),
   });
   const body = await parse(res);
-  // honeypot case: server returned 200 but no token. Don't store anything.
-  if (body?.token) setToken(body.token);
-  return { email: body?.email ?? email, displayName: body?.displayName ?? displayName };
+  return {
+    needsVerification: !!body?.needsVerification,
+    email: body?.email ?? email,
+    displayName: body?.displayName ?? displayName,
+    devCode: body?.devCode,
+  };
+}
+
+// Confirm the 6-digit email-verification code. Throws ApiError(400) on an
+// invalid/expired code, ApiError(429) on rate limiting.
+export async function verifyCode(email: string, code: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/verify/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  await parse(res);
+}
+
+// Resend the email-verification code. `devCode` only present in dev/CI.
+export async function resendCode(email: string): Promise<{ devCode?: string }> {
+  const res = await fetch(`${API_BASE}/api/verify/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parse(res);
+  return { devCode: body?.devCode };
+}
+
+// Request a password-reset code. Always 200 (does not reveal whether the email
+// is registered); `devCode` only present in dev/CI.
+export async function requestReset(email: string): Promise<{ devCode?: string }> {
+  const res = await fetch(`${API_BASE}/api/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parse(res);
+  return { devCode: body?.devCode };
+}
+
+// Complete a password reset with the code + new password. Throws ApiError(400)
+// on an invalid/expired code or a too-short password.
+export async function resetPassword(
+  email: string, code: string, newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  await parse(res);
 }
 
 export async function health(): Promise<boolean> {
