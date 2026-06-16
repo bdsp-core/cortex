@@ -34,7 +34,7 @@ export function Card({ children, style }: { children: ReactNode; style?: CSSProp
       style={{
         background: COLORS.card,
         border: `1px solid ${COLORS.borderInactive}`,
-        borderRadius: 10,
+        borderRadius: "var(--radius-panel)",
         padding: 32,
         ...style,
       }}
@@ -96,7 +96,7 @@ export function Button({
 }) {
   const base: CSSProperties = {
     padding: "12px 24px",
-    borderRadius: 8,
+    borderRadius: "var(--radius-ctl)",
     fontSize: 15,
     fontWeight: 600,
     fontFamily: FONTS.sans,
@@ -136,7 +136,7 @@ const labelStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  borderRadius: 6,
+  borderRadius: "var(--radius-ctl)",
   background: COLORS.cardAlt,
   border: `1px solid ${COLORS.borderInactive2}`,
   color: COLORS.textPrimary,

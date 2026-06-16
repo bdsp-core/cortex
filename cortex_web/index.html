@@ -1,12 +1,133 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CORTEX</title>
+    <script>/* set theme before first paint to avoid flash */
+    (function(){try{var t=localStorage.getItem("cortex-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
     <style>
+      /* ============================================================
+         CORTEX theme tokens. Theme-scoped CSS variables on
+         <html data-theme>. LIGHT = locked-v1 Direction-C palette
+         (default); DARK = the CORTEX test-app palette. data-theme
+         flips the variable set; the teal accent is constant in both.
+         Ported verbatim from cortex_web_design/mockups/locked-v1.
+         ============================================================ */
+      :root{
+        /* spacing - 8px baseline grid (theme-independent) */
+        --s2:2px; --s4:4px; --s8:8px; --s12:12px; --s16:16px;
+        --s24:24px; --s32:32px; --s48:48px; --s64:64px;
+
+        /* sharp edges everywhere (centralized at 0) */
+        --radius-panel:0;
+        --radius-ctl:0;
+
+        --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace;
+        --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+        --serif:"Palatino Linotype","Book Antiqua",Palatino,"URW Palladio L",serif;
+
+        /* ONE accent - clinical teal (constant in both themes) */
+        --teal:#2f8f83;
+        /* answer-selection affordance (clinical viewer); constant */
+        --accent:#f5a623;
+      }
+
+      /* ---------- LIGHT theme (default = locked-v1 Dir-C) ---------- */
+      html[data-theme="light"]{
+        --page:#f5f5f5;
+        --panel:#ffffff;
+        --panel-hover:#fafafa;
+        --field-bg:#ffffff;
+        --bd-subtle:#e4e4e4;
+        --bd:#c4c4c4;
+        --bd-strong:#858585;
+        --ink:#1c1f26;
+        --ink-subtle:#5c606a;
+        --ink-faint:#afafaf;
+
+        --teal-weak:#e3efed;
+        --teal-mid:#a9d2cb;
+        --teal-deep:#235e57;
+        --rail-bg:#ffffff;
+
+        /* verdict ramp (engine colors) */
+        --pass:#7ed391;
+        --fail:#d8806a;
+        --refer-b:#d4b169;
+        --refer-u:#9aa0ab;
+        --pending:#5c606a;
+
+        /* daily-deck count colors (Anki state colors) */
+        --c-new:#3b82f6;
+        --c-learn:#dc2626;
+        --c-due:#16a34a;
+
+        /* chart inks (consumed by inline SVG via getComputedStyle) */
+        --grid-ink:rgba(0,0,0,0.06);
+        --phase-eval:rgba(0,0,0,0.018);
+        --phase-recert:rgba(47,143,131,0.06);
+        --phase-rule:#c4c4c4;
+        --zero-fill:#eef1f1;
+        --neutral-rule:#9aa0ab;
+
+        /* AA-adjusted verdict chip colors (LIGHT) */
+        --chip-pass-fg:#1c4a2a;   --chip-pass-bg:#e7f6ec;   --chip-pass-bd:#bfe6cb;
+        --chip-fail-fg:#6e2d1d;   --chip-fail-bg:#fbeae5;   --chip-fail-bd:#f0cabd;
+        --chip-referb-fg:#6b521c; --chip-referb-bg:#f8f0db; --chip-referb-bd:#ecd9a8;
+        --chip-referu-fg:#3f444c; --chip-referu-bg:#eef0f2; --chip-referu-bd:#d6dade;
+      }
+
+      /* ---------- DARK theme (CORTEX test-app palette) ---------- */
+      html[data-theme="dark"]{
+        --page:#0b0d12;
+        --panel:#14161c;
+        --panel-hover:#1b1e26;
+        --field-bg:#0f1117;
+        --bd-subtle:#3a3d45;
+        --bd:#454a55;
+        --bd-strong:#5c606a;
+        --ink:#eef1f5;
+        --ink-subtle:#aab0ba;
+        --ink-faint:#5c606a;
+
+        --teal-weak:#16302d;
+        --teal-mid:#2a5a53;
+        --teal-deep:#7ecfc4;
+        --rail-bg:#14161c;
+
+        /* verdict ramp - DARK uses the originals */
+        --pass:#7ed391;
+        --fail:#d8806a;
+        --refer-b:#d4b169;
+        --refer-u:#9aa0ab;
+        --pending:#5c606a;
+
+        --c-new:#5a9bf6;
+        --c-learn:#e8746a;
+        --c-due:#5fc27e;
+
+        --grid-ink:rgba(255,255,255,0.07);
+        --phase-eval:rgba(255,255,255,0.025);
+        --phase-recert:rgba(47,143,131,0.12);
+        --phase-rule:#454a55;
+        --zero-fill:#1b1e26;
+        --neutral-rule:#5c606a;
+
+        /* verdict chips (DARK): tinted dark bg, bright fg */
+        --chip-pass-fg:#9ee6ab;   --chip-pass-bg:#16291c;   --chip-pass-bd:#2f5a3a;
+        --chip-fail-fg:#eba593;   --chip-fail-bg:#2e1a14;   --chip-fail-bd:#5e3528;
+        --chip-referb-fg:#e2c483; --chip-referb-bg:#2b2414; --chip-referb-bd:#574828;
+        --chip-referu-fg:#c2c8d2; --chip-referu-bg:#22262e; --chip-referu-bd:#454a55;
+      }
+
+      *{ box-sizing:border-box; }
       html, body, #root { height: 100%; margin: 0; }
-      body { background: #0b0d12; }
+      body {
+        font-family: var(--sans);
+        color: var(--ink);
+        background: var(--page);
+      }
     </style>
   </head>
   <body>
