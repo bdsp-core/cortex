@@ -213,21 +213,66 @@ export interface DashboardKpis {
   dueToday: { new: number; learning: number; review: number };
   nextRecertDays: number;
 }
+// Per-task mastery-grid summary. ℓ/ℓ*/auroc are sample; verdict/auroc are
+// overridden from the real cert result when hasResult is true.
+export interface DashboardTask {
+  taskK: number;
+  code: string;
+  label: string;
+  ell: number;
+  ellStar: number;
+  auroc: number;
+  verdict: string;
+}
+// A real certification result blob (latest for the participant). Only the
+// fields the dashboard reads are typed; the rest of the engine payload rides
+// along untyped.
+export interface CertResult {
+  verdicts?: string[];
+  roc?: Array<{ auroc?: number } | null>;
+  [k: string]: unknown;
+}
 export interface DashboardData {
-  result: unknown | null;
+  result: CertResult | null;
   hasResult: boolean;
-  tasks: unknown[];
+  tasks: DashboardTask[];
   kpis: DashboardKpis;
   sample: boolean;
+}
+
+export interface TrajectoryPoint {
+  taskK: number;
+  phase: "eval" | "train" | "recert";
+  ell: number;
+  theta: number;
+  sd: number;
+  rt: number;
+  ts: string;
+}
+
+export interface RegimenDeckEntry {
+  taskK: number;
+  code: string;
+  label: string;
+  ell: number;
+  ellStar: number;
+  new: number;
+  learning: number;
+  due: number;
+}
+export interface RegimenPlan {
+  weeks: number;
+  weekOf: number;
+  deck: RegimenDeckEntry[];
 }
 
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
-export function getRegimen(): Promise<{ regimen: unknown; sample: boolean }> {
+export function getRegimen(): Promise<{ regimen: RegimenPlan; sample: boolean }> {
   return authedFetch("/api/regimen");
 }
-export function getTrajectories(): Promise<{ trajectories: unknown[]; sample: boolean }> {
+export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sample: boolean }> {
   return authedFetch("/api/trajectories");
 }
 export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
