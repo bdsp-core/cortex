@@ -9,6 +9,10 @@ cd "$(dirname "$0")/.."
 PORT="${CORTEX_PORT:-8083}"
 export CORTEX_JWT_SECRET="ui-smoke-secret"
 export CORTEX_DB="/tmp/cortex_ui_smoke.db"
+# Dev email backend that echoes the 6-digit code back in the API response so
+# the headless flow can read it (register → verify). Never enabled in prod.
+export CORTEX_EMAIL_BACKEND="dev"
+export CORTEX_EMAIL_EXPOSE_CODE="1"
 rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true
 
 [ -d dist ] || npm run build

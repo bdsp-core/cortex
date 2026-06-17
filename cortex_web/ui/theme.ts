@@ -1,30 +1,41 @@
-// Exact visual constants extracted from scripts/eeg_bank_viewer.py so the
-// web app is pixel-identical to the desktop. Single source of truth for the
-// React components.
+// Visual constants for the React components. Colors are theme-scoped CSS
+// variables (defined in index.html: LIGHT default + DARK toggle on
+// <html data-theme>); the token names below are kept stable so component
+// inline styles need no churn. Canvas-only colors (EEG paper / landing pen)
+// stay literal because a 2d-context fillStyle cannot resolve `var()`; canvas
+// code that needs a themed color resolves it at draw time via cssVar().
 
 export const COLORS = {
-  bg: "#0b0d12",
-  card: "#14161c",
-  cardAlt: "#15171c",
-  borderInactive: "#3a3d45",
-  borderInactive2: "#454a55",
-  borderFocus: "#8a8f9b",
-  textPrimary: "#eef1f5",
-  textSecondary: "#dde0e6",
-  textBody: "#aab0ba",
-  textTertiary: "#767b87",
-  textMuted: "#6b7280",
-  textFaint: "#5c606a",
-  accent: "#f5a623", // answer-selection outline
-  pass: "#7ed391",
-  fail: "#d8806a",
-  referBorderline: "#d4b169",
-  referUninformative: "#9aa0ab",
-  pending: "#5c606a",
-  eegBackdrop: "#2e425e", // landing static-EEG pen
-  eegTrace: "#000000",
-  ekgTrace: "#c80000", // (200,0,0)
+  bg: "var(--page)",
+  card: "var(--panel)",
+  cardAlt: "var(--field-bg)",
+  borderInactive: "var(--bd-subtle)",
+  borderInactive2: "var(--bd)",
+  borderFocus: "var(--bd-strong)",
+  textPrimary: "var(--ink)",
+  textSecondary: "var(--ink)",
+  textBody: "var(--ink-subtle)",
+  textTertiary: "var(--ink-subtle)",
+  textMuted: "var(--ink-faint)",
+  textFaint: "var(--ink-faint)",
+  accent: "var(--accent)", // answer-selection outline (amber, theme-constant)
+  pass: "var(--pass)",
+  fail: "var(--fail)",
+  referBorderline: "var(--refer-b)",
+  referUninformative: "var(--refer-u)",
+  pending: "var(--pending)",
+  eegBackdrop: "#2e425e", // landing static-EEG pen (canvas literal)
+  eegTrace: "#000000", // clinical EEG paper trace (canvas literal)
+  ekgTrace: "#c80000", // (200,0,0) (canvas literal)
 } as const;
+
+// Resolve a themed CSS variable to a concrete color string for use in a
+// canvas 2d context (which cannot consume `var()`). SSR/test-safe.
+export function cssVar(name: string, fallback = "#000000"): string {
+  if (typeof window === "undefined" || typeof document === "undefined") return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
 
 // Branding (Landing / Consent / Registration) uses Palatino; the Viewer +
 // Results use the system sans. Ship a metrically-close free face for non-Mac.

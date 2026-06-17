@@ -26,16 +26,54 @@ try {
   await page.getByText("BEGIN ASSESSMENT").click();
   log("landing → begin ✓");
 
-  // Auth: public email/password signup (required-field labels carry a " *",
-  // so select by input type / placeholder instead of by label text).
+  // Auth: public email/password signup → verify email → sign in. The signup
+  // screen starts on "Sign in"; switch to "Create an account" first.
   const email = `qa+${Date.now()}@example.org`;
+  const password = "smoke-pass-123";
+
+  // Capture the dev verification code echoed by the server in dev/CI
+  // (CORTEX_EMAIL_EXPOSE_CODE=1 — see ui_smoke.sh).
+  let devCode = null;
+  page.on("response", async (res) => {
+    if (res.url().endsWith("/api/register") && res.request().method() === "POST") {
+      try { devCode = (await res.json())?.devCode ?? null; } catch { /* ignore */ }
+    }
+  });
+
+  await page.getByText("Create an account").click();
+  await page.getByRole("button", { name: "Create account" }).waitFor({ timeout: 10000 });
+  // required-field labels carry a " *", so select by input type / placeholder.
   await page.locator('input[type="email"]').fill(email);
   const pw = page.locator('input[type="password"]');
-  await pw.nth(0).fill("smoke-pass-123");   // Password
-  await pw.nth(1).fill("smoke-pass-123");   // Confirm password
+  await pw.nth(0).fill(password);   // Password
+  await pw.nth(1).fill(password);   // Confirm password
   await page.getByPlaceholder("e.g. J. Doe, MD").fill("QA Bot");
   await page.getByRole("button", { name: "Create account" }).click();
   log("signup (email/password) ✓");
+
+  // Verify email: fill the 6 single-char inputs with the dev code, then submit.
+  await page.getByRole("button", { name: "Verify & continue" }).waitFor({ timeout: 10000 });
+  for (let i = 0; i < 40 && devCode == null; i++) await page.waitForTimeout(100);
+  if (!devCode || !/^\d{6}$/.test(devCode)) throw new Error(`no 6-digit devCode from /api/register (got ${devCode})`);
+  const codeInputs = page.locator('input[inputmode="numeric"][maxlength="1"]');
+  for (let i = 0; i < 6; i++) await codeInputs.nth(i).fill(devCode[i]);
+  await page.getByRole("button", { name: "Verify & continue" }).click();
+  log("verify email (6-digit code) ✓");
+
+  // Success → sign in with the same credentials (no auto-login after verify).
+  await page.getByRole("button", { name: "Continue to sign in" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Continue to sign in" }).click();
+  await page.getByRole("button", { name: /Sign in/ }).waitFor({ timeout: 10000 });
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
+  await page.getByRole("button", { name: /Sign in/ }).click();
+  log("sign in (post-verify) ✓");
+
+  // Post-verify sign-in now lands on the DASHBOARD shell, not consent. Launch
+  // the certification test from the rail CTA to reach the consent screen.
+  await page.getByRole("button", { name: "Re-take certification test" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Re-take certification test" }).click();
+  log("dashboard → re-take certification test ✓");
 
   // Consent
   await page.getByRole("button", { name: "I Accept" }).waitFor({ timeout: 10000 });

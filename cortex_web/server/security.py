@@ -128,3 +128,31 @@ def decode_token(token: str, *, now: int | None = None) -> dict:
     if int(now if now is not None else time.time()) >= int(exp):
         raise TokenError("expired")
     return claims
+
+
+# ───────────────────── short-lived email codes ─────────────────────
+# 6-digit codes for email verification + password reset. A 6-digit space is
+# only 1e6, so the protections are: short expiry, a hard per-code attempt cap
+# (enforced at the DB layer), and a keyed HMAC-SHA256 at rest (peppered with
+# the same server secret as the JWT) so a DB leak doesn't expose live codes.
+
+CODE_TTL_SECONDS = 15 * 60
+CODE_MAX_ATTEMPTS = 5
+
+
+def gen_numeric_code(n_digits: int = 6) -> str:
+    """A cryptographically-random zero-padded numeric code."""
+    return "".join(str(secrets.randbelow(10)) for _ in range(n_digits))
+
+
+def hash_code(code: str) -> str:
+    """Keyed HMAC-SHA256 of a short code, for storage at rest."""
+    return _b64e(hmac.new(_jwt_secret(), code.encode("utf-8"), hashlib.sha256).digest())
+
+
+def verify_code(code: str, stored_hash: str) -> bool:
+    """Constant-time compare of a presented code against a stored hash."""
+    try:
+        return hmac.compare_digest(hash_code(code), stored_hash)
+    except Exception:
+        return False

@@ -53,6 +53,8 @@ export class Bundle {
       taskClasses: m.taskClasses,   // K=7 routing — Viewer/Results need this
       certBlock: m.certBlock,       // ℓ* lineage provenance for the result file
       corrL: m.corrL,
+      corrT: m.corrT,               // v15 OPT-IN (undefined on the frozen-pilot manifest)
+      nParticles: m.nParticles,     // v15 OPT-IN (undefined → engine defaults to 600)
       ellStar: m.ellStar,
       segments: m.segments,
     };

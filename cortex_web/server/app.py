@@ -7,7 +7,12 @@ serves 100 concurrent participants because there is no shared compute.
 
 Endpoints (all JSON, prefix /api):
     GET  /api/health                      liveness
-    POST /api/auth      {code, password}  → {token, expiresIn}
+    POST /api/register  {email, password, displayName} → {needsVerification, email}
+    POST /api/verify/confirm {email, code} → {ok}        (marks email verified)
+    POST /api/verify/resend  {email}       → {ok}        (re-issue verify code)
+    POST /api/auth      {email, password}  → {token, expiresIn}  (403 if unverified)
+    POST /api/forgot    {email}            → {ok}        (issue reset code)
+    POST /api/reset     {email, code, newPassword} → {ok}
     GET  /api/manifest  (Bearer)          → {bundleUrl, version, sessionSample}
     POST /api/session   (Bearer) {participant, sampleSeed} → {sessionId}
     POST /api/progress  (Bearer) {sessionId, trial}        → {ok}
@@ -45,6 +50,8 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
+from . import email as email_mod
+from . import sample_data
 from . import security
 from .db import Database
 
@@ -77,6 +84,21 @@ class RegisterIn(BaseModel):
     honeypot: str = ""         # bot trap; must be empty
 
 
+class VerifyIn(BaseModel):
+    email: str
+    code: str
+
+
+class EmailIn(BaseModel):
+    email: str
+
+
+class ResetIn(BaseModel):
+    email: str
+    code: str
+    newPassword: str
+
+
 class SessionIn(BaseModel):
     participant: dict[str, Any] = Field(default_factory=dict)
     sampleSeed: Optional[int] = None
@@ -98,6 +120,20 @@ class AdminGenIn(BaseModel):
     count: int = Field(ge=1, le=1000)
     prefix: str = "cortex"
     label: str = ""
+
+
+class TrainingStartIn(BaseModel):
+    taskFocus: Optional[str] = None
+
+
+class TrainingFinalizeIn(BaseModel):
+    trainingId: str
+    nItems: Optional[int] = None
+    summary: Optional[dict[str, Any]] = None
+
+
+class TrajectoryIn(BaseModel):
+    points: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ───────────────────────── validation helpers ─────────────────
@@ -128,6 +164,10 @@ def _is_email(s: str) -> bool:
 _RATE_LIMITS = {
     "register": (5,  3600),
     "auth":     (20, 3600),
+    "verify":   (20, 3600),   # confirm a verification code
+    "resend":   (5,  3600),   # re-send a verification code
+    "forgot":   (5,  3600),   # request a password-reset code
+    "reset":    (20, 3600),   # submit a reset code + new password
 }
 
 
@@ -160,6 +200,46 @@ def _client_ip(req: Request) -> str:
     if xff:
         return xff.split(",")[0].strip()
     return req.client.host if req.client else "unknown"
+
+
+def _future_utc(seconds: int) -> str:
+    """An ISO-Z timestamp `seconds` in the future. Same fixed format as
+    db.utc_now() so lexicographic compare == chronological compare."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + seconds))
+
+
+def _expose_codes() -> bool:
+    """Dev/CI only: echo issued codes in API responses so headless smoke tests
+    can complete the verify/reset flow. Never set in production (SES sends the
+    real email). Off unless CORTEX_EMAIL_EXPOSE_CODE=1."""
+    return os.environ.get("CORTEX_EMAIL_EXPOSE_CODE") == "1"
+
+
+def _issue_code(db: Database, participant_code: str, email: str, purpose: str) -> str:
+    """Generate + store + email a fresh 6-digit code for (account, purpose)."""
+    code = security.gen_numeric_code()
+    db.put_auth_code(participant_code, purpose, security.hash_code(code),
+                     _future_utc(security.CODE_TTL_SECONDS))
+    email_mod.send_auth_code(email, code, purpose)
+    return code
+
+
+def _check_code(db: Database, participant_code: str, purpose: str, presented: str) -> bool:
+    """Validate a presented code: not consumed, not expired, under the attempt
+    cap, and matching. Bumps the attempt counter on a mismatch. The caller is
+    responsible for consuming the code on success."""
+    row = db.get_auth_code(participant_code, purpose)
+    if row is None or row.get("consumed_utc"):
+        return False
+    from .db import utc_now
+    if utc_now() >= row["expires_utc"]:
+        return False
+    if int(row.get("attempts") or 0) >= security.CODE_MAX_ATTEMPTS:
+        return False
+    if not security.verify_code(presented.strip(), row["code_hash"]):
+        db.increment_auth_attempts(participant_code, purpose)
+        return False
+    return True
 
 
 def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
@@ -239,11 +319,47 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
                 raise HTTPException(409, "an account with this email already exists")
             raise
-        token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
-                                     extra={"email": email,
-                                            "expertise": body.expertise[:80]})
-        return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
-                "email": email, "displayName": display}
+        # No session is issued at signup: the account must verify its email
+        # before it can sign in. Email a 6-digit code; the SPA advances to the
+        # verify screen.
+        dev_code = _issue_code(db, code, email, "verify")
+        resp = {"needsVerification": True, "email": email, "displayName": display}
+        if _expose_codes():
+            resp["devCode"] = dev_code
+        return resp
+
+    @app.post("/api/verify/confirm")
+    def verify_confirm(body: VerifyIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("verify", ip):
+            raise HTTPException(429, "too many attempts — try again later")
+        email = _norm_email(body.email)
+        row = db.get_participant_by_email(email)
+        if row is None:
+            raise HTTPException(400, "invalid or expired code")
+        if row.get("email_verified_utc"):
+            return {"ok": True, "alreadyVerified": True}
+        if not _check_code(db, row["code"], "verify", body.code):
+            raise HTTPException(400, "invalid or expired code")
+        db.consume_auth_code(row["code"], "verify")
+        db.mark_email_verified(row["code"])
+        return {"ok": True}
+
+    @app.post("/api/verify/resend")
+    def verify_resend(body: EmailIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("resend", ip):
+            raise HTTPException(429, "too many requests — try again later")
+        email = _norm_email(body.email)
+        row = db.get_participant_by_email(email)
+        resp: dict[str, Any] = {"ok": True}
+        # Only (re)issue for an existing, still-unverified account; respond 200
+        # either way so the endpoint doesn't reveal which emails exist.
+        if row is not None and not row.get("email_verified_utc"):
+            dev_code = _issue_code(db, row["code"], email, "verify")
+            if _expose_codes():
+                resp["devCode"] = dev_code
+        return resp
 
     @app.post("/api/auth")
     def auth(body: AuthIn, req: Request):
@@ -258,11 +374,49 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(401, "invalid credentials")
         if not security.verify_password(body.password, row["password_hash"]):
             raise HTTPException(401, "invalid credentials")
+        # Credentials are valid but the email isn't verified yet: signal the SPA
+        # to route to the verify screen (detail is a stable machine code).
+        if not row.get("email_verified_utc"):
+            raise HTTPException(403, "email_not_verified")
         code = row["code"]
         token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
                 "email": email, "displayName": row.get("display_name") or ""}
+
+    @app.post("/api/forgot")
+    def forgot(body: EmailIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("forgot", ip):
+            raise HTTPException(429, "too many requests — try again later")
+        email = _norm_email(body.email)
+        row = db.get_participant_by_email(email)
+        resp: dict[str, Any] = {"ok": True}
+        # Respond 200 regardless so the endpoint doesn't reveal which emails
+        # have accounts; only actually issue a code for a real account.
+        if row is not None and row["active"]:
+            dev_code = _issue_code(db, row["code"], email, "reset")
+            if _expose_codes():
+                resp["devCode"] = dev_code
+        return resp
+
+    @app.post("/api/reset")
+    def reset(body: ResetIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("reset", ip):
+            raise HTTPException(429, "too many attempts — try again later")
+        email = _norm_email(body.email)
+        if len(body.newPassword) < _MIN_PASSWORD_LEN:
+            raise HTTPException(400, f"password must be at least {_MIN_PASSWORD_LEN} characters")
+        row = db.get_participant_by_email(email)
+        if row is None or not _check_code(db, row["code"], "reset", body.code):
+            raise HTTPException(400, "invalid or expired code")
+        db.consume_auth_code(row["code"], "reset")
+        db.set_password_hash(row["code"], security.hash_password(body.newPassword))
+        # A successful reset also confirms control of the email address.
+        if not row.get("email_verified_utc"):
+            db.mark_email_verified(row["code"])
+        return {"ok": True}
 
     # ── gated ───────────────────────────────────────────────────
     @app.get("/api/manifest")
@@ -294,6 +448,66 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(404, "unknown session")
         db.store_result(body.sessionId, body.result)
         db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
+        return {"ok": True}
+
+    # ── dashboard / learning-protocol (Phase 2) ─────────────────
+    # The dashboard surfaces. Real certification results (verdicts/AUROC) come
+    # from the results table; ℓ/θ/RT TRAINING trajectories + the protocol plan
+    # are sample data (flagged `sample: true`) until the trainer is ported.
+    @app.get("/api/dashboard")
+    def dashboard(code: str = Depends(require_auth)):
+        result = db.latest_result_for_code(code)
+        return {
+            "result": result,                    # latest real cert result, or null
+            "hasResult": result is not None,
+            "tasks": sample_data.tasks(),         # sample mastery-grid summaries
+            "kpis": sample_data.kpis(),
+            "sample": True,                       # KPIs + task ℓ/θ/RT are illustrative
+        }
+
+    @app.get("/api/history")
+    def history(code: str = Depends(require_auth)):
+        # Completed certification attempts for this participant, newest first.
+        # Real data only (no sample); scoped strictly by the authed code.
+        return {"sessions": db.list_results_for_code(code)}
+
+    @app.get("/api/regimen")
+    def regimen(code: str = Depends(require_auth)):
+        reg = db.get_active_regimen(code)
+        if reg is not None:
+            return {"regimen": reg["plan"], "sample": False}
+        return {"regimen": sample_data.regimen_plan(), "sample": True}
+
+    @app.get("/api/trajectories")
+    def trajectories(code: str = Depends(require_auth)):
+        rows = db.get_trajectories(code)
+        if rows:
+            pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
+                    "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
+                   for r in rows]
+            return {"trajectories": pts, "sample": False}
+        return {"trajectories": sample_data.trajectories(), "sample": True}
+
+    @app.get("/api/training-sessions")
+    def training_list(code: str = Depends(require_auth)):
+        return {"sessions": db.list_training_sessions(code)}
+
+    @app.post("/api/training-sessions")
+    def training_start(body: TrainingStartIn, code: str = Depends(require_auth)):
+        training_id = uuid.uuid4().hex
+        db.create_training_session(training_id, code, body.taskFocus)
+        return {"trainingId": training_id}
+
+    @app.post("/api/training-sessions/finalize")
+    def training_finalize(body: TrainingFinalizeIn, code: str = Depends(require_auth)):
+        ok = db.finalize_training_session(body.trainingId, code, body.nItems, body.summary)
+        if not ok:
+            raise HTTPException(404, "unknown training session")
+        return {"ok": True}
+
+    @app.post("/api/trajectories")
+    def trajectories_append(body: TrajectoryIn, code: str = Depends(require_auth)):
+        db.append_trajectory_points(code, body.points)
         return {"ok": True}
 
     # ── visualization videos (#8) ───────────────────────────────
@@ -372,6 +586,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 code=code, password_hash=security.hash_password(password),
                 email=email, display_name=code, signup_ip="admin",
             )
+            db.mark_email_verified(code)   # seeded accounts skip email verification
             created.append({"code": code, "email": email, "password": password})
         return created
 

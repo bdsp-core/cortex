@@ -7,13 +7,16 @@
 // engine asked) happens in submitAnswer, exactly as EngineWorker._y_source.
 
 import { EngineInputs, ParticleState, TrialDiag } from "./types";
-import { precomputePrior } from "./prior";
+import { precomputePriorPair } from "./prior";
 import { makeState, update, ess, resampleAndRejuvenate, posteriorMeans } from "./particles";
 import { aurocSummary } from "./auroc";
 import { BankArrays, chooseItem, chooseFirstItem, Chosen } from "./choose_item";
 import { AD6Policy } from "./policy";
 import { Rng } from "./rng";
 
+// Default particle count (frozen-pilot instrument). v15 staging (OPT-IN) lets a
+// manifest override this via EngineInputs.nParticles (1200); when absent the
+// session resolves to this value, keeping the default path bit-identical.
 export const N_PARTICLES = 600;
 // Paper-grade max (v1.3.6 instrument freeze): 500 questions cap, matching
 // the desktop. Most sessions finish well before this.
@@ -136,9 +139,14 @@ export class WebCortexSession {
 
   async run(): Promise<SessionResult> {
     const K = this.inputs.taskCodes.length;
+    // N is opt-in (v15 staging): default 600 (frozen pilot) unless the manifest
+    // carries nParticles. The prior pair uses corrT for the t-block when the
+    // manifest carries it (v15), else corrL for both blocks (pilot — bit-
+    // identical to the single-PriorPieces era).
+    const nParticles = this.inputs.nParticles ?? N_PARTICLES;
     this.rng = new Rng(this.seed);
-    const prior = precomputePrior(this.inputs.corrL);
-    this.state = makeState(N_PARTICLES, K, prior, this.rng);
+    const prior = precomputePriorPair(this.inputs.corrL, this.inputs.corrT);
+    this.state = makeState(nParticles, K, prior, this.rng);
     this.policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
     this.remaining = new Set(this.inputs.segments.map((s) => s.segId));
     this.nPerTask = new Array(K).fill(0);
@@ -216,7 +224,7 @@ export class WebCortexSession {
 
       update(this.state, chosen.k, chosen.s, y, chosen.sSd);
       let rejuv = false;
-      if (ess(this.state.w) < ESS_THRESHOLD_FRAC * N_PARTICLES) {
+      if (ess(this.state.w) < ESS_THRESHOLD_FRAC * nParticles) {
         resampleAndRejuvenate(this.state, this.rng, N_MH_STEPS, this.proposalScale);
         rejuv = true;
       }

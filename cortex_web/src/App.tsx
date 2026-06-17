@@ -19,17 +19,19 @@ import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { Landing } from "./components/Landing";
-import { Auth } from "./components/Auth";
+import { AuthFlow } from "./components/AuthFlow";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
+import { Shell } from "./components/Shell";
 import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
 
 type Phase =
   | "landing"
   | "auth"
+  | "dashboard"
   | "consent"
   | "registration"
   | "tutorial"
@@ -66,7 +68,7 @@ export function App() {
   const bundleRef = useRef<Bundle | null>(null);
 
   // ── flow transitions ──────────────────────────────────────────
-  const begin = () => setPhase(api.isAuthed() ? "consent" : "auth");
+  const begin = () => setPhase(api.isAuthed() ? "dashboard" : "auth");
 
   // Load the bundle and show the in-context tutorial over an IIIC example seg
   // (the tutorial walks the IIIC UI — spectrogram, red box).
@@ -222,7 +224,15 @@ export function App() {
     case "landing":
       return <Landing onBegin={begin} />;
     case "auth":
-      return <Auth onAuthed={() => setPhase("consent")} onBack={() => setPhase("landing")} />;
+      return <AuthFlow onAuthed={() => setPhase("dashboard")} />;
+    case "dashboard":
+      return (
+        <Shell
+          onStartTest={() => setPhase("consent")}
+          onStartTraining={() => {}}
+          onSignOut={() => { api.logout(); setPhase("landing"); }}
+        />
+      );
     case "consent":
       return (
         <Consent
@@ -268,7 +278,10 @@ export function App() {
       );
     }
     case "done":
-      return summary ? <Results summary={summary} onDownloadVideos={downloadVideos} /> : <Computing />;
+      return summary
+        ? <Results summary={summary} onDownloadVideos={downloadVideos}
+            onReturn={() => setPhase("dashboard")} />
+        : <Computing />;
     case "error":
       return (
         <Stage maxW={520}>

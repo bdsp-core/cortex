@@ -72,6 +72,54 @@ _SCHEMA_STATEMENTS = [
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code)",
+    # ── dashboard / learning-protocol tables (Phase 2) ──
+    # A participant's training protocol, generated from a certification result:
+    # per-task target ℓ* + a scheduled deck plan (stored as JSON in `plan`).
+    """CREATE TABLE IF NOT EXISTS regimens (
+        regimen_id        TEXT PRIMARY KEY,
+        code              TEXT NOT NULL,
+        source_session_id TEXT,
+        plan              TEXT NOT NULL,
+        active            INTEGER NOT NULL DEFAULT 1,
+        created_utc       TEXT NOT NULL
+    )""",
+    # One row per daily training sitting (training-mode analogue of sessions).
+    """CREATE TABLE IF NOT EXISTS training_sessions (
+        training_id   TEXT PRIMARY KEY,
+        code          TEXT NOT NULL,
+        task_focus    TEXT,
+        started_utc   TEXT NOT NULL,
+        finished_utc  TEXT,
+        status        TEXT NOT NULL DEFAULT 'in_progress',
+        n_items       INTEGER,
+        summary       TEXT
+    )""",
+    # Append-only time series of (task, ℓ, θ, sd, rt) for the evolution charts.
+    """CREATE TABLE IF NOT EXISTS param_trajectories (
+        code        TEXT NOT NULL,
+        task_k      INTEGER NOT NULL,
+        phase       TEXT NOT NULL,
+        ell         REAL,
+        theta       REAL,
+        sd          REAL,
+        rt          REAL,
+        ts          TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_regimens_code ON regimens(code)",
+    "CREATE INDEX IF NOT EXISTS idx_training_code ON training_sessions(code)",
+    "CREATE INDEX IF NOT EXISTS idx_param_traj_code ON param_trajectories(code)",
+    # Short-lived 6-digit codes for email verification + password reset.
+    # One unconsumed (code, purpose) row is kept at a time (put replaces).
+    """CREATE TABLE IF NOT EXISTS auth_codes (
+        participant_code  TEXT NOT NULL,
+        purpose           TEXT NOT NULL,
+        code_hash         TEXT NOT NULL,
+        created_utc       TEXT NOT NULL,
+        expires_utc       TEXT NOT NULL,
+        consumed_utc      TEXT,
+        attempts          INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (participant_code, purpose)
+    )""",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -81,9 +129,10 @@ _SCHEMA_STATEMENTS = [
 # Columns added to participants after the original schema. Idempotent
 # ALTERs run at startup so an existing database upgrades in place.
 _PARTICIPANTS_MIGRATION_COLUMNS = [
-    ("email",        "TEXT"),
-    ("display_name", "TEXT"),
-    ("signup_ip",    "TEXT"),
+    ("email",             "TEXT"),
+    ("display_name",      "TEXT"),
+    ("signup_ip",         "TEXT"),
+    ("email_verified_utc", "TEXT"),
 ]
 
 
@@ -224,6 +273,62 @@ class Database:
             return self._fetchone(
                 "SELECT * FROM participants WHERE email=?", (email,))
 
+    def mark_email_verified(self, code: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE participants SET email_verified_utc=? WHERE code=?",
+                (utc_now(), code))
+            self._conn.commit()
+
+    def set_password_hash(self, code: str, password_hash: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE participants SET password_hash=? WHERE code=?",
+                (password_hash, code))
+            self._conn.commit()
+
+    # ── auth codes (email verify + password reset) ────────────────
+    def put_auth_code(self, participant_code: str, purpose: str,
+                      code_hash: str, expires_utc: str) -> None:
+        """Store (replacing any existing) the active code for (account, purpose)."""
+        if self._pg:
+            sql = ("INSERT INTO auth_codes(participant_code, purpose, code_hash, "
+                   "created_utc, expires_utc, consumed_utc, attempts) "
+                   "VALUES (?,?,?,?,?,NULL,0) "
+                   "ON CONFLICT (participant_code, purpose) DO UPDATE SET "
+                   "code_hash=EXCLUDED.code_hash, created_utc=EXCLUDED.created_utc, "
+                   "expires_utc=EXCLUDED.expires_utc, consumed_utc=NULL, attempts=0")
+        else:
+            sql = ("INSERT OR REPLACE INTO auth_codes(participant_code, purpose, "
+                   "code_hash, created_utc, expires_utc, consumed_utc, attempts) "
+                   "VALUES (?,?,?,?,?,NULL,0)")
+        with self._lock:
+            self._exec(sql, (participant_code, purpose, code_hash,
+                             utc_now(), expires_utc))
+            self._conn.commit()
+
+    def get_auth_code(self, participant_code: str, purpose: str) -> Optional[dict]:
+        with self._lock:
+            return self._fetchone(
+                "SELECT * FROM auth_codes WHERE participant_code=? AND purpose=?",
+                (participant_code, purpose))
+
+    def increment_auth_attempts(self, participant_code: str, purpose: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE auth_codes SET attempts=attempts+1 "
+                "WHERE participant_code=? AND purpose=?",
+                (participant_code, purpose))
+            self._conn.commit()
+
+    def consume_auth_code(self, participant_code: str, purpose: str) -> None:
+        with self._lock:
+            self._exec(
+                "UPDATE auth_codes SET consumed_utc=? "
+                "WHERE participant_code=? AND purpose=?",
+                (utc_now(), participant_code, purpose))
+            self._conn.commit()
+
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,
                         sample_seed: Optional[int]) -> None:
@@ -311,3 +416,103 @@ class Database:
         with self._lock:
             return self._fetchall(
                 "SELECT * FROM sessions ORDER BY started_utc")
+
+    # ── dashboard: latest certification result for a participant ──
+    def latest_result_for_code(self, code: str) -> Optional[dict]:
+        """The most recent completed-session result JSON for `code`, or None."""
+        with self._lock:
+            row = self._fetchone(
+                "SELECT r.result AS result FROM results r "
+                "JOIN sessions s ON s.session_id = r.session_id "
+                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC "
+                "LIMIT 1",
+                (code,))
+        return json.loads(row["result"]) if row else None
+
+    def list_results_for_code(self, code: str) -> list[dict]:
+        """All COMPLETED sessions for `code` joined with their result JSON,
+        newest first. Mirrors latest_result_for_code's JOIN but returns every
+        attempt with its session metadata. Scoped strictly by sessions.code."""
+        with self._lock:
+            rows = self._fetchall(
+                "SELECT s.session_id AS session_id, s.finished_utc AS finished_utc, "
+                "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
+                "r.result AS result FROM results r "
+                "JOIN sessions s ON s.session_id = r.session_id "
+                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC",
+                (code,))
+        return [
+            {"session_id": r["session_id"], "finished_utc": r["finished_utc"],
+             "n_questions": r["n_questions"], "stop_reason": r["stop_reason"],
+             "result": json.loads(r["result"])}
+            for r in rows
+        ]
+
+    # ── regimens (training protocol) ──────────────────────────────
+    def create_regimen(self, regimen_id: str, code: str,
+                        source_session_id: Optional[str], plan: dict) -> None:
+        with self._lock:
+            self._exec("UPDATE regimens SET active=0 WHERE code=?", (code,))
+            self._exec(
+                "INSERT INTO regimens(regimen_id, code, source_session_id, plan, "
+                "active, created_utc) VALUES (?,?,?,?,1,?)",
+                (regimen_id, code, source_session_id, json.dumps(plan), utc_now()))
+            self._conn.commit()
+
+    def get_active_regimen(self, code: str) -> Optional[dict]:
+        with self._lock:
+            row = self._fetchone(
+                "SELECT * FROM regimens WHERE code=? AND active=1 "
+                "ORDER BY created_utc DESC LIMIT 1", (code,))
+        if not row:
+            return None
+        row["plan"] = json.loads(row["plan"])
+        return row
+
+    # ── training sessions ─────────────────────────────────────────
+    def create_training_session(self, training_id: str, code: str,
+                                task_focus: Optional[str]) -> None:
+        with self._lock:
+            self._exec(
+                "INSERT INTO training_sessions(training_id, code, task_focus, "
+                "started_utc, status) VALUES (?,?,?,?, 'in_progress')",
+                (training_id, code, task_focus, utc_now()))
+            self._conn.commit()
+
+    def finalize_training_session(self, training_id: str, code: str,
+                                  n_items: Optional[int], summary: Optional[dict]) -> bool:
+        with self._lock:
+            cur = self._exec(
+                "UPDATE training_sessions SET status='complete', finished_utc=?, "
+                "n_items=?, summary=? WHERE training_id=? AND code=?",
+                (utc_now(), n_items,
+                 json.dumps(summary) if summary is not None else None,
+                 training_id, code))
+            self._conn.commit()
+            return (cur.rowcount or 0) > 0 if hasattr(cur, "rowcount") else True
+
+    def list_training_sessions(self, code: str) -> list[dict]:
+        with self._lock:
+            return self._fetchall(
+                "SELECT * FROM training_sessions WHERE code=? "
+                "ORDER BY started_utc DESC", (code,))
+
+    # ── parameter trajectories ────────────────────────────────────
+    def append_trajectory_points(self, code: str, points: list[dict]) -> None:
+        if not points:
+            return
+        with self._lock:
+            for p in points:
+                self._exec(
+                    "INSERT INTO param_trajectories(code, task_k, phase, ell, "
+                    "theta, sd, rt, ts) VALUES (?,?,?,?,?,?,?,?)",
+                    (code, int(p["taskK"]), str(p.get("phase", "train")),
+                     p.get("ell"), p.get("theta"), p.get("sd"), p.get("rt"),
+                     p.get("ts") or utc_now()))
+            self._conn.commit()
+
+    def get_trajectories(self, code: str) -> list[dict]:
+        with self._lock:
+            return self._fetchall(
+                "SELECT task_k, phase, ell, theta, sd, rt, ts "
+                "FROM param_trajectories WHERE code=? ORDER BY task_k, ts", (code,))

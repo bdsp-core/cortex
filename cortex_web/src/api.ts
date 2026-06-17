@@ -9,6 +9,7 @@
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const TOKEN_KEY = "cortex_token";
+const DISPLAY_NAME_KEY = "cortex_display_name";
 
 export interface Manifest {
   bundleUrl: string;
@@ -32,6 +33,15 @@ export class ApiError extends Error {
   }
 }
 
+// Raised by login() when the server says the account exists but the email
+// isn't verified yet (403 {error:"email_not_verified"}). The UI catches this
+// to route to the verify screen rather than show a generic credentials error.
+export class EmailNotVerifiedError extends Error {
+  constructor(public email: string) {
+    super("email_not_verified");
+  }
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -43,6 +53,22 @@ export function clearToken(): void {
 }
 export function isAuthed(): boolean {
   return !!getToken();
+}
+
+// Logged-in display name, persisted alongside the token so the shell can greet
+// the clinician without an extra round-trip. Set on login/register success.
+export function getDisplayName(): string | null {
+  return localStorage.getItem(DISPLAY_NAME_KEY);
+}
+export function setDisplayName(name: string): void {
+  if (name) localStorage.setItem(DISPLAY_NAME_KEY, name);
+}
+
+// Sign out: drop the token AND the display name. Pending results stay queued
+// (they belong to the device, not the session) and flush on the next sign-in.
+export function logout(): void {
+  clearToken();
+  localStorage.removeItem(DISPLAY_NAME_KEY);
 }
 
 async function parse(res: Response): Promise<any> {
@@ -72,6 +98,9 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<any> {
 }
 
 // ── public ───────────────────────────────────────────────────────
+// Sign in. On success stores the JWT. A 403 {error:"email_not_verified"} is
+// re-thrown as EmailNotVerifiedError so the UI can route to the verify screen
+// instead of showing a credentials error.
 export async function login(email: string, password: string): Promise<{
   email: string; displayName: string;
 }> {
@@ -80,27 +109,86 @@ export async function login(email: string, password: string): Promise<{
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null);
+    if (body?.error === "email_not_verified") throw new EmailNotVerifiedError(email);
+    throw new ApiError(403, body?.error || res.statusText);
+  }
   const body = await parse(res);
   setToken(body.token);
+  setDisplayName(body.displayName);
   return { email: body.email, displayName: body.displayName };
 }
 
 // Public open-signup. `honeypot` is the hidden form field; humans leave it
 // empty. The backend accepts a non-empty value silently to avoid tipping off
-// scanners that a bot trap exists.
+// scanners that a bot trap exists. Register no longer returns a token: the
+// participant must verify their email then sign in. `devCode` is only present
+// in dev/CI (CORTEX_EMAIL_EXPOSE_CODE=1) and is never relied on in real UX.
 export async function register(
   email: string, password: string, displayName: string, expertise: string,
   honeypot: string,
-): Promise<{ email: string; displayName: string }> {
+): Promise<{ needsVerification: boolean; email: string; displayName: string; devCode?: string }> {
   const res = await fetch(`${API_BASE}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, displayName, expertise, honeypot }),
   });
   const body = await parse(res);
-  // honeypot case: server returned 200 but no token. Don't store anything.
-  if (body?.token) setToken(body.token);
-  return { email: body?.email ?? email, displayName: body?.displayName ?? displayName };
+  setDisplayName(body?.displayName ?? displayName);
+  return {
+    needsVerification: !!body?.needsVerification,
+    email: body?.email ?? email,
+    displayName: body?.displayName ?? displayName,
+    devCode: body?.devCode,
+  };
+}
+
+// Confirm the 6-digit email-verification code. Throws ApiError(400) on an
+// invalid/expired code, ApiError(429) on rate limiting.
+export async function verifyCode(email: string, code: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/verify/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  await parse(res);
+}
+
+// Resend the email-verification code. `devCode` only present in dev/CI.
+export async function resendCode(email: string): Promise<{ devCode?: string }> {
+  const res = await fetch(`${API_BASE}/api/verify/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parse(res);
+  return { devCode: body?.devCode };
+}
+
+// Request a password-reset code. Always 200 (does not reveal whether the email
+// is registered); `devCode` only present in dev/CI.
+export async function requestReset(email: string): Promise<{ devCode?: string }> {
+  const res = await fetch(`${API_BASE}/api/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parse(res);
+  return { devCode: body?.devCode };
+}
+
+// Complete a password reset with the code + new password. Throws ApiError(400)
+// on an invalid/expired code or a too-short password.
+export async function resetPassword(
+  email: string, code: string, newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  await parse(res);
 }
 
 export async function health(): Promise<boolean> {
@@ -115,6 +203,121 @@ export async function health(): Promise<boolean> {
 // ── gated ────────────────────────────────────────────────────────
 export function getManifest(): Promise<Manifest> {
   return authedFetch("/api/manifest");
+}
+
+// ── dashboard / learning-protocol (Phase 2 backend) ───────────────
+// Read-only surfaces backing the shell. KPIs + sample task ℓ/θ/RT are
+// illustrative until the trainer is ported (flagged `sample: true`).
+export interface DashboardKpis {
+  streak: number;
+  dueToday: { new: number; learning: number; review: number };
+  nextRecertDays: number;
+}
+// Per-task mastery-grid summary. ℓ/ℓ*/auroc are sample; verdict/auroc are
+// overridden from the real cert result when hasResult is true.
+export interface DashboardTask {
+  taskK: number;
+  code: string;
+  label: string;
+  ell: number;
+  ellStar: number;
+  auroc: number;
+  verdict: string;
+}
+// A real certification result blob (latest for the participant). Only the
+// fields the dashboard reads are typed; the rest of the engine payload rides
+// along untyped.
+export interface CertResult {
+  verdicts?: string[];
+  roc?: Array<{ auroc?: number } | null>;
+  [k: string]: unknown;
+}
+export interface DashboardData {
+  result: CertResult | null;
+  hasResult: boolean;
+  tasks: DashboardTask[];
+  kpis: DashboardKpis;
+  sample: boolean;
+}
+
+export interface TrajectoryPoint {
+  taskK: number;
+  phase: "eval" | "train" | "recert";
+  ell: number;
+  theta: number;
+  sd: number;
+  rt: number;
+  ts: string;
+}
+
+export interface RegimenDeckEntry {
+  taskK: number;
+  code: string;
+  label: string;
+  ell: number;
+  ellStar: number;
+  new: number;
+  learning: number;
+  due: number;
+}
+export interface RegimenPlan {
+  weeks: number;
+  weekOf: number;
+  deck: RegimenDeckEntry[];
+}
+
+// One completed certification attempt (real data) from /api/history.
+export interface HistorySession {
+  session_id: string;
+  finished_utc: string | null;
+  n_questions: number | null;
+  stop_reason: string | null;
+  result: CertResult;
+}
+
+export function getDashboard(): Promise<DashboardData> {
+  return authedFetch("/api/dashboard");
+}
+export function getRegimen(): Promise<{ regimen: RegimenPlan; sample: boolean }> {
+  return authedFetch("/api/regimen");
+}
+export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sample: boolean }> {
+  return authedFetch("/api/trajectories");
+}
+export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
+  return authedFetch("/api/training-sessions");
+}
+export function getHistory(): Promise<{ sessions: HistorySession[] }> {
+  return authedFetch("/api/history");
+}
+export function startTrainingSession(taskFocus?: string): Promise<{ trainingId: string }> {
+  return authedFetch("/api/training-sessions", {
+    method: "POST",
+    body: JSON.stringify({ taskFocus: taskFocus ?? null }),
+  });
+}
+export function finalizeTrainingSession(
+  trainingId: string, nItems: number, summary?: Record<string, unknown>,
+): Promise<{ ok: boolean }> {
+  return authedFetch("/api/training-sessions/finalize", {
+    method: "POST",
+    body: JSON.stringify({ trainingId, nItems, summary: summary ?? null }),
+  });
+}
+export function appendTrajectories(points: api_TrajectoryPointIn[]): Promise<{ ok: boolean }> {
+  return authedFetch("/api/trajectories", {
+    method: "POST",
+    body: JSON.stringify({ points }),
+  });
+}
+// The shape POSTed to /api/trajectories (a subset of TrajectoryPoint).
+export interface api_TrajectoryPointIn {
+  taskK: number;
+  phase?: "eval" | "train" | "recert";
+  ell?: number;
+  theta?: number;
+  sd?: number;
+  rt?: number;
 }
 
 export async function createSession(

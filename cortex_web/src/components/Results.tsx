@@ -4,7 +4,8 @@
 // certificates are the v1.0 policy).
 
 import { useEffect, useRef, useState } from "react";
-import { COLORS, FONTS, VERDICT_STYLE } from "../../ui/theme";
+import { COLORS, FONTS, VERDICT_STYLE, cssVar } from "../../ui/theme";
+import { useTheme } from "../theme/ThemeProvider";
 import { binormalSteps } from "../roc";
 import { Button, Card, Heading, Stage } from "./ui";
 
@@ -62,10 +63,11 @@ const STOP_REASON_LABEL: Record<string, string> = {
   REFER_UNINFORMATIVE: "Referred — uninformative",
 };
 
-export function Results({ summary, onFinish, onDownloadVideos }: {
+export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
   summary: ResultSummary;
   onFinish?: () => void;
   onDownloadVideos?: () => Promise<void>;
+  onReturn?: () => void;
 }) {
   const [showTech, setShowTech] = useState(false);
   const [openRoc, setOpenRoc] = useState<number | null>(null);
@@ -187,9 +189,10 @@ export function Results({ summary, onFinish, onDownloadVideos }: {
           </div>
         )}
 
-        {onFinish && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
-            <Button onClick={onFinish}>Done</Button>
+        {(onFinish || onReturn) && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+            {onReturn && <Button kind="ghost" onClick={onReturn}>Return to dashboard</Button>}
+            {onFinish && <Button onClick={onFinish}>Done</Button>}
           </div>
         )}
       </Card>
@@ -203,6 +206,9 @@ function RocCanvas({ auroc, opFar, opHr, size }: {
   auroc: number; opFar: number | null; opHr: number | null; size: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  // Redraw when the theme flips so the canvas (which cannot consume `var()`)
+  // picks up the new resolved colors.
+  const { theme } = useTheme();
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
@@ -210,20 +216,20 @@ function RocCanvas({ auroc, opFar, opHr, size }: {
     const dpr = window.devicePixelRatio || 1;
     cv.width = size * dpr; cv.height = size * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = COLORS.card;
+    ctx.fillStyle = cssVar("--panel", "#14161c");
     ctx.fillRect(0, 0, size, size);
     const pad = 34;
     const w = size - pad - 8, h = size - pad - 8;
     const X = (x: number) => pad + x * w;
     const Y = (y: number) => size - pad - y * h;
-    ctx.strokeStyle = COLORS.borderInactive; ctx.lineWidth = 1;
+    ctx.strokeStyle = cssVar("--bd-subtle", "#3a3d45"); ctx.lineWidth = 1;
     ctx.strokeRect(pad, size - pad - h, w, h);
-    ctx.fillStyle = COLORS.textTertiary; ctx.font = "9px system-ui"; ctx.textAlign = "center";
+    ctx.fillStyle = cssVar("--ink-subtle", "#aab0ba"); ctx.font = "9px system-ui"; ctx.textAlign = "center";
     for (const t of [0, 0.5, 1]) {
       ctx.fillText(t.toFixed(1), X(t), size - pad + 12);
       ctx.textAlign = "right"; ctx.fillText(t.toFixed(1), pad - 5, Y(t) + 3); ctx.textAlign = "center";
     }
-    ctx.fillStyle = COLORS.textBody;
+    ctx.fillStyle = cssVar("--ink-subtle", "#aab0ba");
     ctx.fillText("False-positive rate", pad + w / 2, size - 4);
     ctx.save(); ctx.translate(9, size - pad - h / 2); ctx.rotate(-Math.PI / 2);
     ctx.fillText("True-positive rate", 0, 0); ctx.restore();
@@ -241,7 +247,7 @@ function RocCanvas({ auroc, opFar, opHr, size }: {
       ctx.fillStyle = "#9671bd"; ctx.strokeStyle = "#6a408d"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(X(opFar), Y(opHr), 6, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     }
-  }, [auroc, opFar, opHr, size]);
+  }, [auroc, opFar, opHr, size, theme]);
   return <canvas ref={ref} style={{ width: size, height: size }} />;
 }
 
