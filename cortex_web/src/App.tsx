@@ -1,7 +1,7 @@
 // App shell — the full participant flow state machine:
 //
-//   landing → login → consent → registration → tutorial
-//           → loading → running (Viewer) → computing → done (Results)
+//   login → consent → registration → tutorial
+//         → loading → running (Viewer) → computing → done (Results)
 //
 // The engine runs in a Web Worker (off the UI thread). The backend is touched
 // exactly twice per sitting — create-session at start, post-results at end —
@@ -18,7 +18,6 @@ import { sampleSession } from "./sampleSession";
 import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
-import { Landing } from "./components/Landing";
 import { AuthFlow } from "./components/AuthFlow";
 import { Consent } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
@@ -29,7 +28,6 @@ import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
 
 type Phase =
-  | "landing"
   | "auth"
   | "dashboard"
   | "consent"
@@ -42,7 +40,7 @@ type Phase =
   | "error";
 
 export function App() {
-  const [phase, setPhase] = useState<Phase>("landing");
+  const [phase, setPhase] = useState<Phase>(api.isAuthed() ? "dashboard" : "auth");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
   const [tutorialItem, setTutorialItem] = useState<Item | null>(null);
@@ -68,8 +66,6 @@ export function App() {
   const bundleRef = useRef<Bundle | null>(null);
 
   // ── flow transitions ──────────────────────────────────────────
-  const begin = () => setPhase(api.isAuthed() ? "dashboard" : "auth");
-
   // Load the bundle and show the in-context tutorial over an IIIC example seg
   // (the tutorial walks the IIIC UI — spectrogram, red box).
   const enterTutorial = useCallback(async () => {
@@ -221,8 +217,6 @@ export function App() {
 
   // ── render ────────────────────────────────────────────────────
   switch (phase) {
-    case "landing":
-      return <Landing onBegin={begin} />;
     case "auth":
       return <AuthFlow onAuthed={() => setPhase("dashboard")} />;
     case "dashboard":
@@ -230,14 +224,14 @@ export function App() {
         <Shell
           onStartTest={() => setPhase("consent")}
           onStartTraining={() => {}}
-          onSignOut={() => { api.logout(); setPhase("landing"); }}
+          onSignOut={() => { api.logout(); setPhase("auth"); }}
         />
       );
     case "consent":
       return (
         <Consent
           onAccept={() => setPhase("registration")}
-          onDecline={() => setPhase("landing")}
+          onDecline={() => setPhase("dashboard")}
         />
       );
     case "registration":
@@ -288,7 +282,7 @@ export function App() {
           <Card>
             <Heading>Something went wrong</Heading>
             <div style={{ color: COLORS.fail, fontSize: 14, marginBottom: 20 }}>{msg}</div>
-            <Button onClick={() => setPhase("landing")}>Return to start</Button>
+            <Button onClick={() => setPhase(api.isAuthed() ? "dashboard" : "auth")}>Return to start</Button>
           </Card>
         </Stage>
       );

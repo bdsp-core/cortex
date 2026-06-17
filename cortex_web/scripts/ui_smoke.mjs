@@ -22,10 +22,7 @@ try {
   page.on("pageerror", (e) => console.error("  [pageerror]", e.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
-  // Landing → BEGIN
-  await page.getByText("BEGIN ASSESSMENT").click();
-  log("landing → begin ✓");
-
+  // App opens directly on the auth screen (no landing page).
   // Auth: public email/password signup → verify email → sign in. The signup
   // screen starts on "Sign in"; switch to "Create an account" first.
   const email = `qa+${Date.now()}@example.org`;

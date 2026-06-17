@@ -693,6 +693,17 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           </div>
         </div>
       )}
+
+      <div style={{
+        position: "absolute", bottom: 24, left: 0, right: 0,
+        textAlign: "center", color: COLORS.textFaint, fontSize: 12,
+        letterSpacing: "0.04em", lineHeight: 1.5, padding: "0 24px",
+      }}>
+        <div>Developed by Elijah W. Keldsen and M. Brandon Westover</div>
+        <div style={{ marginTop: 6 }}>
+          A project sponsored by the Clinical Data Animation Center (CDAC)
+        </div>
+      </div>
     </div>
   );
 }
