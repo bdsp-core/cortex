@@ -164,7 +164,7 @@ function Field({
   label, type = "text", value, onChange, placeholder, required, autoFocus,
   autoComplete, onInput, children, name,
 }: {
-  label: ReactNode;
+  label?: ReactNode;
   type?: string;
   value: string;
   onChange: (v: string) => void;
@@ -178,7 +178,7 @@ function Field({
 }) {
   return (
     <label style={{ display: "block", marginBottom: 16 }}>
-      <span style={labelStyle}>{label}</span>
+      {label && <span style={labelStyle}>{label}</span>}
       <input
         type={type}
         name={name}
@@ -544,12 +544,12 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
       {screen === "signin" && (
         <div style={cardStyle}>
-          <h1 style={h1Style}>Log in CORTEX</h1>
+          <h1 style={{ ...h1Style, marginBottom: 24 }}>Log into CORTEX</h1>
           <form onSubmit={doSignIn}>
-            <Field label="Email" type="email" value={siEmail} onChange={setSiEmail}
-              placeholder="you@example.org" autoComplete="email" required autoFocus />
-            <Field label="Password" type="password" value={siPw} onChange={setSiPw}
-              autoComplete="current-password" required>
+            <Field type="email" value={siEmail} onChange={setSiEmail}
+              placeholder="Email" autoComplete="email" required autoFocus />
+            <Field type="password" value={siPw} onChange={setSiPw}
+              placeholder="Password" autoComplete="current-password" required>
               <div style={{ textAlign: "right", marginTop: 4 }}>
                 <button type="button" style={{ ...linkBtnStyle, fontSize: 12 }}
                   onClick={() => { setFpEmail(siEmail); go("forgot"); }}>
