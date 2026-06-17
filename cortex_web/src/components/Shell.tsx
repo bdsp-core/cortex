@@ -17,13 +17,17 @@
 // bar) mirror the mockup media queries; because those need @media rules that
 // inline styles cannot express, the rail/layout class CSS is injected once.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import { FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 
 type Surface = "dashboard" | "training" | "protocol" | "history";
+// "drilldown" is a routed sub-view of the shell (a focused per-task page),
+// NOT a top-level nav surface — it has no rail entry. The shell tracks it in
+// its own view state alongside the selected task.
+type View = Surface | "drilldown";
 
 // Scoped CSS for the shell chrome. Inline styles can't carry @media queries,
 // so the rail / layout / KPI structural rules (and only those) live here,
@@ -125,7 +129,7 @@ const SHELL_CSS = `
 .cx-tile .task{font-weight:600;font-size:15px;line-height:1.2;}
 .cx-tile .task .code{display:block;font-size:11px;color:var(--ink-subtle);
   font-weight:400;text-transform:uppercase;letter-spacing:.05em;margin-top:1px;}
-.cx-tile .foot{display:flex;align-items:flex-end;justify-content:flex-end;gap:var(--s8);
+.cx-tile .foot{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s8);
   grid-column:2;}
 
 /* ---------- verdict chip (ALWAYS carries a text label) ---------- */
@@ -207,6 +211,71 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-foot-credit{margin-top:var(--s32);font-size:11px;color:var(--ink-faint);text-align:center;}
 .cx-foot-credit .sep{margin:0 var(--s8);opacity:.6;}
 
+/* ---------- protocol: multi-week plan header ---------- */
+.cx-weekhdr{display:flex;align-items:baseline;gap:var(--s12);margin-bottom:var(--s16);}
+.cx-weekhdr .big{font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:26px;font-weight:700;color:var(--ink);}
+.cx-weekhdr .sub{font-size:13px;color:var(--ink-subtle);}
+.cx-weekbar{display:flex;gap:6px;margin:var(--s8) 0 var(--s16);flex-wrap:wrap;}
+.cx-weekbar .wk{flex:1;min-width:28px;height:8px;border-radius:0;
+  background:var(--panel-hover);border:1px solid var(--bd-subtle);}
+.cx-weekbar .wk.done{background:var(--teal);border-color:var(--teal);}
+.cx-weekbar .wk.now{background:var(--panel);border:2px solid var(--teal);}
+
+/* ---------- history rows + expand ---------- */
+.cx-hist{display:flex;flex-direction:column;gap:var(--s8);}
+.cx-hist-row{border:1px solid var(--bd-subtle);border-radius:var(--radius-ctl);
+  background:var(--panel);overflow:hidden;}
+.cx-hist-head{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;
+  gap:var(--s16);padding:var(--s12) var(--s16);width:100%;text-align:left;
+  background:none;border:none;font-family:inherit;color:var(--ink);cursor:pointer;
+  transition:background .18s;}
+.cx-hist-head:hover{background:var(--panel-hover);}
+.cx-hist-head .date{font-weight:600;font-size:14px;min-width:9.5em;}
+.cx-hist-head .qn{font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:13px;color:var(--ink-subtle);min-width:6em;}
+.cx-hist-strip{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;}
+.cx-hist-strip i{width:14px;height:14px;border-radius:0;border:1px solid transparent;}
+.cx-hist-strip i.pass{background:var(--pass);}
+.cx-hist-strip i.fail{background:var(--fail);}
+.cx-hist-strip i.referb{background:var(--refer-b);}
+.cx-hist-strip i.referu{background:var(--refer-u);}
+.cx-hist-strip i.train{background:var(--teal);}
+.cx-hist-caret{font-family:var(--mono);color:var(--ink-faint);font-size:12px;}
+.cx-hist-body{padding:var(--s16);border-top:1px solid var(--bd-subtle);
+  background:var(--page);}
+.cx-hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:var(--s8);}
+.cx-hist-cell{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--s8);padding:var(--s8) var(--s12);border:1px solid var(--bd-subtle);
+  border-radius:var(--radius-ctl);background:var(--panel);}
+.cx-hist-cell .tk{font-size:13px;font-weight:600;}
+.cx-hist-cell .tk .au{display:block;font-family:var(--mono);font-size:11px;
+  color:var(--ink-subtle);font-weight:400;}
+
+/* ---------- training: practice banner + CTA ---------- */
+.cx-practice-banner{display:flex;align-items:center;gap:var(--s12);
+  padding:var(--s12) var(--s16);border-radius:var(--radius-ctl);
+  background:var(--teal-weak);border:1px solid var(--teal-mid);
+  color:var(--teal-deep);font-size:13px;font-weight:600;margin-bottom:var(--s16);}
+.cx-practice-banner .ic{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.cx-totals td{font-weight:700;border-top:1px solid var(--bd);}
+.cx-cta-row{margin-top:var(--s16);display:flex;gap:var(--s12);align-items:center;flex-wrap:wrap;}
+.cx-cta-note{font-size:12px;color:var(--ink-subtle);}
+
+/* ---------- drilldown back link ---------- */
+.cx-back{display:inline-flex;align-items:center;gap:var(--s8);
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--ink-subtle);
+  background:none;border:none;cursor:pointer;padding:0;margin-bottom:var(--s16);}
+.cx-back:hover{color:var(--ink);}
+.cx-back .ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;}
+.cx-tile .viewdet{font-size:11px;font-weight:600;color:var(--teal-deep);
+  background:none;border:none;font-family:inherit;cursor:pointer;padding:0;
+  text-decoration:underline;text-underline-offset:2px;}
+.cx-tile .viewdet:hover{color:var(--teal);}
+
 /* icon-only rail on medium widths */
 @media (max-width:1000px){
   .cx-app{grid-template-columns:60px 1fr;}
@@ -276,16 +345,6 @@ const NAV: Array<{ id: Surface; label: string }> = [
   { id: "protocol", label: "My protocol" },
   { id: "history", label: "Certification history" },
 ];
-
-// A titled placeholder panel for the not-yet-built surfaces (Phase 4).
-function Placeholder({ title, note }: { title: string; note: string }) {
-  return (
-    <section className="cx-panel" aria-label={title}>
-      <div className="cx-phead"><h2>{title}</h2></div>
-      <div className="cx-placeholder">{note}</div>
-    </section>
-  );
-}
 
 // The 7 fixed tasks in engine-index order. The dashboard always renders all 7,
 // even before any real data lands.
@@ -449,7 +508,7 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 // detail trajectory, active-protocol table, consistency sidebar). KPIs/ℓ/θ/RT
 // + deck are sample for now (flagged where sample:true); verdict + AUROC come
 // from the real cert result when one exists.
-function DashboardSurface() {
+function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => void }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
@@ -542,13 +601,17 @@ function DashboardSurface() {
                 {tasks.map((t) => {
                   const tr = trajByK.get(t.taskK);
                   return (
-                    <button
+                    <div
                       key={t.code}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       className={`cx-tile${t.code === selected ? " sel" : ""}`}
                       aria-label={`${t.label} mastery tile`}
                       aria-pressed={t.code === selected}
                       onClick={() => setSelected(t.code)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(t.code); }
+                      }}
                     >
                       <div className="ringcell">
                         <Ring ell={t.ell} ellStar={t.ellStar} chipClass={chipFor(t.verdict).cls} />
@@ -561,9 +624,17 @@ function DashboardSurface() {
                         <Chip verdict={t.verdict} />
                       </div>
                       <div className="foot">
+                        <button
+                          type="button"
+                          className="viewdet"
+                          aria-label={`View details for ${t.label}`}
+                          onClick={(e) => { e.stopPropagation(); onDrilldown(t.taskK); }}
+                        >
+                          View details
+                        </button>
                         {tr && tr.ell.length >= 2 && <Sparkline series={tr.ell} />}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -725,6 +796,461 @@ function DashboardSurface() {
   );
 }
 
+// Pull a per-task verdict array from a real cert result, indexed by engine
+// task index. Falls back to the canonical 7-task order length.
+function verdictsOf(result: api.CertResult): string[] {
+  const v = result.verdicts;
+  return Array.isArray(v) ? (v as string[]) : [];
+}
+function aurocOf(result: api.CertResult, k: number): number | null {
+  const a = result.roc?.[k]?.auroc;
+  return typeof a === "number" ? a : null;
+}
+
+// Format an ISO-Z timestamp as a short readable date. Falls back to the raw
+// string if it isn't parseable.
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ── My protocol: read-only view of the active protocol (getRegimen) ──────────
+function ProtocolSurface() {
+  const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
+  const [sample, setSample] = useState(false);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api.getRegimen()
+      .then((r) => { if (live) { setRegimen(r.regimen); setSample(r.sample); } })
+      .catch(() => { if (live) setErr(true); });
+    return () => { live = false; };
+  }, []);
+
+  return (
+    <section className="cx-panel" aria-label="My protocol">
+      <div className="cx-phead">
+        <h2>My protocol</h2>
+        {sample && <span className="cx-samplemark">sample data</span>}
+      </div>
+      {err && !regimen && (
+        <div className="cx-placeholder">Could not load your protocol. Try refreshing.</div>
+      )}
+      {regimen && (
+        <>
+          <div className="cx-weekhdr">
+            <span className="big">Week {regimen.weekOf} of {regimen.weeks}</span>
+            <span className="sub">spaced-repetition plan toward each task's target ℓ*</span>
+          </div>
+          <div className="cx-weekbar" aria-label={`Week ${regimen.weekOf} of ${regimen.weeks}`}>
+            {Array.from({ length: regimen.weeks }, (_v, i) => {
+              const wk = i + 1;
+              const cls = wk < regimen.weekOf ? "done" : wk === regimen.weekOf ? "now" : "";
+              return <span key={wk} className={`wk ${cls}`} />;
+            })}
+          </div>
+          <table className="cx-deck">
+            <thead>
+              <tr>
+                <th className="task">Task</th>
+                <th className="r">ℓ → ℓ*</th>
+                <th className="cnt">New</th>
+                <th className="cnt">Learning</th>
+                <th className="cnt">Due</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {regimen.deck.map((row) => {
+                const reached = row.ell >= row.ellStar;
+                return (
+                  <tr key={row.code}>
+                    <td className="task">
+                      {row.label}
+                      <span className="cx-task-sub">{row.code}</span>
+                    </td>
+                    <td className="ellcell r">
+                      {row.ell.toFixed(2)} <span className="of">→ {row.ellStar.toFixed(2)}</span>
+                    </td>
+                    <td className={`cnt new${row.new ? "" : " zero"}`}>{row.new}</td>
+                    <td className={`cnt learn${row.learning ? "" : " zero"}`}>{row.learning}</td>
+                    <td className={`cnt due${row.due ? "" : " zero"}`}>{row.due}</td>
+                    <td><Chip verdict={reached ? "PASS" : "IN_TRAINING"} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── Certification history: past attempts (getHistory) — REAL data ────────────
+function HistorySurface() {
+  const [sessions, setSessions] = useState<api.HistorySession[] | null>(null);
+  const [err, setErr] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.getHistory()
+      .then((h) => { if (live) setSessions(h.sessions); })
+      .catch(() => { if (live) setErr(true); });
+    return () => { live = false; };
+  }, []);
+
+  return (
+    <section className="cx-panel" aria-label="Certification history">
+      <div className="cx-phead"><h2>Certification history</h2></div>
+      {err && !sessions && (
+        <div className="cx-placeholder">Could not load your history. Try refreshing.</div>
+      )}
+      {sessions && sessions.length === 0 && (
+        <div className="cx-placeholder">
+          No certification attempts yet. Take the certification test to see your results here.
+        </div>
+      )}
+      {sessions && sessions.length > 0 && (
+        <div className="cx-hist">
+          {sessions.map((s) => {
+            const verdicts = verdictsOf(s.result);
+            const isOpen = open === s.session_id;
+            return (
+              <div key={s.session_id} className="cx-hist-row">
+                <button
+                  type="button"
+                  className="cx-hist-head"
+                  aria-expanded={isOpen}
+                  onClick={() => setOpen(isOpen ? null : s.session_id)}
+                >
+                  <span className="date">{fmtDate(s.finished_utc)}</span>
+                  <span className="qn">{s.n_questions ?? "—"} questions</span>
+                  <span className="cx-hist-strip" aria-label="Per-task verdicts">
+                    {verdicts.map((v, k) => (
+                      <i key={k} className={chipFor(v).cls} title={`${TASK_ORDER[k] ?? k}: ${chipFor(v).text}`} />
+                    ))}
+                  </span>
+                  <span className="cx-hist-caret">{isOpen ? "▾" : "▸"}</span>
+                </button>
+                {isOpen && (
+                  <div className="cx-hist-body">
+                    <div className="cx-hist-grid">
+                      {verdicts.map((v, k) => {
+                        const au = aurocOf(s.result, k);
+                        return (
+                          <div key={k} className="cx-hist-cell">
+                            <span className="tk">
+                              {FULL_NAMES[TASK_ORDER[k]] ? (TASK_ORDER[k]) : `task ${k}`}
+                              {au !== null && <span className="au">AUROC {au.toFixed(2)}</span>}
+                            </span>
+                            <Chip verdict={v} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Daily training: Anki-style deck + a non-scored PRACTICE run ──────────────
+// The real adaptive trainer is not ported yet (project decision), so "Start
+// today's session" records an honest training_session start+finalize and a
+// few sample param_trajectory points, behind a clear "Practice — not scored"
+// banner. No verdicts, no engine — it's deck review + bookkeeping.
+function TrainingSurface() {
+  const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
+  const [sample, setSample] = useState(false);
+  const [practicing, setPracticing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [doneNote, setDoneNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.getRegimen()
+      .then((r) => { if (live) { setRegimen(r.regimen); setSample(r.sample); } })
+      .catch(() => { /* leave deck empty */ });
+    return () => { live = false; };
+  }, []);
+
+  const totals = useMemo(() => {
+    const d = regimen?.deck ?? [];
+    return {
+      neu: d.reduce((a, r) => a + r.new, 0),
+      learn: d.reduce((a, r) => a + r.learning, 0),
+      due: d.reduce((a, r) => a + r.due, 0),
+    };
+  }, [regimen]);
+  const totalItems = totals.neu + totals.learn + totals.due;
+
+  // Start the practice session: record a training_session, then enter the
+  // practice panel. The session is finalized (with a few sample trajectory
+  // points appended) on finish/exit.
+  const start = useCallback(async () => {
+    setBusy(true);
+    setDoneNote(null);
+    try {
+      const { trainingId } = await api.startTrainingSession();
+      setPracticing(true);
+      // stash on a ref-less closure via the finish handler below
+      (window as unknown as { __cortexTrainingId?: string }).__cortexTrainingId = trainingId;
+    } catch {
+      setDoneNote("Could not start a practice session. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const finish = useCallback(async (nItems: number) => {
+    setBusy(true);
+    const tid = (window as unknown as { __cortexTrainingId?: string }).__cortexTrainingId;
+    try {
+      if (tid) {
+        await api.finalizeTrainingSession(tid, nItems, { mode: "practice", scored: false });
+        // A few honest sample trajectory points so the charts have movement.
+        const deck = regimen?.deck ?? [];
+        const pts: api.api_TrajectoryPointIn[] = deck.slice(0, 3).map((r) => ({
+          taskK: r.taskK, phase: "train", ell: r.ell, theta: 0.1, sd: 0.12, rt: 2400,
+        }));
+        if (pts.length) await api.appendTrajectories(pts);
+      }
+      setDoneNote(`Practice session recorded (${nItems} items reviewed). Not scored.`);
+    } catch {
+      setDoneNote("Practice finished, but recording it failed.");
+    } finally {
+      setPracticing(false);
+      setBusy(false);
+    }
+  }, [regimen]);
+
+  if (practicing) {
+    return <PracticePanel deck={regimen?.deck ?? []} onFinish={finish} busy={busy} />;
+  }
+
+  return (
+    <section className="cx-panel" aria-label="Daily training">
+      <div className="cx-phead">
+        <h2>Daily training</h2>
+        {sample && <span className="cx-samplemark">sample data</span>}
+      </div>
+      {regimen && (
+        <table className="cx-deck">
+          <thead>
+            <tr>
+              <th className="task">Task</th>
+              <th className="cnt">New</th>
+              <th className="cnt">Learning</th>
+              <th className="cnt">Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            {regimen.deck.map((row) => (
+              <tr key={row.code}>
+                <td className="task">
+                  {row.label}<span className="cx-task-sub">{row.code}</span>
+                </td>
+                <td className={`cnt new${row.new ? "" : " zero"}`}>{row.new}</td>
+                <td className={`cnt learn${row.learning ? "" : " zero"}`}>{row.learning}</td>
+                <td className={`cnt due${row.due ? "" : " zero"}`}>{row.due}</td>
+              </tr>
+            ))}
+            <tr className="cx-totals">
+              <td className="task">All tasks</td>
+              <td className="cnt new">{totals.neu}</td>
+              <td className="cnt learn">{totals.learn}</td>
+              <td className="cnt due">{totals.due}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+      <div className="cx-cta-row">
+        <button type="button" className="cx-btn primary" onClick={start} disabled={busy || !regimen}>
+          Start today's session <span className="arrow">→</span>
+        </button>
+        <span className="cx-cta-note">
+          {totalItems} items due. Practice mode is not scored.
+        </span>
+      </div>
+      {doneNote && <div className="cx-cta-note" style={{ marginTop: "var(--s12)" }}>{doneNote}</div>}
+    </section>
+  );
+}
+
+// A minimal, honest practice panel. The real adaptive trainer + live Viewer are
+// not wired in (would risk the build / cert-test smoke); this steps through the
+// due deck as flashcard-style prompts with immediate advance and NO scoring.
+function PracticePanel({
+  deck, onFinish, busy,
+}: {
+  deck: api.RegimenDeckEntry[]; onFinish: (nItems: number) => void; busy: boolean;
+}) {
+  // Build a flat queue of (task) prompts, capped to a short practice set.
+  const queue = useMemo(() => {
+    const items: api.RegimenDeckEntry[] = [];
+    for (const r of deck) {
+      const n = Math.min(3, r.new + r.learning + r.due); // a few per task
+      for (let i = 0; i < n; i++) items.push(r);
+    }
+    return items.slice(0, 12);
+  }, [deck]);
+
+  const [i, setI] = useState(0);
+  const total = queue.length;
+  const cur = queue[i];
+  const advance = () => {
+    if (i + 1 >= total) onFinish(total);
+    else setI(i + 1);
+  };
+
+  return (
+    <section className="cx-panel" aria-label="Practice session">
+      <div className="cx-practice-banner" role="status">
+        <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" />
+        </svg>
+        Practice mode, not scored. This is review only; it does not affect your certification.
+      </div>
+      <div className="cx-phead">
+        <h2>Today's practice</h2>
+        <span className="sub">{total ? `item ${Math.min(i + 1, total)} of ${total}` : "no items due"}</span>
+      </div>
+      {total === 0 ? (
+        <>
+          <div className="cx-placeholder">Nothing due to review right now.</div>
+          <div className="cx-cta-row">
+            <button type="button" className="cx-btn primary" onClick={() => onFinish(0)} disabled={busy}>
+              Finish
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{
+            padding: "var(--s32) var(--s24)", textAlign: "center",
+            border: "1px solid var(--bd-subtle)", borderRadius: "var(--radius-panel)",
+            background: "var(--page)",
+          }}>
+            <div style={{ fontSize: 13, color: "var(--ink-subtle)", textTransform: "uppercase", letterSpacing: ".06em" }}>
+              Review prompt
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 600, margin: "var(--s12) 0 var(--s8)" }}>
+              {cur.label}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--ink-subtle)" }}>
+              {FULL_NAMES[cur.code] ?? cur.code}
+            </div>
+          </div>
+          <div className="cx-cta-row">
+            <button type="button" className="cx-btn primary" onClick={advance} disabled={busy}>
+              {i + 1 >= total ? "Finish session" : "Next"} <span className="arrow">→</span>
+            </button>
+            <button type="button" className="cx-btn" onClick={() => onFinish(i)} disabled={busy}>
+              Exit
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── Per-task drill-down: a focused page for one task (larger ℓ/θ/RT charts,
+// its metrics, and its verdict over past attempts from getHistory). ──────────
+function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void }) {
+  const [dash, setDash] = useState<api.DashboardData | null>(null);
+  const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
+  const [sessions, setSessions] = useState<api.HistorySession[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    api.getDashboard().then((d) => { if (live) setDash(d); }).catch(() => {});
+    api.getTrajectories().then((t) => { if (live) setTrajPts(t.trajectories); }).catch(() => {});
+    api.getHistory().then((h) => { if (live) setSessions(h.sessions); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const tasks = useMemo(() => (dash ? buildTasks(dash) : []), [dash]);
+  const trajByK = useMemo(() => buildTraj(trajPts), [trajPts]);
+  const task = tasks.find((t) => t.taskK === taskK);
+  const traj = trajByK.get(taskK);
+
+  return (
+    <>
+      <button type="button" className="cx-back" onClick={onBack}>
+        <svg className="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+        Back to dashboard
+      </button>
+      {!task ? (
+        <section className="cx-panel"><div className="cx-placeholder">Loading task…</div></section>
+      ) : (
+        <>
+          <section className="cx-panel" aria-label={`${task.label} detail`}>
+            <div className="cx-phead" style={{ alignItems: "flex-start" }}>
+              <div style={{ width: "100%" }}>
+                <div className="cx-detail-head">
+                  <span className="tname">{task.label}</span>
+                  <Chip verdict={task.verdict} />
+                  <span className="meta">{FULL_NAMES[task.code] ?? task.label}</span>
+                </div>
+                <div className="cx-detail-meta-row">
+                  <div className="cx-metric"><span className="v">{task.ell.toFixed(2)}</span><span className="k">current ℓ</span></div>
+                  <div className="cx-metric"><span className="v">{task.ellStar.toFixed(2)}</span><span className="k">target ℓ*</span></div>
+                  <div className="cx-metric">
+                    <span className="v">{(task.ell - task.ellStar >= 0 ? "+" : "−") + Math.abs(task.ell - task.ellStar).toFixed(2)}</span>
+                    <span className="k">gap to ℓ*</span>
+                  </div>
+                  <div className="cx-metric"><span className="v">{task.auroc ? task.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
+                </div>
+              </div>
+            </div>
+            <DetailCharts task={task} traj={traj} />
+            <div className="cx-phase-axis">
+              <span style={{ width: "18%" }}>EVAL</span>
+              <span style={{ width: "64%" }}>DAILY TRAINING</span>
+              <span style={{ width: "18%" }}>RE-CERT (proj.)</span>
+            </div>
+          </section>
+
+          <section className="cx-panel" aria-label={`${task.label} verdict history`}>
+            <div className="cx-phead"><h2>Verdict over past attempts</h2></div>
+            {sessions.length === 0 ? (
+              <div className="cx-placeholder">No certification attempts yet for this task.</div>
+            ) : (
+              <div className="cx-hist">
+                {sessions.map((s) => {
+                  const v = verdictsOf(s.result)[taskK] ?? "PENDING";
+                  const au = aurocOf(s.result, taskK);
+                  return (
+                    <div key={s.session_id} className="cx-hist-row">
+                      <div className="cx-hist-head" style={{ cursor: "default" }}>
+                        <span className="date">{fmtDate(s.finished_utc)}</span>
+                        <span className="qn">{au !== null ? `AUROC ${au.toFixed(2)}` : "—"}</span>
+                        <span />
+                        <Chip verdict={v} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
 export function Shell({
   onStartTest, onStartTraining, onSignOut,
 }: {
@@ -732,8 +1258,13 @@ export function Shell({
   onStartTraining: () => void;
   onSignOut: () => void;
 }) {
-  const [surface, setSurface] = useState<Surface>("dashboard");
+  const [view, setView] = useState<View>("dashboard");
+  const [drillTask, setDrillTask] = useState<number>(0);
   const name = api.getDisplayName() ?? "Clinician";
+
+  // A nav surface is "active" when the current view matches it; the drilldown
+  // sub-view keeps the dashboard tab highlighted (it's a routed sub-page of it).
+  const activeNav: Surface = view === "drilldown" ? "dashboard" : view;
 
   return (
     <div className="cx-app">
@@ -751,9 +1282,9 @@ export function Shell({
             <button
               key={n.id}
               type="button"
-              className={surface === n.id ? "active" : ""}
-              aria-current={surface === n.id ? "page" : undefined}
-              onClick={() => setSurface(n.id)}
+              className={activeNav === n.id ? "active" : ""}
+              aria-current={activeNav === n.id ? "page" : undefined}
+              onClick={() => setView(n.id)}
             >
               {ICONS[n.id]}
               <span className="lbl-text">{n.label}</span>
@@ -765,7 +1296,7 @@ export function Shell({
           <button
             type="button"
             className="cx-btn primary"
-            onClick={() => { setSurface("training"); onStartTraining(); }}
+            onClick={() => { setView("training"); onStartTraining(); }}
           >
             Resume training <span className="arrow">→</span>
           </button>
@@ -795,25 +1326,17 @@ export function Shell({
       </aside>
 
       <main className="cx-wrap">
-        {surface === "dashboard" && <DashboardSurface />}
-        {surface === "training" && (
-          <Placeholder
-            title="Daily training"
-            note="Spaced-repetition training decks: coming in the next build."
+        {view === "dashboard" && (
+          <DashboardSurface
+            onDrilldown={(k) => { setDrillTask(k); setView("drilldown"); }}
           />
         )}
-        {surface === "protocol" && (
-          <Placeholder
-            title="My protocol"
-            note="Your active learning protocol: coming in the next build."
-          />
+        {view === "drilldown" && (
+          <DrilldownSurface taskK={drillTask} onBack={() => setView("dashboard")} />
         )}
-        {surface === "history" && (
-          <Placeholder
-            title="Certification history"
-            note="Your past certification results: coming in the next build."
-          />
-        )}
+        {view === "training" && <TrainingSurface />}
+        {view === "protocol" && <ProtocolSurface />}
+        {view === "history" && <HistorySurface />}
 
         <footer className="cx-foot-credit">
           Developed by Elijah W. Keldsen and M. Brandon Westover

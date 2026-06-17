@@ -266,6 +266,15 @@ export interface RegimenPlan {
   deck: RegimenDeckEntry[];
 }
 
+// One completed certification attempt (real data) from /api/history.
+export interface HistorySession {
+  session_id: string;
+  finished_utc: string | null;
+  n_questions: number | null;
+  stop_reason: string | null;
+  result: CertResult;
+}
+
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
@@ -277,6 +286,38 @@ export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sa
 }
 export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
   return authedFetch("/api/training-sessions");
+}
+export function getHistory(): Promise<{ sessions: HistorySession[] }> {
+  return authedFetch("/api/history");
+}
+export function startTrainingSession(taskFocus?: string): Promise<{ trainingId: string }> {
+  return authedFetch("/api/training-sessions", {
+    method: "POST",
+    body: JSON.stringify({ taskFocus: taskFocus ?? null }),
+  });
+}
+export function finalizeTrainingSession(
+  trainingId: string, nItems: number, summary?: Record<string, unknown>,
+): Promise<{ ok: boolean }> {
+  return authedFetch("/api/training-sessions/finalize", {
+    method: "POST",
+    body: JSON.stringify({ trainingId, nItems, summary: summary ?? null }),
+  });
+}
+export function appendTrajectories(points: api_TrajectoryPointIn[]): Promise<{ ok: boolean }> {
+  return authedFetch("/api/trajectories", {
+    method: "POST",
+    body: JSON.stringify({ points }),
+  });
+}
+// The shape POSTed to /api/trajectories (a subset of TrajectoryPoint).
+export interface api_TrajectoryPointIn {
+  taskK: number;
+  phase?: "eval" | "train" | "recert";
+  ell?: number;
+  theta?: number;
+  sd?: number;
+  rt?: number;
 }
 
 export async function createSession(

@@ -465,6 +465,12 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             "sample": True,                       # KPIs + task ℓ/θ/RT are illustrative
         }
 
+    @app.get("/api/history")
+    def history(code: str = Depends(require_auth)):
+        # Completed certification attempts for this participant, newest first.
+        # Real data only (no sample); scoped strictly by the authed code.
+        return {"sessions": db.list_results_for_code(code)}
+
     @app.get("/api/regimen")
     def regimen(code: str = Depends(require_auth)):
         reg = db.get_active_regimen(code)

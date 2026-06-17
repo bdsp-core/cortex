@@ -429,6 +429,25 @@ class Database:
                 (code,))
         return json.loads(row["result"]) if row else None
 
+    def list_results_for_code(self, code: str) -> list[dict]:
+        """All COMPLETED sessions for `code` joined with their result JSON,
+        newest first. Mirrors latest_result_for_code's JOIN but returns every
+        attempt with its session metadata. Scoped strictly by sessions.code."""
+        with self._lock:
+            rows = self._fetchall(
+                "SELECT s.session_id AS session_id, s.finished_utc AS finished_utc, "
+                "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
+                "r.result AS result FROM results r "
+                "JOIN sessions s ON s.session_id = r.session_id "
+                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC",
+                (code,))
+        return [
+            {"session_id": r["session_id"], "finished_utc": r["finished_utc"],
+             "n_questions": r["n_questions"], "stop_reason": r["stop_reason"],
+             "result": json.loads(r["result"])}
+            for r in rows
+        ]
+
     # ── regimens (training protocol) ──────────────────────────────
     def create_regimen(self, regimen_id: str, code: str,
                         source_session_id: Optional[str], plan: dict) -> None:

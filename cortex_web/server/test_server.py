@@ -334,6 +334,39 @@ def test_dashboard_reflects_latest_result(client):
     assert d["result"]["verdicts"] == ["PASS"] * 7
 
 
+def test_history_empty_then_after_result_with_isolation(client):
+    e1, p1 = _make_participant(client)
+    e2, p2 = _make_participant(client)
+    h1 = _auth_header(client, e1, p1)
+    h2 = _auth_header(client, e2, p2)
+
+    # empty to start
+    assert client.get("/api/history", headers=h1).json()["sessions"] == []
+
+    # participant 1 posts a completed result
+    sid = client.post("/api/session", headers=h1,
+                      json={"participant": {}}).json()["sessionId"]
+    client.post("/api/results", headers=h1,
+                json={"sessionId": sid,
+                      "result": {"verdicts": ["PASS"] * 7,
+                                 "roc": [{"auroc": 0.9}] * 7},
+                      "stopReason": "all_resolved", "nQuestions": 33})
+
+    h = client.get("/api/history", headers=h1).json()["sessions"]
+    assert len(h) == 1
+    assert h[0]["session_id"] == sid
+    assert h[0]["n_questions"] == 33
+    assert h[0]["stop_reason"] == "all_resolved"
+    assert h[0]["result"]["verdicts"] == ["PASS"] * 7
+
+    # isolation: participant 2 does not see participant 1's attempt
+    assert client.get("/api/history", headers=h2).json()["sessions"] == []
+
+
+def test_history_requires_auth(client):
+    assert client.get("/api/history").status_code == 401
+
+
 def test_trajectories_sample_then_real(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
