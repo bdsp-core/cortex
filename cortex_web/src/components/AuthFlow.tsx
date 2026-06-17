@@ -82,24 +82,6 @@ const inputStyle: CSSProperties = {
 };
 const hintStyle: CSSProperties = { fontSize: 11, color: COLORS.textFaint, marginTop: 4 };
 
-function btnStyle(primary: boolean, disabled?: boolean): CSSProperties {
-  return {
-    fontFamily: FONTS.sans,
-    fontSize: 14,
-    fontWeight: 600,
-    padding: "12px 16px",
-    borderRadius: "var(--radius-ctl)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.45 : 1,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    border: `1px solid ${primary ? "var(--teal)" : COLORS.borderInactive2}`,
-    background: primary ? "var(--teal)" : COLORS.card,
-    color: primary ? "#fff" : COLORS.textPrimary,
-  };
-}
 const linkBtnStyle: CSSProperties = {
   background: "none",
   border: "none",
@@ -125,6 +107,58 @@ const metaStyle: CSSProperties = {
   color: COLORS.textFaint,
   lineHeight: 1.5,
 };
+
+// Hover-aware auth button. `primary` (teal fill) darkens to --teal-hover on
+// hover; `secondary` (white fill) and `accentOutline` (white fill + teal
+// outline + teal label) pick up the --panel-hover grey on hover. Inline styles
+// can't express :hover, so hover is tracked in state.
+type BtnVariant = "primary" | "secondary" | "accentOutline";
+function AuthButton({
+  children, variant = "primary", type = "button", disabled, onClick, style,
+}: {
+  children: ReactNode;
+  variant?: BtnVariant;
+  type?: "button" | "submit";
+  disabled?: boolean;
+  onClick?: () => void;
+  style?: CSSProperties;
+}) {
+  const [hover, setHover] = useState(false);
+  const h = hover && !disabled;
+  const base: CSSProperties = {
+    fontFamily: FONTS.sans, fontSize: 14, fontWeight: 600,
+    padding: "12px 16px", borderRadius: "var(--radius-ctl)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.45 : 1,
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+    boxSizing: "border-box",
+    transition: "background 0.12s, border-color 0.12s, color 0.12s",
+  };
+  const variants: Record<BtnVariant, CSSProperties> = {
+    primary: {
+      background: h ? "var(--teal-hover)" : "var(--teal)",
+      border: `1px solid ${h ? "var(--teal-hover)" : "var(--teal)"}`,
+      color: "#fff",
+    },
+    secondary: {
+      background: h ? "var(--panel-hover)" : COLORS.card,
+      border: `1px solid ${COLORS.borderInactive2}`,
+      color: COLORS.textPrimary,
+    },
+    accentOutline: {
+      background: h ? "var(--panel-hover)" : COLORS.card,
+      border: "1px solid var(--teal)",
+      color: "var(--teal-deep)",
+    },
+  };
+  return (
+    <button type={type} disabled={disabled} onClick={onClick}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ ...base, ...variants[variant], ...style }}>
+      {children}
+    </button>
+  );
+}
 
 function Field({
   label, type = "text", value, onChange, placeholder, required, autoFocus,
@@ -526,16 +560,16 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             </Field>
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-              <button type="submit" disabled={busy} style={{ ...btnStyle(true, busy), flex: 1 }}>
+              <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? "Signing in…" : <>Sign in <span style={{ fontFamily: FONTS.sans }}>→</span></>}
-              </button>
+              </AuthButton>
             </div>
           </form>
           <div style={switchStyle}>
-            New to CORTEX?{" "}
-            <button type="button" style={linkBtnStyle} onClick={() => go("signup")}>
-              Create an account
-            </button>
+            <div style={{ marginBottom: 12 }}>New to CORTEX?</div>
+            <AuthButton variant="accentOutline" onClick={() => go("signup")} style={{ width: "100%" }}>
+              Create new account
+            </AuthButton>
           </div>
         </div>
       )}
@@ -576,12 +610,12 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
                 opacity: 0, pointerEvents: "none" }} />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-              <button type="button" style={{ ...btnStyle(false), flex: 1 }} onClick={() => go("signin")}>
+              <AuthButton variant="secondary" onClick={() => go("signin")} style={{ flex: 1 }}>
                 Back
-              </button>
-              <button type="submit" disabled={busy} style={{ ...btnStyle(true, busy), flex: 1 }}>
+              </AuthButton>
+              <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? "Creating account…" : "Create account"}
-              </button>
+              </AuthButton>
             </div>
           </form>
           <div style={metaStyle}>
@@ -604,9 +638,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             <CodeInputs digits={verifyDigits} setDigits={setVerifyDigits} ariaPrefix="Verification code" />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-              <button type="submit" disabled={busy} style={{ ...btnStyle(true, busy), flex: 1 }}>
+              <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? "Verifying…" : "Verify & continue"}
-              </button>
+              </AuthButton>
             </div>
           </form>
           <Resend cooldown={verifyCooldown} onResend={doResendVerify} />
@@ -626,12 +660,12 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
               placeholder="you@example.org" autoComplete="email" required autoFocus />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-              <button type="button" style={{ ...btnStyle(false), flex: 1 }} onClick={() => go("signin")}>
+              <AuthButton variant="secondary" onClick={() => go("signin")} style={{ flex: 1 }}>
                 Back
-              </button>
-              <button type="submit" disabled={busy} style={{ ...btnStyle(true, busy), flex: 1 }}>
+              </AuthButton>
+              <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? "Sending…" : "Send reset code"}
-              </button>
+              </AuthButton>
             </div>
           </form>
         </div>
@@ -659,9 +693,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
               autoComplete="new-password" required />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-              <button type="submit" disabled={busy} style={{ ...btnStyle(true, busy), flex: 1 }}>
+              <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? "Resetting…" : "Reset password"}
-              </button>
+              </AuthButton>
             </div>
           </form>
           <Resend cooldown={resetCooldown} onResend={doResendReset} />
@@ -684,12 +718,12 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           <h1 style={h1Style}>{successTitle}</h1>
           <p style={{ ...ledeStyle, marginBottom: 24 }}>{successMsg}</p>
           <div style={{ display: "flex", gap: 12 }}>
-            <button type="button" style={{ ...btnStyle(true), flex: 1 }} onClick={() => {
+            <AuthButton variant="primary" onClick={() => {
               setSiPw("");
               go("signin");
-            }}>
+            }} style={{ flex: 1 }}>
               Continue to sign in
-            </button>
+            </AuthButton>
           </div>
         </div>
       )}
