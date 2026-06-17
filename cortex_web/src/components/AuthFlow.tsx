@@ -544,7 +544,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
       {screen === "signin" && (
         <div style={cardStyle}>
-          <h1 style={{ ...h1Style, marginBottom: 24 }}>Log into CORTEX</h1>
+          <h1 style={{ ...h1Style, marginBottom: 24 }}>Log in</h1>
           <form onSubmit={doSignIn}>
             <Field type="email" value={siEmail} onChange={setSiEmail}
               placeholder="Email" autoComplete="email" required autoFocus />
@@ -560,7 +560,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Signing in…" : "Sign in"}
+                {busy ? "Logging in…" : "Log in"}
               </AuthButton>
             </div>
           </form>
