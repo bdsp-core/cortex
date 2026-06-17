@@ -110,7 +110,7 @@ const metaStyle: CSSProperties = {
 
 // Hover-aware auth button. `primary` (teal fill) darkens to --teal-hover on
 // hover; `secondary` (white fill) and `accentOutline` (white fill + teal
-// outline + teal label) pick up the --panel-hover grey on hover. Inline styles
+// outline + teal label) pick up the --btn-hover grey on hover. Inline styles
 // can't express :hover, so hover is tracked in state.
 type BtnVariant = "primary" | "secondary" | "accentOutline";
 function AuthButton({
@@ -141,12 +141,12 @@ function AuthButton({
       color: "#fff",
     },
     secondary: {
-      background: h ? "var(--panel-hover)" : COLORS.card,
+      background: h ? "var(--btn-hover)" : COLORS.card,
       border: `1px solid ${COLORS.borderInactive2}`,
       color: COLORS.textPrimary,
     },
     accentOutline: {
-      background: h ? "var(--panel-hover)" : COLORS.card,
+      background: h ? "var(--btn-hover)" : COLORS.card,
       border: "1px solid var(--teal)",
       color: "var(--teal-deep)",
     },
