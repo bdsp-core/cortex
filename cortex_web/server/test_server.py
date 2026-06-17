@@ -418,6 +418,54 @@ def test_training_session_isolation(client):
                        json={"trainingId": tid}).status_code == 404
 
 
+def test_smtp_backend_sends_code(monkeypatch):
+    """The SMTP backend builds a STARTTLS-authenticated message carrying the code
+    to the right recipient. smtplib is faked so no real server is needed."""
+    import smtplib
+    from . import email as email_mod
+
+    sent: dict = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=0):
+            sent["host"], sent["port"] = host, port
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def ehlo(self):
+            pass
+
+        def starttls(self, context=None):
+            sent["starttls"] = True
+
+        def login(self, u, p):
+            sent["login"] = (u, p)
+
+        def send_message(self, msg):
+            sent["to"] = msg["To"]
+            sent["from"] = msg["From"]
+            sent["subject"] = msg["Subject"]
+            sent["body"] = msg.get_content()
+
+    monkeypatch.setenv("CORTEX_EMAIL_BACKEND", "smtp")
+    monkeypatch.setenv("CORTEX_SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("CORTEX_SMTP_USER", "apikey")
+    monkeypatch.setenv("CORTEX_SMTP_PASSWORD", "secret")
+    monkeypatch.setenv("CORTEX_EMAIL_FROM", "CORTEX <no-reply@example.test>")
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+
+    email_mod.send_auth_code("alice@example.test", "123456", "verify")
+    assert sent["to"] == "alice@example.test"
+    assert sent["from"] == "CORTEX <no-reply@example.test>"
+    assert "123456" in sent["body"]
+    assert sent["login"] == ("apikey", "secret")
+    assert sent.get("starttls") is True
+
+
 def test_db_direct_participant():
     import tempfile, os
     with tempfile.TemporaryDirectory() as d:
