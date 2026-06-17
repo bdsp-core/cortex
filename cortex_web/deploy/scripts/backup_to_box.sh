@@ -53,10 +53,10 @@ fi
 
 # ── 2. mineable exports (CSV sessions + per-result JSON) ──────────
 say "admin exports"
-( cd "$WEB" && CORTEX_DB="$CORTEX_DB" \
-    "$PY" -m server.admin export-sessions --out "$WORK/sessions.csv" >/dev/null )
-( cd "$WEB" && CORTEX_DB="$CORTEX_DB" \
-    "$PY" -m server.admin export-results --out "$WORK/results" >/dev/null )
+( cd "$WEB/services" && CORTEX_DB="$CORTEX_DB" \
+    "$PY" -m api.admin export-sessions --out "$WORK/sessions.csv" >/dev/null )
+( cd "$WEB/services" && CORTEX_DB="$CORTEX_DB" \
+    "$PY" -m api.admin export-results --out "$WORK/results" >/dev/null )
 ( cd "$WORK" && tar czf results.tgz results && rm -rf results )
 
 # ── 3. heartbeat (lets you spot a silent failure on Box) ──────────

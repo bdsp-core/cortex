@@ -1,5 +1,5 @@
 [Unit]
-Description=CORTEX web — FastAPI + uvicorn (serves SPA + bundle + /api)
+Description=CORTEX web — FastAPI + uvicorn (pure API; Caddy serves the SPA + bundle)
 After=network-online.target postgresql.service
 Wants=network-online.target
 
@@ -7,11 +7,13 @@ Wants=network-online.target
 Type=exec
 User=cortex
 Group=cortex
-WorkingDirectory=/opt/cortex/cortex_web
+# Run from cortex_web/services so the FastAPI app imports as the `api` package.
+WorkingDirectory=/opt/cortex/cortex_web/services
 EnvironmentFile=/etc/cortex/cortex.env
 # uvicorn reads CORTEX_HOST/CORTEX_PORT/CORTEX_DB/CORTEX_BUNDLE_URL/
-# CORTEX_JWT_SECRET/CORTEX_ADMIN_TOKEN from the EnvironmentFile.
-ExecStart=/opt/cortex/.venv/bin/python -m uvicorn server.app:app \
+# CORTEX_JWT_SECRET/CORTEX_ADMIN_TOKEN from the EnvironmentFile. Static (SPA +
+# bundle) is served by Caddy, so CORTEX_SERVE_STATIC is intentionally unset.
+ExecStart=/opt/cortex/.venv/bin/python -m uvicorn api.app:app \
     --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=on-failure
 RestartSec=3

@@ -1,39 +1,52 @@
-# Caddy config for the CORTEX web deploy. Caddy handles TLS automatically
-# (Let's Encrypt + HTTP-01) and reverse-proxies all traffic to uvicorn on
-# :8000. Substitute {{DOMAIN}} → your actual host before installing this
-# to /etc/caddy/Caddyfile. provision.sh does this for you.
+# Caddy config for the CORTEX web deploy (cortexeeg.org). Caddy handles TLS
+# automatically (Let's Encrypt + HTTP-01). Phase-B serving model:
+#   - Caddy FILE-SERVES the SPA (apps/web/dist) + the EEG bundle (apps/web/
+#     public/bundle), and reverse-proxies only /api → uvicorn (pure API on :8000).
+#   - apex / www / the retired nip.io host all 301 → app.cortexeeg.org.
+# provision.sh installs this verbatim (no {{DOMAIN}} substitution — the domain
+# is fixed for this deploy).
 #
-# Caching strategy:
-#   - /bundle/<version>/seg/<id>.eeg, .spec  → versioned + immutable (1 year)
-#     The SPA path includes the bundle version, so a new bundle is a new URL.
-#   - /bundle/<version>/manifest.json        → 5-minute cache (a re-bundle
-#     with the same version should propagate quickly; usually we bump the
-#     version when content changes).
-#   - everything else                        → no aggressive cache.
+# Caching: versioned bundle blobs are immutable (1y); the bundle manifest gets a
+# short cache; the SPA shell + hashed assets are served fresh / by content hash.
 
-{{DOMAIN}} {
+app.cortexeeg.org {
     encode gzip zstd
 
-    # Aggressive cache for blob assets (versioned URL → safe to make immutable).
-    @bundle_blobs path_regexp bundle_blobs ^/bundle/[^/]+/seg/.+\.(eeg|spec)$
-    header @bundle_blobs Cache-Control "public, max-age=31536000, immutable"
+    # API → uvicorn (pure API service; no static served by uvicorn)
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000 {
+            transport http {
+                keepalive 60s
+            }
+        }
+    }
 
-    # Modest cache for manifest (re-bundle with same version should refresh).
-    @manifest path_regexp manifest ^/bundle/[^/]+/manifest\.json$
-    header @manifest Cache-Control "public, max-age=300"
+    # EEG bundle (static). Versioned blobs immutable; manifest short-cache.
+    handle /bundle/* {
+        @bundle_blobs path_regexp bundle_blobs ^/bundle/[^/]+/seg/.+\.(eeg|spec)$
+        header @bundle_blobs Cache-Control "public, max-age=31536000, immutable"
+        @manifest path_regexp manifest ^/bundle/[^/]+/manifest\.json$
+        header @manifest Cache-Control "public, max-age=300"
+        root * /opt/cortex/cortex_web/apps/web/public
+        file_server
+    }
 
-    # Security headers — minimal but worthwhile.
+    # SPA (everything else) — single-page app, fall back to index.html.
+    handle {
+        root * /opt/cortex/cortex_web/apps/web/dist
+        try_files {path} /index.html
+        file_server
+    }
+
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
         -Server
     }
+}
 
-    reverse_proxy 127.0.0.1:8000 {
-        # The SPA + bundle + /api are all served by the same uvicorn process.
-        transport http {
-            keepalive 60s
-        }
-    }
+# Canonical-domain redirects: apex, www, and the retired nip.io host.
+cortexeeg.org, www.cortexeeg.org, cortex-44-233-29-150.nip.io {
+    redir https://app.cortexeeg.org{uri} permanent
 }

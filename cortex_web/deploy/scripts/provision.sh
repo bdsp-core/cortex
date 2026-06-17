@@ -90,7 +90,7 @@ fi
 say "creating Python venv + installing requirements…"
 sudo -u "$CORTEX_USER" python3 -m venv "$APP/.venv"
 sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install --upgrade pip wheel >/dev/null
-sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/server/requirements.txt"
+sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/services/api/requirements.txt"
 
 # ── SPA build ──────────────────────────────────────────────────────
 say "building the SPA (npm ci + vite build)…"
@@ -143,8 +143,8 @@ CORTEX_BACKUP_RETENTION_DAYS=30
 EOF
 
 # ── Caddy ──────────────────────────────────────────────────────────
-say "installing Caddyfile (auto-TLS for $DOMAIN)…"
-sed "s|{{DOMAIN}}|$DOMAIN|g" "$WEB/deploy/Caddyfile.template" > /etc/caddy/Caddyfile
+say "installing Caddyfile (auto-TLS; domains fixed to cortexeeg.org in the template)…"
+cp "$WEB/deploy/Caddyfile.template" /etc/caddy/Caddyfile
 systemctl enable --now caddy
 systemctl reload caddy || systemctl restart caddy
 
@@ -166,14 +166,15 @@ say "next steps:"
 cat <<NEXT
   1. Point DNS  $DOMAIN  →  this instance's static IP.
   2. Open Lightsail firewall: TCP 80 + 443 (HTTP-01 + HTTPS).
-  3. Drop the EEG bundle into $WEB/public/bundle/<version>/ on this box
+  3. Drop the EEG bundle into $WEB/apps/web/public/bundle/<version>/ on this box
      (rsync from your workstation; ~330 MB for v1.5-k7).
   4. Set up rclone for the Box backup:
         sudo -u $CORTEX_USER bash
         cd /home/$CORTEX_USER && rclone config        # add a remote named "box"
         # see deploy/scripts/rclone-box-setup.md for the JWT-app alternative.
   5. Mint participant credentials:
-        sudo -u $CORTEX_USER /opt/cortex/.venv/bin/python -m server.admin \\
+        cd /opt/cortex/cortex_web/services && sudo -u $CORTEX_USER \\
+          /opt/cortex/.venv/bin/python -m api.admin \\
             --db "\$(grep ^CORTEX_DB /etc/cortex/cortex.env | cut -d= -f2-)" \\
             gen --count 50 --prefix cortex --out /tmp/codes.csv
   6. Sanity check:    curl -s https://$DOMAIN/api/health

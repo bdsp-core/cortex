@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# One-command deploy from your laptop. Run from the repo root on your laptop:
+# One-command deploy from your laptop. Run from anywhere in the repo:
 #
 #   bash cortex_web/deploy/scripts/deploy_app.sh
 #
-# Two source modes — auto-detected from where you run it:
-#   - **Laptop mode** (default; what you'll use). Rsyncs the working tree to
-#     the deploy box, runs the on-box build step over SSH, restarts the
-#     service. No GitHub credentials needed on the box. Bundle is preserved
-#     (rsync's --delete is scoped so it doesn't touch public/bundle/).
-#   - **On-box mode** (when run directly on the deploy box with sudo). Does
-#     a `git pull` instead — meant for boxes you've wired up with a deploy
-#     key / PAT. Not used today but kept for forward compatibility.
+# Monorepo layout (Phase B): cortex_web/{apps/web (SPA), services/api (FastAPI)}.
+# Caddy file-serves apps/web/dist + the EEG bundle; uvicorn is a pure API.
 #
-# Environment (laptop mode):
-#   CORTEX_SSH      SSH host alias for the deploy box (default: cortex-prod)
-#   CORTEX_USER     remote system user (default: cortex)
+# Two source modes — auto-detected from where you run it:
+#   - Laptop mode (default): rsync the working tree to the box, run the on-box
+#     build over SSH, restart the service. The EEG bundle on the box
+#     (apps/web/public/bundle) is preserved (rsync --delete is scoped to skip it).
+#   - On-box mode (run on the box as root): git pull instead. Not used today.
+#
+# Env (laptop mode): CORTEX_SSH (default cortex-prod), CORTEX_USER (default cortex).
+#
+# NOTE: the FIRST cutover from the old flat layout needs a one-time on-box
+# bundle move (public/bundle -> apps/web/public/bundle) before this runs — see
+# deploy/README.md / the Phase B cutover steps.
 set -euo pipefail
 
 SSH_HOST="${CORTEX_SSH:-cortex-prod}"
@@ -34,15 +36,14 @@ if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d /opt/cortex/cortex_web ]; then
     sudo -u "$CORTEX_USER" git -C "$APP" reset --hard "origin/$BRANCH"
   else
     say "on-box mode but no /opt/cortex/.git — refusing to run."
-    echo "  Use laptop mode (run from your workstation): " >&2
-    echo "  bash cortex_web/deploy/scripts/deploy_app.sh" >&2
+    echo "  Use laptop mode (run from your workstation)." >&2
     exit 2
   fi
 
   say "refreshing Python deps…"
-  sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/server/requirements.txt" >/dev/null
+  sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/services/api/requirements.txt" >/dev/null
 
-  say "rebuilding the SPA…"
+  say "building the SPA (workspace)…"
   sudo -u "$CORTEX_USER" bash -c "cd $WEB && npm ci && npm run build"
 
   say "restarting cortex.service…"
@@ -57,28 +58,25 @@ if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d /opt/cortex/cortex_web ]; then
 fi
 
 # ── laptop mode ───────────────────────────────────────────────────
-# Resolve where this script lives so we can rsync the right tree no matter
-# where the user invokes it from.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WEB_LOCAL="$(cd "$SCRIPT_DIR/../.." && pwd)"
+WEB_LOCAL="$(cd "$SCRIPT_DIR/../.." && pwd)"     # cortex_web/
 
-if [ ! -f "$WEB_LOCAL/package.json" ] || [ ! -d "$WEB_LOCAL/server" ]; then
-  echo "could not locate cortex_web/ from $SCRIPT_DIR" >&2; exit 1
+if [ ! -d "$WEB_LOCAL/apps/web" ] || [ ! -d "$WEB_LOCAL/services/api" ]; then
+  echo "could not locate the cortex_web monorepo (apps/web + services/api) from $SCRIPT_DIR" >&2
+  exit 1
 fi
 
 say "rsync $WEB_LOCAL → $SSH_HOST:/tmp/cortex_web/"
-# --delete is INSIDE the rsync, scoped to the tree we send (no node_modules /
-# dist / bundle / venv / dev DBs). Crucially we keep public/bundle on the
-# *remote* by not propagating its absence, so the in-place rsync below won't
-# touch it either.
+# --delete is scoped to the sent tree; the EEG bundle + node_modules + build
+# output + dev artifacts are excluded so the on-box copies are untouched.
 rsync -avz --delete \
   --exclude 'node_modules' \
   --exclude 'dist' \
-  --exclude 'public/bundle' \
+  --exclude 'apps/web/public/bundle' \
   --exclude '.vite' \
   --exclude '*.tsbuildinfo' \
-  --exclude 'server/cortex.db*' \
-  --exclude 'server/.jwt_secret' \
+  --exclude 'services/api/cortex.db*' \
+  --exclude 'services/api/.jwt_secret' \
   --exclude '.venv' \
   --exclude 'demo_codes.csv' \
   --exclude '__pycache__' \
@@ -90,19 +88,19 @@ set -euo pipefail
 APP=/opt/cortex
 WEB=\$APP/cortex_web
 
-# Layer the rsynced tree onto /opt/cortex/cortex_web without touching
-# public/bundle/ or node_modules/ (--exclude on the staging rsync), then
-# force ownership back to the cortex user so npm + the venv can write.
+# Layer the rsynced tree onto /opt/cortex/cortex_web without touching the EEG
+# bundle (apps/web/public/bundle) or node_modules, then restore ownership.
 sudo rsync -a --delete \
-  --exclude public/bundle \
+  --exclude apps/web/public/bundle \
   --exclude node_modules \
   /tmp/cortex_web/ \$WEB/
 chown -R ${CORTEX_USER}:${CORTEX_USER} \$APP
 
-sudo -u ${CORTEX_USER} \$APP/.venv/bin/pip install -r \$WEB/server/requirements.txt --quiet
+sudo -u ${CORTEX_USER} \$APP/.venv/bin/pip install -r \$WEB/services/api/requirements.txt --quiet
 sudo -u ${CORTEX_USER} bash -c \"cd \$WEB && npm ci --no-audit --no-fund\" 2>&1 | tail -3
 sudo -u ${CORTEX_USER} bash -c \"cd \$WEB && npm run build\" 2>&1 | tail -3
 
+systemctl reload caddy || true
 systemctl restart cortex.service
 sleep 2
 systemctl --no-pager is-active cortex.service
