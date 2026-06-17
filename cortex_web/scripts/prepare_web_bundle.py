@@ -112,6 +112,22 @@ def load_corr_l() -> list[list[float]]:
     return C.tolist()
 
 
+def load_corr_t() -> list[list[float]]:
+    """v15 OPT-IN: the SEPARATE t-block correlation (Corr_t key in the same
+    Σ_l_k7 npy dict). Mirrors load_corr_l but reads Corr_t. Only emitted for
+    --profile v15; the frozen-pilot manifest never carries it."""
+    obj = np.load(SIGMA, allow_pickle=True).item()
+    domains = [str(d) for d in np.asarray(obj["domains"])]
+    if domains != TASK_CODES:
+        raise SystemExit(f"Σ_l_k7 domain order {domains} != {TASK_CODES}")
+    if "Corr_t" not in obj:
+        raise SystemExit(f"{SIGMA} has no 'Corr_t' key (needed for --profile v15)")
+    C = np.asarray(obj["Corr_t"], dtype=float)
+    if C.shape != (len(TASK_CODES), len(TASK_CODES)):
+        raise SystemExit(f"Σ_l_k7 Corr_t shape {C.shape} != ({len(TASK_CODES)},)*2")
+    return C.tolist()
+
+
 def _applicable_task_idx(test_class: str) -> list[int]:
     """Which task indices a segment of this test_class is informative about.
     IIIC segments only carry IIIC signals (tasks 1..6); spike segments only
@@ -200,6 +216,13 @@ def main():
                     help=f"source h5 bank with /iiic and /spike groups (default {BANK}).")
     ap.add_argument("--cert-block", default="ell_star_unified_v15",
                     help="cert_config block to read ℓ* from (v15 default; v14 via override).")
+    ap.add_argument("--profile", choices=["pilot", "v15"], default="pilot",
+                    help="engine profile. 'pilot' (default) = the frozen-pilot "
+                         "instrument: NO corrT, NO nParticles in the manifest "
+                         "(byte-identical to today, N=600, both prior blocks "
+                         "use corrL). 'v15' = additionally emit corrT (separate "
+                         "t-block prior) and nParticles=1200 — OPT-IN, staged "
+                         "for post-pilot flip.")
     ap.add_argument("--include-spike", action="store_true",
                     help="(deprecated: spike is now included by default).")
     ap.add_argument("--no-spike", action="store_true",
@@ -294,6 +317,17 @@ def main():
         "nSegments": len(segments),
         "segments": segments,
     }
+    # Engine profile. 'pilot' (default) keeps the manifest byte-identical to the
+    # frozen-pilot instrument — NO corrT / nParticles keys, so the browser
+    # engine resolves N=600 and uses corrL for both prior blocks (bit-identical
+    # to the single-PriorPieces era). 'v15' (OPT-IN) stages the separate t-block
+    # prior + the larger particle count; flip only after PI sign-off + re-freeze.
+    if args.profile == "v15":
+        manifest["engineProfile"] = "v15"
+        manifest["corrT"] = load_corr_t()
+        manifest["nParticles"] = 1200
+    else:
+        manifest["engineProfile"] = "pilot-frozen"
     (out_root / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     total = sum(p.stat().st_size for p in seg_dir.glob("*"))

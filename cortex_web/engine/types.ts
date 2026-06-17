@@ -28,7 +28,14 @@ export interface EngineInputs {
   // cert_config block the bundle was built against ("ell_star_unified_v14"
   // default; "v13" for the old K=6 bundles, "v15" for the post-pilot freeze).
   certBlock?: string;
-  corrL: number[][]; // (K×K) fitted prior correlation (both blocks)
+  corrL: number[][]; // (K×K) fitted prior correlation (l-block; default both blocks)
+  // OPT-IN (v15 staging). When present, the t-block uses this separate K×K
+  // correlation instead of corrL; the l-block ALWAYS keeps corrL. Absent on the
+  // frozen-pilot manifest, where t- and l-blocks share corrL (bit-identical).
+  corrT?: number[][]; // (K×K) fitted t-block prior correlation (v15)
+  // OPT-IN (v15 staging). Particle count; defaults to N_PARTICLES (600) when
+  // absent. v15 manifests carry 1200.
+  nParticles?: number;
   ellStar: number[]; // (K) Youden cut-scores from the cert_config block
   segments: SegmentMeta[];
 }
@@ -43,14 +50,24 @@ export interface ParticleState {
   logPrior: Float64Array; // (N)
   logLik: Float64Array; // (N)
   history: { k: number; s: number; y: 0 | 1; sSd: number }[];
-  prior: PriorPieces;
+  // Separate prior pieces for the t- and l-blocks. On the frozen-pilot path
+  // both are precomputePrior(corrL) and the computation is bit-identical to the
+  // single-PriorPieces era; on the v15 path tPieces uses corrT.
+  prior: PriorPair;
 }
 
 export interface PriorPieces {
   K: number;
-  sigmaInv: number[][]; // K×K (same matrix for t- and l-blocks here)
+  sigmaInv: number[][]; // K×K
   logDet: number; // log|Σ|
   L: number[][]; // K×K Cholesky factor (lower)
+}
+
+// t-/l-block prior pieces. Pilot path: tPieces === precomputePrior(corrL) and
+// lPieces === precomputePrior(corrL). v15 path: tPieces uses corrT.
+export interface PriorPair {
+  tPieces: PriorPieces;
+  lPieces: PriorPieces;
 }
 
 export interface TrialDiag {

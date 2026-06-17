@@ -2,7 +2,7 @@
 // Port of make_state_hier / update / ess / resample_and_rejuvenate /
 // mh_rejuvenate from engine/core_mcmc.py.
 
-import { ParticleState, PriorPieces } from "./types";
+import { ParticleState, PriorPair } from "./types";
 import { logPResponse, signalZ } from "./likelihood";
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
@@ -11,7 +11,7 @@ import { Rng } from "./rng";
 export function makeState(
   N: number,
   K: number,
-  prior: PriorPieces,
+  prior: PriorPair,
   rng: Rng,
 ): ParticleState {
   const t = new Float64Array(N * K);
@@ -19,7 +19,7 @@ export function makeState(
   const w = new Float64Array(N).fill(1 / N);
   const logPrior = new Float64Array(N);
   const logLik = new Float64Array(N);
-  samplePrior(N, prior, rng, t, l, logPrior);
+  samplePrior(N, prior.tPieces, prior.lPieces, rng, t, l, logPrior);
   return { N, K, t, l, w, logPrior, logLik, history: [], prior };
 }
 
@@ -142,7 +142,8 @@ export function resampleAndRejuvenate(
       }
     }
     // log posterior at proposal
-    for (let n = 0; n < N; n++) lpNew[n] = logPriorOne(tNew, lNew, n, st.prior);
+    for (let n = 0; n < N; n++)
+      lpNew[n] = logPriorOne(tNew, lNew, n, st.prior.tPieces, st.prior.lPieces);
     logLikHistory(st, tNew, lNew, llNew);
     // accept
     let nAcc = 0;

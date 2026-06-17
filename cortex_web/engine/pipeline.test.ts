@@ -5,7 +5,7 @@ import { logPResponse, pResponseYes, signalZ } from "./likelihood";
 import { update } from "./particles";
 import { expectedLoss } from "./choose_item";
 import { AD6Policy } from "./policy";
-import { ParticleState, PriorPieces } from "./types";
+import { ParticleState, PriorPieces, PriorPair } from "./types";
 
 const ref = JSON.parse(
   readFileSync(fileURLToPath(new URL("./__testdata__/reference.json", import.meta.url)), "utf8"),
@@ -25,7 +25,8 @@ function flat(rows: number[][]): Float64Array {
 function makeFixtureState(t: number[][], l: number[][], w: number[]): ParticleState {
   const N = t.length;
   const K = t[0].length;
-  const dummyPrior: PriorPieces = { K, sigmaInv: [], logDet: 0, L: [] };
+  const dummyPieces: PriorPieces = { K, sigmaInv: [], logDet: 0, L: [] };
+  const dummyPrior: PriorPair = { tPieces: dummyPieces, lPieces: dummyPieces };
   const wSum = w.reduce((a, b) => a + b, 0);
   return {
     N,
