@@ -566,7 +566,6 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             </div>
           </form>
           <div style={switchStyle}>
-            <div style={{ marginBottom: 12 }}>New to CORTEX?</div>
             <AuthButton variant="accentOutline" onClick={() => go("signup")} style={{ width: "100%" }}>
               Create new account
             </AuthButton>
