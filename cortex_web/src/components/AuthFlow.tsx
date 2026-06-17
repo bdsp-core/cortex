@@ -544,8 +544,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
       {screen === "signin" && (
         <div style={cardStyle}>
-          <h1 style={h1Style}>Sign in</h1>
-          <p style={ledeStyle}>Sign in to take the assessment and review your certification history.</p>
+          <h1 style={h1Style}>Log in CORTEX</h1>
           <form onSubmit={doSignIn}>
             <Field label="Email" type="email" value={siEmail} onChange={setSiEmail}
               placeholder="you@example.org" autoComplete="email" required autoFocus />
