@@ -1,10 +1,9 @@
 # CORTEX web platform — domain + monorepo architecture plan
 
-Status: **PLAN / not yet implemented** (authored 2026-06-17). Captures the
-locked decisions for moving off the `nip.io` host onto `cortexeeg.org`
-subdomains and restructuring `cortex_web/` into a modular monorepo.
-
-This is a planning doc. No code/DNS/deploy changes have been made yet.
+Status: **IMPLEMENTED 2026-06-17** — Phase A (domain cutover to cortexeeg.org,
+nip.io retired→301) and Phase B (monorepo restructure: apps/web + services/api,
+Caddy file-serves static, uvicorn pure API) are both LIVE on prod. This doc
+captures the locked decisions and the as-built architecture.
 
 ## Locked decisions
 
