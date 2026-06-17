@@ -88,7 +88,7 @@ Branch off `main`, push, open a PR. Standard squash-merge to `main`.
 
 `main` is the deploy branch — what's on `main` is what's on prod.
 
-## Deploying to prod (cortex-44-233-29-150.nip.io)
+## Deploying to prod (https://app.cortexeeg.org)
 
 If you have SSH to `cortex-prod` (see the Brandon ↔ Eli handshake), deploy
 from your laptop in one command:

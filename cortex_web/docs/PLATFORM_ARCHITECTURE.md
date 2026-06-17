@@ -44,8 +44,9 @@ api.cortexeeg.org(L8r)┘                                                ├─ 
 ## Phase A — domain cutover (low risk, ship first)  ✅ DONE 2026-06-17
 
 Executed with `deploy/scripts/smoke_domain.sh` (ALL PASS). `app.cortexeeg.org`
-serves the app over HTTPS; apex + `www` 301→app.; `nip.io` kept serving as a
-fallback (its redirect is the one deferred toggle). Box config backups:
+serves the app over HTTPS; apex + `www` + the old `nip.io` host all 301→app.
+(`nip.io` retired 2026-06-17 — moved to the redirect block + dropped from CORS;
+old links still work via the 301). Box config backups:
 `/etc/{caddy/Caddyfile,cortex/cortex.env}.bak-20260617T180416Z`. DNS managed via
 the scoped `cortexeeg-dns` profile. See the production-architecture memory for
 the per-step revert commands.

@@ -47,7 +47,7 @@ redirect(){ # host wantprefix
 echo "── DNS (authoritative) ──";        dns_auth "$APP"; dns_auth "$APEX"; dns_auth "$WWW"
 echo "── app.cortexeeg.org (serves app) ──"; health "$APP"; spa "$APP"
 echo "── apex/www (redirect → app) ──";   redirect "$APEX" "https://$APP"; redirect "$WWW" "https://$APP"
-echo "── nip.io fallback (still serves) ──"; health "$NIP"; spa "$NIP"
+echo "── nip.io (retired → redirects to app) ──"; redirect "$NIP" "https://$APP"
 
 echo
 [ "$fail" = 0 ] && echo "SMOKE: ALL PASS" || echo "SMOKE: some checks failed (expected mid-migration; see labels)"
