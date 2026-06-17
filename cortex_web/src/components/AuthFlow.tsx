@@ -561,7 +561,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Signing in…" : <>Sign in <span style={{ fontFamily: FONTS.sans }}>→</span></>}
+                {busy ? "Signing in…" : "Sign in"}
               </AuthButton>
             </div>
           </form>
