@@ -55,10 +55,18 @@ from . import sample_data
 from . import security
 from .db import Database
 
-HERE = Path(__file__).resolve().parent
-WEB_ROOT = HERE.parent                       # cortex_web/
-BUNDLE_DIR = WEB_ROOT / "public" / "bundle"
-DIST_DIR = WEB_ROOT / "dist"
+HERE = Path(__file__).resolve().parent       # services/api/
+CORTEX_WEB = HERE.parents[1]                  # cortex_web/
+REPO_ROOT = HERE.parents[2]                   # repo root
+
+# Static serving is OPTIONAL. In prod, Caddy file-serves the SPA + EEG bundle
+# and uvicorn is a pure API (leave CORTEX_SERVE_STATIC unset). Set it (dev /
+# ui-smoke / single-process runs) to have uvicorn also serve the built SPA +
+# bundle. Dirs are env-overridable for split-deploy / CDN cases.
+SERVE_STATIC = os.environ.get("CORTEX_SERVE_STATIC", "") not in ("", "0", "false")
+DIST_DIR = Path(os.environ.get("CORTEX_DIST_DIR", str(CORTEX_WEB / "apps" / "web" / "dist")))
+BUNDLE_DIR = Path(os.environ.get("CORTEX_BUNDLE_DIR", str(CORTEX_WEB / "apps" / "web" / "public" / "bundle")))
+SCRIPTS_DIR = os.environ.get("CORTEX_SCRIPTS_DIR", str(REPO_ROOT / "scripts"))
 
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
@@ -544,7 +552,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             json.dumps({"identity": {"name": info.get("participantName", "Anonymous")}}))
 
         def _render():
-            scripts = str((WEB_ROOT.parent / "scripts").resolve())
+            scripts = SCRIPTS_DIR
             if scripts not in sys.path:
                 sys.path.insert(0, scripts)
             from cortex_render_videos import render_all
@@ -601,10 +609,10 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(404, "no result for session")
         return res
 
-    # ── static (bundle + SPA), only if present ──────────────────
-    if BUNDLE_DIR.exists():
+    # ── static (bundle + SPA): OPTIONAL — prod serves these via Caddy ──
+    if SERVE_STATIC and BUNDLE_DIR.exists():
         app.mount("/bundle", StaticFiles(directory=str(BUNDLE_DIR)), name="bundle")
-    if DIST_DIR.exists():
+    if SERVE_STATIC and DIST_DIR.exists():
         # SPA catch-all LAST so /api/* and /bundle win.
         app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="spa")
 

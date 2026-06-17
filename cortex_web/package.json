@@ -1,30 +1,15 @@
 {
-  "name": "cortex-web",
+  "name": "cortex-web-monorepo",
   "private": true,
-  "version": "0.0.1",
-  "type": "module",
-  "description": "Browser-based CORTEX adaptive EEG certification test — client-side SMC particle filter in a Web Worker, pixel-identical to the desktop app.",
+  "version": "0.0.0",
+  "description": "CORTEX web platform monorepo: apps/web (SPA), apps/marketing (static), services/api (FastAPI).",
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "ui-smoke": "bash scripts/ui_smoke.sh"
-  },
-  "dependencies": {
-    "idb": "^8.0.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.19.19",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "playwright": "^1.60.0",
-    "typescript": "^5.5.4",
-    "vite": "^5.4.0",
-    "vitest": "^2.0.5"
+    "build": "npm run -w cortex-web build",
+    "test": "npm run -w cortex-web test",
+    "typecheck": "npm run -w cortex-web typecheck",
+    "dev": "npm run -w cortex-web dev"
   }
 }

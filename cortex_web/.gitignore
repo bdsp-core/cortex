@@ -4,12 +4,12 @@ dist/
 
 # Emitted JS from any stray `tsc` build — sources are .ts/.tsx only; vite/
 # vitest transpile directly, nothing hand-written is .js in these trees.
-engine/**/*.js
-src/**/*.js
-ui/**/*.js
+apps/web/engine/**/*.js
+apps/web/src/**/*.js
+apps/web/ui/**/*.js
 
 # Generated data bundle (PHI-adjacent EEG; lives on S3, fetched at runtime).
-public/bundle/
+apps/web/public/bundle/
 
 # Local env / secrets.
 .env
@@ -18,11 +18,11 @@ public/bundle/
 # Backend runtime artifacts: SQLite DB + WAL/SHM sidecars, the JWT signing
 # secret, exported credentials/results, Python caches. Never commit
 # participant credentials or results.
-server/*.db
-server/*.db-wal
-server/*.db-shm
-server/.jwt_secret
-server/.venv/
+services/api/*.db
+services/api/*.db-wal
+services/api/*.db-shm
+services/api/.jwt_secret
+.venv/
 **/__pycache__/
 *.pyc
 codes.csv

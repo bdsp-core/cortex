@@ -122,7 +122,7 @@ def cmd_export_results(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="CORTEX web admin")
-    p.add_argument("--db", default=None, help="SQLite path (default server/cortex.db)")
+    p.add_argument("--db", default=None, help="SQLite path (default services/api/cortex.db)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     g = sub.add_parser("gen", help="bulk-generate credentials")
