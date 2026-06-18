@@ -191,6 +191,23 @@ export async function resetPassword(
   await parse(res);
 }
 
+// Submit a support/feedback report (public, rate-limited). `client` carries
+// browser diagnostics collected by the caller. Throws ApiError on failure
+// (400 empty message, 429 rate limit).
+export async function submitReport(payload: {
+  username: string;
+  email: string;
+  message: string;
+  client: Record<string, unknown>;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await parse(res);
+}
+
 export async function health(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/api/health`);

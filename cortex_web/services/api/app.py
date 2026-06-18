@@ -53,7 +53,7 @@ from starlette.concurrency import run_in_threadpool
 from . import email as email_mod
 from . import sample_data
 from . import security
-from .db import Database
+from .db import Database, utc_now
 
 HERE = Path(__file__).resolve().parent       # services/api/
 CORTEX_WEB = HERE.parents[1]                  # cortex_web/
@@ -72,6 +72,9 @@ SCRIPTS_DIR = os.environ.get("CORTEX_SCRIPTS_DIR", str(REPO_ROOT / "scripts"))
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
 DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "500"))
 TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
+
+# Where user reports (the /report page) are emailed. Overridable via env.
+REPORT_TO = os.environ.get("CORTEX_REPORT_TO", "elikeldsen@icloud.com")
 
 
 # ───────────────────────── request models ─────────────────────────
@@ -144,6 +147,15 @@ class TrajectoryIn(BaseModel):
     points: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ReportIn(BaseModel):
+    """Public support/feedback report. `client` carries browser-collected
+    diagnostics (OS, timezone, screen, etc.) for troubleshooting."""
+    username: str = ""
+    email: str = ""
+    message: str
+    client: dict[str, Any] = Field(default_factory=dict)
+
+
 # ───────────────────────── validation helpers ─────────────────
 # RFC 5322 is overkill; this matches what every real email service accepts
 # and rejects obvious garbage. We DON'T verify deliverability — the policy
@@ -176,6 +188,7 @@ _RATE_LIMITS = {
     "resend":   (5,  3600),   # re-send a verification code
     "forgot":   (5,  3600),   # request a password-reset code
     "reset":    (20, 3600),   # submit a reset code + new password
+    "report":   (5,  3600),   # submit a support/feedback report
 }
 
 
@@ -248,6 +261,51 @@ def _check_code(db: Database, participant_code: str, purpose: str, presented: st
         db.increment_auth_attempts(participant_code, purpose)
         return False
     return True
+
+
+def _build_report_email(username: str, email: str, message: str,
+                        client: dict[str, Any], ip: str) -> tuple[str, str]:
+    """Render the support-report email (plain text) sent to REPORT_TO. The
+    receiver template: reporter identity, the message, submission time, and the
+    browser-collected diagnostics for troubleshooting."""
+    def g(k: str) -> str:
+        v = client.get(k)
+        s = str(v).strip() if v is not None else ""
+        return s[:500] if s else "(not provided)"
+    who = username or email or "anonymous"
+    subject = f"[CORTEX Report] {who}"
+    lines = [
+        "A new report was submitted through CORTEX (app.cortexeeg.org).",
+        "",
+        "── Reporter ──",
+        f"Username: {username or '(not provided)'}",
+        f"Email:    {email or '(not provided)'}",
+        "",
+        "── Message ──",
+        message,
+        "",
+        "── Submitted ──",
+        f"Server time (UTC):   {utc_now()}",
+        f"Reporter local time: {g('clientTime')}",
+        f"App language:        {g('appLang')}",
+        "",
+        "── Diagnostics (for troubleshooting) ──",
+        f"Operating system: {g('os')}",
+        f"Browser:          {g('browser')}",
+        f"Device platform:  {g('platform')}",
+        f"Screen:           {g('screen')}",
+        f"Viewport:         {g('viewport')}",
+        f"Timezone:         {g('timezone')}",
+        f"Locale:           {g('language')}",
+        f"Page URL:         {g('url')}",
+        f"Referrer:         {g('referrer')}",
+        f"Online:           {g('online')}",
+        f"User agent:       {g('userAgent')}",
+        f"IP address:       {ip}  (approximate location can be looked up from this)",
+        "",
+        "— Sent automatically by CORTEX. Reply to this email to reach the reporter.",
+    ]
+    return subject, "\n".join(lines)
 
 
 def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
@@ -424,6 +482,22 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         # A successful reset also confirms control of the email address.
         if not row.get("email_verified_utc"):
             db.mark_email_verified(row["code"])
+        return {"ok": True}
+
+    @app.post("/api/report")
+    def report(body: ReportIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("report", ip):
+            raise HTTPException(429, "too many reports from this IP — try again later")
+        message = body.message.strip()
+        if not message:
+            raise HTTPException(400, "please describe the issue or suggestion")
+        message = message[:5000]
+        username = body.username.strip()[:_MAX_FIELD_LEN]
+        email = _norm_email(body.email)
+        reply_to = email if _is_email(email) else None
+        subject, text = _build_report_email(username, email, message, body.client or {}, ip)
+        email_mod.send_email(REPORT_TO, subject, text, reply_to=reply_to)
         return {"ok": True}
 
     # ── gated ───────────────────────────────────────────────────

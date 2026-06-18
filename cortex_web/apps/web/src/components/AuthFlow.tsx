@@ -370,6 +370,8 @@ function AuthFooter() {
         <span aria-hidden="true" style={dot}>·</span>
         {/* TODO: link to /terms once the Terms of Service page exists */}
         <span style={placeholder} title={t("footer.termsSoon")}>{t("footer.terms")}</span>
+        <span aria-hidden="true" style={dot}>·</span>
+        <a href="/report" style={link}>{t("footer.report")}</a>
       </div>
       <div style={group}>
         {/* Language selector — switches the active catalog (persisted to localStorage). */}

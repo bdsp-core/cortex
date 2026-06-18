@@ -475,3 +475,33 @@ def test_db_direct_participant():
         db.set_participant_active("c1", False)
         assert db.get_participant("c1")["active"] == 0
         db.close()
+
+
+def test_report_emails_receiver_with_diagnostics(client, monkeypatch):
+    """A submitted report is emailed to the receiver with the message + the
+    browser diagnostics, and Reply-To set to the reporter's (normalized) email."""
+    from . import email as email_mod
+    sent: dict = {}
+
+    def fake_send(to, subject, body, reply_to=None):
+        sent.update(to=to, subject=subject, body=body, reply_to=reply_to)
+
+    monkeypatch.setattr(email_mod, "send_email", fake_send)
+    r = client.post("/api/report", json={
+        "username": "dr_test",
+        "email": "Reporter@Example.test",
+        "message": "Spectrogram looks off on Safari.",
+        "client": {"os": "macOS", "timezone": "America/Los_Angeles", "userAgent": "UA/1.0"},
+    })
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert sent["to"] == "elikeldsen@icloud.com"
+    assert sent["reply_to"] == "reporter@example.test"
+    assert "dr_test" in sent["subject"]
+    assert "Spectrogram looks off on Safari." in sent["body"]
+    assert "macOS" in sent["body"] and "America/Los_Angeles" in sent["body"]
+
+
+def test_report_requires_message(client):
+    r = client.post("/api/report",
+                    json={"username": "x", "email": "x@y.com", "message": "   "})
+    assert r.status_code == 400

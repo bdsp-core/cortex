@@ -61,7 +61,7 @@ def _backend() -> str:
     return "dev"
 
 
-def _send_smtp(to_email: str, subject: str, body: str) -> None:
+def _send_smtp(to_email: str, subject: str, body: str, reply_to: str | None = None) -> None:
     import smtplib
     import ssl
     from email.message import EmailMessage
@@ -76,6 +76,8 @@ def _send_smtp(to_email: str, subject: str, body: str) -> None:
     msg = EmailMessage()
     msg["From"] = sender
     msg["To"] = to_email
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg["Subject"] = subject
     msg.set_content(body)
 
@@ -96,7 +98,7 @@ def _send_smtp(to_email: str, subject: str, body: str) -> None:
             s.send_message(msg)
 
 
-def _send_ses(to_email: str, subject: str, body: str) -> None:
+def _send_ses(to_email: str, subject: str, body: str, reply_to: str | None = None) -> None:
     import boto3
 
     sender = os.environ["CORTEX_EMAIL_FROM"]
@@ -105,6 +107,7 @@ def _send_ses(to_email: str, subject: str, body: str) -> None:
     client.send_email(
         Source=sender,
         Destination={"ToAddresses": [to_email]},
+        ReplyToAddresses=[reply_to] if reply_to else [],
         Message={
             "Subject": {"Data": subject, "Charset": "UTF-8"},
             "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
@@ -126,3 +129,18 @@ def send_auth_code(to_email: str, code: str, purpose: str) -> None:
         return
     # dev stub: log so local/CI flows can read the code from server output.
     print(f"[cortex.email:dev] to={to_email} purpose={purpose} code={code}", file=sys.stderr, flush=True)
+
+
+def send_email(to_email: str, subject: str, body: str, reply_to: str | None = None) -> None:
+    """Send an arbitrary transactional email (e.g. a user report). Same backend
+    dispatch as send_auth_code; SMTP/SES errors propagate so the caller can
+    surface a 5xx. The dev stub never raises (logs to stderr)."""
+    backend = _backend()
+    if backend == "smtp":
+        _send_smtp(to_email, subject, body, reply_to)
+        return
+    if backend == "ses":
+        _send_ses(to_email, subject, body, reply_to)
+        return
+    print(f"[cortex.email:dev] to={to_email} reply_to={reply_to} subject={subject!r}\n{body}",
+          file=sys.stderr, flush=True)
