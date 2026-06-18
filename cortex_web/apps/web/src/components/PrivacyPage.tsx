@@ -71,7 +71,7 @@ export function PrivacyPage() {
           <img
             src="/cortex_logo_word_horizontal@3x.png"
             srcSet="/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"
-            alt="CORTEX — EEG Skill Certification"
+            alt="CORTEX EEG Skill Certification"
             style={{ height: 34, width: "auto", display: "block" }}
           />
         </a>
@@ -89,7 +89,7 @@ export function PrivacyPage() {
         <P>
           CORTEX is part of the Westover Lab at Stanford University School of Medicine and is sponsored
           by the Clinical Data Animation Center (CDAC). The data controller is Stanford University
-          School of Medicine (Westover Lab — CORTEX project), 453 Quarry Rd, Office 221B, Palo Alto,
+          School of Medicine (Westover Lab, CORTEX project), 453 Quarry Rd, Office 221B, Palo Alto,
           CA 94304. If you have any questions, contact us at <Mail a="mbwest@stanford.edu" /> or{" "}
           <Mail a="ewk23@stanford.edu" />. The individual responsible for data protection for CORTEX is
           Michael B. Westover, MD, PhD, Professor of Neurology, Stanford University School of Medicine;
@@ -169,11 +169,11 @@ export function PrivacyPage() {
         <P>We use trusted service providers to run CORTEX, who process data only on our instructions:</P>
         <ul>
           <li style={liStyle}>
-            <strong>Amazon Web Services</strong> — hosting and database, and email delivery for account
+            <strong>Amazon Web Services</strong>: hosting and database, and email delivery for account
             messages. Our servers and database are located in the United States (Oregon).
           </li>
-          <li style={liStyle}><strong>Box</strong> — encrypted, access-controlled backups.</li>
-          <li style={liStyle}><strong>Google</strong> — "Sign in with Google" authentication, if you choose it.</li>
+          <li style={liStyle}><strong>Box</strong>: encrypted, access-controlled backups.</li>
+          <li style={liStyle}><strong>Google</strong>: "Sign in with Google" authentication, if you choose it.</li>
         </ul>
         <P>
           Because our infrastructure is in the United States, if you access CORTEX from outside the US
@@ -209,7 +209,7 @@ export function PrivacyPage() {
           information, and we do not use it for targeted advertising.
         </P>
         <P>
-          To exercise any of these rights — including to access or delete your data — email us at{" "}
+          To exercise any of these rights, including to access or delete your data, email us at{" "}
           <Mail a="mbwest@stanford.edu" /> or <Mail a="ewk23@stanford.edu" />. We will respond within the
           time required by applicable law. If you are in the EEA or UK, you also have the right to lodge a
           complaint with your local data-protection authority.
@@ -229,7 +229,7 @@ export function PrivacyPage() {
 
         <H2>Contact us</H2>
         <P>
-          Stanford University School of Medicine — Westover Lab (CORTEX project), sponsored by the
+          Stanford University School of Medicine, Westover Lab (CORTEX project), sponsored by the
           Clinical Data Animation Center (CDAC)<br />
           453 Quarry Rd, Office 221B, Palo Alto, CA 94304<br />
           <Mail a="mbwest@stanford.edu" /> · <Mail a="ewk23@stanford.edu" />
