@@ -20,7 +20,7 @@ import {
 } from "../api";
 import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
-import { useI18n, TFn } from "../i18n/LanguageProvider";
+import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -350,7 +350,7 @@ function apiMessage(t: TFn, e: unknown, fallback: string): string {
 // real language switching; later, wrap the GitHub icon in an <a href> and add a
 // /terms link. Full width; the grey top border matches the sign-in divider.
 function AuthFooter() {
-  const { t } = useI18n();
+  const { t, lang, setLang } = useI18n();
   const link: CSSProperties = {
     fontFamily: FONTS.sans, fontSize: 12, fontWeight: 500,
     color: COLORS.textBody, textDecoration: "none", cursor: "pointer",
@@ -372,20 +372,29 @@ function AuthFooter() {
         <span style={placeholder} title={t("footer.termsSoon")}>{t("footer.terms")}</span>
       </div>
       <div style={group}>
-        {/* TODO (Stage 2): replace with a real language selector wired to setLang */}
-        <span style={{ ...placeholder, display: "inline-flex", alignItems: "center", gap: 6 }}
-          title="More languages coming soon">
+        {/* Language selector — switches the active catalog (persisted to localStorage). */}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6,
+          color: COLORS.textBody, cursor: "pointer" }} title={t("footer.languageLabel")}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
-          English
+          <select value={lang} onChange={(e) => setLang(e.target.value as Lang)}
+            aria-label={t("footer.languageLabel")}
+            style={{
+              appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+              background: "transparent", border: "none", color: COLORS.textBody,
+              fontFamily: FONTS.sans, fontSize: 12, fontWeight: 500, cursor: "pointer",
+              padding: 0, lineHeight: 1.3,
+            }}>
+            {LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M6 9l6 6 6-6" />
           </svg>
-        </span>
+        </label>
         {/* TODO: wrap in <a href="<repo URL>"> when the GitHub link is ready */}
         <span aria-label={t("footer.github")} title={t("footer.githubSoon")}
           style={{ ...placeholder, display: "inline-flex", color: COLORS.textBody }}>
