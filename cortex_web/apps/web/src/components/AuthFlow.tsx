@@ -539,11 +539,17 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         }}
       />
 
+      <div className="auth-collage" aria-hidden="true" style={{
+        position: "absolute", top: 36, bottom: 48,
+        left: "calc(65.333vw - 36px)", width: 1,
+        background: COLORS.borderInactive2,
+      }} />
+
       <div style={{
         width: "33.333vw", minWidth: 360,
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "flex-start",
-        padding: "7vh 24px 48px", boxSizing: "border-box",
+        padding: "36px 24px 48px", boxSizing: "border-box",
       }}>
 
       <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
