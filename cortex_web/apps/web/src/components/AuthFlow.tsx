@@ -520,8 +520,8 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      padding: "32px 24px 64px", position: "relative",
+      alignItems: "center", justifyContent: "flex-start",
+      padding: "7vh 24px 48px", position: "relative",
       background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
       boxSizing: "border-box",
     }}>
