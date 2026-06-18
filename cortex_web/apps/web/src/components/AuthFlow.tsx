@@ -368,8 +368,7 @@ function AuthFooter() {
       <div style={group}>
         <a href="/privacy" style={link}>{t("footer.privacy")}</a>
         <span aria-hidden="true" style={dot}>·</span>
-        {/* TODO: link to /terms once the Terms of Service page exists */}
-        <span style={placeholder} title={t("footer.termsSoon")}>{t("footer.terms")}</span>
+        <a href="/terms" style={link}>{t("footer.terms")}</a>
         <span aria-hidden="true" style={dot}>·</span>
         <a href="/report" style={link}>{t("footer.report")}</a>
       </div>
