@@ -533,7 +533,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         alt="" aria-hidden="true"
         style={{
           position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
-          height: "calc(100% - 36px)",
+          height: "calc(100% - 84px)",
           objectFit: "contain", objectPosition: "center",
           pointerEvents: "none", userSelect: "none",
         }}
