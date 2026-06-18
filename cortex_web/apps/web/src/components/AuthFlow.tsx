@@ -526,6 +526,18 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     }}>
       <ThemeToggle style={{ position: "absolute", top: 24, right: 24 }} />
 
+      <style>{`@media (max-width: 900px){ .auth-collage{ display: none !important; } }`}</style>
+      <img className="auth-collage"
+        src="/web_collage_prod@2x.png"
+        srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
+        alt="" aria-hidden="true"
+        style={{
+          position: "absolute", left: 0, top: 0, height: "100%", width: "64vw",
+          objectFit: "contain", objectPosition: "center",
+          pointerEvents: "none", userSelect: "none",
+        }}
+      />
+
       <div style={{
         width: "33.333vw", minWidth: 360,
         display: "flex", flexDirection: "column",
