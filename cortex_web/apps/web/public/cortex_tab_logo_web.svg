@@ -22,12 +22,12 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="2.8284271"
-     inkscape:cx="132.7593"
-     inkscape:cy="86.974134"
+     inkscape:cx="121.09204"
+     inkscape:cy="89.802561"
      inkscape:window-width="1677"
      inkscape:window-height="819"
-     inkscape:window-x="1296"
-     inkscape:window-y="368"
+     inkscape:window-x="1276"
+     inkscape:window-y="181"
      inkscape:window-maximized="0"
      inkscape:current-layer="montecarlo-6"
      showguides="true" />
@@ -127,7 +127,7 @@
        fx="50.446568"
        fy="24.245775"
        r="19.641155"
-       gradientTransform="matrix(1.0130788,0,0,0.86618428,-25.504407,-17.767487)"
+       gradientTransform="matrix(1.0163764,0,0,0.86759297,-25.603871,-17.771656)"
        gradientUnits="userSpaceOnUse" />
     <radialGradient
        inkscape:collect="always"
@@ -138,7 +138,7 @@
        fx="50.483471"
        fy="24.245777"
        r="19.604252"
-       gradientTransform="matrix(1.0129966,0,0,0.8692989,-25.49897,-17.812146)"
+       gradientTransform="matrix(0.91816209,0,0,0.77007093,-20.676663,-15.427787)"
        gradientUnits="userSpaceOnUse" />
   </defs>
   <g
@@ -146,6 +146,13 @@
      inkscape:label="montecarlo"
      id="montecarlo-6"
      transform="matrix(4.7900336,0,0,4.7900336,-22.967981,70.36133)">
+    <rect
+       style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:2.04106;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       id="rect27"
+       width="39.714447"
+       height="33.867836"
+       x="5.8154817"
+       y="-13.66858" />
     <ellipse
        cx="-6.7969828"
        cy="27.216364"
@@ -3287,18 +3294,18 @@
        rx="0.34914362"
        ry="0.35091817" />
     <rect
-       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#ffffff;stroke-width:2.05771;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#3d3d3d;stroke-width:2.06273;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="rect4"
-       width="39.556274"
-       height="33.787571"
-       x="5.8238068"
-       y="-13.659965" />
+       width="39.685032"
+       height="33.842522"
+       x="5.8263178"
+       y="-13.657454" />
     <ellipse
-       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#ffffff;stroke-width:2.06224;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#363636;stroke-width:1.8479;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="path4"
-       cx="25.640604"
-       cy="3.2646823"
-       rx="19.739143"
-       ry="16.922674" />
+       cx="25.675337"
+       cy="3.2431803"
+       rx="17.891207"
+       ry="14.990998" />
   </g>
 </svg>
