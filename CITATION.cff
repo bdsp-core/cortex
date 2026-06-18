@@ -1,0 +1,49 @@
+# Citation File Format (https://citation-file-format.github.io/).
+# GitHub reads this to show a "Cite this repository" button.
+# Full attribution requirements: https://app.cortexeeg.org/citation
+#
+# TODO (on publication): uncomment the `preferred-citation` block below and fill
+# in the peer-reviewed methodology paper (title, journal, year, DOI). Once set,
+# GitHub will surface the paper as the preferred citation instead of the software.
+# TODO (with Stanford OTL): set `license` once the non-commercial + attribution
+# license is finalized.
+cff-version: 1.2.0
+message: "If you use CORTEX or its methodology (including reimplementations or adaptations to other domains), please cite it as below. See https://app.cortexeeg.org/citation for full attribution requirements."
+title: "CORTEX: An Adaptive Platform for EEG Interpretation Skill Assessment and Training"
+abstract: "CORTEX is an online platform that assesses and trains clinicians' skill at recognizing patterns in EEG recordings, using an adaptive testing-and-learning methodology. Developed by the Westover Lab at Stanford University School of Medicine and sponsored by the Clinical Data Animation Center (CDAC)."
+type: software
+authors:
+  - family-names: Keldsen
+    given-names: Elijah W.
+    affiliation: "Westover Lab, Stanford University School of Medicine"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"  # TODO
+  - family-names: Westover
+    given-names: M. Brandon
+    affiliation: "Stanford University School of Medicine"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"  # TODO
+version: "1.0.0-rc1"
+date-released: "2026-06-18"
+url: "https://app.cortexeeg.org"
+repository-code: "https://github.com/bdsp-core/ilae-skill-certification-test-multi"
+keywords:
+  - EEG
+  - electroencephalography
+  - skill assessment
+  - certification
+  - adaptive testing
+  - medical education
+# license: "TODO"  # non-commercial + attribution; to be finalized with Stanford OTL
+
+# ── Forthcoming peer-reviewed methodology paper ──────────────────────────────
+# Uncomment and complete on publication (NEJM AI / Nature Medicine):
+# preferred-citation:
+#   type: article
+#   title: "TODO: article title"
+#   authors:
+#     - family-names: Keldsen
+#       given-names: Elijah W.
+#     - family-names: Westover
+#       given-names: M. Brandon
+#   journal: "TODO: journal name"
+#   year: 2026
+#   doi: "TODO: 10.xxxx/xxxxx"
