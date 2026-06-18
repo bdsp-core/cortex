@@ -238,7 +238,7 @@ export function PrivacyPage() {
         <P>This policy is governed by the laws of the State of California, United States.</P>
 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${COLORS.borderInactive}` }}>
-          <a href="/" style={linkStyle}>← Back to CORTEX</a>
+          <a href="/" style={linkStyle}>Back to CORTEX</a>
         </div>
       </div>
     </div>
