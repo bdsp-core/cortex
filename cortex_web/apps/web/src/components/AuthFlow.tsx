@@ -763,6 +763,11 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           <div style={{ marginTop: 6 }}>
             A project sponsored by the Clinical Data Animation Center (CDAC)
           </div>
+          <div style={{ marginTop: 6 }}>
+            <a href="/privacy" style={{ ...linkBtnStyle, fontSize: 12, fontWeight: 400, color: COLORS.textFaint }}>
+              Privacy Policy
+            </a>
+          </div>
         </div>
       </div>
     </div>
