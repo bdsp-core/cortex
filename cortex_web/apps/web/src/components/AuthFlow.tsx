@@ -517,47 +517,56 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   }
 
   // ── render ───────────────────────────────────────────────────────────
+  // Login = collage hero (2/3 + 1/3 split); all other screens = simple centered box.
+  const hero = screen === "signin";
   return (
     <div style={{
-      minHeight: "100vh", display: "flex", justifyContent: "flex-end",
-      paddingRight: 36, position: "relative",
+      minHeight: "100vh", display: "flex",
+      justifyContent: hero ? "flex-end" : "center",
+      paddingRight: hero ? 36 : 0, position: "relative",
       background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
       boxSizing: "border-box",
     }}>
       <ThemeToggle style={{ position: "absolute", top: 24, right: 24 }} />
 
-      <style>{`@media (max-width: 900px){ .auth-collage{ display: none !important; } }`}</style>
-      <img className="auth-collage"
-        src="/web_collage_prod@2x.png"
-        srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
-        alt="" aria-hidden="true"
-        style={{
-          position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
-          height: "calc(100% - 84px)",
-          objectFit: "contain", objectPosition: "center",
-          pointerEvents: "none", userSelect: "none",
-        }}
-      />
-
-      <div className="auth-collage" aria-hidden="true" style={{
-        position: "absolute", top: 36, bottom: 48,
-        left: "calc(65.333vw - 36px)", width: 1,
-        background: COLORS.borderInactive2,
-      }} />
+      {hero && (
+        <>
+          <style>{`@media (max-width: 900px){ .auth-collage{ display: none !important; } }`}</style>
+          <img className="auth-collage"
+            src="/web_collage_prod@2x.png"
+            srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
+            alt="" aria-hidden="true"
+            style={{
+              position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
+              height: "calc(100% - 84px)",
+              objectFit: "contain", objectPosition: "center",
+              pointerEvents: "none", userSelect: "none",
+            }}
+          />
+          <div className="auth-collage" aria-hidden="true" style={{
+            position: "absolute", top: 36, bottom: 48,
+            left: "calc(65.333vw - 36px)", width: 1,
+            background: COLORS.borderInactive2,
+          }} />
+        </>
+      )}
 
       <div style={{
-        width: "33.333vw", minWidth: 360,
+        width: hero ? "33.333vw" : "100%",
+        maxWidth: hero ? undefined : 488, minWidth: hero ? 360 : undefined,
         display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "flex-start",
-        padding: "36px 24px 48px", boxSizing: "border-box",
+        alignItems: "center", justifyContent: hero ? "flex-start" : "center",
+        padding: hero ? "36px 24px 48px" : "24px 24px 48px", boxSizing: "border-box",
       }}>
 
       <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
         <img
-          src="/cortex_logo_only@2x.png"
-          srcSet="/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
+          src={hero ? "/cortex_logo_only@2x.png" : "/cortex_logo_word_horizontal@3x.png"}
+          srcSet={hero
+            ? "/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
+            : "/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"}
           alt="CORTEX — EEG Skill Certification"
-          style={{ width: "75%", height: "auto", display: "block", margin: "0 auto" }}
+          style={{ width: hero ? "75%" : "95%", height: "auto", display: "block", margin: "0 auto" }}
         />
       </div>
 
@@ -746,7 +755,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       )}
 
         <div style={{
-          marginTop: "auto", paddingTop: 48,
+          marginTop: hero ? "auto" : 40, paddingTop: 48,
           textAlign: "center", color: COLORS.textFaint, fontSize: 12,
           letterSpacing: "0.04em", lineHeight: 1.5,
         }}>
