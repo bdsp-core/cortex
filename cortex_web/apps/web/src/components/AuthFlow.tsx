@@ -519,13 +519,19 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   // ── render ───────────────────────────────────────────────────────────
   return (
     <div style={{
-      minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "flex-start",
-      padding: "7vh 24px 48px", position: "relative",
+      minHeight: "100vh", display: "flex", justifyContent: "flex-end",
+      position: "relative",
       background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
       boxSizing: "border-box",
     }}>
       <ThemeToggle style={{ position: "absolute", top: 24, right: 24 }} />
+
+      <div style={{
+        width: "33.333vw", minWidth: 360,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "flex-start",
+        padding: "7vh 24px 48px", boxSizing: "border-box",
+      }}>
 
       <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
         <img
@@ -720,14 +726,15 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         </div>
       )}
 
-      <div style={{
-        position: "absolute", bottom: 24, left: 0, right: 0,
-        textAlign: "center", color: COLORS.textFaint, fontSize: 12,
-        letterSpacing: "0.04em", lineHeight: 1.5, padding: "0 24px",
-      }}>
-        <div>Developed by Elijah W. Keldsen and M. Brandon Westover</div>
-        <div style={{ marginTop: 6 }}>
-          A project sponsored by the Clinical Data Animation Center (CDAC)
+        <div style={{
+          marginTop: "auto", paddingTop: 48,
+          textAlign: "center", color: COLORS.textFaint, fontSize: 12,
+          letterSpacing: "0.04em", lineHeight: 1.5,
+        }}>
+          <div>Developed by Elijah W. Keldsen and M. Brandon Westover</div>
+          <div style={{ marginTop: 6 }}>
+            A project sponsored by the Clinical Data Animation Center (CDAC)
+          </div>
         </div>
       </div>
     </div>
