@@ -69,6 +69,7 @@ export function PrivacyPage() {
       <div style={column}>
         <a href="/" aria-label="Back to CORTEX" style={{ display: "inline-block", marginBottom: 28 }}>
           <img
+            className="cortex-logo"
             src="/cortex_logo_word_horizontal@3x.png"
             srcSet="/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"
             alt="CORTEX EEG Skill Certification"

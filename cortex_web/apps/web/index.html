@@ -133,6 +133,21 @@
       }
       /* in-box placeholder text: light grey, full opacity (Firefox dims it) */
       input::placeholder { color: var(--ink-faint); opacity: 1; }
+
+      /* Hover flourish: the CORTEX logo (all auth screens + /privacy) and the
+         sign-in collage smoothly scale up. transform only (GPU, no reflow);
+         disabled under reduced-motion. */
+      .cortex-logo, .auth-collage-img {
+        transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+        transform-origin: center center;
+        will-change: transform;
+      }
+      .cortex-logo:hover { transform: scale(1.06); }
+      .auth-collage-img:hover { transform: scale(1.025); }
+      @media (prefers-reduced-motion: reduce) {
+        .cortex-logo, .auth-collage-img { transition: none; }
+        .cortex-logo:hover, .auth-collage-img:hover { transform: none; }
+      }
     </style>
   </head>
   <body>

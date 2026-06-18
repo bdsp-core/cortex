@@ -532,7 +532,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       {hero && (
         <>
           <style>{`@media (max-width: 900px){ .auth-collage{ display: none !important; } }`}</style>
-          <img className="auth-collage"
+          <img className="auth-collage auth-collage-img"
             src="/web_collage_prod@2x.png"
             srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
             alt="" aria-hidden="true"
@@ -540,7 +540,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
               position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
               height: "calc(100% - 84px)",
               objectFit: "contain", objectPosition: "center",
-              pointerEvents: "none", userSelect: "none",
+              userSelect: "none",
             }}
           />
           <div className="auth-collage" aria-hidden="true" style={{
@@ -561,6 +561,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
       <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
         <img
+          className="cortex-logo"
           src={hero ? "/cortex_logo_only@2x.png" : "/cortex_logo_word_horizontal@3x.png"}
           srcSet={hero
             ? "/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
