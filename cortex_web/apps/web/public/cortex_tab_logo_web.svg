@@ -23,11 +23,11 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="2.8284271"
      inkscape:cx="121.09204"
-     inkscape:cy="89.802561"
+     inkscape:cy="89.802562"
      inkscape:window-width="1677"
      inkscape:window-height="819"
-     inkscape:window-x="1276"
-     inkscape:window-y="181"
+     inkscape:window-x="1305"
+     inkscape:window-y="157"
      inkscape:window-maximized="0"
      inkscape:current-layer="montecarlo-6"
      showguides="true" />
@@ -147,7 +147,7 @@
      id="montecarlo-6"
      transform="matrix(4.7900336,0,0,4.7900336,-22.967981,70.36133)">
     <rect
-       style="opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:2.04106;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:2.04106;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="rect27"
        width="39.714447"
        height="33.867836"
@@ -3294,14 +3294,14 @@
        rx="0.34914362"
        ry="0.35091817" />
     <rect
-       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#3d3d3d;stroke-width:2.06273;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#ffffff;stroke-width:2.06273;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="rect4"
        width="39.685032"
        height="33.842522"
        x="5.8263178"
        y="-13.657454" />
     <ellipse
-       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#363636;stroke-width:1.8479;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#ffffff;stroke-width:1.8479;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="path4"
        cx="25.675337"
        cy="3.2431803"
