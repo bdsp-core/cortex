@@ -527,19 +527,13 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     }}>
       <ThemeToggle style={{ position: "absolute", top: 24, right: 24 }} />
 
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div style={{
-          fontFamily: FONTS.serif, fontWeight: 500, fontSize: 42,
-          letterSpacing: "0.14em", color: COLORS.textPrimary, lineHeight: 1,
-        }}>
-          CORTEX<span style={{ color: "var(--teal)" }}>.</span>
-        </div>
-        <div style={{
-          marginTop: 8, fontFamily: FONTS.serif, fontSize: 14,
-          letterSpacing: "0.14em", color: COLORS.textBody,
-        }}>
-          EEG Skill Certification
-        </div>
+      <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
+        <img
+          src="/cortex_logo_only@2x.png"
+          srcSet="/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
+          alt="CORTEX — EEG Skill Certification"
+          style={{ width: "100%", height: "auto", display: "block" }}
+        />
       </div>
 
       {screen === "signin" && (
