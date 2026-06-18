@@ -532,7 +532,8 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
         alt="" aria-hidden="true"
         style={{
-          position: "absolute", left: 0, top: 0, height: "100%", width: "64vw",
+          position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
+          height: "calc(100% - 36px)",
           objectFit: "contain", objectPosition: "center",
           pointerEvents: "none", userSelect: "none",
         }}
