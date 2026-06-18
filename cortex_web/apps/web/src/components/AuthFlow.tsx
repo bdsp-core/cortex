@@ -532,7 +532,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           src="/cortex_logo_only@2x.png"
           srcSet="/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
           alt="CORTEX — EEG Skill Certification"
-          style={{ width: "100%", height: "auto", display: "block" }}
+          style={{ width: "80%", height: "auto", display: "block", margin: "0 auto" }}
         />
       </div>
 
