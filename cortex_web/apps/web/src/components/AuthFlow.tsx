@@ -370,6 +370,8 @@ function AuthFooter() {
         <span aria-hidden="true" style={dot}>·</span>
         <a href="/terms" style={link}>{t("footer.terms")}</a>
         <span aria-hidden="true" style={dot}>·</span>
+        <a href="/citation" style={link}>{t("footer.citation")}</a>
+        <span aria-hidden="true" style={dot}>·</span>
         <a href="/report" style={link}>{t("footer.report")}</a>
       </div>
       <div style={group}>
