@@ -22,12 +22,12 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="2.8284271"
-     inkscape:cx="174.4786"
-     inkscape:cy="108.18734"
+     inkscape:cx="126.04178"
+     inkscape:cy="81.31728"
      inkscape:window-width="1677"
      inkscape:window-height="819"
      inkscape:window-x="1323"
-     inkscape:window-y="28"
+     inkscape:window-y="466"
      inkscape:window-maximized="0"
      inkscape:current-layer="montecarlo-6"
      showguides="true" />
@@ -2973,14 +2973,14 @@
        style="stroke-width:0.212481"
        transform="rotate(-95.071889)" />
     <rect
-       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#5c606a;stroke-width:0.441337;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient9);fill-opacity:0;stroke:#ffffff;stroke-width:0.441337;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="rect4"
        width="41.308483"
        height="35.466438"
        x="5.0156202"
        y="-14.468441" />
     <ellipse
-       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#5c606a;stroke-width:0.440727;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
+       style="fill:url(#radialGradient10);fill-opacity:0;stroke:#ffffff;stroke-width:0.440727;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
        id="path4"
        cx="25.661497"
        cy="3.2558093"
