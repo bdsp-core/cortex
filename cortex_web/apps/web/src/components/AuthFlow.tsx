@@ -8,8 +8,8 @@
 // forgot → reset → success → sign in. We never auto-login after verify — the
 // user signs in every time with credentials.
 //
-// Visuals match cortex_web_design/mockups/locked-v1-auth: serif "CORTEX."
-// wordmark, teal accent, SHARP edges, inline-SVG line icons, no em dashes.
+// All user-facing copy comes from the i18n catalogs (locales/*.json) via t();
+// "CORTEX" stays literal. Visuals match cortex_web_design/mockups/locked-v1-auth.
 
 import {
   CSSProperties, KeyboardEvent, ClipboardEvent, ReactNode, useRef, useState,
@@ -20,19 +20,20 @@ import {
 } from "../api";
 import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
+import { useI18n, TFn } from "../i18n/LanguageProvider";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
-// Self-reported expertise dropdown shown at signup. Captured as an early
-// data-quality signal even if the participant abandons mid-flow.
-const EXPERTISE = [
-  "Attending epileptologist",
-  "Attending neurologist (non-epilepsy)",
-  "Clinical neurophysiology fellow",
-  "Neurology resident",
-  "EEG technologist",
-  "Researcher / scientist",
-  "Other",
+// Self-reported expertise dropdown shown at signup. [catalogKey, submittedValue]:
+// the visible label is translated; the submitted value stays canonical English.
+const EXPERTISE: [string, string][] = [
+  ["auth.expertise.epileptologist", "Attending epileptologist"],
+  ["auth.expertise.neurologist", "Attending neurologist (non-epilepsy)"],
+  ["auth.expertise.fellow", "Clinical neurophysiology fellow"],
+  ["auth.expertise.resident", "Neurology resident"],
+  ["auth.expertise.tech", "EEG technologist"],
+  ["auth.expertise.researcher", "Researcher / scientist"],
+  ["auth.expertise.other", "Other"],
 ];
 
 const RESEND_COOLDOWN_S = 30;
@@ -107,6 +108,23 @@ const metaStyle: CSSProperties = {
   color: COLORS.textFaint,
   lineHeight: 1.5,
 };
+
+// Render an interpolated lede whose {email} should be visually emphasized:
+// split the already-substituted string on the email and wrap it in a span.
+function ledeWithEmail(text: string, email: string): ReactNode[] {
+  if (!email) return [text];
+  const parts = text.split(email);
+  const out: ReactNode[] = [];
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      out.push(
+        <span key={`e${i}`} style={{ fontFamily: FONTS.sans, color: COLORS.textPrimary }}>{email}</span>,
+      );
+    }
+    out.push(p);
+  });
+  return out;
+}
 
 // Hover-aware auth button. `primary` (teal fill) darkens to --teal-hover on
 // hover; `secondary` (white fill) and `accentOutline` (white fill + teal
@@ -249,6 +267,7 @@ function CodeInputs({
   setDigits: (d: string[]) => void;
   ariaPrefix: string;
 }) {
+  const { t } = useI18n();
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
   const onChange = (idx: number, raw: string) => {
@@ -279,7 +298,7 @@ function CodeInputs({
           ref={(el) => { refs.current[i] = el; }}
           inputMode="numeric"
           maxLength={1}
-          aria-label={`${ariaPrefix} digit ${i + 1}`}
+          aria-label={t("auth.codeDigitAria", { prefix: ariaPrefix, n: i + 1 })}
           value={d}
           autoFocus={i === 0}
           onChange={(e) => onChange(i, e.target.value)}
@@ -301,35 +320,37 @@ function CodeInputs({
 
 // Resend control with a 30s cooldown after each send.
 function Resend({ cooldown, onResend }: { cooldown: number; onResend: () => void }) {
+  const { t } = useI18n();
   return (
     <div style={{ textAlign: "center", fontSize: 12, color: COLORS.textBody, marginTop: 16 }}>
-      Didn't get it?{" "}
+      {t("auth.resend.prompt")}{" "}
       <button type="button" style={{ ...linkBtnStyle, fontSize: 12, opacity: cooldown > 0 ? 0.45 : 1,
         cursor: cooldown > 0 ? "not-allowed" : "pointer", color: cooldown > 0 ? COLORS.textFaint : "var(--teal-deep)" }}
         disabled={cooldown > 0} onClick={onResend}>
-        Resend code
+        {t("auth.resend.action")}
       </button>
-      {cooldown > 0 && <span> · resend in {cooldown}s</span>}
+      {cooldown > 0 && <span> {t("auth.resend.cooldown", { n: cooldown })}</span>}
     </div>
   );
 }
 
-// Map an ApiError to a friendly message.
-function apiMessage(e: unknown, fallback: string): string {
+// Map an ApiError to a friendly (localized) message.
+function apiMessage(t: TFn, e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
-    if (e.status === 429) return "Too many attempts. Please wait a minute and try again.";
-    if (e.status === 0) return "Cannot reach the server.";
+    if (e.status === 429) return t("auth.apiError.tooMany");
+    if (e.status === 0) return t("auth.apiError.unreachable");
     return e.message || fallback;
   }
   return e instanceof Error ? e.message : fallback;
 }
 
 // Global auth footer bar (shown on every auth screen): legal links, a language
-// selector, and a GitHub icon. Terms of Service, the language selector, and the
-// GitHub icon are non-functional PLACEHOLDERS for now — wire the GitHub
-// `<a href>`, a /terms link, and a real language menu later. Full width; the
-// grey top border matches the sign-in 2/3·1/3 divider.
+// selector, and a GitHub icon. The language selector + GitHub icon are
+// non-functional PLACEHOLDERS for now (Stage 1) — Stage 2 wires the selector to
+// real language switching; later, wrap the GitHub icon in an <a href> and add a
+// /terms link. Full width; the grey top border matches the sign-in divider.
 function AuthFooter() {
+  const { t } = useI18n();
   const link: CSSProperties = {
     fontFamily: FONTS.sans, fontSize: 12, fontWeight: 500,
     color: COLORS.textBody, textDecoration: "none", cursor: "pointer",
@@ -345,13 +366,13 @@ function AuthFooter() {
       padding: "0 24px", boxSizing: "border-box", fontFamily: FONTS.sans,
     }}>
       <div style={group}>
-        <a href="/privacy" style={link}>Privacy Policy</a>
+        <a href="/privacy" style={link}>{t("footer.privacy")}</a>
         <span aria-hidden="true" style={dot}>·</span>
         {/* TODO: link to /terms once the Terms of Service page exists */}
-        <span style={placeholder} title="Coming soon">Terms of Service</span>
+        <span style={placeholder} title={t("footer.termsSoon")}>{t("footer.terms")}</span>
       </div>
       <div style={group}>
-        {/* TODO: replace with a real language selector */}
+        {/* TODO (Stage 2): replace with a real language selector wired to setLang */}
         <span style={{ ...placeholder, display: "inline-flex", alignItems: "center", gap: 6 }}
           title="More languages coming soon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -366,7 +387,7 @@ function AuthFooter() {
           </svg>
         </span>
         {/* TODO: wrap in <a href="<repo URL>"> when the GitHub link is ready */}
-        <span aria-label="GitHub repository" title="GitHub (link coming soon)"
+        <span aria-label={t("footer.github")} title={t("footer.githubSoon")}
           style={{ ...placeholder, display: "inline-flex", color: COLORS.textBody }}>
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
@@ -378,6 +399,7 @@ function AuthFooter() {
 }
 
 export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
+  const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>("signin");
 
   // sign in
@@ -405,10 +427,8 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   const [rsPw, setRsPw] = useState("");
   const [rsPw2, setRsPw2] = useState("");
 
-  // success
-  const [successTitle, setSuccessTitle] = useState("You're all set");
-  const [successMsg, setSuccessMsg] = useState(
-    "Your email is verified. Sign in to reach the assessment.");
+  // success — store the kind so the message stays language-reactive.
+  const [successKind, setSuccessKind] = useState<"emailVerified" | "passwordUpdated">("emailVerified");
 
   // shared
   const [err, setErr] = useState<string | null>(null);
@@ -424,9 +444,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     set(RESEND_COOLDOWN_S);
     if (cdTimer.current[which]) clearInterval(cdTimer.current[which]);
     cdTimer.current[which] = setInterval(() => {
-      set((t) => {
-        if (t <= 1) { clearInterval(cdTimer.current[which]); return 0; }
-        return t - 1;
+      set((tt) => {
+        if (tt <= 1) { clearInterval(cdTimer.current[which]); return 0; }
+        return tt - 1;
       });
     }, 1000);
   }
@@ -452,9 +472,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         startCooldown("verify");
         go("verify");
       } else if (ex instanceof ApiError && ex.status === 401) {
-        setErr("Email or password is incorrect.");
+        setErr(t("auth.signin.errInvalid"));
       } else {
-        setErr(apiMessage(ex, "Something went wrong."));
+        setErr(apiMessage(t, ex, t("auth.signin.errGeneric")));
       }
     } finally {
       setBusy(false);
@@ -464,9 +484,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   async function doSignUp(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (suPw.length < 8) { setErr("Password must be at least 8 characters."); return; }
-    if (suPw !== suPw2) { setErr("Passwords don't match."); return; }
-    if (!suName.trim()) { setErr("Please enter a display name."); return; }
+    if (suPw.length < 8) { setErr(t("auth.signup.errShort")); return; }
+    if (suPw !== suPw2) { setErr(t("auth.signup.errMismatch")); return; }
+    if (!suName.trim()) { setErr(t("auth.signup.errName")); return; }
     setBusy(true);
     try {
       const email = suEmail.trim().toLowerCase();
@@ -480,9 +500,9 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       go("verify");
     } catch (ex) {
       if (ex instanceof ApiError && ex.status === 409) {
-        setErr("An account with this email already exists. Try signing in instead.");
+        setErr(t("auth.signup.errExists"));
       } else {
-        setErr(apiMessage(ex, "Please check the form."));
+        setErr(apiMessage(t, ex, t("auth.signup.errForm")));
       }
     } finally {
       setBusy(false);
@@ -493,15 +513,14 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     e.preventDefault();
     setErr(null);
     const code = verifyDigits.join("");
-    if (code.length !== 6) { setErr("Enter all 6 digits."); return; }
+    if (code.length !== 6) { setErr(t("auth.verify.errAllDigits")); return; }
     setBusy(true);
     try {
       await verifyCode(verifyEmail, code);
-      setSuccessTitle("Email verified");
-      setSuccessMsg("Your email is verified. Sign in to reach the assessment.");
+      setSuccessKind("emailVerified");
       go("success");
     } catch (ex) {
-      setErr(apiMessage(ex, "That code isn't right. Check the digits and try again."));
+      setErr(apiMessage(t, ex, t("auth.verify.errBadCode")));
     } finally {
       setBusy(false);
     }
@@ -514,7 +533,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       setVerifyDigits(["", "", "", "", "", ""]);
       startCooldown("verify");
     } catch (ex) {
-      setErr(apiMessage(ex, "Could not resend the code."));
+      setErr(apiMessage(t, ex, t("auth.verify.errResend")));
     }
   }
 
@@ -532,7 +551,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       startCooldown("reset");
       go("reset");
     } catch (ex) {
-      setErr(apiMessage(ex, "Could not send a reset code."));
+      setErr(apiMessage(t, ex, t("auth.forgot.errSend")));
     } finally {
       setBusy(false);
     }
@@ -542,17 +561,16 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     e.preventDefault();
     setErr(null);
     const code = resetDigits.join("");
-    if (code.length !== 6) { setErr("Enter the 6-digit reset code."); return; }
-    if (rsPw.length < 8) { setErr("Password must be at least 8 characters."); return; }
-    if (rsPw !== rsPw2) { setErr("Passwords don't match."); return; }
+    if (code.length !== 6) { setErr(t("auth.reset.errEnterCode")); return; }
+    if (rsPw.length < 8) { setErr(t("auth.signup.errShort")); return; }
+    if (rsPw !== rsPw2) { setErr(t("auth.signup.errMismatch")); return; }
     setBusy(true);
     try {
       await resetPassword(resetEmail, code, rsPw);
-      setSuccessTitle("Password updated");
-      setSuccessMsg("Your password has been reset. Sign in with your new password.");
+      setSuccessKind("passwordUpdated");
       go("success");
     } catch (ex) {
-      setErr(apiMessage(ex, "That code isn't right. Check the digits and try again."));
+      setErr(apiMessage(t, ex, t("auth.verify.errBadCode")));
     } finally {
       setBusy(false);
     }
@@ -565,13 +583,14 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       setResetDigits(["", "", "", "", "", ""]);
       startCooldown("reset");
     } catch (ex) {
-      setErr(apiMessage(ex, "Could not resend the code."));
+      setErr(apiMessage(t, ex, t("auth.verify.errResend")));
     }
   }
 
   // ── render ───────────────────────────────────────────────────────────
   // Login = collage hero (2/3 + 1/3 split); all other screens = simple centered box.
   const hero = screen === "signin";
+  const reqMark = <span style={{ color: "var(--teal)" }}>*</span>;
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
@@ -625,36 +644,36 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           srcSet={hero
             ? "/cortex_logo_only@2x.png 2x, /cortex_logo_only@3x.png 3x"
             : "/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"}
-          alt="CORTEX — EEG Skill Certification"
+          alt={t("common.logoAlt")}
           style={{ width: hero ? "75%" : "95%", height: "auto", display: "block", margin: "0 auto" }}
         />
       </div>
 
       {screen === "signin" && (
         <div style={cardStyle}>
-          <h1 style={{ ...h1Style, marginBottom: 24 }}>Login into CORTEX</h1>
+          <h1 style={{ ...h1Style, marginBottom: 24 }}>{t("auth.signin.title")}</h1>
           <form onSubmit={doSignIn}>
             <Field type="email" value={siEmail} onChange={setSiEmail}
-              placeholder="Email" autoComplete="email" required autoFocus />
+              placeholder={t("common.email")} autoComplete="email" required autoFocus />
             <Field type="password" value={siPw} onChange={setSiPw}
-              placeholder="Password" autoComplete="current-password" required>
+              placeholder={t("common.password")} autoComplete="current-password" required>
               <div style={{ textAlign: "right", marginTop: 4 }}>
                 <button type="button" style={{ ...linkBtnStyle, fontSize: 12 }}
                   onClick={() => { setFpEmail(siEmail); go("forgot"); }}>
-                  Forgot password?
+                  {t("auth.signin.forgot")}
                 </button>
               </div>
             </Field>
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Logging in…" : "Log in"}
+                {busy ? t("auth.signin.submitting") : t("auth.signin.submit")}
               </AuthButton>
             </div>
           </form>
           <div style={switchStyle}>
             <AuthButton variant="accentOutline" onClick={() => go("signup")} style={{ width: "100%" }}>
-              Create new account
+              {t("auth.signin.create")}
             </AuthButton>
           </div>
         </div>
@@ -663,29 +682,27 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       {screen === "signup" && (
         <div style={cardStyle}>
           <Steps on={1} />
-          <h1 style={h1Style}>Create your account</h1>
-          <p style={ledeStyle}>
-            Your results are saved to this account. We'll email a 6-digit code to confirm your address.
-          </p>
+          <h1 style={h1Style}>{t("auth.signup.title")}</h1>
+          <p style={ledeStyle}>{t("auth.signup.lede")}</p>
           <form onSubmit={doSignUp}>
-            <Field label={<>Email <span style={{ color: "var(--teal)" }}>*</span></>}
+            <Field label={<>{t("common.email")} {reqMark}</>}
               type="email" value={suEmail} onChange={setSuEmail}
-              placeholder="you@example.org" autoComplete="email" required autoFocus />
-            <Field label={<>Password <span style={{ color: "var(--teal)" }}>*</span></>}
+              placeholder={t("auth.signup.emailPh")} autoComplete="email" required autoFocus />
+            <Field label={<>{t("common.password")} {reqMark}</>}
               type="password" value={suPw} onChange={setSuPw}
               autoComplete="new-password" required>
               <StrengthMeter score={scorePw(suPw)} />
-              <div style={hintStyle}>At least 8 characters.</div>
+              <div style={hintStyle}>{t("auth.signup.passwordHint")}</div>
             </Field>
-            <Field label={<>Confirm password <span style={{ color: "var(--teal)" }}>*</span></>}
+            <Field label={<>{t("auth.signup.confirmPassword")} {reqMark}</>}
               type="password" value={suPw2} onChange={setSuPw2} autoComplete="new-password" required />
-            <Field label={<>Display name <span style={{ color: "var(--teal)" }}>*</span></>}
-              value={suName} onChange={setSuName} placeholder="e.g. J. Doe, MD" required />
+            <Field label={<>{t("auth.signup.displayName")} {reqMark}</>}
+              value={suName} onChange={setSuName} placeholder={t("auth.signup.displayNamePh")} required />
             <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={labelStyle}>Primary role / expertise</span>
+              <span style={labelStyle}>{t("auth.signup.role")}</span>
               <select value={suRole} onChange={(e) => setSuRole(e.target.value)} style={inputStyle}>
-                <option value="">Select…</option>
-                {EXPERTISE.map((o) => <option key={o} value={o}>{o}</option>)}
+                <option value="">{t("auth.signup.select")}</option>
+                {EXPERTISE.map(([k, v]) => <option key={k} value={v}>{t(k)}</option>)}
               </select>
             </label>
             {/* honeypot — visually + a11y hidden; naive bots fill every input */}
@@ -697,60 +714,53 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="secondary" onClick={() => go("signin")} style={{ flex: 1 }}>
-                Back
+                {t("common.back")}
               </AuthButton>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Creating account…" : "Create account"}
+                {busy ? t("auth.signup.submitting") : t("auth.signup.submit")}
               </AuthButton>
             </div>
           </form>
-          <div style={metaStyle}>
-            By creating an account you agree to take part in this research study and to the consent
-            terms shown before your first test.
-          </div>
+          <div style={metaStyle}>{t("auth.signup.consent")}</div>
         </div>
       )}
 
       {screen === "verify" && (
         <div style={cardStyle}>
           <Steps on={2} />
-          <h1 style={h1Style}>Verify your email</h1>
-          <p style={ledeStyle}>
-            Enter the 6-digit code we sent to{" "}
-            <span style={{ fontFamily: FONTS.sans, color: COLORS.textPrimary }}>{verifyEmail}</span>.
-            The code expires in 15 minutes.
-          </p>
+          <h1 style={h1Style}>{t("auth.verify.title")}</h1>
+          <p style={ledeStyle}>{ledeWithEmail(t("auth.verify.lede", { email: verifyEmail }), verifyEmail)}</p>
           <form onSubmit={doVerify}>
-            <CodeInputs digits={verifyDigits} setDigits={setVerifyDigits} ariaPrefix="Verification code" />
+            <CodeInputs digits={verifyDigits} setDigits={setVerifyDigits} ariaPrefix={t("auth.verify.codeAria")} />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Verifying…" : "Verify & continue"}
+                {busy ? t("auth.verify.submitting") : t("auth.verify.submit")}
               </AuthButton>
             </div>
           </form>
           <Resend cooldown={verifyCooldown} onResend={doResendVerify} />
           <div style={{ ...switchStyle, marginTop: 8, paddingTop: 0, borderTop: "none" }}>
-            Wrong address?{" "}
-            <button type="button" style={linkBtnStyle} onClick={() => go("signup")}>Edit email</button>
+            {t("auth.verify.wrongAddress")}{" "}
+            <button type="button" style={linkBtnStyle} onClick={() => go("signup")}>{t("auth.verify.editEmail")}</button>
           </div>
         </div>
       )}
 
       {screen === "forgot" && (
         <div style={cardStyle}>
-          <h1 style={h1Style}>Reset your password</h1>
-          <p style={ledeStyle}>Enter your account email. If it's registered, we'll send a 6-digit reset code.</p>
+          <h1 style={h1Style}>{t("auth.forgot.title")}</h1>
+          <p style={ledeStyle}>{t("auth.forgot.lede")}</p>
           <form onSubmit={doForgot}>
-            <Field label="Email" type="email" value={fpEmail} onChange={setFpEmail}
-              placeholder="you@example.org" autoComplete="email" required autoFocus />
+            <Field label={t("common.email")} type="email" value={fpEmail} onChange={setFpEmail}
+              placeholder={t("auth.signup.emailPh")} autoComplete="email" required autoFocus />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="secondary" onClick={() => go("signin")} style={{ flex: 1 }}>
-                Back
+                {t("common.back")}
               </AuthButton>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Sending…" : "Send reset code"}
+                {busy ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
               </AuthButton>
             </div>
           </form>
@@ -759,28 +769,24 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
       {screen === "reset" && (
         <div style={cardStyle}>
-          <h1 style={h1Style}>Set a new password</h1>
-          <p style={ledeStyle}>
-            Enter the code sent to{" "}
-            <span style={{ fontFamily: FONTS.sans, color: COLORS.textPrimary }}>{resetEmail}</span>,
-            then choose a new password.
-          </p>
+          <h1 style={h1Style}>{t("auth.reset.title")}</h1>
+          <p style={ledeStyle}>{ledeWithEmail(t("auth.reset.lede", { email: resetEmail }), resetEmail)}</p>
           <form onSubmit={doReset}>
             <div style={{ display: "block", marginBottom: 16 }}>
-              <span style={labelStyle}>Reset code</span>
-              <CodeInputs digits={resetDigits} setDigits={setResetDigits} ariaPrefix="Reset code" />
+              <span style={labelStyle}>{t("auth.reset.codeLabel")}</span>
+              <CodeInputs digits={resetDigits} setDigits={setResetDigits} ariaPrefix={t("auth.reset.codeAria")} />
             </div>
-            <Field label="New password" type="password" value={rsPw} onChange={setRsPw}
+            <Field label={t("auth.reset.newPassword")} type="password" value={rsPw} onChange={setRsPw}
               autoComplete="new-password" required>
               <StrengthMeter score={scorePw(rsPw)} />
-              <div style={hintStyle}>At least 8 characters.</div>
+              <div style={hintStyle}>{t("auth.signup.passwordHint")}</div>
             </Field>
-            <Field label="Confirm new password" type="password" value={rsPw2} onChange={setRsPw2}
+            <Field label={t("auth.reset.confirmNewPassword")} type="password" value={rsPw2} onChange={setRsPw2}
               autoComplete="new-password" required />
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
-                {busy ? "Resetting…" : "Reset password"}
+                {busy ? t("auth.reset.submitting") : t("auth.reset.submit")}
               </AuthButton>
             </div>
           </form>
@@ -801,14 +807,18 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
               <path d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 style={h1Style}>{successTitle}</h1>
-          <p style={{ ...ledeStyle, marginBottom: 24 }}>{successMsg}</p>
+          <h1 style={h1Style}>
+            {t(successKind === "emailVerified" ? "auth.success.emailVerifiedTitle" : "auth.success.passwordUpdatedTitle")}
+          </h1>
+          <p style={{ ...ledeStyle, marginBottom: 24 }}>
+            {t(successKind === "emailVerified" ? "auth.success.emailVerifiedMsg" : "auth.success.passwordUpdatedMsg")}
+          </p>
           <div style={{ display: "flex", gap: 12 }}>
             <AuthButton variant="primary" onClick={() => {
               setSiPw("");
               go("signin");
             }} style={{ flex: 1 }}>
-              Continue to sign in
+              {t("auth.success.continue")}
             </AuthButton>
           </div>
         </div>
@@ -819,10 +829,8 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           textAlign: "center", color: COLORS.textFaint, fontSize: 12,
           letterSpacing: "0.04em", lineHeight: 1.5,
         }}>
-          <div>Developed by Elijah W. Keldsen and M. Brandon Westover</div>
-          <div style={{ marginTop: 6 }}>
-            A project sponsored by the Clinical Data Animation Center (CDAC)
-          </div>
+          <div>{t("auth.credit.developedBy")}</div>
+          <div style={{ marginTop: 6 }}>{t("auth.credit.sponsored")}</div>
         </div>
       </div>
       </div>
