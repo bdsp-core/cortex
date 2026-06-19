@@ -37,7 +37,7 @@ const SHELL_CSS = `
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   font-size:15px;line-height:1.45;}
 .cx-rail{background:var(--rail-bg);border-right:1px solid var(--bd-subtle);
-  padding:var(--s24) 0 var(--s16);display:flex;flex-direction:column;
+  padding:var(--s24) 0 var(--s8);display:flex;flex-direction:column;
   position:sticky;top:0;align-self:start;height:100vh;}
 .cx-brand{display:flex;align-items:center;padding:0 var(--s12) var(--s24);}
 .cx-logo-img{width:100%;height:auto;display:block;}
@@ -53,6 +53,8 @@ const SHELL_CSS = `
   font-weight:600;border-left-color:var(--teal);}
 .cx-nav .ic{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.cx-nav-aux{margin-top:var(--s8);padding-top:6px;border-top:1px solid var(--bd-subtle);}
+.cx-nav-aux button{padding-top:4px;padding-bottom:4px;}
 .cx-spacer{flex:1;}
 .cx-cta{display:flex;flex-direction:column;gap:var(--s8);padding:var(--s16) var(--s12) 0;}
 .cx-cta .cx-btn{width:100%;justify-content:center;text-align:center;line-height:1.25;}
@@ -323,6 +325,7 @@ td.ellcell .of{color:var(--ink-faint);}
   .cx-nav button{padding:var(--s8);border-right:none;}
   .cx-nav button.active{border-right:none;background:var(--teal-weak);}
   .cx-nav .lbl-text{display:none;}
+  .cx-nav-aux{border-top:none;padding-top:0;margin-top:0;}
   .cx-foot{border-top:none;padding:0;margin:0;}
   .cx-who{display:none;}
   .cx-footrow{margin-top:0;}
@@ -1437,6 +1440,15 @@ export function Shell({
             </button>
           </div>
         </div>
+
+        <nav className="cx-nav cx-nav-aux" aria-label="Support">
+          <button type="button" onClick={() => { window.location.href = "/report"; }}>
+            <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 21V5M4 5h13l-3 4 3 4H4" />
+            </svg>
+            <span className="lbl-text">Report a problem</span>
+          </button>
+        </nav>
       </aside>
 
       <main className="cx-wrap">
