@@ -19,7 +19,7 @@ import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
-import { Consent } from "./components/Consent";
+import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Registration, Participant } from "./components/Registration";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
@@ -230,7 +230,12 @@ export function App() {
     case "consent":
       return (
         <Consent
-          onAccept={() => setPhase("registration")}
+          onAccept={() => {
+            // Record consent acceptance (best-effort; the per-session blob
+            // still carries version/IRB as a durable backup). Phase O1.
+            void api.recordConsent(CONSENT_VERSION, IRB_PROTOCOL_ID).catch(() => {});
+            setPhase("registration");
+          }}
           onDecline={() => setPhase("dashboard")}
         />
       );

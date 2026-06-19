@@ -160,6 +160,17 @@ class ReportIn(BaseModel):
     client: dict[str, Any] = Field(default_factory=dict)
 
 
+class ConsentIn(BaseModel):
+    """Record a participant's consent acceptance (Phase O1)."""
+    consentType: str = "research_irb"
+    consentVersion: str
+    irbProtocolId: Optional[str] = None
+
+
+class ConsentWithdrawIn(BaseModel):
+    consentType: Optional[str] = None    # None → withdraw all consent types
+
+
 # ───────────────────────── validation helpers ─────────────────
 # RFC 5322 is overkill; this matches what every real email service accepts
 # and rejects obvious garbage. We DON'T verify deliverability — the policy
@@ -395,6 +406,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 email=email,
                 display_name=display,
                 signup_ip=ip,
+                signup_expertise=(body.expertise.strip()[:_MAX_FIELD_LEN] or None),
             )
         except Exception as e:
             # UNIQUE-index violation race (two concurrent signups, same email).
@@ -657,6 +669,26 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     def trajectories_append(body: TrajectoryIn, code: str = Depends(require_auth)):
         db.append_trajectory_points(code, body.points)
         return {"ok": True}
+
+    # ── consent ledger (Phase O1) ───────────────────────────────
+    @app.post("/api/consent")
+    def consent_record(body: ConsentIn, req: Request, code: str = Depends(require_auth)):
+        cver = (body.consentVersion or "").strip()[:_MAX_FIELD_LEN]
+        if not cver:
+            raise HTTPException(400, "consentVersion required")
+        ctype = (body.consentType or "").strip()[:_MAX_FIELD_LEN] or "research_irb"
+        irb = (body.irbProtocolId or "").strip()[:_MAX_FIELD_LEN] or None
+        db.record_consent(code, ctype, cver, irb_protocol_id=irb, consent_ip=_client_ip(req))
+        return {"ok": True}
+
+    @app.post("/api/consent/withdraw")
+    def consent_withdraw(body: ConsentWithdrawIn, code: str = Depends(require_auth)):
+        n = db.withdraw_consent(code, (body.consentType or "").strip() or None)
+        return {"ok": True, "withdrawn": n}
+
+    @app.get("/api/consent")
+    def consent_list(code: str = Depends(require_auth)):
+        return {"events": db.get_consent_events(code)}
 
     # ── visualization videos (#8) ───────────────────────────────
     # The browser posts the particle-cloud trajectory (t/l/w Float32 blobs + a

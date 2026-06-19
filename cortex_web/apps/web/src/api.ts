@@ -344,6 +344,15 @@ export function appendTrajectories(points: api_TrajectoryPointIn[]): Promise<{ o
     body: JSON.stringify({ points }),
   });
 }
+// Record the participant's consent acceptance (Phase O1). Authenticated; the
+// server stamps the accept time + IP. Best-effort at the call site.
+export function recordConsent(consentVersion: string, irbProtocolId?: string,
+                              consentType = "research_irb"): Promise<{ ok: boolean }> {
+  return authedFetch("/api/consent", {
+    method: "POST",
+    body: JSON.stringify({ consentType, consentVersion, irbProtocolId }),
+  });
+}
 // The shape POSTed to /api/trajectories (a subset of TrajectoryPoint).
 export interface api_TrajectoryPointIn {
   taskK: number;

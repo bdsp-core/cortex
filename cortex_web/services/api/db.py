@@ -120,6 +120,19 @@ _SCHEMA_STATEMENTS = [
         attempts          INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (participant_code, purpose)
     )""",
+    # Auditable consent ledger (Phase O1). One row per (participant, consent
+    # type, version); re-accepting re-affirms (clears withdrawal); withdrawal
+    # sets withdrawn_utc and is honoured at research-export time.
+    """CREATE TABLE IF NOT EXISTS consent_events (
+        code            TEXT NOT NULL,
+        consent_type    TEXT NOT NULL,
+        consent_version TEXT NOT NULL,
+        irb_protocol_id TEXT,
+        accepted_utc    TEXT NOT NULL,
+        consent_ip      TEXT,
+        withdrawn_utc   TEXT,
+        PRIMARY KEY (code, consent_type, consent_version)
+    )""",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -135,6 +148,7 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("email_verified_utc", "TEXT"),
     ("auth_provider",     "TEXT"),   # NULL/'local' for password accounts, 'google' for OAuth
     ("google_sub",        "TEXT"),   # Google account id ('sub' claim); unique when set
+    ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
 ]
 
 
@@ -261,17 +275,21 @@ class Database:
     # ── public-signup helpers ─────────────────────────────────────
     def register_participant(self, *, code: str, password_hash: str,
                               email: str, display_name: str,
-                              signup_ip: Optional[str] = None) -> None:
+                              signup_ip: Optional[str] = None,
+                              signup_expertise: Optional[str] = None) -> None:
         """Insert a new email-based account. Caller is responsible for
         generating `code` (the stable internal id stored in JWT subjects);
         UNIQUE constraint on email surfaces as a backend-specific IntegrityError
-        the caller catches to return a clean 409."""
+        the caller catches to return a clean 409. `signup_expertise` is the
+        optional self-reported role from the signup form (Phase O1; defaults
+        None so existing callers are unchanged)."""
         with self._lock:
             self._exec(
                 "INSERT INTO participants(code, password_hash, email, "
-                "display_name, signup_ip, created_utc) "
-                "VALUES (?,?,?,?,?,?)",
-                (code, password_hash, email, display_name, signup_ip, utc_now()),
+                "display_name, signup_ip, signup_expertise, created_utc) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (code, password_hash, email, display_name, signup_ip,
+                 signup_expertise, utc_now()),
             )
             self._conn.commit()
 
@@ -362,6 +380,51 @@ class Database:
                 "WHERE participant_code=? AND purpose=?",
                 (utc_now(), participant_code, purpose))
             self._conn.commit()
+
+    # ── consent ledger (Phase O1) ─────────────────────────────────
+    def record_consent(self, code: str, consent_type: str, consent_version: str,
+                        *, irb_protocol_id: Optional[str] = None,
+                        consent_ip: Optional[str] = None) -> None:
+        """Record (or re-affirm) a participant's consent. Re-accepting the same
+        (type, version) clears any prior withdrawal."""
+        if self._pg:
+            sql = ("INSERT INTO consent_events(code, consent_type, consent_version, "
+                   "irb_protocol_id, accepted_utc, consent_ip, withdrawn_utc) "
+                   "VALUES (?,?,?,?,?,?,NULL) "
+                   "ON CONFLICT (code, consent_type, consent_version) DO UPDATE SET "
+                   "accepted_utc=EXCLUDED.accepted_utc, "
+                   "irb_protocol_id=EXCLUDED.irb_protocol_id, "
+                   "consent_ip=EXCLUDED.consent_ip, withdrawn_utc=NULL")
+        else:
+            sql = ("INSERT OR REPLACE INTO consent_events(code, consent_type, "
+                   "consent_version, irb_protocol_id, accepted_utc, consent_ip, "
+                   "withdrawn_utc) VALUES (?,?,?,?,?,?,NULL)")
+        with self._lock:
+            self._exec(sql, (code, consent_type, consent_version,
+                             irb_protocol_id, utc_now(), consent_ip))
+            self._conn.commit()
+
+    def withdraw_consent(self, code: str, consent_type: Optional[str] = None) -> int:
+        """Mark consent withdrawn (all types, or one). Honoured at export time
+        (future releases only — already-released DOIs are irrevocable)."""
+        with self._lock:
+            if consent_type:
+                cur = self._exec(
+                    "UPDATE consent_events SET withdrawn_utc=? "
+                    "WHERE code=? AND consent_type=?",
+                    (utc_now(), code, consent_type))
+            else:
+                cur = self._exec(
+                    "UPDATE consent_events SET withdrawn_utc=? WHERE code=?",
+                    (utc_now(), code))
+            self._conn.commit()
+            return (cur.rowcount or 0) if hasattr(cur, "rowcount") else 0
+
+    def get_consent_events(self, code: str) -> list[dict]:
+        with self._lock:
+            return self._fetchall(
+                "SELECT * FROM consent_events WHERE code=? "
+                "ORDER BY consent_type, consent_version", (code,))
 
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,

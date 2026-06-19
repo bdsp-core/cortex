@@ -554,3 +554,54 @@ def test_auth_google_invalid_token_is_401(client, monkeypatch):
 def test_auth_google_unconfigured_is_503(client, monkeypatch):
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 503
+
+
+# ───────────── Phase O1: signup-expertise persistence + consent ledger ─────────────
+
+def test_register_persists_signup_expertise(client):
+    email = "expert@example.test"
+    r = client.post("/api/register", json={
+        "email": email, "password": "test-pw-1234567890",
+        "displayName": "Dr Expert", "expertise": "epileptologist"})
+    assert r.status_code == 200, r.text
+    row = client.app.state.db.get_participant_by_email(email)
+    assert row["signup_expertise"] == "epileptologist"
+
+
+def test_register_without_expertise_is_backward_compatible(client):
+    email, _pw, _code = _register(client)        # no expertise sent
+    row = client.app.state.db.get_participant_by_email(email)
+    assert row["signup_expertise"] is None
+
+
+def test_consent_record_list_and_withdraw(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    r = client.post("/api/consent", headers=hdr,
+                    json={"consentType": "research_irb", "consentVersion": "v1.0",
+                          "irbProtocolId": "2016P000058"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    events = client.get("/api/consent", headers=hdr).json()["events"]
+    assert len(events) == 1
+    e = events[0]
+    assert e["consent_version"] == "v1.0" and e["irb_protocol_id"] == "2016P000058"
+    assert e["accepted_utc"] and e["withdrawn_utc"] is None
+    w = client.post("/api/consent/withdraw", headers=hdr, json={})
+    assert w.status_code == 200 and w.json()["withdrawn"] == 1
+    assert client.get("/api/consent", headers=hdr).json()["events"][0]["withdrawn_utc"] is not None
+
+
+def test_consent_requires_version_and_auth(client):
+    assert client.post("/api/consent", json={"consentVersion": "v1.0"}).status_code == 401
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    assert client.post("/api/consent", headers=hdr, json={"consentVersion": "  "}).status_code == 400
+
+
+def test_consent_reaffirm_clears_withdrawal(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    client.post("/api/consent", headers=hdr, json={"consentVersion": "v1.0"})
+    client.post("/api/consent/withdraw", headers=hdr, json={})
+    client.post("/api/consent", headers=hdr, json={"consentVersion": "v1.0"})   # re-affirm
+    assert client.get("/api/consent", headers=hdr).json()["events"][0]["withdrawn_utc"] is None
