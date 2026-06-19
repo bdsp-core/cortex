@@ -42,4 +42,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r services/api/requirements.txt
-      - run: python -m pytest services/api/test_server.py research/gold/test_gold.py -q
+      - run: python -m pytest services/api/test_server.py research/ -q

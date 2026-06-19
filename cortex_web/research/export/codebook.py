@@ -1,0 +1,117 @@
+"""Version-pinned data dictionary for the CORTEX de-identified export.
+
+One entry per (table, column). The export gate fails if any exported column is
+missing a codebook row, so this file is the contract that keeps the published
+dataset self-describing for a Nature Medicine data-availability statement.
+"""
+
+CODEBOOK_VERSION = "r1.0"
+
+# table -> { column: {type, desc, unit/enum} }
+CODEBOOK: dict[str, dict[str, dict]] = {
+    "demographic_marginals": {
+        "field": {"type": "str", "desc": "demographic field name (allowlisted)"},
+        "value": {"type": "str", "desc": "observed value, or '(missing)'"},
+        "n": {"type": "int", "desc": "count of participants with this value (single-variable marginal only; no cross-tabs)"},
+    },
+    "dim_participant": {
+        "participant_sk": {"type": "str", "desc": "stable un-invertible pseudonym (HMAC of internal code)"},
+        "created_month": {"type": "str", "desc": "account creation month (YYYY-MM; generalised from timestamp)"},
+        "auth_provider": {"type": "str", "desc": "'local' | 'google'"},
+        "n_test_sessions": {"type": "int", "desc": "completed certification sessions for this participant"},
+        "expertise": {"type": "enum", "desc": "self-reported role", "enum": [
+            "epileptologist", "neurologist", "fellow", "resident", "tech", "researcher", "other"]},
+        "practice_setting": {"type": "str", "desc": "academic | community | ..."},
+        "race_ethnicity": {"type": "str", "desc": "self-reported; may be 'prefer_not'"},
+        "eeg_volume_per_month": {"type": "str", "desc": "banded self-reported reading volume"},
+        "years_reading_eeg": {"type": "str", "desc": "banded years of EEG experience"},
+        "self_rated_confidence": {"type": "int", "desc": "1-5 self-rating"},
+        "country": {"type": "str", "desc": "ISO-3166 country (generalised/suppressed under k-anon)"},
+        "sex": {"type": "str", "desc": "self-reported"},
+        "color_vision": {"type": "str", "desc": "normal | deficient | unknown"},
+        "prior_test_taken": {"type": "str", "desc": "whether the participant had taken a prior test"},
+    },
+    "dim_consent": {
+        "participant_sk": {"type": "str", "desc": "pseudonym FK"},
+        "consent_version": {"type": "str", "desc": "research consent version accepted"},
+        "irb_protocol_id": {"type": "str", "desc": "governing IRB protocol id"},
+        "consent_utc": {"type": "str|null", "desc": "consent timestamp; NULL for the pilot (not captured operationally yet)"},
+    },
+    "fact_test_session": {
+        "session_sk": {"type": "str", "desc": "session id (surrogate key)"},
+        "participant_sk": {"type": "str", "desc": "pseudonym FK"},
+        "started_utc": {"type": "str", "desc": "session start (ISO-8601 Z)"},
+        "finished_utc": {"type": "str", "desc": "session end (ISO-8601 Z)"},
+        "stop_reason": {"type": "str", "desc": "AD6 stop reason (all_resolved | bank_exhausted | ...)"},
+        "n_questions": {"type": "int", "desc": "questions asked in the session"},
+        "sample_seed": {"type": "int", "desc": "RNG seed for the served-segment sample"},
+        "provenance_inferred": {"type": "bool", "desc": "True = engine/bundle/calibration version was inferred, not recorded (pilot)"},
+    },
+    "fact_test_task_outcome": {
+        "session_sk": {"type": "str", "desc": "session FK"},
+        "participant_sk": {"type": "str", "desc": "pseudonym FK"},
+        "task_k": {"type": "int", "desc": "task index 0..6"},
+        "task_code": {"type": "enum", "desc": "task code", "enum": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]},
+        "verdict": {"type": "str", "desc": "final per-task verdict (PASS | FAIL | REFER_* )"},
+        "final_pass_mass": {"type": "float", "desc": "posterior pass-mass pi_k at the final question"},
+        "final_ell_mean": {"type": "float", "desc": "posterior-mean discrimination ell_k at the final question"},
+        "final_theta_mean": {"type": "float", "desc": "posterior-mean bias theta_k at the final question"},
+        "final_ell_sd": {"type": "float", "desc": "posterior SD of ell_k at the final question (from trials.diag)"},
+        "n_items_task": {"type": "int", "desc": "items administered for this task"},
+        "binarized_correct_rate": {"type": "float", "desc": "mean one-vs-rest correctness over this task's items"},
+        "final_auroc": {"type": "float|null", "desc": "NULL in R1 — not stored; requires the engine re-run (Phase O3)"},
+        "ell_star": {"type": "float|null", "desc": "NULL in R1 — Youden cut-score; joined from the bundle manifest later"},
+    },
+    "fact_trial": {
+        "session_sk": {"type": "str", "desc": "session FK"},
+        "trial_index": {"type": "int", "desc": "0-based question order"},
+        "asked_task_k": {"type": "int", "desc": "task the engine asked about"},
+        "seg_id": {"type": "int", "desc": "EEG segment id shown"},
+        "pick": {"type": "int", "desc": "rater's class pick"},
+        "response_y": {"type": "int", "desc": "binarized one-vs-rest response (0/1)"},
+        "binarized_correct": {"type": "int", "desc": "1 if the one-vs-rest response was correct"},
+        "reaction_ms": {"type": "float", "desc": "reaction time (ms); may be NULL (fire-and-forget checkpoint)"},
+        "ess": {"type": "float", "desc": "particle effective sample size before any resample"},
+        "rejuvenated": {"type": "int", "desc": "1 if MH rejuvenation fired this trial"},
+    },
+    "fact_trial_task": {
+        "session_sk": {"type": "str", "desc": "session FK"},
+        "trial_index": {"type": "int", "desc": "0-based question order"},
+        "task_k": {"type": "int", "desc": "task index 0..6"},
+        "task_code": {"type": "enum", "desc": "task code", "enum": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]},
+        "pass_mass": {"type": "float", "desc": "posterior pass-mass pi_k after this question"},
+        "mcse": {"type": "float", "desc": "Monte-Carlo standard error of pi_k"},
+        "info_gate_R": {"type": "float", "desc": "AD6 info-gate R_k after this question"},
+        "ell_mean": {"type": "float", "desc": "posterior-mean ell_k after this question"},
+        "theta_mean": {"type": "float", "desc": "posterior-mean theta_k after this question"},
+        "ell_sd": {"type": "float", "desc": "posterior SD of ell_k after this question"},
+        "n_items_task": {"type": "int", "desc": "cumulative items for this task so far"},
+        "verdict": {"type": "str", "desc": "per-task verdict state after this question"},
+    },
+    "fact_training_session": {
+        "training_sk": {"type": "str", "desc": "training sitting id"},
+        "participant_sk": {"type": "str", "desc": "pseudonym FK"},
+        "started_utc": {"type": "str", "desc": "start time"},
+        "finished_utc": {"type": "str", "desc": "end time"},
+        "n_items": {"type": "int", "desc": "items reviewed"},
+    },
+    "fact_trajectory_point": {
+        "participant_sk": {"type": "str", "desc": "pseudonym FK"},
+        "task_k": {"type": "int", "desc": "task index"},
+        "phase": {"type": "str", "desc": "train | ..."},
+        "ell": {"type": "float", "desc": "discrimination estimate"},
+        "theta": {"type": "float", "desc": "bias estimate"},
+        "sd": {"type": "float", "desc": "estimate SD"},
+        "rt": {"type": "float", "desc": "reaction time"},
+        "ts": {"type": "str", "desc": "timestamp"},
+        "is_real": {"type": "int", "desc": "1 = real trainer output; 0 = synthetic/quarantined (all rows are 0 pre-L1)"},
+    },
+    "bridge_participant_journey": {
+        "participant_sk": {"type": "str", "desc": "pseudonym"},
+        "n_test_sessions": {"type": "int", "desc": "completed test sessions"},
+        "n_training_sessions": {"type": "int", "desc": "training sittings"},
+        "n_trajectory_points": {"type": "int", "desc": "real trajectory points (0 pre-L1)"},
+        "first_test_utc": {"type": "str", "desc": "earliest session start"},
+        "last_test_utc": {"type": "str", "desc": "latest session finish"},
+    },
+}
