@@ -41,5 +41,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r server/requirements.txt
-      - run: python -m pytest server/test_server.py -q
+      - run: pip install -r services/api/requirements.txt
+      - run: python -m pytest services/api/test_server.py -q

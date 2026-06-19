@@ -32,7 +32,12 @@ say() { printf "[%s] %s\n" "$(date -u +%H:%M:%SZ)" "$*"; }
 # ── 1. DB snapshot ─────────────────────────────────────────────────
 if [[ "$CORTEX_DB" == postgres://* || "$CORTEX_DB" == postgresql://* ]]; then
   say "pg_dump → $WORK/db.sql.gz"
-  PGPASSFILE="$(mktemp)"; trap 'rm -f "$PGPASSFILE"' RETURN
+  # Password file lives in $WORK (0700 mktemp dir, removed by the EXIT trap on
+  # every path incl. errors) and is deleted explicitly right after pg_dump,
+  # BEFORE section 4 uploads $WORK — so the credential never reaches Box.
+  # (Earlier a bare mktemp guarded by `trap ... RETURN` leaked the password to
+  # /tmp: RETURN traps don't fire at top-level script scope.)
+  PGPASSFILE="$WORK/.pgpass"
   # rfc-style postgres://user:pw@host:port/db → parse for PGPASSFILE
   PG_URL="$CORTEX_DB"
   USER=$(printf '%s' "$PG_URL" | sed -E 's|^[a-z]+://([^:@]+).*|\1|')
@@ -44,6 +49,7 @@ if [[ "$CORTEX_DB" == postgres://* || "$CORTEX_DB" == postgresql://* ]]; then
   chmod 600 "$PGPASSFILE"
   PGPASSFILE="$PGPASSFILE" pg_dump --no-owner --no-privileges \
       -h "$HOST" -p "$PORT" -U "$USER" "$DB" | gzip -9 > "$WORK/db.sql.gz"
+  rm -f "$PGPASSFILE"   # drop the credential before $WORK is uploaded (section 4)
 else
   say "sqlite snapshot → $WORK/db.sqlite.gz"
   # .backup gives a consistent online copy even mid-write.
