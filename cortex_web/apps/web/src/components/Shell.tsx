@@ -19,7 +19,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
-import { FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 
@@ -40,9 +39,8 @@ const SHELL_CSS = `
 .cx-rail{background:var(--rail-bg);border-right:1px solid var(--bd-subtle);
   padding:var(--s24) 0 var(--s16);display:flex;flex-direction:column;
   position:sticky;top:0;align-self:start;height:100vh;}
-.cx-brand{display:flex;align-items:baseline;gap:6px;padding:0 var(--s24) var(--s24);}
-.cx-logo{font-weight:700;letter-spacing:.14em;font-size:26px;color:var(--ink);}
-.cx-logo .dot{color:var(--teal);}
+.cx-brand{display:flex;align-items:center;padding:0 var(--s12) var(--s24);}
+.cx-logo-img{width:100%;height:auto;display:block;}
 .cx-nav{display:flex;flex-direction:column;gap:2px;padding:0 var(--s12);}
 .cx-nav button{display:flex;align-items:center;gap:var(--s12);
   padding:var(--s8) var(--s12);border-radius:var(--radius-ctl);
@@ -281,8 +279,7 @@ td.ellcell .of{color:var(--ink-faint);}
   .cx-app{grid-template-columns:60px 1fr;}
   .cx-rail{padding:var(--s16) 0;}
   .cx-brand{padding:0 0 var(--s16);justify-content:center;}
-  .cx-logo{font-size:0;letter-spacing:0;}
-  .cx-logo::before{content:"C";font-size:19px;letter-spacing:0;color:var(--teal);}
+  .cx-logo-img{width:auto;height:36px;}
   .cx-nav{padding:0 8px;}
   .cx-nav button{justify-content:center;padding:var(--s12) 0;border-left:none;border-right:3px solid transparent;}
   .cx-nav button.active{border-left:none;border-right-color:var(--teal);}
@@ -300,8 +297,7 @@ td.ellcell .of{color:var(--ink-faint);}
     padding:var(--s8) var(--s16);gap:var(--s8);
     border-right:none;border-bottom:1px solid var(--bd-subtle);}
   .cx-brand{padding:0;}
-  .cx-logo{font-size:17px;letter-spacing:.1em;}
-  .cx-logo::before{content:none;}
+  .cx-logo-img{width:auto;height:28px;}
   .cx-nav{flex-direction:row;padding:0;gap:2px;margin-left:var(--s8);}
   .cx-nav button{padding:var(--s8);border-right:none;}
   .cx-nav button.active{border-right:none;background:var(--teal-weak);}
@@ -1272,9 +1268,12 @@ export function Shell({
 
       <aside className="cx-rail">
         <div className="cx-brand">
-          <span className="cx-logo" style={{ fontFamily: FONTS.serif }}>
-            CORTEX<span className="dot">.</span>
-          </span>
+          <img
+            className="cx-logo-img"
+            src="/cortex_logo_top_words@2x.png"
+            srcSet="/cortex_logo_top_words@2x.png 2x, /cortex_logo_top_words@3x.png 3x"
+            alt="CORTEX"
+          />
         </div>
 
         <nav className="cx-nav" aria-label="Primary">
