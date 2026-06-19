@@ -143,6 +143,27 @@ const SHELL_CSS = `
 .cx-chip.referb i{background:var(--refer-b);}
 .cx-chip.referu{color:var(--chip-referu-fg);background:var(--chip-referu-bg);border-color:var(--chip-referu-bd);}
 .cx-chip.referu i{background:var(--refer-u);}
+.cx-chip.none{color:var(--ink-subtle);background:var(--panel-hover);border-color:var(--bd-subtle);}
+.cx-chip.none i{background:var(--ink-faint);}
+/* empty-state CTA (shown before the first cert result) */
+.cx-empty-cta{display:flex;align-items:center;justify-content:space-between;gap:var(--s16);
+  background:var(--teal-weak);border:1px solid var(--teal);border-radius:12px;
+  padding:var(--s16) var(--s24);margin-bottom:var(--s24);}
+.cx-empty-cta .txt h3{margin:0 0 4px;font-size:15px;color:var(--ink);}
+.cx-empty-cta .txt p{margin:0;font-size:13px;color:var(--ink-subtle);}
+.cx-empty-cta .cx-btn{flex:none;white-space:nowrap;}
+.cx-board.solo{grid-template-columns:1fr;}
+/* welcome modal (first login, no result yet) */
+.cx-welcome-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:flex;align-items:center;justify-content:center;padding:var(--s24);z-index:50;}
+.cx-welcome-card{background:var(--panel);border:1px solid var(--bd-subtle);border-radius:14px;
+  max-width:520px;width:100%;padding:28px 28px var(--s24);box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.cx-welcome-card h2{margin:0 0 var(--s12);font-size:22px;color:var(--ink);}
+.cx-welcome-card p{margin:0 0 var(--s12);font-size:14px;line-height:1.55;color:var(--ink-subtle);}
+.cx-welcome-card p strong{color:var(--ink);font-weight:600;}
+.cx-welcome-logo{display:block;width:95%;height:auto;margin:0 auto var(--s24);}
+.cx-welcome-sign{margin-top:var(--s16);color:var(--ink);}
+.cx-welcome-actions{display:flex;gap:var(--s12);justify-content:flex-end;margin-top:var(--s24);flex-wrap:wrap;}
 .cx-chip.train{color:var(--teal-deep);background:var(--teal-weak);border-color:var(--teal-mid);}
 .cx-chip.train i{background:var(--teal);}
 
@@ -367,6 +388,7 @@ function chipFor(verdict: string): { cls: string; text: string } {
     case "REFER_BORDERLINE": return { cls: "referb", text: "Refer · borderline" };
     case "REFER_UNINFORMATIVE": return { cls: "referu", text: "Refer · uninformative" };
     case "IN_TRAINING": return { cls: "train", text: "In training" };
+    case "NOT_ASSESSED": return { cls: "none", text: "Not yet assessed" };
     default: return { cls: "train", text: "In training" };
   }
 }
@@ -404,10 +426,13 @@ function buildTasks(d: api.DashboardData): TaskVM[] {
       code,
       label: t?.label ?? code,
       taskK: t?.taskK ?? k,
-      ell: t?.ell ?? 0,
+      // Before any real cert result, the dashboard tasks are illustrative
+      // sample data — blank them so a new user sees empty ("Not yet assessed")
+      // tiles, not prototype values.
+      ell: d.hasResult ? (t?.ell ?? 0) : 0,
       ellStar: t?.ellStar ?? 1,
-      auroc: t?.auroc ?? 0,
-      verdict: t?.verdict ?? "PENDING",
+      auroc: d.hasResult ? (t?.auroc ?? 0) : 0,
+      verdict: d.hasResult ? (t?.verdict ?? "PENDING") : "NOT_ASSESSED",
     };
     // REAL override: when a cert result exists, take the verdict + AUROC from it
     // (the actual certification outcome), keyed by engine task index.
@@ -500,17 +525,54 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
+// First-login welcome (shown while the participant has no cert result yet).
+function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () => void }) {
+  return (
+    <div className="cx-welcome-backdrop" role="dialog" aria-modal="true"
+         aria-label="Welcome to CORTEX" onClick={onClose}>
+      <div className="cx-welcome-card" onClick={(e) => e.stopPropagation()}>
+        <img
+          className="cx-welcome-logo"
+          src="/cortex_logo_word_horizontal@3x.png"
+          srcSet="/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"
+          alt="CORTEX"
+        />
+        <h2>Welcome to the CORTEX protocol</h2>
+        <p>Thank you for joining us. We're excited you're here.</p>
+        <p>By taking part and engaging with the assessments, you're directly helping{" "}
+          <strong>train physicians and EEG specialists around the world</strong> to read
+          EEG more accurately and consistently.</p>
+        <p>To begin, please take the <strong>certification test</strong>. It tunes the
+          adaptive learning algorithm to your current skill, so everything that follows
+          is tailored to you.</p>
+        <p>Have an idea to make CORTEX better? We'd love to hear it. Use the{" "}
+          <strong>Report a problem</strong> tab in the left navigation any time.</p>
+        <p className="cx-welcome-sign">
+          Sincerely,<br />Elijah W. Keldsen and M. Brandon Westover
+        </p>
+        <div className="cx-welcome-actions">
+          <button type="button" className="cx-btn" onClick={onClose}>Maybe later</button>
+          <button type="button" className="cx-btn primary" onClick={onStart}>
+            Take the certification test
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // The Dashboard surface: KPI strip + the full mastery board (mastery grid,
 // detail trajectory, active-protocol table, consistency sidebar). KPIs/ℓ/θ/RT
 // + deck are sample for now (flagged where sample:true); verdict + AUROC come
 // from the real cert result when one exists.
-function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => void }) {
+function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: number) => void; onStartTest: () => void }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
   const [sample, setSample] = useState(false);
   const [err, setErr] = useState(false);
   const [selected, setSelected] = useState<string>("gpd");
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -527,10 +589,24 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
     return () => { live = false; };
   }, []);
 
+  // Welcome the participant on each login until they complete the certification
+  // test (the once-per-session flag is cleared on sign-out, see api.logout).
+  useEffect(() => {
+    if (dash && !dash.hasResult && !sessionStorage.getItem("cortex-welcome-seen")) {
+      setShowWelcome(true);
+    }
+  }, [dash]);
+  const dismissWelcome = () => {
+    try { sessionStorage.setItem("cortex-welcome-seen", "1"); } catch { /* private mode */ }
+    setShowWelcome(false);
+  };
+
   const tasks = useMemo(() => (dash ? buildTasks(dash) : []), [dash]);
   const trajByK = useMemo(() => buildTraj(trajPts), [trajPts]);
 
-  const kpis = dash?.kpis ?? null;
+  const hasData = !!dash?.hasResult;
+  // Sample KPIs/charts/protocol are blanked until a real cert result exists.
+  const kpis = hasData ? (dash?.kpis ?? null) : null;
   const due = kpis?.dueToday;
   const dueTotal = due ? due.new + due.learning + due.review : null;
 
@@ -546,11 +622,17 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
 
   return (
     <>
+      {showWelcome && (
+        <WelcomeModal
+          onClose={dismissWelcome}
+          onStart={() => { dismissWelcome(); onStartTest(); }}
+        />
+      )}
       <section className="cx-kpi-strip" aria-label="Key training metrics">
         <div className="cx-kpi">
           <div className="cx-kpi-top">
             <span className="k">Current streak</span>
-            {sample && <span className="cx-samplemark">sample data</span>}
+            {hasData && sample && <span className="cx-samplemark">sample data</span>}
           </div>
           <span className="v">{kpis ? kpis.streak : "–"}<span className="u">days</span></span>
         </div>
@@ -575,8 +657,19 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
       )}
 
       {dash && (
-        <div className="cx-board">
+        <div className={hasData ? "cx-board" : "cx-board solo"}>
           <div>
+            {!hasData && (
+              <div className="cx-empty-cta">
+                <div className="txt">
+                  <h3>You haven't been assessed yet</h3>
+                  <p>Take the certification test to tune the learning algorithm to your skill and unlock your mastery board.</p>
+                </div>
+                <button type="button" className="cx-btn primary" onClick={onStartTest}>
+                  Take the certification test
+                </button>
+              </div>
+            )}
             {/* ── mastery grid ── */}
             <section className="cx-panel" aria-label="Per-task mastery grid">
               <div className="cx-phead">
@@ -637,7 +730,7 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
             </section>
 
             {/* ── detail trajectory ── */}
-            {sel && (
+            {hasData && sel && (
               <section className="cx-panel" aria-label="Skill trajectory detail">
                 <div className="cx-phead" style={{ alignItems: "flex-start" }}>
                   <div style={{ width: "100%" }}>
@@ -690,6 +783,7 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
             )}
 
             {/* ── active protocol table ── */}
+            {hasData && (
             <section className="cx-panel" aria-label="Active learning protocol">
               <div className="cx-phead">
                 <h2>Active protocol</h2>
@@ -727,9 +821,11 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
                 </table>
               )}
             </section>
+            )}
           </div>
 
           {/* ── consistency sidebar ── */}
+          {hasData && (
           <aside>
             <section className="cx-panel" aria-label="Streak and recent activity">
               <div className="cx-phead"><h2>Consistency</h2></div>
@@ -786,6 +882,7 @@ function DashboardSurface({ onDrilldown }: { onDrilldown: (taskK: number) => voi
               </div>
             </section>
           </aside>
+          )}
         </div>
       )}
     </>
@@ -1258,6 +1355,16 @@ export function Shell({
   const [drillTask, setDrillTask] = useState<number>(0);
   const name = api.getDisplayName() ?? "Clinician";
 
+  // Has this participant completed the certification test? Adjusts the rail
+  // CTAs — a brand-new user gets a single "Take the certification test" instead
+  // of Resume training / Re-take (neither applies before the first test).
+  const [hasResult, setHasResult] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.getDashboard().then((d) => { if (live) setHasResult(d.hasResult); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
   // A nav surface is "active" when the current view matches it; the drilldown
   // sub-view keeps the dashboard tab highlighted (it's a routed sub-page of it).
   const activeNav: Surface = view === "drilldown" ? "dashboard" : view;
@@ -1292,16 +1399,24 @@ export function Shell({
         </nav>
 
         <div className="cx-cta">
-          <button
-            type="button"
-            className="cx-btn primary"
-            onClick={() => { setView("training"); onStartTraining(); }}
-          >
-            Resume training <span className="arrow">→</span>
-          </button>
-          <button type="button" className="cx-btn" onClick={onStartTest}>
-            Re-take certification test
-          </button>
+          {hasResult === false ? (
+            <button type="button" className="cx-btn primary" onClick={onStartTest}>
+              Take the certification test
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="cx-btn primary"
+                onClick={() => { setView("training"); onStartTraining(); }}
+              >
+                Resume training <span className="arrow">→</span>
+              </button>
+              <button type="button" className="cx-btn" onClick={onStartTest}>
+                Re-take certification test
+              </button>
+            </>
+          )}
         </div>
 
         <div className="cx-spacer" />
@@ -1328,6 +1443,7 @@ export function Shell({
         {view === "dashboard" && (
           <DashboardSurface
             onDrilldown={(k) => { setDrillTask(k); setView("drilldown"); }}
+            onStartTest={onStartTest}
           />
         )}
         {view === "drilldown" && (

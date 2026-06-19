@@ -69,6 +69,7 @@ export function setDisplayName(name: string): void {
 export function logout(): void {
   clearToken();
   localStorage.removeItem(DISPLAY_NAME_KEY);
+  try { sessionStorage.removeItem("cortex-welcome-seen"); } catch { /* private mode */ }
 }
 
 async function parse(res: Response): Promise<any> {
