@@ -1018,12 +1018,12 @@ function TrainingSurface() {
     try {
       if (tid) {
         await api.finalizeTrainingSession(tid, nItems, { mode: "practice", scored: false });
-        // A few honest sample trajectory points so the charts have movement.
-        const deck = regimen?.deck ?? [];
-        const pts: api.api_TrajectoryPointIn[] = deck.slice(0, 3).map((r) => ({
-          taskK: r.taskK, phase: "train", ell: r.ell, theta: 0.1, sd: 0.12, rt: 2400,
-        }));
-        if (pts.length) await api.appendTrajectories(pts);
+        // H0 (2026-06-19): previously wrote placeholder trajectory points with
+        // constant theta/sd/rt into the REAL param_trajectories table so the
+        // charts had movement. That contaminated the learning dataset and was
+        // then served as real (sample:false). Removed. Real trajectory points
+        // will come from the ported trainer (Phase L1); until then the
+        // dashboard falls back to clearly-labelled sample data.
       }
       setDoneNote(`Practice session recorded (${nItems} items reviewed). Not scored.`);
     } catch {
