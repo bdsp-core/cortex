@@ -98,6 +98,14 @@ const inputs = loadRealInputs() ?? syntheticInputs();
 const source = loadRealInputs() ? "real bank bundle" : "synthetic";
 const K = inputs.taskCodes.length;
 
+// The two verdict-quality assertions below are calibrated to the REAL v15
+// bank's ℓ*/cut-scores (see their comments + the formal OC re-validation). The
+// self-contained synthetic fixture is NOT tuned to reach PASS/FAIL under the
+// current policy, so those cases run only when the real bundle is present
+// (locally). CI has no bundle (public/bundle is gitignored) and still
+// exercises the bank-agnostic "terminates within the bank" smoke check.
+const onRealBank = source === "real bank bundle";
+
 describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, () => {
   it("terminates within the bank", async () => {
     const r = await runSim(inputs, new Array(K).fill(0), new Array(K).fill(0.6), 1);
@@ -106,7 +114,7 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     expect(["all_resolved", "bank_exhausted"]).toContain(r.stopReason);
   }, 240000);
 
-  it("a clearly-skilled rater earns mostly PASS", async () => {
+  it.runIf(onRealBank)("a clearly-skilled rater earns mostly PASS", async () => {
     // high discrimination (l≈1.0), unbiased (t=0) → should pass most tasks
     const r = await runSim(inputs, new Array(K).fill(0), new Array(K).fill(1.0), 2);
     const nPass = r.verdicts.filter((v) => v === VERDICT.PASS).length;
@@ -118,7 +126,7 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     expect(nPass).toBeGreaterThanOrEqual(3);
   }, 240000);
 
-  it("a clearly-unskilled rater FAILs the bulk of tasks", async () => {
+  it.runIf(onRealBank)("a clearly-unskilled rater FAILs the bulk of tasks", async () => {
     // l≈-0.2 rater. Cut-score-INDEPENDENT engine-discrimination invariant:
     // the rater clearly FAILs most tasks and certifies at most one. We can't
     // assert 0 PASS under the v15 credentialed-panel cut-scores — the seizure
