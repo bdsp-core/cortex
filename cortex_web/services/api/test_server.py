@@ -505,3 +505,52 @@ def test_report_requires_message(client):
     r = client.post("/api/report",
                     json={"username": "x", "email": "x@y.com", "message": "   "})
     assert r.status_code == 400
+
+
+# ── Sign in with Google ──────────────────────────────────────────────────────
+def _google(monkeypatch, claims):
+    """Configure GOOGLE_CLIENT_ID + stub the ID-token verifier to return claims."""
+    from . import app as app_module
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
+    monkeypatch.setattr(app_module, "_verify_google_credential", lambda cred, cid: claims)
+
+
+def test_auth_google_creates_then_signs_in_returning_user(client, monkeypatch):
+    _google(monkeypatch, {"sub": "g-123", "email": "NewUser@Gmail.com",
+                          "email_verified": True, "name": "New User"})
+    r = client.post("/api/auth/google", json={"credential": "tok"})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["email"] == "newuser@gmail.com" and b["displayName"] == "New User" and b["token"]
+    # Same Google sub → same account, not a duplicate.
+    r2 = client.post("/api/auth/google", json={"credential": "tok"})
+    assert r2.status_code == 200 and r2.json()["code"] == b["code"]
+
+
+def test_auth_google_links_existing_email_account(client, monkeypatch):
+    email, pw = _make_participant(client)            # existing verified password account
+    _google(monkeypatch, {"sub": "g-link", "email": email.upper(),
+                          "email_verified": True, "name": "Linked"})
+    r = client.post("/api/auth/google", json={"credential": "tok"})
+    assert r.status_code == 200
+    # The account is linked, not duplicated: password sign-in still works.
+    assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 200
+
+
+def test_auth_google_rejects_unverified_email(client, monkeypatch):
+    _google(monkeypatch, {"sub": "g-x", "email": "x@y.com", "email_verified": False})
+    assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 401
+
+
+def test_auth_google_invalid_token_is_401(client, monkeypatch):
+    from . import app as app_module
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
+    def boom(cred, cid):
+        raise ValueError("bad audience / signature")
+    monkeypatch.setattr(app_module, "_verify_google_credential", boom)
+    assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 401
+
+
+def test_auth_google_unconfigured_is_503(client, monkeypatch):
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 503

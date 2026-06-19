@@ -21,6 +21,7 @@ import {
 import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -688,6 +689,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
               {t("auth.signin.create")}
             </AuthButton>
           </div>
+          <GoogleSignInButton onAuthed={onAuthed} onError={setErr} />
         </div>
       )}
 

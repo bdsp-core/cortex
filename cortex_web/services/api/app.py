@@ -84,6 +84,10 @@ class AuthIn(BaseModel):
     password: str
 
 
+class AuthGoogleIn(BaseModel):
+    credential: str   # Google ID token (JWT) returned by Sign in with Google
+
+
 class RegisterIn(BaseModel):
     """Public signup payload. `honeypot` should be empty — it's a hidden form
     field most bots auto-fill. Any non-empty value gets a 200 OK with no
@@ -184,6 +188,7 @@ def _is_email(s: str) -> bool:
 _RATE_LIMITS = {
     "register": (5,  3600),
     "auth":     (20, 3600),
+    "auth_google": (20, 3600),  # Sign in with Google
     "verify":   (20, 3600),   # confirm a verification code
     "resend":   (5,  3600),   # re-send a verification code
     "forgot":   (5,  3600),   # request a password-reset code
@@ -261,6 +266,18 @@ def _check_code(db: Database, participant_code: str, purpose: str, presented: st
         db.increment_auth_attempts(participant_code, purpose)
         return False
     return True
+
+
+def _verify_google_credential(credential: str, client_id: str) -> dict:
+    """Verify a Google ID token against `client_id` (the OAuth audience) and
+    return its claims (sub, email, email_verified, name, …), or raise. google-
+    auth is imported lazily so dev/test installs without it still load; tests
+    monkeypatch this function. Verification checks issuer, audience, signature,
+    and expiry."""
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    return google_id_token.verify_oauth2_token(
+        credential, google_requests.Request(), client_id)
 
 
 def _build_report_email(username: str, email: str, message: str,
@@ -448,6 +465,55 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
+                "email": email, "displayName": row.get("display_name") or ""}
+
+    @app.post("/api/auth/google")
+    def auth_google(body: AuthGoogleIn, req: Request):
+        ip = _client_ip(req)
+        if not limiter.hit("auth_google", ip):
+            raise HTTPException(429, "too many sign-in attempts — try again later")
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        if not client_id:
+            raise HTTPException(503, "Google sign-in is not configured")
+        try:
+            info = _verify_google_credential(body.credential, client_id)
+        except Exception:
+            raise HTTPException(401, "invalid Google credential")
+        if not info.get("email_verified"):
+            raise HTTPException(401, "Google account email is not verified")
+        sub = str(info.get("sub") or "")
+        email = _norm_email(info.get("email") or "")
+        name = (info.get("name") or "").strip()[:_MAX_FIELD_LEN]
+        if not sub or not _is_email(email):
+            raise HTTPException(401, "incomplete Google profile")
+        # Find by Google id → else link to an existing same-email account
+        # (Google asserts the email) → else create a fresh OAuth account.
+        row = db.get_participant_by_google_sub(sub)
+        if row is None:
+            existing = db.get_participant_by_email(email)
+            if existing is not None:
+                db.link_google_sub(existing["code"], sub)
+                if not existing.get("email_verified_utc"):
+                    db.mark_email_verified(existing["code"])
+                row = db.get_participant_by_email(email)
+            else:
+                code = "u-" + secrets.token_urlsafe(12)
+                try:
+                    db.register_oauth_participant(
+                        code=code, email=email, display_name=name or email,
+                        google_sub=sub, signup_ip=ip)
+                except Exception as e:
+                    # UNIQUE race (concurrent first sign-in): fall back to lookup.
+                    if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+                        row = db.get_participant_by_google_sub(sub) or db.get_participant_by_email(email)
+                    else:
+                        raise
+                row = row or db.get_participant_by_email(email)
+        if row is None or not row.get("active"):
+            raise HTTPException(403, "account is disabled")
+        token = security.issue_token(row["code"], ttl_seconds=TOKEN_TTL,
+                                     extra={"email": email})
+        return {"token": token, "expiresIn": TOKEN_TTL, "code": row["code"],
                 "email": email, "displayName": row.get("display_name") or ""}
 
     @app.post("/api/forgot")

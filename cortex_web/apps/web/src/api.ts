@@ -120,6 +120,23 @@ export async function login(email: string, password: string): Promise<{
   return { email: body.email, displayName: body.displayName };
 }
 
+// Sign in with Google. Sends the Google ID token to the backend, which
+// verifies it and creates-or-signs-in the account; stores the app JWT on
+// success. Same response shape as login().
+export async function loginWithGoogle(credential: string): Promise<{
+  email: string; displayName: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
+  const body = await parse(res);
+  setToken(body.token);
+  setDisplayName(body.displayName);
+  return { email: body.email, displayName: body.displayName };
+}
+
 // Public open-signup. `honeypot` is the hidden form field; humans leave it
 // empty. The backend accepts a non-empty value silently to avoid tipping off
 // scanners that a bot trap exists. Register no longer returns a token: the

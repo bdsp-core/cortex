@@ -133,6 +133,8 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("display_name",      "TEXT"),
     ("signup_ip",         "TEXT"),
     ("email_verified_utc", "TEXT"),
+    ("auth_provider",     "TEXT"),   # NULL/'local' for password accounts, 'google' for OAuth
+    ("google_sub",        "TEXT"),   # Google account id ('sub' claim); unique when set
 ]
 
 
@@ -190,6 +192,11 @@ class Database:
         self._exec(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_email "
             "ON participants(email) WHERE email IS NOT NULL"
+        )
+        # One CORTEX account per Google identity.
+        self._exec(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_google_sub "
+            "ON participants(google_sub) WHERE google_sub IS NOT NULL"
         )
 
     # ── low-level helpers (backend-aware) ─────────────────────────
@@ -285,6 +292,33 @@ class Database:
             self._exec(
                 "UPDATE participants SET password_hash=? WHERE code=?",
                 (password_hash, code))
+            self._conn.commit()
+
+    # ── Google OAuth accounts ─────────────────────────────────────
+    def get_participant_by_google_sub(self, sub: str) -> Optional[dict]:
+        with self._lock:
+            return self._fetchone(
+                "SELECT * FROM participants WHERE google_sub=?", (sub,))
+
+    def register_oauth_participant(self, *, code: str, email: str, display_name: str,
+                                    google_sub: str, signup_ip: Optional[str] = None) -> None:
+        """Insert a new Google-authenticated account. password_hash holds a
+        non-PBKDF2 sentinel (so password login is impossible); the email is
+        verified by Google, so email_verified_utc is set immediately."""
+        with self._lock:
+            self._exec(
+                "INSERT INTO participants(code, password_hash, email, display_name, "
+                "signup_ip, created_utc, auth_provider, google_sub, email_verified_utc) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (code, "google-oauth:no-password", email, display_name, signup_ip,
+                 utc_now(), "google", google_sub, utc_now()))
+            self._conn.commit()
+
+    def link_google_sub(self, code: str, sub: str) -> None:
+        """Attach a Google identity to an existing (e.g. password) account."""
+        with self._lock:
+            self._exec(
+                "UPDATE participants SET google_sub=? WHERE code=?", (sub, code))
             self._conn.commit()
 
     # ── auth codes (email verify + password reset) ────────────────
