@@ -6,6 +6,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loginWithGoogle } from "../api";
+import { COLORS, FONTS } from "../../ui/theme";
+import { useI18n } from "../i18n/LanguageProvider";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const GIS_SRC = "https://accounts.google.com/gsi/client";
@@ -36,6 +38,7 @@ export function GoogleSignInButton({ onAuthed, onError }: {
   onAuthed: () => void;
   onError: (msg: string) => void;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(false);
 
@@ -70,9 +73,18 @@ export function GoogleSignInButton({ onAuthed, onError }: {
 
   if (!CLIENT_ID) return null;
   return (
-    <div style={{ marginTop: 12, display: "flex", justifyContent: "center",
-      minHeight: shown ? undefined : 0 }}>
-      <div ref={ref} />
-    </div>
+    <>
+      {/* neutral "or" divider between Create-account and the Google button */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "16px 0 4px" }}>
+        <span style={{ flex: 1, height: 1, background: COLORS.borderInactive }} />
+        <span style={{ fontSize: 12, color: COLORS.textFaint, fontFamily: FONTS.sans,
+          textTransform: "uppercase", letterSpacing: "0.06em" }}>{t("common.or")}</span>
+        <span style={{ flex: 1, height: 1, background: COLORS.borderInactive }} />
+      </div>
+      <div style={{ marginTop: 8, display: "flex", justifyContent: "center",
+        minHeight: shown ? undefined : 0 }}>
+        <div ref={ref} />
+      </div>
+    </>
   );
 }

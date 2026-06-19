@@ -3,6 +3,7 @@
   "common.email": "Correo electrónico",
   "common.password": "Contraseña",
   "common.back": "Atrás",
+  "common.or": "o",
 
   "auth.signin.title": "Iniciar sesión en CORTEX",
   "auth.signin.forgot": "¿Olvidó su contraseña?",

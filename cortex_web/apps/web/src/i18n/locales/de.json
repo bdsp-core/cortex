@@ -3,6 +3,7 @@
   "common.email": "E-Mail",
   "common.password": "Passwort",
   "common.back": "Zurück",
+  "common.or": "oder",
 
   "auth.signin.title": "Bei CORTEX anmelden",
   "auth.signin.forgot": "Passwort vergessen?",

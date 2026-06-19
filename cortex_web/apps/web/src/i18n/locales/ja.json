@@ -3,6 +3,7 @@
   "common.email": "メールアドレス",
   "common.password": "パスワード",
   "common.back": "戻る",
+  "common.or": "または",
 
   "auth.signin.title": "CORTEX へのログイン",
   "auth.signin.forgot": "パスワードをお忘れですか？",

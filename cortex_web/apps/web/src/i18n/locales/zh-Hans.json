@@ -3,6 +3,7 @@
   "common.email": "电子邮箱",
   "common.password": "密码",
   "common.back": "返回",
+  "common.or": "或",
 
   "auth.signin.title": "登录 CORTEX",
   "auth.signin.forgot": "忘记密码？",
