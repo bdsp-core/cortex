@@ -85,10 +85,7 @@ class AuthIn(BaseModel):
 
 
 class AuthGoogleIn(BaseModel):
-    # One of: `credential` = Google ID token (rendered-button flow), or
-    # `access_token` = OAuth access token (custom-button token flow).
-    credential: str = ""
-    access_token: str = ""
+    credential: str   # Google ID token (JWT) returned by Sign in with Google
 
 
 class RegisterIn(BaseModel):
@@ -281,29 +278,6 @@ def _verify_google_credential(credential: str, client_id: str) -> dict:
     from google.auth.transport import requests as google_requests
     return google_id_token.verify_oauth2_token(
         credential, google_requests.Request(), client_id)
-
-
-def _google_user_from_access_token(access_token: str, client_id: str) -> dict:
-    """Resolve a Google user from an OAuth access token (custom-button token
-    flow). First verifies the token was issued to OUR client via the tokeninfo
-    endpoint (prevents token-substitution), then fetches the profile from
-    userinfo. Returns claims (sub, email, email_verified, name) or raises.
-    Uses stdlib urllib (no extra dep)."""
-    import json
-    import urllib.parse
-    import urllib.request
-
-    def _get(url: str, headers: dict | None = None) -> dict:
-        req = urllib.request.Request(url, headers=headers or {})
-        with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 (https only)
-            return json.loads(r.read().decode("utf-8"))
-
-    ti = _get("https://oauth2.googleapis.com/tokeninfo?access_token="
-              + urllib.parse.quote(access_token))
-    if (ti.get("aud") or ti.get("azp")) != client_id:
-        raise ValueError("access token audience mismatch")
-    return _get("https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"})
 
 
 def _build_report_email(username: str, email: str, message: str,
@@ -501,12 +475,8 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         if not client_id:
             raise HTTPException(503, "Google sign-in is not configured")
-        if not body.access_token and not body.credential:
-            raise HTTPException(400, "missing Google credential")
         try:
-            info = (_google_user_from_access_token(body.access_token, client_id)
-                    if body.access_token
-                    else _verify_google_credential(body.credential, client_id))
+            info = _verify_google_credential(body.credential, client_id)
         except Exception:
             raise HTTPException(401, "invalid Google credential")
         if not info.get("email_verified"):

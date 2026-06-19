@@ -554,20 +554,3 @@ def test_auth_google_invalid_token_is_401(client, monkeypatch):
 def test_auth_google_unconfigured_is_503(client, monkeypatch):
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 503
-
-
-def test_auth_google_token_flow_creates_account(client, monkeypatch):
-    """The custom-button token flow: access_token resolved via userinfo helper."""
-    from . import app as app_module
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
-    monkeypatch.setattr(app_module, "_google_user_from_access_token",
-        lambda tok, cid: {"sub": "g-tok", "email": "Tok@Gmail.com",
-                          "email_verified": True, "name": "Tok User"})
-    r = client.post("/api/auth/google", json={"access_token": "atok"})
-    assert r.status_code == 200
-    assert r.json()["email"] == "tok@gmail.com" and r.json()["displayName"] == "Tok User"
-
-
-def test_auth_google_missing_input_is_400(client, monkeypatch):
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
-    assert client.post("/api/auth/google", json={}).status_code == 400
