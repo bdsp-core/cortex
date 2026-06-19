@@ -85,25 +85,31 @@ _SCHEMA_STATEMENTS = [
     )""",
     # One row per daily training sitting (training-mode analogue of sessions).
     """CREATE TABLE IF NOT EXISTS training_sessions (
-        training_id   TEXT PRIMARY KEY,
-        code          TEXT NOT NULL,
-        task_focus    TEXT,
-        started_utc   TEXT NOT NULL,
-        finished_utc  TEXT,
-        status        TEXT NOT NULL DEFAULT 'in_progress',
-        n_items       INTEGER,
-        summary       TEXT
+        training_id       TEXT PRIMARY KEY,
+        code              TEXT NOT NULL,
+        task_focus        TEXT,
+        started_utc       TEXT NOT NULL,
+        finished_utc      TEXT,
+        status            TEXT NOT NULL DEFAULT 'in_progress',
+        n_items           INTEGER,
+        summary           TEXT,
+        regimen_id        TEXT,        -- FK→regimens (Phase O2)
+        source_session_id TEXT         -- FK→sessions (the seeding cert; Phase O2)
     )""",
     # Append-only time series of (task, ℓ, θ, sd, rt) for the evolution charts.
     """CREATE TABLE IF NOT EXISTS param_trajectories (
-        code        TEXT NOT NULL,
-        task_k      INTEGER NOT NULL,
-        phase       TEXT NOT NULL,
-        ell         REAL,
-        theta       REAL,
-        sd          REAL,
-        rt          REAL,
-        ts          TEXT NOT NULL
+        code              TEXT NOT NULL,
+        task_k            INTEGER NOT NULL,
+        phase             TEXT NOT NULL,
+        ell               REAL,
+        theta             REAL,
+        sd                REAL,
+        rt                REAL,
+        ts                TEXT NOT NULL,
+        training_id       TEXT,         -- FK→training_sessions (Phase O2)
+        source_session_id TEXT,         -- FK→sessions (Phase O2)
+        seq_in_session    INTEGER,      -- monotonic order within a sitting (Phase O2)
+        is_real           INTEGER NOT NULL DEFAULT 0  -- 1=real trainer output (L1); 0=synthetic/quarantined
     )""",
     "CREATE INDEX IF NOT EXISTS idx_regimens_code ON regimens(code)",
     "CREATE INDEX IF NOT EXISTS idx_training_code ON training_sessions(code)",
@@ -151,6 +157,19 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
 ]
 
+# Columns added to the learning tables after their original schema (Phase O2),
+# so an existing DB upgrades in place. Mirror the CREATE TABLE additions above.
+_PARAM_TRAJ_MIGRATION_COLUMNS = [
+    ("training_id",       "TEXT"),
+    ("source_session_id", "TEXT"),
+    ("seq_in_session",    "INTEGER"),
+    ("is_real",           "INTEGER NOT NULL DEFAULT 0"),
+]
+_TRAINING_SESSIONS_MIGRATION_COLUMNS = [
+    ("regimen_id",        "TEXT"),
+    ("source_session_id", "TEXT"),
+]
+
 
 def utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -187,6 +206,13 @@ class Database:
             for stmt in _SCHEMA_STATEMENTS:
                 self._exec(stmt)
             self._migrate_participants()
+            self._add_missing_columns("param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
+            self._add_missing_columns("training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
+            # Quarantine backfill: every pre-existing trajectory row is synthetic
+            # (the only writer before the L1 trainer was the removed Shell.tsx
+            # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
+            # belt-and-suspenders for any backend that left it NULL.
+            self._exec("UPDATE param_trajectories SET is_real=0 WHERE is_real IS NULL")
             self._conn.commit()
 
     def _migrate_participants(self) -> None:
@@ -212,6 +238,19 @@ class Database:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_google_sub "
             "ON participants(google_sub) WHERE google_sub IS NOT NULL"
         )
+
+    def _add_missing_columns(self, table: str, columns: list[tuple[str, str]]) -> None:
+        """Idempotent additive migration for `table` on both backends — the
+        generic form of _migrate_participants, used for the learning tables."""
+        if self._pg:
+            for col, typ in columns:
+                self._exec(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            cur = self._exec(f"PRAGMA table_info({table})")
+            existing = {dict(r)["name"] for r in cur.fetchall()}
+            for col, typ in columns:
+                if col not in existing:
+                    self._exec(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
 
     # ── low-level helpers (backend-aware) ─────────────────────────
     def _q(self, sql: str) -> str:
@@ -568,12 +607,15 @@ class Database:
 
     # ── training sessions ─────────────────────────────────────────
     def create_training_session(self, training_id: str, code: str,
-                                task_focus: Optional[str]) -> None:
+                                task_focus: Optional[str], *,
+                                regimen_id: Optional[str] = None,
+                                source_session_id: Optional[str] = None) -> None:
         with self._lock:
             self._exec(
                 "INSERT INTO training_sessions(training_id, code, task_focus, "
-                "started_utc, status) VALUES (?,?,?,?, 'in_progress')",
-                (training_id, code, task_focus, utc_now()))
+                "regimen_id, source_session_id, started_utc, status) "
+                "VALUES (?,?,?,?,?,?, 'in_progress')",
+                (training_id, code, task_focus, regimen_id, source_session_id, utc_now()))
             self._conn.commit()
 
     def finalize_training_session(self, training_id: str, code: str,
@@ -602,10 +644,13 @@ class Database:
             for p in points:
                 self._exec(
                     "INSERT INTO param_trajectories(code, task_k, phase, ell, "
-                    "theta, sd, rt, ts) VALUES (?,?,?,?,?,?,?,?)",
+                    "theta, sd, rt, ts, training_id, source_session_id, "
+                    "seq_in_session, is_real) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (code, int(p["taskK"]), str(p.get("phase", "train")),
                      p.get("ell"), p.get("theta"), p.get("sd"), p.get("rt"),
-                     p.get("ts") or utc_now()))
+                     p.get("ts") or utc_now(),
+                     p.get("trainingId"), p.get("sourceSessionId"),
+                     p.get("seqInSession"), 1 if p.get("isReal") else 0))
             self._conn.commit()
 
     def get_trajectories(self, code: str) -> list[dict]:

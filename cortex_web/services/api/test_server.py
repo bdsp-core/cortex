@@ -605,3 +605,37 @@ def test_consent_reaffirm_clears_withdrawal(client):
     client.post("/api/consent/withdraw", headers=hdr, json={})
     client.post("/api/consent", headers=hdr, json={"consentVersion": "v1.0"})   # re-affirm
     assert client.get("/api/consent", headers=hdr).json()["events"][0]["withdrawn_utc"] is None
+
+
+# ───────────── Phase O2: learning-linkage FKs + is_real quarantine ─────────────
+
+def test_trajectory_linkage_and_is_real_default_and_explicit(client):
+    email, _pw = _make_participant(client)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.append_trajectory_points(code, [
+        {"taskK": 0, "phase": "train", "ell": 0.9},                          # defaults
+        {"taskK": 1, "phase": "train", "ell": 0.8, "isReal": True,
+         "trainingId": "tr-1", "sourceSessionId": "s-1", "seqInSession": 5},
+    ])
+    rows = db._fetchall(
+        "SELECT task_k, is_real, training_id, source_session_id, seq_in_session "
+        "FROM param_trajectories WHERE code=? ORDER BY task_k", (code,))
+    # default row is quarantined (is_real=0) with no linkage
+    assert rows[0]["is_real"] == 0 and rows[0]["training_id"] is None
+    # explicit real row carries the FKs + ordering
+    assert rows[1]["is_real"] == 1 and rows[1]["training_id"] == "tr-1"
+    assert rows[1]["source_session_id"] == "s-1" and rows[1]["seq_in_session"] == 5
+
+
+def test_training_session_links_active_regimen(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.create_regimen("rg-9", code, "src-sess-1", {"weeks": 6, "deck": []})
+    tid = client.post("/api/training-sessions", headers=hdr,
+                      json={"taskFocus": "gpd"}).json()["trainingId"]
+    row = db._fetchall("SELECT regimen_id, source_session_id FROM training_sessions "
+                       "WHERE training_id=?", (tid,))[0]
+    assert row["regimen_id"] == "rg-9" and row["source_session_id"] == "src-sess-1"

@@ -655,7 +655,11 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     @app.post("/api/training-sessions")
     def training_start(body: TrainingStartIn, code: str = Depends(require_auth)):
         training_id = uuid.uuid4().hex
-        db.create_training_session(training_id, code, body.taskFocus)
+        reg = db.get_active_regimen(code)   # link the sitting to its regimen (Phase O2)
+        db.create_training_session(
+            training_id, code, body.taskFocus,
+            regimen_id=(reg["regimen_id"] if reg else None),
+            source_session_id=(reg.get("source_session_id") if reg else None))
         return {"trainingId": training_id}
 
     @app.post("/api/training-sessions/finalize")

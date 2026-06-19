@@ -243,7 +243,7 @@ def build_gold(raw: dict, salt: bytes) -> dict[str, list[dict]]:
         "participant_sk": sk.get(p["code"]), "task_k": p.get("task_k"),
         "phase": p.get("phase"), "ell": p.get("ell"), "theta": p.get("theta"),
         "sd": p.get("sd"), "rt": p.get("rt"), "ts": p.get("ts"),
-        "is_real": 0,   # everything pre-L1 is synthetic/quarantined
+        "is_real": int(p.get("is_real") or 0),   # realness derived ONLY from the column (Phase O2)
     } for p in raw["traj"]]
 
     # bridge_participant_journey (one row per participant)
