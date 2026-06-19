@@ -18,6 +18,12 @@ app.cortexeeg.org {
             transport http {
                 keepalive 60s
             }
+            # Caddy is the edge proxy: overwrite (don't append) X-Forwarded-For
+            # with the real TCP peer so a client can't spoof it. The API's
+            # per-IP rate limiter keys on the leftmost XFF value; without this
+            # an attacker rotates a fake header to get a fresh bucket per
+            # request and bypass the brute-force / signup-spam caps.
+            header_up X-Forwarded-For {remote_host}
         }
     }
 
@@ -42,6 +48,14 @@ app.cortexeeg.org {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
+        # Clickjacking + injection hardening. These CSP directives govern
+        # framing/base/form behaviour only — they do NOT restrict script/style/
+        # img/connect sources, so they can't break the SPA or the Google
+        # Sign-In flow. A full resource-level CSP (script-src/default-src/
+        # frame-src for accounts.google.com) is deferred until the Google OAuth
+        # path can be human-tested (Google blocks automated sign-in).
+        Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        X-Frame-Options "DENY"
         -Server
     }
 }
