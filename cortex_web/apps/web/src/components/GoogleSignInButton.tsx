@@ -81,7 +81,7 @@ export function GoogleSignInButton({ onAuthed, onError }: {
           textTransform: "uppercase", letterSpacing: "0.06em" }}>{t("common.or")}</span>
         <span style={{ flex: 1, height: 1, background: COLORS.borderInactive }} />
       </div>
-      <div style={{ marginTop: 8, display: "flex", justifyContent: "center",
+      <div style={{ marginTop: 20, display: "flex", justifyContent: "center",
         minHeight: shown ? undefined : 0 }}>
         <div ref={ref} />
       </div>
