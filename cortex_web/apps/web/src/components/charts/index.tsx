@@ -275,7 +275,7 @@ export function HeatLegend() {
   );
 }
 
-export function Heatmap() {
+export function Heatmap({ empty = false }: { empty?: boolean } = {}) {
   useTheme();
   const weeks = 16, days = 7, cell = 13, gap = 3, padL = 14, padT = 14;
   // deterministic pseudo-random sample counts (matches the mockup's LCG seed)
@@ -294,8 +294,8 @@ export function Heatmap() {
       const r0 = rnd();
       const recent = w >= weeks - 3 ? 0.4 : 0;
       const weekend = d === 5 || d === 6 ? -0.18 : 0;
-      let c = Math.max(0, Math.round((r0 + recent + weekend) * max));
-      if (rnd() < 0.12) c = 0;
+      let c = empty ? 0 : Math.max(0, Math.round((r0 + recent + weekend) * max));
+      if (!empty && rnd() < 0.12) c = 0;
       const x = padL + w * (cell + gap);
       const y = padT + d * (cell + gap);
       cells.push(

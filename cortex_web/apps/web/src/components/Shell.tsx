@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
+import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
 
 type Surface = "dashboard" | "training" | "protocol" | "history";
 // "drilldown" is a routed sub-view of the shell (a focused per-task page),
@@ -79,7 +80,8 @@ const SHELL_CSS = `
 .cx-signout:hover{background:var(--panel-hover);border-color:var(--bd);}
 .cx-signout .ic{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
-.cx-wrap{max-width:1320px;padding:var(--s24) var(--s32) var(--s64);}
+.cx-wrap{display:flex;flex-direction:column;min-height:100vh;}
+.cx-content{flex:1 0 auto;width:100%;box-sizing:border-box;padding:var(--s24) var(--s32) var(--s48);}
 
 .cx-kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s16);
   margin-bottom:var(--s24);}
@@ -154,7 +156,6 @@ const SHELL_CSS = `
 .cx-empty-cta .txt h3{margin:0 0 4px;font-size:15px;color:var(--ink);}
 .cx-empty-cta .txt p{margin:0;font-size:13px;color:var(--ink-subtle);}
 .cx-empty-cta .cx-btn{flex:none;white-space:nowrap;}
-.cx-board.solo{grid-template-columns:1fr;}
 /* welcome modal (first login, no result yet) */
 .cx-welcome-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);
   display:flex;align-items:center;justify-content:center;padding:var(--s24);z-index:50;}
@@ -229,8 +230,15 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-deckhint .k{display:inline-flex;align-items:center;gap:4px;margin-right:var(--s12);}
 .cx-deckhint .k i{width:8px;height:8px;border-radius:0;}
 
-.cx-foot-credit{margin-top:var(--s32);font-size:11px;color:var(--ink-faint);text-align:center;}
-.cx-foot-credit .sep{margin:0 var(--s8);opacity:.6;}
+.cx-foot-bar{padding:var(--s16) var(--s32);border-top:1px solid var(--bd-subtle);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s16);flex-wrap:wrap;}
+.cx-foot-bar a{font-size:12px;font-weight:500;color:var(--ink-subtle);text-decoration:none;}
+.cx-foot-bar a:hover{color:var(--ink);text-decoration:underline;}
+.cx-foot-bar .sep{margin:0 var(--s8);color:var(--ink-faint);}
+.cx-foot-lang{display:inline-flex;align-items:center;gap:6px;color:var(--ink-subtle);}
+.cx-foot-lang select{appearance:none;-webkit-appearance:none;background:transparent;border:none;
+  color:var(--ink-subtle);font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;padding:0;}
+.cx-foot-lang select:hover{color:var(--ink);}
 
 /* ---------- protocol: multi-week plan header ---------- */
 .cx-weekhdr{display:flex;align-items:baseline;gap:var(--s12);margin-bottom:var(--s16);}
@@ -311,7 +319,8 @@ td.ellcell .of{color:var(--ink-faint);}
   .cx-who{display:none;}
   .cx-signout .lbl-text{display:none;}
   .cx-cta{display:none;}
-  .cx-wrap{padding:var(--s16) var(--s16) var(--s48);}
+  .cx-content{padding:var(--s16) var(--s16) var(--s48);}
+  .cx-foot-bar{padding-left:var(--s16);padding-right:var(--s16);}
 }
 /* top-bar rail on narrow widths */
 @media (max-width:640px){
@@ -660,7 +669,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
       )}
 
       {dash && (
-        <div className={hasData ? "cx-board" : "cx-board solo"}>
+        <div className="cx-board">
           <div>
             {!hasData && (
               <div className="cx-empty-cta">
@@ -827,8 +836,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             )}
           </div>
 
-          {/* ── consistency sidebar ── */}
-          {hasData && (
+          {/* ── consistency sidebar (heatmap + deck; empty until first result) ── */}
           <aside>
             <section className="cx-panel" aria-label="Streak and recent activity">
               <div className="cx-phead"><h2>Consistency</h2></div>
@@ -839,7 +847,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                 </div>
                 <div className="cx-weekstrip" aria-label="Last 7 days">
                   {WEEKDAYS.map((lab, i) => (
-                    <div key={i} className={`d ${i === WEEKDAYS.length - 1 ? "today" : "done"}`}>
+                    <div key={i} className={`d ${i === WEEKDAYS.length - 1 ? "today" : hasData ? "done" : ""}`}>
                       <span className="cell" />
                       <span className="lab">{lab}</span>
                     </div>
@@ -847,14 +855,14 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                 </div>
               </div>
               <div className="cx-heat-wrap">
-                <Heatmap />
+                <Heatmap empty={!hasData} />
                 <HeatLegend />
               </div>
             </section>
 
             <section className="cx-panel" aria-label="Today's deck">
               <div className="cx-phead"><h2>Today's deck</h2><span className="sub">due now</span></div>
-              {regimen && (
+              {hasData && regimen ? (
                 <div className="cx-deck-mini">
                   <table className="cx-deck">
                     <thead>
@@ -877,6 +885,8 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                     </tbody>
                   </table>
                 </div>
+              ) : (
+                <div className="cx-placeholder">No items due yet.</div>
               )}
               <div className="cx-deckhint">
                 <span className="k"><i style={{ background: "var(--c-new)" }} />New</span>
@@ -885,7 +895,6 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               </div>
             </section>
           </aside>
-          )}
         </div>
       )}
     </>
@@ -1347,6 +1356,36 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
   );
 }
 
+// Dashboard footer — mirrors the auth-page footer (legal links + language
+// selector) but uses theme tokens so it adapts to light/dark, plus the credit.
+function DashboardFooter() {
+  const { t, lang, setLang } = useI18n();
+  return (
+    <footer className="cx-foot-bar">
+        <div className="links">
+          <a href="/privacy">{t("footer.privacy")}</a>
+          <span className="sep" aria-hidden="true">·</span>
+          <a href="/terms">{t("footer.terms")}</a>
+          <span className="sep" aria-hidden="true">·</span>
+          <a href="/citation">{t("footer.citation")}</a>
+          <span className="sep" aria-hidden="true">·</span>
+          <a href="/report">{t("footer.report")}</a>
+        </div>
+        <label className="cx-foot-lang" title={t("footer.languageLabel")}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+          <select value={lang} onChange={(e) => setLang(e.target.value as Lang)}
+            aria-label={t("footer.languageLabel")}>
+            {LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </label>
+    </footer>
+  );
+}
+
 export function Shell({
   onStartTest, onStartTraining, onSignOut,
 }: {
@@ -1452,24 +1491,22 @@ export function Shell({
       </aside>
 
       <main className="cx-wrap">
-        {view === "dashboard" && (
-          <DashboardSurface
-            onDrilldown={(k) => { setDrillTask(k); setView("drilldown"); }}
-            onStartTest={onStartTest}
-          />
-        )}
-        {view === "drilldown" && (
-          <DrilldownSurface taskK={drillTask} onBack={() => setView("dashboard")} />
-        )}
-        {view === "training" && <TrainingSurface />}
-        {view === "protocol" && <ProtocolSurface />}
-        {view === "history" && <HistorySurface />}
+        <div className="cx-content">
+          {view === "dashboard" && (
+            <DashboardSurface
+              onDrilldown={(k) => { setDrillTask(k); setView("drilldown"); }}
+              onStartTest={onStartTest}
+            />
+          )}
+          {view === "drilldown" && (
+            <DrilldownSurface taskK={drillTask} onBack={() => setView("dashboard")} />
+          )}
+          {view === "training" && <TrainingSurface />}
+          {view === "protocol" && <ProtocolSurface />}
+          {view === "history" && <HistorySurface />}
+        </div>
 
-        <footer className="cx-foot-credit">
-          Developed by Elijah W. Keldsen and M. Brandon Westover
-          <span className="sep">·</span>
-          Supported by the Clinical Data Animation Center (CDAC).
-        </footer>
+        <DashboardFooter />
       </main>
     </div>
   );
