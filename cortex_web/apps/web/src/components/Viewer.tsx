@@ -192,7 +192,7 @@ export function Viewer({
   }, []);
 
   return (
-    <div ref={rootRef} tabIndex={0}
+    <div ref={rootRef} tabIndex={0} className="cx-test"
       style={{ background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
                   height: "100vh", display: "flex", flexDirection: "column", padding: 12,
                   boxSizing: "border-box", outline: "none" }}>

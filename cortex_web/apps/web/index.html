@@ -151,6 +151,26 @@
         .cortex-logo, .auth-collage-img { transition: none; }
         .cortex-logo:hover, .auth-collage-img:hover { transform: none; }
       }
+
+      /* Test/assessment screens (.cx-test = Viewer / SpikeViewer roots): theme
+         the answer buttons + display dropdowns to the dashboard's flat,
+         teal-accented control aesthetic so the test no longer feels visually
+         disconnected. Inline styles still win for per-button padding and the
+         accent selection outline. */
+      .cx-test button {
+        font-family: var(--sans); font-size: 14px; font-weight: 600;
+        color: var(--ink); background: var(--panel);
+        border: 1px solid var(--bd); border-radius: var(--radius-ctl);
+        padding: 10px 14px; cursor: pointer;
+        transition: background .15s, border-color .15s, color .15s;
+      }
+      .cx-test button:hover { background: var(--panel-hover); border-color: var(--bd-strong); }
+      .cx-test select {
+        font-family: var(--sans); font-size: 13px; color: var(--ink);
+        background: var(--field-bg); border: 1px solid var(--bd);
+        border-radius: var(--radius-ctl); padding: 4px 8px; cursor: pointer;
+      }
+      .cx-test select:hover { border-color: var(--bd-strong); }
     </style>
   </head>
   <body>
