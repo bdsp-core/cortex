@@ -39,8 +39,7 @@ const SHELL_CSS = `
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   font-size:15px;line-height:1.45;}
 .cx-rail{background:var(--rail-bg);border-right:1px solid var(--bd-subtle);
-  padding:var(--s24) 0 var(--s8);display:flex;flex-direction:column;
-  position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;}
+  padding:var(--s24) 0 var(--s8);display:flex;flex-direction:column;}
 .cx-brand{display:flex;align-items:center;padding:0 var(--s12) var(--s24);}
 .cx-logo-img{width:100%;height:auto;display:block;}
 .cx-nav{display:flex;flex-direction:column;gap:2px;padding:0 var(--s12);}

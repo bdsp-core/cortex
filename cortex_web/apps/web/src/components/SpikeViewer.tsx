@@ -147,9 +147,6 @@ export function SpikeViewer({
         <span style={{ fontWeight: 600, marginRight: 8 }}>
           Question {item ? item.trialIndex + 1 : ""}
         </span>
-        <span style={{ color: COLORS.accent, fontWeight: 700, letterSpacing: 1 }}>
-          SPIKE BLOCK
-        </span>
         <button onClick={() => submit(spikeTaskIdx)}
           style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(yesPick) }}>
           1 · Spike
@@ -158,9 +155,6 @@ export function SpikeViewer({
           style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(noPick) }}>
           2 · No spike
         </button>
-        <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1 / Y for spike, 2 / N for no spike
-        </span>
       </div>
 
       <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>

@@ -67,7 +67,6 @@ export const PROFILE_SECTIONS: { title: string; note?: string; fields: ProfileFi
   },
   {
     title: "Demographics",
-    note: "Used only in aggregate for research; all optional.",
     fields: [
       { key: "age", label: "Age", kind: "text", placeholder: "e.g. 34" },
       { key: "sex", label: "Sex", kind: "select", options: SEX },

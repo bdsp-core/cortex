@@ -761,10 +761,6 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         <div style={cardStyle}>
           <Steps on={1} />
           <h1 style={h1Style}>{t("auth.signup.title")}</h1>
-          <p style={ledeStyle}>
-            A few details about your background. These are stored on your account
-            (not asked again before the test) and can be edited later in Settings.
-          </p>
           <form onSubmit={doSignUp}>
             {PROFILE_SECTIONS.map((sec) => (
               <div key={sec.title} style={{ marginBottom: 4 }}>
