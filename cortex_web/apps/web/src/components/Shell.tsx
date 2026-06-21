@@ -230,7 +230,7 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-deckhint .k{display:inline-flex;align-items:center;gap:4px;margin-right:var(--s12);}
 .cx-deckhint .k i{width:8px;height:8px;border-radius:0;}
 
-.cx-foot-bar{padding:var(--s16) var(--s32);border-top:1px solid var(--bd-subtle);
+.cx-foot-bar{padding:var(--s8) var(--s32);border-top:1px solid var(--bd-subtle);
   display:flex;align-items:center;justify-content:space-between;gap:var(--s16);flex-wrap:wrap;}
 .cx-foot-bar a{font-size:12px;font-weight:500;color:var(--ink-subtle);text-decoration:none;}
 .cx-foot-bar a:hover{color:var(--ink);text-decoration:underline;}
