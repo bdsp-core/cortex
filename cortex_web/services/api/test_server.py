@@ -639,3 +639,32 @@ def test_training_session_links_active_regimen(client):
     row = db._fetchall("SELECT regimen_id, source_session_id FROM training_sessions "
                        "WHERE training_id=?", (tid,))[0]
     assert row["regimen_id"] == "rg-9" and row["source_session_id"] == "src-sess-1"
+
+
+def test_pg_exec_rolls_back_on_error(tmp_path):
+    """Regression for the 2026-06-21 prod auth outage: on Postgres the shared
+    autocommit=False connection must roll back when a statement errors, or the
+    aborted transaction poisons every later query (InFailedSqlTransaction) until
+    restart — a single deadlock/timeout becomes a total login outage. CI has no
+    Postgres, so we drive the _pg branch with a fake connection and assert
+    _exec rolls back (and re-raises) on failure."""
+    db = Database(tmp_path / "rb.db")   # real sqlite instance; we override _pg
+
+    class _FakeCursor:
+        def execute(self, sql, params):
+            raise RuntimeError("simulated deadlock")
+
+    class _FakeConn:
+        def __init__(self):
+            self.rolled_back = 0
+        def cursor(self):
+            return _FakeCursor()
+        def rollback(self):
+            self.rolled_back += 1
+
+    fake = _FakeConn()
+    db._pg = True
+    db._conn = fake
+    with pytest.raises(RuntimeError):
+        db._exec("SELECT 1")
+    assert fake.rolled_back == 1, "a failed statement must roll back the txn"

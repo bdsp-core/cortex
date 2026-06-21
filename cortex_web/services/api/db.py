@@ -259,11 +259,25 @@ class Database:
 
     def _exec(self, sql: str, params: tuple = ()) -> Any:
         """Execute one statement, return a cursor (or sqlite3's conn.execute).
-        Wraps the placeholder translation so callers stay backend-agnostic."""
+        Wraps the placeholder translation so callers stay backend-agnostic.
+
+        On Postgres the single shared connection runs with autocommit=False, so a
+        statement that errors mid-transaction (deadlock victim, statement
+        timeout, an uncaught UNIQUE violation, …) leaves the transaction in an
+        aborted state. If we don't roll back, EVERY later statement on this
+        connection raises InFailedSqlTransaction until the process restarts —
+        a single transient error becomes a total outage. So roll the transaction
+        back before re-raising, returning the connection to a clean, usable
+        state. (SQLite doesn't poison subsequent statements this way; left as-is.)
+        """
         if self._pg:
-            cur = self._conn.cursor()
-            cur.execute(self._q(sql), params)
-            return cur
+            try:
+                cur = self._conn.cursor()
+                cur.execute(self._q(sql), params)
+                return cur
+            except Exception:
+                self._conn.rollback()
+                raise
         return self._conn.execute(self._q(sql), params)
 
     def _fetchone(self, sql: str, params: tuple = ()) -> Optional[dict]:
