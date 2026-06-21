@@ -294,7 +294,7 @@ function tutorialSteps(
           For each recording, choose the pattern that best matches what you see.
           <br /><br />
           <b><u>Once you select an answer, the test immediately advances to the next
-          recording — you cannot change your answer.</u></b>
+          recording; you cannot change your answer.</u></b>
           <br /><br />
           • Seizure: an electrographic seizure<br />
           • LPD / GPD: lateralized or generalized periodic discharges<br />
@@ -333,7 +333,7 @@ function tutorialSteps(
       target: controls, title: "Display controls",
       body: (
         <>
-          These change how the EEG is displayed — never your answer:
+          These change how the EEG is displayed, never your answer:
           <br /><br />
           • Montage: how electrode pairs are combined (bipolar, average, Laplacian).{" "}
           <b><u>Press the Ctrl key to flip through the montages</u></b> without leaving

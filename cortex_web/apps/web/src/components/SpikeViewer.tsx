@@ -24,7 +24,7 @@ export interface Item {
 }
 
 export function SpikeViewer({
-  bundle, item, progress, onAnswer, spikeTaskIdx, totalTasks,
+  bundle, item, onAnswer, spikeTaskIdx, totalTasks,
 }: {
   bundle: Bundle;
   item: Item | null;
@@ -145,29 +145,21 @@ export function SpikeViewer({
       {/* top: question counter + Yes / No */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 600, marginRight: 8 }}>
-          Question {item ? item.trialIndex + 1 : "—"} of up to {progress.maxQ || "—"}
+          Question {item ? item.trialIndex + 1 : ""}
         </span>
         <span style={{ color: COLORS.accent, fontWeight: 700, letterSpacing: 1 }}>
           SPIKE BLOCK
         </span>
         <button onClick={() => submit(spikeTaskIdx)}
-          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700,
-                   color: COLORS.pass, ...isYes(yesPick) }}>
-          1 · YES — spike
+          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(yesPick) }}>
+          1 · Spike
         </button>
         <button onClick={() => submit(totalTasks)}
-          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700,
-                   color: COLORS.fail, ...isYes(noPick) }}>
-          2 · NO — no spike
+          style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(noPick) }}>
+          2 · No spike
         </button>
         <span style={{ marginLeft: 8, color: COLORS.textTertiary, fontSize: 12 }}>
-          press 1 / Y for yes, 2 / N for no
-        </span>
-        <span style={{ marginLeft: "auto", color: COLORS.textBody, fontSize: 13 }}>
-          Confidence of reaching a verdict (most-uncertain task):{" "}
-          <b style={{ color: COLORS.textPrimary }}>
-            {progress.resolveConf == null ? "—" : `${Math.round(progress.resolveConf * 100)}%`}
-          </b>
+          press 1 / Y for spike, 2 / N for no spike
         </span>
       </div>
 

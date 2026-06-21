@@ -1,0 +1,639 @@
+"""CORTEX per-test-taker MP4 visualizations.
+
+Produces two short MP4s into a session directory from the artifacts the
+SessionRecorder already writes:
+
+  * ``collapse.mp4``  — SMC particle-cloud collapse in the (t, ℓ) plane,
+    one panel per IIIC task. Style mirrors
+    ``scripts/viz_render_collapse.py``'s plasma-colormap-keyed-to-spread
+    visual, minus the gold ground-truth ★ (test-takers have no known
+    truth — they ARE the unknown the engine is estimating).
+
+  * ``passfail.mp4`` — per-task π_k pass-mass trajectory (the AD6
+    policy's actual certification quantity, NOT the methodology's AUROC
+    band). Each panel shades the PASS band at the top (π ≥ 1 − α) and
+    the FAIL band at the bottom (π ≤ α); the running verdict from the
+    monotonic AD6 rule locks each panel's badge as soon as a task
+    resolves. At session end the certificate's per-task verdict is
+    pinned on each panel.
+
+Inputs the renderer reads from the session directory:
+
+  * ``trajectory.npz``  → particle clouds (t_traj, l_traj, w_traj)
+  * ``trials.jsonl``    → per-trial policy_diag (π, mcse, verdicts)
+  * ``certificate.json``→ final per-task verdicts + stop_reason
+  * ``participant.json``→ display name
+
+CLI:
+
+    .venv/bin/python scripts/cortex_render_videos.py <session_dir>
+
+Auto-invoked by ``cortex_storage.SessionRecorder.finalize()`` unless
+``render_videos=False`` was passed to the recorder.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+
+# v1.1.2: point matplotlib at the imageio-ffmpeg-bundled ffmpeg binary
+# BEFORE FFMpegWriter is constructed. imageio-ffmpeg ships per-platform
+# ffmpeg binaries (~25 MB Linux, ~75 MB mac/win) inside its wheel, so
+# MP4 rendering works on clinician machines without a system ffmpeg
+# install. Falls back to system ffmpeg (PATH) when imageio_ffmpeg is
+# unavailable — preserves dev-machine behaviour and avoids a hard
+# dependency at module-import time.
+FFMPEG_EXE: str | None = None
+try:
+    import imageio_ffmpeg as _iif
+    FFMPEG_EXE = _iif.get_ffmpeg_exe()
+    matplotlib.rcParams["animation.ffmpeg_path"] = FFMPEG_EXE
+except Exception as _e:                          # noqa: BLE001
+    # logger isn't initialised yet at import time; defer the warning
+    # until first render_all() call (see _ensure_ffmpeg_logged).
+    _FFMPEG_IMPORT_ERROR: Exception | None = _e
+else:
+    _FFMPEG_IMPORT_ERROR = None
+
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.colors import to_rgb         # v1.3.3 combined-collapse colors
+from matplotlib.lines import Line2D          # v1.3.3 legend proxies
+
+
+def _ensure_ffmpeg_logged():
+    """One-shot logger emit on first render so the cortex.log records
+    whether MP4 frames are using the bundled or system ffmpeg path."""
+    if getattr(_ensure_ffmpeg_logged, "_done", False):
+        return
+    if FFMPEG_EXE:
+        logger.info("ffmpeg via imageio_ffmpeg: %s", FFMPEG_EXE)
+    else:
+        logger.warning(
+            "imageio_ffmpeg unavailable (%s); falling back to system "
+            "ffmpeg on PATH. MP4 render will fail if no ffmpeg is "
+            "installed.", _FFMPEG_IMPORT_ERROR)
+    _ensure_ffmpeg_logged._done = True
+
+# Frozen PyInstaller bundles: __file__ for PYZ-loaded modules does not
+# resolve to a real filesystem path whose parent is the scripts dir;
+# anchor on sys._MEIPASS so sys.path additions land in the data unpack
+# root where sibling modules live.
+if getattr(sys, "frozen", False):
+    _REPO = Path(sys._MEIPASS)
+    _THIS_DIR = _REPO / "scripts"
+else:
+    _THIS_DIR = Path(__file__).resolve().parent
+    _REPO = _THIS_DIR.parent
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
+
+from cortex_policy import (  # noqa: E402
+    DEFAULT_ALPHA, DEFAULT_Z, PASS, FAIL, REFER_BORDERLINE,
+    REFER_UNINFORMATIVE, PENDING)
+
+# ── visual constants — mirror viz_render_collapse for in-house consistency ──
+DOMAIN_TITLES = {"spike": "Spike", "sz": "Seizure", "lpd": "LPD",
+                 "gpd": "GPD", "lrda": "LRDA", "grda": "GRDA",
+                 "iic": "Other"}
+T_LIM = (-3.0, 3.0)
+L_LIM = (-2.0, 3.0)
+FPS = 30                          # 30 fps keeps render time + file size modest
+HOLD_SECONDS = 1.5                # freeze on final frame for legibility
+DPI = 130
+SPREAD_MAX = 1.20
+SPREAD_MIN = 0.08
+PLASMA = plt.get_cmap("plasma")
+
+# v1.3.3 combined-collapse video: dark theme + per-domain Okabe-Ito palette
+# (mirrors render_engine_explainer for cross-video consistency; defined here
+# to avoid importing the explainer, which itself imports this module).
+_BG_DARK = "#0e1015"
+_GRID_DARK = "#3a3d45"
+_TEXT_DARK = "#dde0e6"
+_MUTED_DARK = "#9aa0ab"
+DOMAIN_COLORS = {"spike": "#E69F00", "sz": "#D55E00", "lpd": "#56B4E9",
+                 "gpd": "#0072B2", "lrda": "#009E73", "grda": "#CC79A7",
+                 "iic": "#F0E442"}
+_DOMAIN_ORDER = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
+
+# AD6 verdict palette — colorblind-safe, methodology-aligned where possible.
+VERDICT_COLORS = {
+    PASS: "#2e7d32",                # green
+    FAIL: "#c62828",                # red
+    REFER_BORDERLINE: "#ef8a3d",    # amber
+    REFER_UNINFORMATIVE: "#888888", # gray
+    PENDING: "#5a5a5a",             # dark gray (animation in-progress)
+}
+VERDICT_LABEL = {
+    PASS: "PASS",
+    FAIL: "FAIL",
+    REFER_BORDERLINE: "REFER",
+    REFER_UNINFORMATIVE: "REFER*",  # asterisk = info gate never opened
+    PENDING: "…",
+}
+
+
+# ────────────────────────── session-dir loading ─────────────────────────────
+
+def _load_session(session_dir: Path) -> dict:
+    """Pull everything the renderers need out of a session directory.
+
+    Returns a dict with the keys the two render functions consume; raises
+    FileNotFoundError if any required artifact is missing."""
+    sd = Path(session_dir)
+    traj = np.load(sd / "trajectory.npz")
+    with open(sd / "certificate.json") as fh:
+        cert = json.load(fh)
+    with open(sd / "participant.json") as fh:
+        part = json.load(fh)
+    # trials.jsonl carries the per-trial policy state — strict-ordered.
+    trials = []
+    with open(sd / "trials.jsonl") as fh:
+        for line in fh:
+            if line.strip():
+                trials.append(json.loads(line))
+    task_codes = [str(c) for c in traj["task_codes"]]
+    name = part.get("identity", {}).get("name", "Anonymous")
+    return {
+        "session_dir": sd,
+        "task_codes": task_codes,
+        "n_questions": int(traj["n_questions"]),
+        "t_traj": traj["t_traj"],          # (T, N, K)
+        "l_traj": traj["l_traj"],          # (T, N, K)
+        "w_traj": traj["w_traj"],          # (T, N)
+        "seg_ids": traj["seg_ids"],        # (T,)
+        "trials": trials,                  # T per-trial dicts
+        "certificate": cert,
+        "participant_name": name,
+        "stop_reason": cert.get("stop_reason", ""),
+        "final_verdicts": [pt.get("verdict") for pt in cert["per_task"]],
+    }
+
+
+# ───────────────────────── shared cloud-spread helpers ──────────────────────
+
+def _weighted_rms_spread(t_col, l_col, w):
+    """Weighted root-mean-square spread of a 2D cloud — same metric the
+    methodology collapse video uses for plasma colormap keying."""
+    s = w.sum()
+    if s <= 0:
+        return float("nan")
+    wn = w / s
+    mt = float((wn * t_col).sum())
+    ml = float((wn * l_col).sum())
+    vt = float((wn * (t_col - mt) ** 2).sum())
+    vl = float((wn * (l_col - ml) ** 2).sum())
+    return float(np.sqrt(max(vt + vl, 0.0)))
+
+
+def _plasma_for_spread(spread):
+    v = (SPREAD_MAX - float(spread)) / (SPREAD_MAX - SPREAD_MIN)
+    v = float(np.clip(v, 0.0, 1.0))
+    return PLASMA(v)
+
+
+def _alpha_for_spread(spread, lo=0.05, hi=0.60):
+    """Per-domain opacity from cloud spread (v1.3.3 combined collapse): a
+    diffuse cloud (large spread) is faint (lo); a concentrated/collapsed
+    cloud (small spread) is opaque (hi). Same spread keying as the plasma
+    color map, applied to alpha instead of hue."""
+    v = (SPREAD_MAX - float(spread)) / (SPREAD_MAX - SPREAD_MIN)
+    v = float(np.clip(v, 0.0, 1.0))
+    return lo + (hi - lo) * v
+
+
+def _data_limits(vals, frac=0.08, floor=0.4):
+    """Tight (lo, hi) limits that contain every value in ``vals`` plus a
+    small margin, so a scatter never runs off the axis. A floor keeps a
+    fully-collapsed cloud from producing a degenerate zero-width axis
+    (v1.2.8: per-frame 'breathing' autoscale)."""
+    arr = np.asarray(vals, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return -floor / 2, floor / 2
+    lo = float(arr.min()); hi = float(arr.max())
+    span = hi - lo
+    if span < floor:
+        mid = 0.5 * (lo + hi)
+        lo, hi, span = mid - floor / 2, mid + floor / 2, floor
+    pad = frac * span
+    return lo - pad, hi + pad
+
+
+def _symmetric_data_limits(vals, frac=0.08, floor=0.4):
+    """Symmetric-about-zero ``(-M, M)`` limits that contain every value in
+    ``vals`` plus a margin, so the panel is centered on 0 (v1.3.2 collapse
+    panels). ``M`` = max |value| (per-panel fit). The floor keeps a
+    fully-collapsed cloud from a degenerate zero-width axis."""
+    arr = np.asarray(vals, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    m = float(np.max(np.abs(arr))) if arr.size else 0.0
+    m = max(m, floor / 2.0)
+    m += frac * m
+    return -m, m
+
+
+# ────────────────────────── collapse renderer ───────────────────────────────
+
+def render_collapse(session, out_path: Path, fps: int = FPS,
+                    hold_seconds: float = HOLD_SECONDS,
+                    progress_callback=None) -> None:
+    """One 2x3 panel grid, each panel showing the particle cloud in
+    (t_k, ℓ_k) for IIIC task k, colored by per-panel cloud spread on the
+    plasma colormap. No ground-truth ★. HUD shows the question counter +
+    max-AUROC-halfwidth from telemetry (v1.3.2: no participant name; static
+    per-panel axes centered on (0,0), symmetric and fit to each task's
+    full-session extremes)."""
+    task_codes = session["task_codes"]
+    t_traj = session["t_traj"]
+    l_traj = session["l_traj"]
+    w_traj = session["w_traj"]
+    trials = session["trials"]
+    T, N, K = t_traj.shape
+
+    # v1.3.2: static per-panel limits, computed ONCE from each task's full
+    # trajectory (every particle, every frame), SYMMETRIC about zero so each
+    # panel is centered on (0,0). x = t (bias), y = ℓ (skill); both axes span
+    # [-M, M] with M = max |value| + margin, captured per panel so the cloud
+    # never runs off and the axes hold still during playback.
+    task_xlim = [_symmetric_data_limits(t_traj[:, :, k].ravel())
+                 for k in range(K)]
+    task_ylim = [_symmetric_data_limits(l_traj[:, :, k].ravel())
+                 for k in range(K)]
+
+    # v1.2.5 K=7 fix: was hardcoded 2 rows by 3 columns (= 6 cells), so the
+    # Phase-9 K=7 task set crashed at `inner[2, 0]` (k=6 = iic; out of bounds
+    # for a 2x3 GridSpec). Now grid-size scales with K: K=6 keeps the
+    # original 2x3; K=7 widens to 2x4 (8 cells, last one empty).
+    n_cols = 3 if K <= 6 else 4
+    n_rows = (K + n_cols - 1) // n_cols
+    fig = plt.figure(figsize=(3.0 * n_cols, 5.4), dpi=DPI)
+    outer = GridSpec(2, 1, figure=fig, height_ratios=[0.10, 0.90],
+                     hspace=0.05, left=0.06, right=0.97,
+                     top=0.97, bottom=0.07)
+    hud_ax = fig.add_subplot(outer[0]); hud_ax.set_axis_off()
+    title_h = hud_ax.text(0.01, 0.62, "", transform=hud_ax.transAxes,
+                          fontsize=12, fontweight="bold", family="monospace")
+    sub_h = hud_ax.text(0.01, 0.05, "", transform=hud_ax.transAxes,
+                        fontsize=8, family="monospace", color="0.35")
+
+    inner = GridSpecFromSubplotSpec(n_rows, n_cols, subplot_spec=outer[1],
+                                    wspace=0.30, hspace=0.45)
+    scatters = []
+    hw_texts = []
+    axes = []
+    for k in range(K):
+        r, c = divmod(k, n_cols)
+        ax = fig.add_subplot(inner[r, c])
+        # v1.3.0: static limits fitted to this task's full-session extremes.
+        ax.set_xlim(*task_xlim[k]); ax.set_ylim(*task_ylim[k])
+        ax.tick_params(labelsize=6)
+        ax.set_title(DOMAIN_TITLES.get(task_codes[k], task_codes[k]),
+                     fontsize=9, pad=2)
+        if r == n_rows - 1:
+            ax.set_xlabel(r"$t$ (bias)", fontsize=7, labelpad=1)
+        if c == 0:
+            ax.set_ylabel(r"$\ell$ (skill)", fontsize=7, labelpad=1)
+        ax.axhline(0.0, color="0.85", linewidth=0.5, zorder=0)
+        ax.axvline(0.0, color="0.85", linewidth=0.5, zorder=0)
+        sc = ax.scatter([], [], s=4, alpha=0.4,
+                        edgecolors="none", zorder=2)
+        scatters.append(sc)
+        axes.append(ax)
+        txt = ax.text(0.97, 0.97, "", transform=ax.transAxes,
+                      ha="right", va="top", fontsize=6, family="monospace",
+                      bbox=dict(boxstyle="round,pad=0.15",
+                                fc="white", ec="0.7", alpha=0.85))
+        hw_texts.append(txt)
+
+    def init():
+        title_h.set_text("Posterior cloud collapse")
+        sub_h.set_text("Brighter colors mark a tighter, more confident "
+                       "posterior. The boxed value in each panel is the "
+                       "current AUROC half-width.")
+        return ()
+
+    def update(i):
+        j = min(i, T - 1)
+        t = t_traj[j]; l = l_traj[j]; w = w_traj[j]
+        Nw = w * N
+        alpha = np.sqrt(np.clip(Nw, 0.0, 10.0)) * 0.18
+        alpha = np.clip(alpha, 0.04, 0.75)
+        for k in range(K):
+            scatters[k].set_offsets(np.column_stack([t[:, k], l[:, k]]))
+            rgba = np.array(_plasma_for_spread(
+                _weighted_rms_spread(t[:, k], l[:, k], w)))
+            colors = np.tile(rgba, (N, 1))
+            colors[:, 3] = alpha
+            scatters[k].set_facecolor(colors)
+            hw_k = float(trials[j]["auroc_hw"][k])
+            hw_texts[k].set_text(f"HW={hw_k:.3f}")
+        title_h.set_text(f"Question {j + 1} of {T}")
+        return ()
+
+    total = T + int(hold_seconds * fps)
+    writer = FFMpegWriter(fps=fps, bitrate=4000, codec="libx264",
+                          extra_args=["-pix_fmt", "yuv420p"])
+    anim = FuncAnimation(fig, update, init_func=init, frames=total,
+                         interval=1000 / fps, blit=False)
+    t0 = time.time()
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              progress_callback=progress_callback)
+    plt.close(fig)
+    logger.info("collapse.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
+                time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
+
+
+# ────────────────────────── passfail renderer ───────────────────────────────
+
+def render_passfail(session, out_path: Path, fps: int = FPS,
+                    hold_seconds: float = HOLD_SECONDS,
+                    alpha: float = None, Z: float = None,
+                    progress_callback=None) -> None:
+    """One 2x3 panel grid, one panel per IIIC task. Each panel:
+
+      x-axis: question number (1 … n_questions)
+      y-axis: π_k posterior pass-mass (0 … 1)
+      Green band at the top: PASS region (π ≥ 1 − α)
+      Red band at the bottom: FAIL region (π ≤ α)
+      Center band: REFER region (the policy's three-way classifier)
+      π_k trajectory line: colored by the AD6 running verdict per frame
+      Top-right corner: locked verdict badge once the task resolves
+    """
+    alpha = float(DEFAULT_ALPHA if alpha is None else alpha)
+    Z = float(DEFAULT_Z if Z is None else Z)
+    task_codes = session["task_codes"]
+    trials = session["trials"]
+    n_q = session["n_questions"]
+    final_verdicts = session["final_verdicts"]
+    K = len(task_codes)
+    T = len(trials)
+
+    # Pre-extract π trajectories per task from the recorded policy_diag —
+    # this is the authoritative AD6 quantity (NOT recomputed from particles).
+    pi = np.full((T, K), np.nan)
+    mcse = np.full((T, K), np.nan)
+    verdicts_traj = [None] * T          # per-frame running verdict list
+    for t, rec in enumerate(trials):
+        pd = rec.get("policy_diag")
+        if pd is None:
+            continue
+        pi[t] = pd["pi"]
+        mcse[t] = pd["mcse"]
+        verdicts_traj[t] = list(rec.get("verdicts") or [PENDING] * K)
+
+    # Frames where policy_diag is missing (e.g. legacy non-AD6 sessions)
+    # carry the previous frame's value to keep the trajectory continuous.
+    last_v = [PENDING] * K
+    for t in range(T):
+        if verdicts_traj[t] is None:
+            verdicts_traj[t] = list(last_v)
+        last_v = verdicts_traj[t]
+
+    # v1.2.5 K=7 fix (same pattern as render_collapse above): grid scales
+    # with K. K=6: 2x3 (6 cells); K=7: 2x4 (8 cells, last empty). figsize
+    # widens proportionally so each per-task panel stays the same size.
+    n_cols = 3 if K <= 6 else 4
+    n_rows = (K + n_cols - 1) // n_cols
+    fig = plt.figure(figsize=(3.667 * n_cols, 6.4), dpi=DPI)
+    outer = GridSpec(2, 1, figure=fig, height_ratios=[0.10, 0.90],
+                     hspace=0.06, left=0.07, right=0.97,
+                     top=0.97, bottom=0.08)
+    hud_ax = fig.add_subplot(outer[0]); hud_ax.set_axis_off()
+    title_h = hud_ax.text(0.01, 0.62, "", transform=hud_ax.transAxes,
+                          fontsize=12, fontweight="bold", family="monospace")
+    sub_h = hud_ax.text(0.01, 0.05, "", transform=hud_ax.transAxes,
+                        fontsize=8, family="monospace", color="0.35")
+
+    inner = GridSpecFromSubplotSpec(n_rows, n_cols, subplot_spec=outer[1],
+                                    wspace=0.28, hspace=0.42)
+    lines = []; fills = [None] * K
+    verdict_texts = []
+    axes = []
+    for k in range(K):
+        r, c = divmod(k, n_cols)
+        ax = fig.add_subplot(inner[r, c])
+        ax.set_xlim(1, max(n_q, 2))
+        ax.set_ylim(0.0, 1.0)
+        ax.set_yticks([0.0, alpha, 0.5, 1 - alpha, 1.0])
+        ax.tick_params(labelsize=6)
+        ax.set_title(DOMAIN_TITLES.get(task_codes[k], task_codes[k]),
+                     fontsize=9, pad=2)
+        if r == n_rows - 1:
+            ax.set_xlabel("question", fontsize=7, labelpad=1)
+        if c == 0:
+            ax.set_ylabel(r"$\pi_k$ (pass-mass)", fontsize=7, labelpad=1)
+        # PASS / FAIL band shading
+        ax.axhspan(1 - alpha, 1.0, color="#2e7d32", alpha=0.10, zorder=0)
+        ax.axhspan(0.0, alpha, color="#c62828", alpha=0.10, zorder=0)
+        ax.axhline(1 - alpha, color="#2e7d32", lw=0.7, ls=(0, (3, 2)),
+                   zorder=1, alpha=0.6)
+        ax.axhline(alpha, color="#c62828", lw=0.7, ls=(0, (3, 2)),
+                   zorder=1, alpha=0.6)
+        (line,) = ax.plot([], [], lw=1.8, color=VERDICT_COLORS[PENDING],
+                          zorder=3)
+        lines.append(line)
+        vtxt = ax.text(0.96, 0.94, "", transform=ax.transAxes,
+                       ha="right", va="top", fontsize=8.5, fontweight="bold",
+                       bbox=dict(boxstyle="round,pad=0.20",
+                                 fc="white", ec="0.6", alpha=0.85))
+        verdict_texts.append(vtxt)
+        axes.append(ax)
+
+    def init():
+        title_h.set_text("AD6 verdict evolution")
+        sub_h.set_text(f"green band = PASS (π ≥ {1 - alpha:.2f})  ·  "
+                       f"red band = FAIL (π ≤ {alpha:.2f})")
+        return ()
+
+    def update(i):
+        j = min(i, T - 1)
+        for k in range(K):
+            x = np.arange(1, j + 2)
+            y = pi[: j + 1, k]
+            lines[k].set_data(x, y)
+            # current running verdict
+            vk = verdicts_traj[j][k]
+            lines[k].set_color(VERDICT_COLORS.get(vk, VERDICT_COLORS[PENDING]))
+            # CI band — mcse-wide ribbon around the trajectory
+            if fills[k] is not None:
+                try:
+                    fills[k].remove()
+                except Exception:
+                    pass
+            band_lo = np.clip(y - Z * mcse[: j + 1, k], 0.0, 1.0)
+            band_hi = np.clip(y + Z * mcse[: j + 1, k], 0.0, 1.0)
+            fills[k] = axes[k].fill_between(
+                x, band_lo, band_hi,
+                color=VERDICT_COLORS.get(vk, VERDICT_COLORS[PENDING]),
+                alpha=0.18, lw=0, zorder=2)
+            # final-verdict badge — locks at session end with the
+            # certificate's authoritative label
+            if j == T - 1:
+                final_v = final_verdicts[k] or PENDING
+                verdict_texts[k].set_text(VERDICT_LABEL.get(final_v, final_v))
+                verdict_texts[k].set_color(
+                    VERDICT_COLORS.get(final_v, VERDICT_COLORS[PENDING]))
+            else:
+                verdict_texts[k].set_text(VERDICT_LABEL.get(vk, "…"))
+                verdict_texts[k].set_color(
+                    VERDICT_COLORS.get(vk, VERDICT_COLORS[PENDING]))
+
+        stop = session["stop_reason"].replace("_", " ")
+        title_h.set_text(f"Question {j + 1} of {n_q}"
+                         + (f"   ·   {stop}" if j == T - 1 else ""))
+        return ()
+
+    total = T + int(hold_seconds * fps)
+    writer = FFMpegWriter(fps=fps, bitrate=4500, codec="libx264",
+                          extra_args=["-pix_fmt", "yuv420p"])
+    anim = FuncAnimation(fig, update, init_func=init, frames=total,
+                         interval=1000 / fps, blit=False)
+    t0 = time.time()
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              progress_callback=progress_callback)
+    plt.close(fig)
+    logger.info("passfail.mp4 rendered in %.1fs (%.1fs video, %.1f MB)",
+                time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
+
+
+# ─────────────────────── combined-collapse renderer ─────────────────────────
+
+def render_collapse_combined(session, out_path: Path, fps: int = FPS,
+                             hold_seconds: float = HOLD_SECONDS,
+                             progress_callback=None) -> None:
+    """v1.3.3: all K domain clouds overlaid on ONE (t, ℓ) plot so you can
+    compare where each task's posterior clusters in skill/bias space.
+
+      * each task a fixed color (Okabe-Ito ``DOMAIN_COLORS``);
+      * a cloud is faint while diffuse and grows opaque as it concentrates
+        (alpha keyed to per-task spread, ``_alpha_for_spread``);
+      * the smallest symmetric (0,0)-centered axes that contain every
+        particle of every task across every frame (nothing runs off);
+      * dark theme to make the transparent-to-opaque intensity read well.
+    """
+    task_codes = session["task_codes"]
+    t_traj = session["t_traj"]
+    l_traj = session["l_traj"]
+    w_traj = session["w_traj"]
+    T, N, K = t_traj.shape
+
+    # Smallest symmetric axes that contain ALL particles (every task, every
+    # frame). Tiny margin so an edge particle's marker is not clipped.
+    xlim = _symmetric_data_limits(t_traj.ravel(), frac=0.03)
+    ylim = _symmetric_data_limits(l_traj.ravel(), frac=0.03)
+
+    fig = plt.figure(figsize=(8.0, 8.0), dpi=DPI)
+    fig.patch.set_facecolor(_BG_DARK)
+    ax = fig.add_axes([0.10, 0.07, 0.86, 0.85])
+    ax.set_facecolor(_BG_DARK)
+    for spine in ax.spines.values():
+        spine.set_color(_GRID_DARK)
+    ax.tick_params(colors=_MUTED_DARK, labelsize=8)
+    ax.set_xlim(*xlim); ax.set_ylim(*ylim)
+    ax.axhline(0.0, color=_GRID_DARK, linewidth=0.8, zorder=0)
+    ax.axvline(0.0, color=_GRID_DARK, linewidth=0.8, zorder=0)
+    ax.grid(True, color=_GRID_DARK, alpha=0.20)
+    ax.set_xlabel(r"$t$  (bias)", color=_MUTED_DARK, fontsize=10, labelpad=2)
+    ax.set_ylabel(r"$\ell$  (skill)", color=_MUTED_DARK, fontsize=10, labelpad=2)
+    title_h = ax.set_title("", color=_TEXT_DARK, fontsize=13,
+                           fontweight="bold", pad=10)
+    sub_h = fig.text(0.10, 0.975,
+                     "each color is a task; a cloud grows opaque as its "
+                     "posterior concentrates", color=_MUTED_DARK, fontsize=8,
+                     family="monospace")
+
+    scatters = []
+    rgbs = []
+    for k in range(K):
+        rgb = to_rgb(DOMAIN_COLORS.get(task_codes[k], _MUTED_DARK))
+        rgbs.append(rgb)
+        scatters.append(ax.scatter([], [], s=6, edgecolors="none", zorder=3))
+    handles = [Line2D([0], [0], marker="o", linestyle="none", markersize=6,
+                      markerfacecolor=DOMAIN_COLORS.get(d, _MUTED_DARK),
+                      markeredgecolor="none", label=DOMAIN_TITLES.get(d, d))
+               for d in _DOMAIN_ORDER if d in task_codes]
+    ax.legend(handles=handles, loc="upper left", ncol=2, fontsize=8,
+              framealpha=0.0, labelcolor=_TEXT_DARK, handletextpad=0.3,
+              columnspacing=1.0)
+
+    def update(i):
+        j = min(i, T - 1)
+        t = t_traj[j]; l = l_traj[j]; w = w_traj[j]
+        for k in range(K):
+            scatters[k].set_offsets(np.column_stack([t[:, k], l[:, k]]))
+            a = _alpha_for_spread(_weighted_rms_spread(t[:, k], l[:, k], w))
+            r, g, b = rgbs[k]
+            scatters[k].set_facecolor(np.tile([r, g, b, a], (N, 1)))
+        title_h.set_text(f"Combined cloud collapse   ·   Question {j + 1} of {T}")
+        return ()
+
+    total = T + int(hold_seconds * fps)
+    writer = FFMpegWriter(fps=fps, bitrate=4500, codec="libx264",
+                          extra_args=["-pix_fmt", "yuv420p"])
+    anim = FuncAnimation(fig, update, frames=total,
+                         interval=1000 / fps, blit=False)
+    t0 = time.time()
+    anim.save(str(out_path), writer=writer, dpi=DPI,
+              savefig_kwargs={"facecolor": _BG_DARK},
+              progress_callback=progress_callback)
+    plt.close(fig)
+    logger.info("collapse-combined.mp4 rendered in %.1fs (%.1fs video, "
+                "%.1f MB)", time.time() - t0, total / fps,
+                os.path.getsize(out_path) / (1024 * 1024))
+
+
+# ────────────────────────── public entry points ─────────────────────────────
+
+def render_all(session_dir, progress_callback=None) -> dict:
+    """Render the session videos into the session directory. Returns a dict
+    mapping artifact name → Path. Idempotent — overwrites existing files.
+
+    ``progress_callback``, if given, is called as
+    ``progress_callback(stage, current_frame, total_frames)`` with ``stage``
+    in {"collapse", "passfail", "combined"} so a caller (finalize) can map
+    each render to its own slice of an overall progress bar."""
+    _ensure_ffmpeg_logged()
+    sd = Path(session_dir)
+    session = _load_session(sd)
+    out = {
+        "collapse": sd / "collapse.mp4",
+        "passfail": sd / "passfail.mp4",
+        "collapse_combined": sd / "collapse-combined.mp4",
+    }
+    pc = progress_callback
+    cb_collapse = (lambda i, n: pc("collapse", i, n)) if pc else None
+    cb_passfail = (lambda i, n: pc("passfail", i, n)) if pc else None
+    cb_combined = (lambda i, n: pc("combined", i, n)) if pc else None
+    render_collapse(session, out["collapse"], progress_callback=cb_collapse)
+    render_passfail(session, out["passfail"], progress_callback=cb_passfail)
+    render_collapse_combined(session, out["collapse_combined"],
+                             progress_callback=cb_combined)
+    return out
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: cortex_render_videos.py <session_dir>", file=sys.stderr)
+        sys.exit(2)
+    out = render_all(sys.argv[1])
+    for name, path in out.items():
+        print(f"  {name}: {path}")
+
+
+if __name__ == "__main__":
+    main()
