@@ -104,6 +104,7 @@ class RegisterIn(BaseModel):
     password: str
     displayName: str
     expertise: str = ""        # optional self-reported expertise dropdown
+    profile: dict[str, Any] = Field(default_factory=dict)  # demographic/clinical fields collected at signup
     honeypot: str = ""         # bot trap; must be empty
 
 
@@ -177,6 +178,46 @@ class ConsentIn(BaseModel):
 
 class ConsentWithdrawIn(BaseModel):
     consentType: Optional[str] = None    # None → withdraw all consent types
+
+
+class ProfileIn(BaseModel):
+    """Edit account/profile details (Settings page). All fields optional so a
+    partial update is fine; None leaves a field unchanged."""
+    displayName: Optional[str] = None
+    expertise: Optional[str] = None
+    profile: dict[str, Any] = Field(default_factory=dict)
+
+
+class PasswordChangeIn(BaseModel):
+    currentPassword: str
+    newPassword: str
+
+
+class EmailChangeIn(BaseModel):
+    newEmail: str
+    password: str
+
+
+# Whitelisted demographic/clinical profile keys (collected at signup, editable
+# in Settings). Anything else in a submitted profile dict is dropped.
+PROFILE_FIELDS = (
+    "expertise", "institution", "practice_setting", "years_reading_eeg",
+    "eeg_volume_per_month", "self_rated_confidence", "color_vision",
+    "prior_test_taken", "sex", "age", "location", "country", "race_ethnicity",
+)
+
+
+def _clean_profile(d: dict[str, Any]) -> dict[str, str]:
+    """Keep only whitelisted profile keys, string-coerced and length-capped."""
+    out: dict[str, str] = {}
+    for k in PROFILE_FIELDS:
+        v = d.get(k)
+        if v is None:
+            continue
+        s = str(v).strip()[:_MAX_FIELD_LEN]
+        if s:
+            out[k] = s
+    return out
 
 
 # ───────────────────────── validation helpers ─────────────────
@@ -407,6 +448,8 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         if db.get_participant_by_email(email) is not None:
             raise HTTPException(409, "an account with this email already exists")
         code = "u-" + secrets.token_urlsafe(12)
+        prof = _clean_profile(body.profile)
+        expertise = (body.expertise.strip() or prof.get("expertise", "")).strip()[:_MAX_FIELD_LEN] or None
         try:
             db.register_participant(
                 code=code,
@@ -414,7 +457,8 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 email=email,
                 display_name=display,
                 signup_ip=ip,
-                signup_expertise=(body.expertise.strip()[:_MAX_FIELD_LEN] or None),
+                signup_expertise=expertise,
+                profile=(json.dumps(prof) if prof else None),
             )
         except Exception as e:
             # UNIQUE-index violation race (two concurrent signups, same email).
@@ -701,6 +745,69 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     @app.get("/api/consent")
     def consent_list(code: str = Depends(require_auth)):
         return {"events": db.get_consent_events(code)}
+
+    # ── account / profile (Settings page) ───────────────────────
+    @app.get("/api/profile")
+    def get_profile(code: str = Depends(require_auth)):
+        row = db.get_participant(code)
+        if row is None:
+            raise HTTPException(404, "account not found")
+        prof: dict[str, Any] = {}
+        if row.get("profile"):
+            try:
+                prof = json.loads(row["profile"])
+            except Exception:
+                prof = {}
+        return {
+            "email": row.get("email") or "",
+            "displayName": row.get("display_name") or "",
+            "expertise": row.get("signup_expertise") or "",
+            "authProvider": row.get("auth_provider") or "local",
+            "profile": prof,
+        }
+
+    @app.put("/api/profile")
+    def put_profile(body: ProfileIn, code: str = Depends(require_auth)):
+        dn = body.displayName.strip()[:_MAX_FIELD_LEN] if body.displayName is not None else None
+        if dn is not None and not dn:
+            raise HTTPException(400, "display name cannot be empty")
+        prof = _clean_profile(body.profile) if body.profile is not None else None
+        # expertise lives both in its own column and in the profile blob; keep them aligned
+        exp = body.expertise.strip()[:_MAX_FIELD_LEN] if body.expertise is not None else (
+            prof.get("expertise") if prof else None)
+        db.update_profile(code, display_name=dn,
+                          profile=(json.dumps(prof) if prof is not None else None),
+                          signup_expertise=exp)
+        return {"ok": True}
+
+    @app.post("/api/account/password")
+    def change_password(body: PasswordChangeIn, code: str = Depends(require_auth)):
+        row = db.get_participant(code)
+        if row is None or not security.verify_password(body.currentPassword, row["password_hash"]):
+            raise HTTPException(403, "current password is incorrect")
+        if len(body.newPassword) < _MIN_PASSWORD_LEN:
+            raise HTTPException(400, f"password must be at least {_MIN_PASSWORD_LEN} characters")
+        db.set_password_hash(code, security.hash_password(body.newPassword))
+        return {"ok": True}
+
+    @app.post("/api/account/email")
+    def change_email(body: EmailChangeIn, code: str = Depends(require_auth)):
+        row = db.get_participant(code)
+        if row is None or not security.verify_password(body.password, row["password_hash"]):
+            raise HTTPException(403, "password is incorrect")
+        new_email = _norm_email(body.newEmail)
+        if not _is_email(new_email):
+            raise HTTPException(400, "invalid email")
+        existing = db.get_participant_by_email(new_email)
+        if existing is not None and existing["code"] != code:
+            raise HTTPException(409, "an account with this email already exists")
+        try:
+            db.update_email(code, new_email)
+        except Exception as e:
+            if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+                raise HTTPException(409, "an account with this email already exists")
+            raise
+        return {"ok": True, "email": new_email}
 
     # ── visualization videos (#8) ───────────────────────────────
     # The browser posts the particle-cloud trajectory (t/l/w Float32 blobs + a

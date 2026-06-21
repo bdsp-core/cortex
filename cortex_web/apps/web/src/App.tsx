@@ -20,7 +20,7 @@ import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
-import { Registration, Participant } from "./components/Registration";
+import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
 import { Shell } from "./components/Shell";
@@ -31,7 +31,6 @@ type Phase =
   | "auth"
   | "dashboard"
   | "consent"
-  | "registration"
   | "tutorial"
   | "loading"
   | "running"
@@ -75,6 +74,13 @@ export function App() {
       const b = await Bundle.load(manifest.bundleUrl);
       bundleRef.current = b;
       setBundle(b);
+      // Load the account profile (collected at signup) into the session record,
+      // so demographics are captured without a pre-tutorial wizard. Best-effort.
+      try {
+        const acct = await api.getProfile();
+        participantRef.current = participantFromProfile(
+          acct.displayName, { ...acct.profile, expertise: acct.expertise });
+      } catch { /* keep going; session records whatever is available */ }
       const example = b.inputs.segments.find((s) => (s as { testClass?: string }).testClass !== "spike")
         ?? b.inputs.segments[0];
       setTutorialItem({ trialIndex: 0, taskK: 1, segId: example.segId });
@@ -234,16 +240,12 @@ export function App() {
             // Record consent acceptance (best-effort; the per-session blob
             // still carries version/IRB as a durable backup). Phase O1.
             void api.recordConsent(CONSENT_VERSION, IRB_PROTOCOL_ID).catch(() => {});
-            setPhase("registration");
+            // Demographics are now collected at signup (not here); go straight
+            // to the in-context tutorial, which loads the profile into the
+            // session record.
+            void enterTutorial();
           }}
           onDecline={() => setPhase("dashboard")}
-        />
-      );
-    case "registration":
-      return (
-        <Registration
-          onBack={() => setPhase("consent")}
-          onComplete={(p) => { participantRef.current = p; void enterTutorial(); }}
         />
       );
     case "tutorial":

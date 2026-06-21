@@ -668,3 +668,72 @@ def test_pg_exec_rolls_back_on_error(tmp_path):
     with pytest.raises(RuntimeError):
         db._exec("SELECT 1")
     assert fake.rolled_back == 1, "a failed statement must roll back the txn"
+
+
+# ───────────────────── signup profile + Settings ─────────────────────
+
+def test_signup_stores_profile_and_get_profile(client):
+    """Demographics collected at signup persist on the account and read back
+    via GET /api/profile (no pre-tutorial re-ask)."""
+    _REG_COUNTER[0] += 1
+    email = f"p{_REG_COUNTER[0]}@example.test"
+    pw = "test-pw-1234567890"
+    prof = {"institution": "Stanford", "years_reading_eeg": "3-5",
+            "sex": "Female", "age": "34", "location": "Palo Alto, CA",
+            "bogus_field": "should be dropped"}
+    r = client.post("/api/register", json={
+        "email": email, "password": pw, "displayName": "Prof Test",
+        "expertise": "Neurology resident", "profile": prof})
+    assert r.status_code == 200, r.text
+    code = r.json()["devCode"]
+    client.post("/api/verify/confirm", json={"email": email, "code": code})
+    hdr = _auth_header(client, email, pw)
+    got = client.get("/api/profile", headers=hdr).json()
+    assert got["expertise"] == "Neurology resident"
+    assert got["displayName"] == "Prof Test"
+    assert got["profile"]["institution"] == "Stanford"
+    assert got["profile"]["age"] == "34"
+    assert got["profile"]["location"] == "Palo Alto, CA"
+    assert "bogus_field" not in got["profile"]   # whitelist drops unknown keys
+
+
+def test_update_profile(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    r = client.put("/api/profile", headers=hdr, json={
+        "displayName": "New Name", "expertise": "EEG technologist",
+        "profile": {"institution": "MGH", "age": "40"}})
+    assert r.status_code == 200, r.text
+    got = client.get("/api/profile", headers=hdr).json()
+    assert got["displayName"] == "New Name"
+    assert got["expertise"] == "EEG technologist"
+    assert got["profile"]["institution"] == "MGH"
+
+
+def test_change_password(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    # wrong current password → 403
+    assert client.post("/api/account/password", headers=hdr,
+                       json={"currentPassword": "nope", "newPassword": "brand-new-pw-123"}).status_code == 403
+    # correct → 200, old pw stops working, new pw works
+    assert client.post("/api/account/password", headers=hdr,
+                       json={"currentPassword": pw, "newPassword": "brand-new-pw-123"}).status_code == 200
+    assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 401
+    assert client.post("/api/auth", json={"email": email, "password": "brand-new-pw-123"}).status_code == 200
+
+
+def test_change_email(client):
+    email, pw = _make_participant(client)
+    other_email, _ = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    # wrong password → 403
+    assert client.post("/api/account/email", headers=hdr,
+                       json={"newEmail": "fresh@example.test", "password": "nope"}).status_code == 403
+    # collision with an existing account → 409
+    assert client.post("/api/account/email", headers=hdr,
+                       json={"newEmail": other_email, "password": pw}).status_code == 409
+    # valid change → 200; can auth with the new email
+    assert client.post("/api/account/email", headers=hdr,
+                       json={"newEmail": "fresh@example.test", "password": pw}).status_code == 200
+    assert client.post("/api/auth", json={"email": "fresh@example.test", "password": pw}).status_code == 200

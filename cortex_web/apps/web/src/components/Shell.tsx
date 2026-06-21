@@ -22,8 +22,9 @@ import * as api from "../api";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
+import { PROFILE_SECTIONS, EXPERTISE } from "../profileFields";
 
-type Surface = "dashboard" | "training" | "protocol" | "history";
+type Surface = "dashboard" | "training" | "protocol" | "history" | "settings";
 // "drilldown" is a routed sub-view of the shell (a focused per-task page),
 // NOT a top-level nav surface — it has no rail entry. The shell tracks it in
 // its own view state alongside the selected task.
@@ -240,6 +241,25 @@ td.ellcell .of{color:var(--ink-faint);}
   color:var(--ink-subtle);font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;padding:0;}
 .cx-foot-lang select:hover{color:var(--ink);}
 
+/* ---------- settings page ---------- */
+.cx-settings{max-width:760px;}
+.cx-settings>h2{font-size:20px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
+.cx-settings>.sub{color:var(--ink-subtle);font-size:13px;margin:0 0 var(--s24);}
+.cx-settings section{margin-bottom:var(--s24);}
+.cx-settings section h2{font-size:16px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
+.cx-settings section .sub{color:var(--ink-subtle);font-size:13px;margin:0 0 var(--s16);}
+.cx-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s12) var(--s16);}
+.cx-field{display:flex;flex-direction:column;gap:5px;}
+.cx-field.full{grid-column:1 / -1;}
+.cx-field label{font-size:12px;font-weight:600;color:var(--ink-subtle);}
+.cx-input,.cx-select{font-family:inherit;font-size:14px;color:var(--ink);
+  background:var(--field-bg);border:1px solid var(--bd);border-radius:var(--radius-ctl);
+  padding:8px 10px;width:100%;box-sizing:border-box;}
+.cx-input:focus,.cx-select:focus{outline:none;border-color:var(--teal);}
+.cx-msg-ok{color:var(--teal-deep);font-size:13px;font-weight:600;}
+.cx-msg-err{color:var(--fail,#c0392b);font-size:13px;font-weight:600;}
+@media (max-width:640px){ .cx-form-grid{grid-template-columns:1fr;} }
+
 /* ---------- protocol: multi-week plan header ---------- */
 .cx-weekhdr{display:flex;align-items:baseline;gap:var(--s12);margin-bottom:var(--s16);}
 .cx-weekhdr .big{font-family:var(--mono);font-variant-numeric:tabular-nums;
@@ -374,6 +394,12 @@ const ICONS: Record<Surface, JSX.Element> = {
       <path d="M5 4h11l3 3v13H5z" /><path d="M8 9h8M8 13h8M8 17h5" />
     </svg>
   ),
+  settings: (
+    <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
 };
 
 const NAV: Array<{ id: Surface; label: string }> = [
@@ -381,6 +407,7 @@ const NAV: Array<{ id: Surface; label: string }> = [
   { id: "training", label: "Daily training" },
   { id: "protocol", label: "My protocol" },
   { id: "history", label: "Certification history" },
+  { id: "settings", label: "Settings" },
 ];
 
 // The 7 fixed tasks in engine-index order. The dashboard always renders all 7,
@@ -1394,6 +1421,175 @@ function DashboardFooter() {
   );
 }
 
+// Settings surface — edit account credentials + the demographic/clinical
+// profile collected at signup. Mirrors the dashboard aesthetic (cx-* panels).
+function SettingsSurface() {
+  const [loaded, setLoaded] = useState(false);
+  const [email, setEmail] = useState("");
+  const [authProvider, setAuthProvider] = useState("local");
+  const [displayName, setDisplayName] = useState("");
+  const [expertise, setExpertise] = useState("");
+  const [profile, setProfile] = useState<Record<string, string>>({});
+  const [savingP, setSavingP] = useState(false);
+  const [pMsg, setPMsg] = useState<{ ok?: string; err?: string }>({});
+
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPw, setEmailPw] = useState("");
+  const [emailMsg, setEmailMsg] = useState<{ ok?: string; err?: string }>({});
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [newPw2, setNewPw2] = useState("");
+  const [pwMsg, setPwMsg] = useState<{ ok?: string; err?: string }>({});
+
+  useEffect(() => {
+    api.getProfile()
+      .then((a) => {
+        setEmail(a.email); setAuthProvider(a.authProvider || "local");
+        setDisplayName(a.displayName); setExpertise(a.expertise);
+        setProfile(a.profile || {});
+      })
+      .catch(() => { /* show empty form */ })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const setField = (k: string) => (v: string) => setProfile((p) => ({ ...p, [k]: v }));
+
+  async function saveProfile() {
+    setSavingP(true); setPMsg({});
+    try {
+      await api.updateProfile(displayName.trim(), expertise, profile);
+      setPMsg({ ok: "Saved." });
+    } catch (e) {
+      setPMsg({ err: (e as Error)?.message || "Could not save." });
+    } finally { setSavingP(false); }
+  }
+  async function saveEmail() {
+    setEmailMsg({});
+    try {
+      const r = await api.changeEmail(newEmail.trim(), emailPw);
+      setEmail(r.email); setNewEmail(""); setEmailPw(""); setEmailMsg({ ok: "Email updated." });
+    } catch (e) {
+      const s = (e as api.ApiError)?.status;
+      setEmailMsg({ err: s === 409 ? "That email is already in use." : s === 403 ? "Password is incorrect." : "Could not update email." });
+    }
+  }
+  async function savePassword() {
+    setPwMsg({});
+    if (newPw.length < 8) { setPwMsg({ err: "New password must be at least 8 characters." }); return; }
+    if (newPw !== newPw2) { setPwMsg({ err: "New passwords do not match." }); return; }
+    try {
+      await api.changePassword(curPw, newPw);
+      setCurPw(""); setNewPw(""); setNewPw2(""); setPwMsg({ ok: "Password updated." });
+    } catch (e) {
+      const s = (e as api.ApiError)?.status;
+      setPwMsg({ err: s === 403 ? "Current password is incorrect." : "Could not update password." });
+    }
+  }
+
+  if (!loaded) return <div className="cx-settings"><p className="sub">Loading…</p></div>;
+  const isGoogle = authProvider === "google";
+  const allFields = PROFILE_SECTIONS.flatMap((s) => s.fields);
+
+  return (
+    <div className="cx-settings">
+      <h2>Settings</h2>
+      <p className="sub">Update your account and profile details. Changes apply to your next test.</p>
+
+      <section className="cx-panel">
+        <h2>Profile</h2>
+        <p className="sub">Your role and background, used for research analysis.</p>
+        <div className="cx-form-grid">
+          <div className="cx-field">
+            <label>Display name</label>
+            <input className="cx-input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          </div>
+          <div className="cx-field">
+            <label>Primary role / expertise</label>
+            <select className="cx-select" value={expertise} onChange={(e) => setExpertise(e.target.value)}>
+              <option value="">Select…</option>
+              {EXPERTISE.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          {allFields.map((f) => (
+            <div className="cx-field" key={f.key}>
+              <label>{f.label}</label>
+              {f.kind === "text" ? (
+                <input className="cx-input" value={profile[f.key] ?? ""} placeholder={f.placeholder}
+                  onChange={(e) => setField(f.key)(e.target.value)} />
+              ) : (
+                <select className="cx-select" value={profile[f.key] ?? ""}
+                  onChange={(e) => setField(f.key)(e.target.value)}>
+                  <option value="">Select…</option>
+                  {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+          <button type="button" className="cx-btn primary" onClick={saveProfile} disabled={savingP}>
+            {savingP ? "Saving…" : "Save profile"}
+          </button>
+          {pMsg.ok && <span className="cx-msg-ok">{pMsg.ok}</span>}
+          {pMsg.err && <span className="cx-msg-err">{pMsg.err}</span>}
+        </div>
+      </section>
+
+      <section className="cx-panel">
+        <h2>Email</h2>
+        <p className="sub">Current: <b style={{ color: "var(--ink)" }}>{email}</b></p>
+        {isGoogle ? (
+          <p className="sub">This account signs in with Google; its email is managed there.</p>
+        ) : (
+          <div className="cx-form-grid">
+            <div className="cx-field">
+              <label>New email</label>
+              <input className="cx-input" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            </div>
+            <div className="cx-field">
+              <label>Current password</label>
+              <input className="cx-input" type="password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} />
+            </div>
+            <div className="cx-field full" style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <button type="button" className="cx-btn" onClick={saveEmail}>Update email</button>
+              {emailMsg.ok && <span className="cx-msg-ok">{emailMsg.ok}</span>}
+              {emailMsg.err && <span className="cx-msg-err">{emailMsg.err}</span>}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="cx-panel">
+        <h2>Password</h2>
+        {isGoogle ? (
+          <p className="sub">This account signs in with Google; no password is set.</p>
+        ) : (
+          <div className="cx-form-grid">
+            <div className="cx-field">
+              <label>Current password</label>
+              <input className="cx-input" type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+            </div>
+            <div className="cx-field" />
+            <div className="cx-field">
+              <label>New password</label>
+              <input className="cx-input" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+            </div>
+            <div className="cx-field">
+              <label>Confirm new password</label>
+              <input className="cx-input" type="password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} />
+            </div>
+            <div className="cx-field full" style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <button type="button" className="cx-btn" onClick={savePassword}>Update password</button>
+              {pwMsg.ok && <span className="cx-msg-ok">{pwMsg.ok}</span>}
+              {pwMsg.err && <span className="cx-msg-err">{pwMsg.err}</span>}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function Shell({
   onStartTest, onStartTraining, onSignOut,
 }: {
@@ -1512,6 +1708,7 @@ export function Shell({
           {view === "training" && <TrainingSurface />}
           {view === "protocol" && <ProtocolSurface />}
           {view === "history" && <HistorySurface />}
+          {view === "settings" && <SettingsSurface />}
         </div>
 
         <DashboardFooter />

@@ -145,12 +145,12 @@ export async function loginWithGoogle(credential: string): Promise<{
 // in dev/CI (CORTEX_EMAIL_EXPOSE_CODE=1) and is never relied on in real UX.
 export async function register(
   email: string, password: string, displayName: string, expertise: string,
-  honeypot: string,
+  profile: Record<string, string>, honeypot: string,
 ): Promise<{ needsVerification: boolean; email: string; displayName: string; devCode?: string }> {
   const res = await fetch(`${API_BASE}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, displayName, expertise, honeypot }),
+    body: JSON.stringify({ email, password, displayName, expertise, profile, honeypot }),
   });
   const body = await parse(res);
   setDisplayName(body?.displayName ?? displayName);
@@ -238,6 +238,42 @@ export async function health(): Promise<boolean> {
 // ── gated ────────────────────────────────────────────────────────
 export function getManifest(): Promise<Manifest> {
   return authedFetch("/api/manifest");
+}
+
+// ── account / profile (Settings page) ────────────────────────────
+export interface AccountProfile {
+  email: string;
+  displayName: string;
+  expertise: string;
+  authProvider: string;
+  profile: Record<string, string>;
+}
+
+export function getProfile(): Promise<AccountProfile> {
+  return authedFetch("/api/profile");
+}
+
+export function updateProfile(
+  displayName: string, expertise: string, profile: Record<string, string>,
+): Promise<{ ok: boolean }> {
+  return authedFetch("/api/profile", {
+    method: "PUT",
+    body: JSON.stringify({ displayName, expertise, profile }),
+  });
+}
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean }> {
+  return authedFetch("/api/account/password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export function changeEmail(newEmail: string, password: string): Promise<{ ok: boolean; email: string }> {
+  return authedFetch("/api/account/email", {
+    method: "POST",
+    body: JSON.stringify({ newEmail, password }),
+  });
 }
 
 // ── dashboard / learning-protocol (Phase 2 backend) ───────────────

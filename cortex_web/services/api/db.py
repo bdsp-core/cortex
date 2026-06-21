@@ -155,6 +155,7 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("auth_provider",     "TEXT"),   # NULL/'local' for password accounts, 'google' for OAuth
     ("google_sub",        "TEXT"),   # Google account id ('sub' claim); unique when set
     ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
+    ("profile",           "TEXT"),   # JSON demographic/clinical profile collected at signup, editable in Settings
 ]
 
 # Columns added to the learning tables after their original schema (Phase O2),
@@ -329,21 +330,50 @@ class Database:
     def register_participant(self, *, code: str, password_hash: str,
                               email: str, display_name: str,
                               signup_ip: Optional[str] = None,
-                              signup_expertise: Optional[str] = None) -> None:
+                              signup_expertise: Optional[str] = None,
+                              profile: Optional[str] = None) -> None:
         """Insert a new email-based account. Caller is responsible for
         generating `code` (the stable internal id stored in JWT subjects);
         UNIQUE constraint on email surfaces as a backend-specific IntegrityError
         the caller catches to return a clean 409. `signup_expertise` is the
         optional self-reported role from the signup form (Phase O1; defaults
-        None so existing callers are unchanged)."""
+        None so existing callers are unchanged). `profile` is the JSON
+        demographic/clinical record collected during signup (editable later in
+        Settings)."""
         with self._lock:
             self._exec(
                 "INSERT INTO participants(code, password_hash, email, "
-                "display_name, signup_ip, signup_expertise, created_utc) "
-                "VALUES (?,?,?,?,?,?,?)",
+                "display_name, signup_ip, signup_expertise, profile, created_utc) "
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (code, password_hash, email, display_name, signup_ip,
-                 signup_expertise, utc_now()),
+                 signup_expertise, profile, utc_now()),
             )
+            self._conn.commit()
+
+    def update_profile(self, code: str, *, display_name: Optional[str],
+                       profile: Optional[str], signup_expertise: Optional[str]) -> None:
+        """Update the editable account fields (Settings page). display_name and
+        signup_expertise are stored columns; profile is the JSON demographic
+        record. None args are left unchanged."""
+        sets, params = [], []
+        if display_name is not None:
+            sets.append("display_name=?"); params.append(display_name)
+        if profile is not None:
+            sets.append("profile=?"); params.append(profile)
+        if signup_expertise is not None:
+            sets.append("signup_expertise=?"); params.append(signup_expertise)
+        if not sets:
+            return
+        params.append(code)
+        with self._lock:
+            self._exec(f"UPDATE participants SET {', '.join(sets)} WHERE code=?", tuple(params))
+            self._conn.commit()
+
+    def update_email(self, code: str, new_email: str) -> None:
+        """Change an account's email. The UNIQUE-when-set index surfaces a
+        collision as a backend IntegrityError the caller maps to a 409."""
+        with self._lock:
+            self._exec("UPDATE participants SET email=? WHERE code=?", (new_email, code))
             self._conn.commit()
 
     def get_participant_by_email(self, email: str) -> Optional[dict]:

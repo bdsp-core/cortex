@@ -22,6 +22,7 @@ import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { PROFILE_SECTIONS } from "../profileFields";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -425,6 +426,13 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   const [suPw2, setSuPw2] = useState("");
   const [suName, setSuName] = useState("");
   const [suRole, setSuRole] = useState("");
+  // Signup is two sub-steps: 0 = account (credentials + role), 1 = profile
+  // (clinical background + demographics, collected here so we never re-ask
+  // before the tutorial). suProfile holds the demographic answers.
+  const [suStep, setSuStep] = useState(0);
+  const [suProfile, setSuProfile] = useState<Record<string, string>>({});
+  const setSuProfileField = (k: string) => (v: string) =>
+    setSuProfile((prev) => ({ ...prev, [k]: v }));
   // Honeypot: hidden field; humans don't fill it, naive bots do. Sent to the
   // backend regardless; the server silently 200s a bot without revealing it.
   const [honeypot, setHoneypot] = useState("");
@@ -466,6 +474,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
   function go(next: Screen) {
     setErr(null);
+    if (next === "signup") setSuStep(0);   // always start signup at the account step
     setScreen(next);
   }
 
@@ -494,16 +503,25 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     }
   }
 
-  async function doSignUp(e: React.FormEvent) {
+  // Step 0 → step 1: validate the account fields, then reveal the profile step.
+  function continueSignup(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     if (suPw.length < 8) { setErr(t("auth.signup.errShort")); return; }
     if (suPw !== suPw2) { setErr(t("auth.signup.errMismatch")); return; }
     if (!suName.trim()) { setErr(t("auth.signup.errName")); return; }
+    setSuStep(1);
+  }
+
+  async function doSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    // Guard: the account fields are validated at step 0, but re-check in case.
+    if (suPw.length < 8 || suPw !== suPw2 || !suName.trim()) { setSuStep(0); return; }
     setBusy(true);
     try {
       const email = suEmail.trim().toLowerCase();
-      const r = await register(email, suPw, suName.trim(), suRole, honeypot);
+      const r = await register(email, suPw, suName.trim(), suRole, suProfile, honeypot);
       // Honeypot bot path: server 200s without needsVerification. Bounce back
       // to sign in silently rather than progress.
       if (!r.needsVerification) { go("signin"); return; }
@@ -693,12 +711,12 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         </div>
       )}
 
-      {screen === "signup" && (
+      {screen === "signup" && suStep === 0 && (
         <div style={cardStyle}>
           <Steps on={1} />
           <h1 style={h1Style}>{t("auth.signup.title")}</h1>
           <p style={ledeStyle}>{t("auth.signup.lede")}</p>
-          <form onSubmit={doSignUp}>
+          <form onSubmit={continueSignup}>
             <Field label={<>{t("common.email")} {reqMark}</>}
               type="email" value={suEmail} onChange={setSuEmail}
               placeholder={t("auth.signup.emailPh")} autoComplete="email" required autoFocus />
@@ -728,6 +746,48 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
             <FormError>{err}</FormError>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <AuthButton variant="secondary" onClick={() => go("signin")} style={{ flex: 1 }}>
+                {t("common.back")}
+              </AuthButton>
+              <AuthButton variant="primary" type="submit" style={{ flex: 1 }}>
+                Continue
+              </AuthButton>
+            </div>
+          </form>
+          <div style={metaStyle}>{t("auth.signup.consent")}</div>
+        </div>
+      )}
+
+      {screen === "signup" && suStep === 1 && (
+        <div style={cardStyle}>
+          <Steps on={1} />
+          <h1 style={h1Style}>{t("auth.signup.title")}</h1>
+          <p style={ledeStyle}>
+            A few details about your background. These are stored on your account
+            (not asked again before the test) and can be edited later in Settings.
+          </p>
+          <form onSubmit={doSignUp}>
+            {PROFILE_SECTIONS.map((sec) => (
+              <div key={sec.title} style={{ marginBottom: 4 }}>
+                <div style={{ ...labelStyle, fontWeight: 700, marginTop: 8, marginBottom: 8 }}>{sec.title}</div>
+                {sec.note && <div style={{ ...hintStyle, marginBottom: 12 }}>{sec.note}</div>}
+                {sec.fields.map((f) => (f.kind === "text" ? (
+                  <Field key={f.key} label={f.label} value={suProfile[f.key] ?? ""}
+                    onChange={setSuProfileField(f.key)} placeholder={f.placeholder} />
+                ) : (
+                  <label key={f.key} style={{ display: "block", marginBottom: 16 }}>
+                    <span style={labelStyle}>{f.label}</span>
+                    <select value={suProfile[f.key] ?? ""}
+                      onChange={(e) => setSuProfileField(f.key)(e.target.value)} style={inputStyle}>
+                      <option value="">Select…</option>
+                      {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                )))}
+              </div>
+            ))}
+            <FormError>{err}</FormError>
+            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+              <AuthButton variant="secondary" onClick={() => { setErr(null); setSuStep(0); }} style={{ flex: 1 }}>
                 {t("common.back")}
               </AuthButton>
               <AuthButton variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
