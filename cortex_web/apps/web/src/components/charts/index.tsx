@@ -332,7 +332,7 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
       const level = activity[keyOf(ms)] ?? 0;
       const x = padL + w * (cell + gap);
       const y = padT + d * (cell + gap);
-      const title = level > 0 ? `${niceOf(ms)} — ${ACTIVITY_LABEL[level]}` : niceOf(ms);
+      const title = level > 0 ? `${niceOf(ms)}: ${ACTIVITY_LABEL[level]}` : niceOf(ms);
       cells.push(
         <rect key={`${w}-${d}`} x={x} y={y} width={cell} height={cell} rx={2}
           fill={heatFillLevel(level)} stroke={gridInk}>
