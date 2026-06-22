@@ -286,6 +286,7 @@ class Database:
         row = cur.fetchone()
         if self._pg and cur:
             cur.close()
+            self._end_read()
         return dict(row) if row is not None else None
 
     def _fetchall(self, sql: str, params: tuple = ()) -> list[dict]:
@@ -293,7 +294,25 @@ class Database:
         rows = cur.fetchall()
         if self._pg and cur:
             cur.close()
+            self._end_read()
         return [dict(r) for r in rows]
+
+    def _end_read(self) -> None:
+        """Commit the implicit transaction a read opened. On Postgres the single
+        shared connection runs autocommit=False (db.py __init__), so even a bare
+        SELECT begins a transaction. The write helpers commit; the read helpers
+        historically did NOT — so after any read the connection sat
+        `idle in transaction` indefinitely, holding AccessShare on the queried
+        table(s). That AccessShare blocks the AccessExclusive a *second*
+        Database() instance's boot migrations take (`ALTER TABLE … ADD COLUMN IF
+        NOT EXISTS`, `CREATE UNIQUE INDEX …`) — which is exactly how the nightly
+        backup's `api.admin export-sessions` hung for hours (2026-06-22) — and it
+        also pins the VACUUM xmin horizon, bloating the DB. Committing after each
+        read returns the shared connection to a clean idle state. (This is the
+        read-side complement to the error-path rollback in `_exec`, the
+        2026-06-21 fix.) SQLite opens no transaction for a SELECT, so the read
+        helpers skip this — their write paths already commit."""
+        self._conn.commit()
 
     def close(self) -> None:
         with self._lock:

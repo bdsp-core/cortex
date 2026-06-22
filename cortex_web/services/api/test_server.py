@@ -670,6 +670,44 @@ def test_pg_exec_rolls_back_on_error(tmp_path):
     assert fake.rolled_back == 1, "a failed statement must roll back the txn"
 
 
+def test_pg_fetch_commits_read_txn(tmp_path):
+    """Regression for the 2026-06-22 nightly-backup hang: on Postgres the shared
+    autocommit=False connection must COMMIT after a read, or a bare SELECT leaves
+    it `idle in transaction` indefinitely, holding AccessShare on the table. That
+    AccessShare blocks the AccessExclusive a second Database()'s boot migration
+    needs (the backup's `export-sessions` ALTER hung exactly this way for hours)
+    and pins the VACUUM xmin. CI has no Postgres, so drive the _pg branch with a
+    fake connection and assert _fetchone/_fetchall each commit the read txn."""
+    db = Database(tmp_path / "rc.db")   # real sqlite instance; we override _pg
+
+    class _FakeCursor:
+        def execute(self, sql, params):
+            pass
+        def fetchone(self):
+            return {"x": 1}
+        def fetchall(self):
+            return [{"x": 1}, {"x": 2}]
+        def close(self):
+            pass
+
+    class _FakeConn:
+        def __init__(self):
+            self.committed = 0
+        def cursor(self):
+            return _FakeCursor()
+        def commit(self):
+            self.committed += 1
+        def rollback(self):
+            pass
+
+    fake = _FakeConn()
+    db._pg = True
+    db._conn = fake
+    db._fetchone("SELECT 1")
+    db._fetchall("SELECT 1")
+    assert fake.committed == 2, "each read must commit so the shared conn never lingers idle-in-transaction"
+
+
 # ───────────────────── signup profile + Settings ─────────────────────
 
 def test_signup_stores_profile_and_get_profile(client):
