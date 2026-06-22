@@ -176,11 +176,28 @@ export function App() {
             participantName: (participantRef.current as { name?: string } | null)?.name ?? "Anonymous",
             t: r.traj.t, l: r.traj.l, w: r.traj.w,
           };
+          // Real per-task certification values, persisted so the dashboard reads
+          // genuine numbers (not sample data) for ℓ/θ/AUROC. ℓ/θ are the final
+          // posterior means from the last engine diagnostic (lMean/tMean); ℓ* is
+          // the bundle's Youden cut-score; AUROC is the per-task posterior mean.
+          const perTask = (inputs.taskCodes ?? []).map((code, k) => ({
+            taskK: k,
+            code,
+            label: inputs.taskLabels?.[k] ?? code,
+            ell: d?.lMean?.[k] ?? null,
+            theta: d?.tMean?.[k] ?? null,
+            ellStar: inputs.ellStar?.[k] ?? null,
+            auroc: roc[k]?.auroc ?? null,
+            aurocHw: roc[k]?.hw ?? null,
+            verdict: r.verdicts?.[k] ?? "PENDING",
+          }));
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
           // rather than lost (PLAN §8).
           const delivered = await api.submitResults(sessionId, {
             verdicts: r.verdicts,
+            perTask,
+            roc,
             servedSegIds: r.servedSegIds,
             trials: r.trials,
             participant: participantRef.current,

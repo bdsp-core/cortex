@@ -277,22 +277,26 @@ export function changeEmail(newEmail: string, password: string): Promise<{ ok: b
 }
 
 // ── dashboard / learning-protocol (Phase 2 backend) ───────────────
-// Read-only surfaces backing the shell. KPIs + sample task ℓ/θ/RT are
-// illustrative until the trainer is ported (flagged `sample: true`).
+// Read-only surfaces backing the shell. All real cert-result data — no sample
+// data. Learning-protocol surfaces (streak/deck/trajectories) carry no data
+// until the trainer ships.
+// Cert-summary KPIs derived from the latest result.
 export interface DashboardKpis {
-  streak: number;
-  dueToday: { new: number; learning: number; review: number };
-  nextRecertDays: number;
+  tasksCertified: number;
+  tasksTotal: number;
+  lastAssessed: string | null;   // finished_utc of the latest attempt
+  meanAuroc: number | null;      // mean per-task AUROC, or null if none stored
 }
-// Per-task mastery-grid summary. ℓ/ℓ*/auroc are sample; verdict/auroc are
-// overridden from the real cert result when hasResult is true.
+// Per-task mastery-grid summary derived from the latest real result. ℓ/ℓ*/AUROC
+// are null for a legacy (verdicts-only) result; verdict is always present.
 export interface DashboardTask {
   taskK: number;
   code: string;
   label: string;
-  ell: number;
-  ellStar: number;
-  auroc: number;
+  ell: number | null;
+  ellStar: number | null;
+  theta: number | null;
+  auroc: number | null;
   verdict: string;
 }
 // A real certification result blob (latest for the participant). Only the
@@ -307,8 +311,7 @@ export interface DashboardData {
   result: CertResult | null;
   hasResult: boolean;
   tasks: DashboardTask[];
-  kpis: DashboardKpis;
-  sample: boolean;
+  kpis: DashboardKpis | null;   // null until a cert result exists
 }
 
 export interface TrajectoryPoint {
@@ -349,7 +352,7 @@ export interface HistorySession {
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
-export function getRegimen(): Promise<{ regimen: RegimenPlan; sample: boolean }> {
+export function getRegimen(): Promise<{ regimen: RegimenPlan | null; sample: boolean }> {
   return authedFetch("/api/regimen");
 }
 export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sample: boolean }> {

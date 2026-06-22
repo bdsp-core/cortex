@@ -51,7 +51,6 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from . import email as email_mod
-from . import sample_data
 from . import security
 from .db import Database, utc_now
 
@@ -236,6 +235,71 @@ def _norm_email(s: str) -> str:
 
 def _is_email(s: str) -> bool:
     return bool(_EMAIL_RE.match(s)) and len(s) <= _MAX_FIELD_LEN
+
+
+# ──────────────────── dashboard derivation ─────────────────────
+# The fixed 7-task ontology (D5: spike + the 6 IIIC patterns; K=7). Used to
+# render every task tile in canonical order, including for legacy results that
+# stored only a bare `verdicts` list (pre-Step-1, no per-task ℓ/θ/AUROC).
+_CANONICAL_TASKS = [
+    (0, "spike", "Spike"),
+    (1, "sz",    "Seizure"),
+    (2, "lpd",   "LPD"),
+    (3, "gpd",   "GPD"),
+    (4, "lrda",  "LRDA"),
+    (5, "grda",  "GRDA"),
+    (6, "iic",   "Other"),
+]
+
+
+def _dashboard_tasks(result: dict) -> list[dict]:
+    """Per-task mastery summary derived from a real cert result. Reads the
+    persisted `perTask` block (real ℓ/θ/ℓ*/AUROC + verdict) when present; for a
+    legacy result (verdicts only) ℓ/ℓ*/AUROC come back None and just the verdict
+    is shown. Always returns all 7 canonical tasks in engine-index order."""
+    per = result.get("perTask")
+    by_k: dict[int, dict] = {}
+    if isinstance(per, list):
+        for p in per:
+            if isinstance(p, dict) and p.get("taskK") is not None:
+                by_k[int(p["taskK"])] = p
+    verdicts = result.get("verdicts") or []
+    out = []
+    for k, code, label in _CANONICAL_TASKS:
+        p = by_k.get(k)
+        legacy_verdict = verdicts[k] if k < len(verdicts) else "PENDING"
+        if p is not None:
+            out.append({
+                "taskK": k,
+                "code": p.get("code") or code,
+                "label": p.get("label") or label,
+                "ell": p.get("ell"),
+                "ellStar": p.get("ellStar"),
+                "theta": p.get("theta"),
+                "auroc": p.get("auroc"),
+                "verdict": p.get("verdict") or legacy_verdict,
+            })
+        else:
+            out.append({
+                "taskK": k, "code": code, "label": label,
+                "ell": None, "ellStar": None, "theta": None, "auroc": None,
+                "verdict": legacy_verdict,
+            })
+    return out
+
+
+def _dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
+    """Real certification-summary KPIs (no learning-protocol data, which doesn't
+    exist until the trainer ships): tasks certified, date last assessed, and the
+    mean per-task AUROC over the tasks that have one."""
+    aurocs = [t["auroc"] for t in tasks if isinstance(t.get("auroc"), (int, float))]
+    certified = sum(1 for t in tasks if str(t.get("verdict") or "").upper() == "PASS")
+    return {
+        "tasksCertified": certified,
+        "tasksTotal": len(tasks),
+        "lastAssessed": last_assessed,
+        "meanAuroc": round(sum(aurocs) / len(aurocs), 3) if aurocs else None,
+    }
 
 
 # ───────────────────────── rate limiter ────────────────────────
@@ -662,19 +726,26 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
         return {"ok": True}
 
-    # ── dashboard / learning-protocol (Phase 2) ─────────────────
-    # The dashboard surfaces. Real certification results (verdicts/AUROC) come
-    # from the results table; ℓ/θ/RT TRAINING trajectories + the protocol plan
-    # are sample data (flagged `sample: true`) until the trainer is ported.
+    # ── dashboard (cert-result surfaces) ────────────────────────
+    # Real certification data only: per-task ℓ/θ/ℓ*/AUROC + verdict from the
+    # latest result, plus cert-summary KPIs (tasks certified / last assessed /
+    # mean AUROC). Learning-protocol surfaces (streak, deck, trajectories) carry
+    # NO data until the trainer is ported — see /api/regimen + /api/trajectories.
     @app.get("/api/dashboard")
     def dashboard(code: str = Depends(require_auth)):
-        result = db.latest_result_for_code(code)
+        sessions = db.list_results_for_code(code)
+        if not sessions:
+            return {"result": None, "hasResult": False, "tasks": [],
+                    "kpis": None, "sample": False}
+        latest = sessions[0]
+        result = latest["result"]
+        tasks = _dashboard_tasks(result)
         return {
-            "result": result,                    # latest real cert result, or null
-            "hasResult": result is not None,
-            "tasks": sample_data.tasks(),         # sample mastery-grid summaries
-            "kpis": sample_data.kpis(),
-            "sample": True,                       # KPIs + task ℓ/θ/RT are illustrative
+            "result": result,
+            "hasResult": True,
+            "tasks": tasks,
+            "kpis": _dashboard_kpis(tasks, latest.get("finished_utc")),
+            "sample": False,
         }
 
     @app.get("/api/history")
@@ -683,22 +754,23 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         # Real data only (no sample); scoped strictly by the authed code.
         return {"sessions": db.list_results_for_code(code)}
 
+    # Learning-protocol surfaces (regimen + ℓ/θ/RT trajectories). These carry
+    # REAL data only — the active regimen if the trainer has generated one, and
+    # real (is_real=1) trajectory points. Empty until the L1 trainer ships; no
+    # sample fallback. `sample` stays in the contract (always False now) so the
+    # client keeps a single response shape.
     @app.get("/api/regimen")
     def regimen(code: str = Depends(require_auth)):
         reg = db.get_active_regimen(code)
-        if reg is not None:
-            return {"regimen": reg["plan"], "sample": False}
-        return {"regimen": sample_data.regimen_plan(), "sample": True}
+        return {"regimen": reg["plan"] if reg is not None else None, "sample": False}
 
     @app.get("/api/trajectories")
     def trajectories(code: str = Depends(require_auth)):
         rows = db.get_trajectories(code)
-        if rows:
-            pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
-                    "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
-                   for r in rows]
-            return {"trajectories": pts, "sample": False}
-        return {"trajectories": sample_data.trajectories(), "sample": True}
+        pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
+                "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
+               for r in rows]
+        return {"trajectories": pts, "sample": False}
 
     @app.get("/api/training-sessions")
     def training_list(code: str = Depends(require_auth)):

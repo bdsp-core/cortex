@@ -35,22 +35,24 @@ export function verdictVar(chipClass: string): string {
 export function Ring({
   ell, ellStar, chipClass, size = 56,
 }: {
-  ell: number; ellStar: number; chipClass: string; size?: number;
+  ell: number | null; ellStar: number | null; chipClass: string; size?: number;
 }) {
   useTheme(); // re-render on theme flip
   const r = size / 2 - 5;
   const cx = size / 2;
   const cy = size / 2;
   const circ = 2 * Math.PI * r;
-  const star = ellStar || 1;
-  const frac = Math.max(0, Math.min(1, ell / star));
-  const over = ell >= star;
+  // No measured ℓ (legacy verdicts-only result) → indeterminate track + "—".
+  const known = typeof ell === "number" && typeof ellStar === "number";
+  const star = (ellStar ?? 0) || 1;
+  const frac = known ? Math.max(0, Math.min(1, (ell as number) / star)) : 0;
+  const over = known && (ell as number) >= star;
   const stroke = over ? cssVar(verdictVar(chipClass)) : cssVar("--teal");
   const track = cssVar("--bd-subtle");
   const ink = cssVar("--ink");
   const inkSub = cssVar("--ink-subtle");
   const off = circ * (1 - frac);
-  const pct = Math.round((ell / star) * 100);
+  const pct = known ? Math.round(((ell as number) / star) * 100) : null;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={track} strokeWidth={5} />
@@ -63,7 +65,7 @@ export function Ring({
         x={cx} y={cy - 1} textAnchor="middle" dominantBaseline="middle"
         fontFamily="ui-monospace,Menlo,monospace" fontSize={13} fontWeight={700} fill={ink}
       >
-        {pct}
+        {pct === null ? "—" : pct}
       </text>
       <text
         x={cx} y={cy + 11} textAnchor="middle" dominantBaseline="middle"

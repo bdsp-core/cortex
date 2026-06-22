@@ -4,12 +4,12 @@
 // surface from internal nav state. The certification test launches FROM the
 // shell (rail CTA → onStartTest).
 //
-// The Dashboard surface is fully wired (KPI strip + mastery grid + ℓ/θ/RT
-// detail charts + active-protocol table + consistency sidebar) to /api/dashboard,
-// /api/trajectories and /api/regimen. Real cert verdicts/AUROC come from the
-// latest result; ℓ/θ/RT training trajectories + deck are sample (chipped). The
-// other three surfaces (Daily training / My protocol / Certification history)
-// remain titled placeholders (Phase 4b).
+// The Dashboard surface is wired to /api/dashboard, /api/trajectories and
+// /api/regimen. All values are real cert-result data — per-task ℓ/θ/ℓ*/AUROC +
+// verdict and cert-summary KPIs come from the latest result. Learning-protocol
+// surfaces (streak, deck, ℓ/θ/RT training trajectories) carry NO data until the
+// L1 trainer is ported; they render honest "available after training"
+// placeholders rather than sample data.
 //
 // Conventions ported from the mockup: theme tokens (var(--*)), SHARP edges
 // (var(--radius-*)), inline-SVG line icons (never emoji), canonical "protocol",
@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import { ThemeToggle } from "../theme/ThemeProvider";
-import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
+import { Ring, Sparkline, MiniChart } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
 import { PROFILE_SECTIONS, EXPERTISE } from "../profileFields";
 
@@ -94,9 +94,6 @@ const SHELL_CSS = `
 .cx-kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-subtle);}
 .cx-kpi .note{font-size:11px;color:var(--ink-faint);font-family:var(--mono);}
 .cx-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s8);}
-.cx-samplemark{font-size:11px;color:var(--ink-faint);letter-spacing:.04em;
-  border:1px dashed var(--bd);border-radius:var(--radius-ctl);
-  padding:2px 8px;background:var(--panel-hover);margin-left:auto;}
 @media (max-width:720px){ .cx-kpi-strip{grid-template-columns:1fr;} }
 
 .cx-panel{background:var(--panel);border:1px solid var(--bd-subtle);
@@ -445,14 +442,23 @@ function Chip({ verdict }: { verdict: string }) {
   return <span className={`cx-chip ${cls}`}><i />{text}</span>;
 }
 
-// Per-task view model assembled from dashboard tasks + (real) result overrides.
+// Short task labels for the empty (not-yet-assessed) state, when the backend
+// returns no tasks. Once a result exists the labels come from the backend.
+const TASK_LABELS: Record<string, string> = {
+  spike: "Spike", sz: "Seizure", lpd: "LPD", gpd: "GPD",
+  lrda: "LRDA", grda: "GRDA", iic: "Other",
+};
+
+// Per-task view model from the real dashboard tasks. ℓ/ℓ*/AUROC are null for a
+// legacy (verdicts-only) result or before any assessment.
 interface TaskVM {
   code: string;
   label: string;
   taskK: number;
-  ell: number;
-  ellStar: number;
-  auroc: number;
+  ell: number | null;
+  ellStar: number | null;
+  theta: number | null;
+  auroc: number | null;
   verdict: string;
 }
 
@@ -466,29 +472,25 @@ interface TrajVM {
 
 function buildTasks(d: api.DashboardData): TaskVM[] {
   const byCode = new Map(d.tasks.map((t) => [t.code, t]));
+  // The backend already returns real per-task ℓ/ℓ*/AUROC + verdict (or an empty
+  // list before any assessment). Render all 7 in canonical order; tasks absent
+  // from the response are "not yet assessed".
   return TASK_ORDER.map((code, k) => {
     const t = byCode.get(code);
-    const base: TaskVM = {
-      code,
-      label: t?.label ?? code,
-      taskK: t?.taskK ?? k,
-      // Before any real cert result, the dashboard tasks are illustrative
-      // sample data — blank them so a new user sees empty ("Not yet assessed")
-      // tiles, not prototype values.
-      ell: d.hasResult ? (t?.ell ?? 0) : 0,
-      ellStar: t?.ellStar ?? 1,
-      auroc: d.hasResult ? (t?.auroc ?? 0) : 0,
-      verdict: d.hasResult ? (t?.verdict ?? "PENDING") : "NOT_ASSESSED",
-    };
-    // REAL override: when a cert result exists, take the verdict + AUROC from it
-    // (the actual certification outcome), keyed by engine task index.
-    if (d.hasResult && d.result) {
-      const rv = d.result.verdicts?.[base.taskK];
-      if (rv) base.verdict = rv;
-      const ra = d.result.roc?.[base.taskK]?.auroc;
-      if (typeof ra === "number") base.auroc = ra;
+    if (!t) {
+      return { code, label: TASK_LABELS[code] ?? code, taskK: k,
+               ell: null, ellStar: null, theta: null, auroc: null, verdict: "NOT_ASSESSED" };
     }
-    return base;
+    return {
+      code,
+      label: t.label ?? TASK_LABELS[code] ?? code,
+      taskK: t.taskK ?? k,
+      ell: t.ell,
+      ellStar: t.ellStar,
+      theta: t.theta,
+      auroc: t.auroc,
+      verdict: t.verdict ?? "PENDING",
+    };
   });
 }
 
@@ -511,12 +513,16 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
     return <div className="cx-placeholder">No trajectory yet for this task.</div>;
   }
   const n = traj.ell.length;
+  // A trajectory only exists alongside a real result, so ℓ/ℓ* are non-null here;
+  // coalesce for the chart math to satisfy the nullable types.
+  const ellNow = task.ell ?? 0;
+  const ellStar = task.ellStar ?? 0;
 
   // (a) ℓ — skill toward ℓ*, ±sd band, dashed cut. ℓ is the ONLY param with ℓ*.
   const lows = traj.ell.map((v, i) => v - traj.sd[i]);
   const highs = traj.ell.map((v, i) => v + traj.sd[i]);
-  let aMin = Math.min(...lows, task.ellStar);
-  let aMax = Math.max(...highs, task.ellStar);
+  let aMin = Math.min(...lows, ellStar);
+  let aMax = Math.max(...highs, ellStar);
   const aPad = (aMax - aMin) * 0.14 || 0.1;
   aMin -= aPad; aMax += aPad;
 
@@ -537,12 +543,12 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
       <div className="cx-tri-chart">
         <div className="cx-tri-head">
           <span className="name">ℓ(t) <span className="k">skill · 1/σ</span></span>
-          <span className="cur">now <b>{task.ell.toFixed(2)}</b> · ℓ* {task.ellStar.toFixed(2)}</span>
+          <span className="cur">now <b>{ellNow.toFixed(2)}</b> · ℓ* {ellStar.toFixed(2)}</span>
         </div>
         <MiniChart
           series={traj.ell} yMin={aMin} yMax={aMax} fmt={(v) => v.toFixed(2)}
           label={`${task.label} skill ℓ trajectory toward ℓ*`}
-          band={[lows, highs]} rule={{ v: task.ellStar, label: "ℓ* = " + task.ellStar.toFixed(2) }}
+          band={[lows, highs]} rule={{ v: ellStar, label: "ℓ* = " + ellStar.toFixed(2) }}
         />
       </div>
       <div className="cx-tri-chart">
@@ -568,8 +574,6 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
     </div>
   );
 }
-
-const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // First-login welcome (shown while the participant has no cert result yet).
 function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () => void }) {
@@ -607,15 +611,15 @@ function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () =
   );
 }
 
-// The Dashboard surface: KPI strip + the full mastery board (mastery grid,
-// detail trajectory, active-protocol table, consistency sidebar). KPIs/ℓ/θ/RT
-// + deck are sample for now (flagged where sample:true); verdict + AUROC come
-// from the real cert result when one exists.
+// The Dashboard surface: cert-summary KPI strip + the mastery board (mastery
+// grid, detail panel, active-protocol table, consistency sidebar). Per-task
+// ℓ/θ/ℓ*/AUROC + verdict and the KPIs are real (from the latest result); the
+// training-trajectory / protocol / streak surfaces show "available after
+// training" placeholders until the trainer ships.
 function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: number) => void; onStartTest: () => void }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
-  const [sample, setSample] = useState(false);
   const [err, setErr] = useState(false);
   const [selected, setSelected] = useState<string>("gpd");
   const [showWelcome, setShowWelcome] = useState(false);
@@ -624,7 +628,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
     let live = true;
     // Each call is independent; a 401/failure on one must not blank the others.
     api.getDashboard()
-      .then((d) => { if (live) { setDash(d); setSample(d.sample); } })
+      .then((d) => { if (live) setDash(d); })
       .catch(() => { if (live) setErr(true); });
     api.getTrajectories()
       .then((t) => { if (live) setTrajPts(t.trajectories); })
@@ -651,10 +655,8 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
   const trajByK = useMemo(() => buildTraj(trajPts), [trajPts]);
 
   const hasData = !!dash?.hasResult;
-  // Sample KPIs/charts/protocol are blanked until a real cert result exists.
-  const kpis = hasData ? (dash?.kpis ?? null) : null;
-  const due = kpis?.dueToday;
-  const dueTotal = due ? due.new + due.learning + due.review : null;
+  // Real cert-summary KPIs (tasks certified / mean AUROC / last assessed).
+  const kpis = dash?.kpis ?? null;
 
   const sel = tasks.find((t) => t.code === selected) ?? tasks[0];
   const nCertified = tasks.filter((t) => chipFor(t.verdict).cls === "pass").length;
@@ -674,24 +676,19 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
           onStart={() => { dismissWelcome(); onStartTest(); }}
         />
       )}
-      <section className="cx-kpi-strip" aria-label="Key training metrics">
+      <section className="cx-kpi-strip" aria-label="Certification summary">
         <div className="cx-kpi">
-          <div className="cx-kpi-top">
-            <span className="k">Current streak</span>
-            {hasData && sample && <span className="cx-samplemark">sample data</span>}
-          </div>
-          <span className="v">{kpis ? kpis.streak : "–"}<span className="u">days</span></span>
+          <span className="k">Tasks certified</span>
+          <span className="v">{kpis ? kpis.tasksCertified : "–"}
+            <span className="u">/ {kpis ? kpis.tasksTotal : 7}</span></span>
         </div>
         <div className="cx-kpi">
-          <span className="k">Due today</span>
-          <span className="v">{dueTotal ?? "–"}<span className="u">items</span></span>
-          {due && (
-            <span className="note">{due.new} new · {due.learning} learning · {due.review} review</span>
-          )}
+          <span className="k">Mean AUROC</span>
+          <span className="v">{kpis && kpis.meanAuroc != null ? kpis.meanAuroc.toFixed(2) : "–"}</span>
         </div>
         <div className="cx-kpi">
-          <span className="k">Next re-certification</span>
-          <span className="v">{kpis ? kpis.nextRecertDays : "–"}<span className="u">days</span></span>
+          <span className="k">Last assessed</span>
+          <span className="v">{kpis && kpis.lastAssessed ? fmtDate(kpis.lastAssessed) : "–"}</span>
         </div>
       </section>
 
@@ -788,43 +785,42 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       </span>
                     </div>
                     <div className="cx-detail-meta-row">
-                      <div className="cx-metric"><span className="v">{sel.ell.toFixed(2)}</span><span className="k">current ℓ</span></div>
-                      <div className="cx-metric"><span className="v">{sel.ellStar.toFixed(2)}</span><span className="k">target ℓ*</span></div>
+                      <div className="cx-metric"><span className="v">{sel.ell != null ? sel.ell.toFixed(2) : "–"}</span><span className="k">current ℓ</span></div>
+                      <div className="cx-metric"><span className="v">{sel.ellStar != null ? sel.ellStar.toFixed(2) : "–"}</span><span className="k">target ℓ*</span></div>
                       <div className="cx-metric">
-                        <span className="v">{(sel.ell - sel.ellStar >= 0 ? "+" : "−") + Math.abs(sel.ell - sel.ellStar).toFixed(2)}</span>
+                        <span className="v">{sel.ell != null && sel.ellStar != null
+                          ? (sel.ell - sel.ellStar >= 0 ? "+" : "−") + Math.abs(sel.ell - sel.ellStar).toFixed(2)
+                          : "–"}</span>
                         <span className="k">gap to ℓ*</span>
                       </div>
-                      {(() => {
-                        const tr = trajByK.get(sel.taskK);
-                        const th = tr && tr.theta.length ? tr.theta[tr.theta.length - 1] : null;
-                        const rt = tr && tr.rt.length ? tr.rt[tr.rt.length - 1] : null;
-                        return (
-                          <>
-                            <div className="cx-metric">
-                              <span className="v">{th === null ? "–" : (th >= 0 ? "+" : "−") + Math.abs(th).toFixed(2)}</span>
-                              <span className="k">bias θ</span>
-                            </div>
-                            <div className="cx-metric">
-                              <span className="v">{rt === null ? "–" : (rt / 1000).toFixed(1) + "s"}</span>
-                              <span className="k">median RT</span>
-                            </div>
-                          </>
-                        );
-                      })()}
-                      <div className="cx-metric"><span className="v">{sel.auroc ? sel.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
                       <div className="cx-metric">
-                        <span className="v">{sel.ell >= sel.ellStar ? "0" : "~" + Math.max(1, Math.round((sel.ellStar - sel.ell) * 80))}</span>
-                        <span className="k">items to resolve</span>
+                        <span className="v">{sel.theta != null ? (sel.theta >= 0 ? "+" : "−") + Math.abs(sel.theta).toFixed(2) : "–"}</span>
+                        <span className="k">bias θ</span>
                       </div>
+                      <div className="cx-metric"><span className="v">{sel.auroc != null ? sel.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
                     </div>
                   </div>
                 </div>
-                <DetailCharts task={sel} traj={trajByK.get(sel.taskK)} />
-                <div className="cx-phase-axis">
-                  <span style={{ width: "18%" }}>EVAL</span>
-                  <span style={{ width: "64%" }}>DAILY TRAINING</span>
-                  <span style={{ width: "18%" }}>RE-CERT (proj.)</span>
-                </div>
+                {(() => {
+                  const tr = trajByK.get(sel.taskK);
+                  if (tr && tr.ell.length >= 2) {
+                    return (
+                      <>
+                        <DetailCharts task={sel} traj={tr} />
+                        <div className="cx-phase-axis">
+                          <span style={{ width: "18%" }}>EVAL</span>
+                          <span style={{ width: "64%" }}>DAILY TRAINING</span>
+                          <span style={{ width: "18%" }}>RE-CERT (proj.)</span>
+                        </div>
+                      </>
+                    );
+                  }
+                  return (
+                    <div className="cx-placeholder">
+                      Your ℓ / θ / response-time trajectory will appear here once daily training begins.
+                    </div>
+                  );
+                })()}
               </section>
             )}
 
@@ -833,8 +829,12 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             <section className="cx-panel" aria-label="Active learning protocol">
               <div className="cx-phead">
                 <h2>Active protocol</h2>
-                {regimen ? null : <span className="sub">loading…</span>}
               </div>
+              {!regimen && (
+                <div className="cx-placeholder">
+                  Your training protocol will appear here once daily training begins.
+                </div>
+              )}
               {regimen && (
                 <table className="cx-deck">
                   <thead>
@@ -870,27 +870,14 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             )}
           </div>
 
-          {/* ── consistency sidebar (heatmap + deck; empty until first result) ── */}
+          {/* ── consistency sidebar (training-activity surfaces; no data until
+                the trainer ships) ── */}
           <aside>
-            <section className="cx-panel" aria-label="Streak and recent activity">
+            <section className="cx-panel" aria-label="Recent activity">
               <div className="cx-phead"><h2>Consistency</h2></div>
-              <div className="cx-side-streak">
-                <div className="figure">
-                  <span className="n">{kpis ? kpis.streak : "–"}</span>
-                  <span className="u">day streak</span>
-                </div>
-                <div className="cx-weekstrip" aria-label="Last 7 days">
-                  {WEEKDAYS.map((lab, i) => (
-                    <div key={i} className={`d ${i === WEEKDAYS.length - 1 ? "today" : hasData ? "done" : ""}`}>
-                      <span className="cell" />
-                      <span className="lab">{lab}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="cx-heat-wrap">
-                <Heatmap empty={!hasData} />
-                <HeatLegend />
+              <div className="cx-placeholder">
+                Daily-training activity, streaks, and your contribution calendar will appear here
+                once training begins.
               </div>
             </section>
 
@@ -920,7 +907,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                   </table>
                 </div>
               ) : (
-                <div className="cx-placeholder">No items due yet.</div>
+                <div className="cx-placeholder">Your daily deck will appear here once training begins.</div>
               )}
               <div className="cx-deckhint">
                 <span className="k"><i style={{ background: "var(--c-new)" }} />New</span>
@@ -958,13 +945,13 @@ function fmtDate(iso: string | null): string {
 // ── My protocol: read-only view of the active protocol (getRegimen) ──────────
 function ProtocolSurface() {
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
-  const [sample, setSample] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(false);
 
   useEffect(() => {
     let live = true;
     api.getRegimen()
-      .then((r) => { if (live) { setRegimen(r.regimen); setSample(r.sample); } })
+      .then((r) => { if (live) { setRegimen(r.regimen); setLoaded(true); } })
       .catch(() => { if (live) setErr(true); });
     return () => { live = false; };
   }, []);
@@ -973,10 +960,14 @@ function ProtocolSurface() {
     <section className="cx-panel" aria-label="My protocol">
       <div className="cx-phead">
         <h2>My protocol</h2>
-        {sample && <span className="cx-samplemark">sample data</span>}
       </div>
       {err && !regimen && (
         <div className="cx-placeholder">Could not load your protocol. Try refreshing.</div>
+      )}
+      {loaded && !regimen && (
+        <div className="cx-placeholder">
+          Your training protocol will appear here once daily training begins.
+        </div>
       )}
       {regimen && (
         <>
@@ -1105,12 +1096,13 @@ function HistorySurface() {
 
 // ── Daily training: Anki-style deck + a non-scored PRACTICE run ──────────────
 // The real adaptive trainer is not ported yet (project decision), so "Start
-// today's session" records an honest training_session start+finalize and a
-// few sample param_trajectory points, behind a clear "Practice — not scored"
-// banner. No verdicts, no engine — it's deck review + bookkeeping.
+// today's session" records an honest training_session start+finalize behind a
+// clear "Practice — not scored" banner. No verdicts, no engine — it's deck
+// review + bookkeeping. The deck comes from a real regimen; until the trainer
+// generates one there is no deck (no sample data).
 function TrainingSurface() {
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
-  const [sample, setSample] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [practicing, setPracticing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [doneNote, setDoneNote] = useState<string | null>(null);
@@ -1118,7 +1110,7 @@ function TrainingSurface() {
   useEffect(() => {
     let live = true;
     api.getRegimen()
-      .then((r) => { if (live) { setRegimen(r.regimen); setSample(r.sample); } })
+      .then((r) => { if (live) { setRegimen(r.regimen); setLoaded(true); } })
       .catch(() => { /* leave deck empty */ });
     return () => { live = false; };
   }, []);
@@ -1181,8 +1173,12 @@ function TrainingSurface() {
     <section className="cx-panel" aria-label="Daily training">
       <div className="cx-phead">
         <h2>Daily training</h2>
-        {sample && <span className="cx-samplemark">sample data</span>}
       </div>
+      {loaded && !regimen && (
+        <div className="cx-placeholder">
+          Your daily training deck will appear here once your training protocol begins.
+        </div>
+      )}
       {regimen && (
         <table className="cx-deck">
           <thead>
@@ -1343,22 +1339,36 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
                   <span className="meta">{FULL_NAMES[task.code] ?? task.label}</span>
                 </div>
                 <div className="cx-detail-meta-row">
-                  <div className="cx-metric"><span className="v">{task.ell.toFixed(2)}</span><span className="k">current ℓ</span></div>
-                  <div className="cx-metric"><span className="v">{task.ellStar.toFixed(2)}</span><span className="k">target ℓ*</span></div>
+                  <div className="cx-metric"><span className="v">{task.ell != null ? task.ell.toFixed(2) : "–"}</span><span className="k">current ℓ</span></div>
+                  <div className="cx-metric"><span className="v">{task.ellStar != null ? task.ellStar.toFixed(2) : "–"}</span><span className="k">target ℓ*</span></div>
                   <div className="cx-metric">
-                    <span className="v">{(task.ell - task.ellStar >= 0 ? "+" : "−") + Math.abs(task.ell - task.ellStar).toFixed(2)}</span>
+                    <span className="v">{task.ell != null && task.ellStar != null
+                      ? (task.ell - task.ellStar >= 0 ? "+" : "−") + Math.abs(task.ell - task.ellStar).toFixed(2)
+                      : "–"}</span>
                     <span className="k">gap to ℓ*</span>
                   </div>
-                  <div className="cx-metric"><span className="v">{task.auroc ? task.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
+                  <div className="cx-metric">
+                    <span className="v">{task.theta != null ? (task.theta >= 0 ? "+" : "−") + Math.abs(task.theta).toFixed(2) : "–"}</span>
+                    <span className="k">bias θ</span>
+                  </div>
+                  <div className="cx-metric"><span className="v">{task.auroc != null ? task.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
                 </div>
               </div>
             </div>
-            <DetailCharts task={task} traj={traj} />
-            <div className="cx-phase-axis">
-              <span style={{ width: "18%" }}>EVAL</span>
-              <span style={{ width: "64%" }}>DAILY TRAINING</span>
-              <span style={{ width: "18%" }}>RE-CERT (proj.)</span>
-            </div>
+            {traj && traj.ell.length >= 2 ? (
+              <>
+                <DetailCharts task={task} traj={traj} />
+                <div className="cx-phase-axis">
+                  <span style={{ width: "18%" }}>EVAL</span>
+                  <span style={{ width: "64%" }}>DAILY TRAINING</span>
+                  <span style={{ width: "18%" }}>RE-CERT (proj.)</span>
+                </div>
+              </>
+            ) : (
+              <div className="cx-placeholder">
+                Your ℓ / θ / response-time trajectory will appear here once daily training begins.
+              </div>
+            )}
           </section>
 
           <section className="cx-panel" aria-label={`${task.label} verdict history`}>

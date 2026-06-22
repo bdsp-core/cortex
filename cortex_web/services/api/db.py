@@ -717,7 +717,11 @@ class Database:
             self._conn.commit()
 
     def get_trajectories(self, code: str) -> list[dict]:
+        # Dashboard reads REAL trainer output only (is_real=1). Synthetic/
+        # quarantined rows (is_real=0) are excluded so no fabricated curve can
+        # reach the UI before the L1 trainer ships.
         with self._lock:
             return self._fetchall(
                 "SELECT task_k, phase, ell, theta, sd, rt, ts "
-                "FROM param_trajectories WHERE code=? ORDER BY task_k, ts", (code,))
+                "FROM param_trajectories WHERE code=? AND is_real=1 "
+                "ORDER BY task_k, ts", (code,))

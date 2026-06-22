@@ -312,16 +312,50 @@ def test_dashboard_requires_auth(client):
     assert client.get("/api/regimen").status_code == 401
 
 
-def test_dashboard_empty_returns_sample(client):
+def test_dashboard_empty_has_no_data(client):
+    # No certification result yet → no tasks, no KPIs, never sample data.
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     d = client.get("/api/dashboard", headers=hdr).json()
     assert d["hasResult"] is False and d["result"] is None
-    assert len(d["tasks"]) == 7 and d["sample"] is True
-    assert d["kpis"]["streak"] >= 0
+    assert d["tasks"] == [] and d["kpis"] is None
+    assert d["sample"] is False
 
 
-def test_dashboard_reflects_latest_result(client):
+_SEVEN = [(0, "spike", "Spike"), (1, "sz", "Seizure"), (2, "lpd", "LPD"),
+          (3, "gpd", "GPD"), (4, "lrda", "LRDA"), (5, "grda", "GRDA"),
+          (6, "iic", "Other")]
+
+
+def test_dashboard_reflects_real_per_task(client):
+    # A Step-1 result carries `perTask` with real ℓ/θ/ℓ*/AUROC; the dashboard
+    # surfaces those verbatim and derives real cert-summary KPIs.
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    per = [{"taskK": k, "code": c, "label": lab, "ell": 1.0 + k, "theta": 0.1,
+            "ellStar": 0.3, "auroc": 0.8, "aurocHw": 0.05,
+            "verdict": "PASS" if k < 5 else "FAIL"} for k, c, lab in _SEVEN]
+    client.post("/api/results", headers=hdr,
+                json={"sessionId": sid,
+                      "result": {"verdicts": ["PASS"] * 5 + ["FAIL"] * 2,
+                                 "perTask": per},
+                      "stopReason": "all_resolved", "nQuestions": 30})
+    d = client.get("/api/dashboard", headers=hdr).json()
+    assert d["hasResult"] is True and d["sample"] is False
+    assert len(d["tasks"]) == 7
+    t0 = d["tasks"][0]
+    assert t0["ell"] == 1.0 and t0["ellStar"] == 0.3 and t0["auroc"] == 0.8
+    assert t0["theta"] == 0.1 and t0["verdict"] == "PASS"
+    k = d["kpis"]
+    assert k["tasksCertified"] == 5 and k["tasksTotal"] == 7
+    assert k["meanAuroc"] == 0.8 and k["lastAssessed"]
+
+
+def test_dashboard_legacy_result_verdicts_only(client):
+    # A pre-Step-1 result has only `verdicts` (no perTask) → verdict shows, but
+    # ℓ/ℓ*/AUROC come back None and meanAuroc is None (nothing fabricated).
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     sid = client.post("/api/session", headers=hdr,
@@ -330,8 +364,11 @@ def test_dashboard_reflects_latest_result(client):
                 json={"sessionId": sid, "result": {"verdicts": ["PASS"] * 7},
                       "stopReason": "all_resolved", "nQuestions": 30})
     d = client.get("/api/dashboard", headers=hdr).json()
-    assert d["hasResult"] is True
-    assert d["result"]["verdicts"] == ["PASS"] * 7
+    assert d["hasResult"] is True and len(d["tasks"]) == 7
+    assert all(t["verdict"] == "PASS" for t in d["tasks"])
+    assert all(t["ell"] is None and t["theta"] is None and t["auroc"] is None
+               for t in d["tasks"])
+    assert d["kpis"]["tasksCertified"] == 7 and d["kpis"]["meanAuroc"] is None
 
 
 def test_history_empty_then_after_result_with_isolation(client):
@@ -367,22 +404,33 @@ def test_history_requires_auth(client):
     assert client.get("/api/history").status_code == 401
 
 
-def test_trajectories_sample_then_real(client):
+def test_trajectories_empty_then_real(client):
+    # Empty (no fabricated curve) until a REAL (is_real=1) point exists. A point
+    # posted without isReal is quarantined (is_real=0) and stays hidden.
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     t0 = client.get("/api/trajectories", headers=hdr).json()
-    assert t0["sample"] is True and len(t0["trajectories"]) == 7 * 9
+    assert t0["sample"] is False and t0["trajectories"] == []
+    # quarantined point — still hidden
     client.post("/api/trajectories", headers=hdr,
                 json={"points": [{"taskK": 0, "phase": "train", "ell": 0.9,
                                   "theta": 0.1, "sd": 0.12, "rt": 2000}]})
+    assert client.get("/api/trajectories", headers=hdr).json()["trajectories"] == []
+    # real trainer point — surfaced
+    client.post("/api/trajectories", headers=hdr,
+                json={"points": [{"taskK": 1, "phase": "train", "ell": 0.8,
+                                  "theta": 0.0, "sd": 0.10, "rt": 1900,
+                                  "isReal": True}]})
     t1 = client.get("/api/trajectories", headers=hdr).json()
     assert t1["sample"] is False and len(t1["trajectories"]) == 1
+    assert t1["trajectories"][0]["taskK"] == 1
 
 
-def test_regimen_sample_then_real(client):
+def test_regimen_empty_then_real(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
-    assert client.get("/api/regimen", headers=hdr).json()["sample"] is True
+    r0 = client.get("/api/regimen", headers=hdr).json()
+    assert r0["sample"] is False and r0["regimen"] is None
     row = client.app.state.db.get_participant_by_email(email)
     client.app.state.db.create_regimen("rg-1", row["code"], None,
                                         {"weeks": 6, "deck": []})
