@@ -221,6 +221,13 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-weekstrip .d.today .cell{background:var(--panel);border:2px solid var(--teal);}
 .cx-weekstrip .d .lab{font-size:10px;color:var(--ink-faint);}
 .cx-heat-wrap{margin-top:var(--s8);}
+.cx-heat{position:relative;}
+.cx-heat-tip{position:absolute;transform:translate(-50%,calc(-100% - 7px));
+  background:var(--ink);color:var(--panel);font-size:11px;line-height:1.25;font-weight:500;
+  padding:4px 8px;border-radius:5px;white-space:nowrap;pointer-events:none;z-index:6;
+  box-shadow:0 2px 10px rgba(0,0,0,.22);}
+.cx-heat-tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:var(--ink);}
 .cx-heat-legend{display:flex;align-items:center;gap:var(--s12);flex-wrap:wrap;
   font-size:11px;color:var(--ink-subtle);margin-top:var(--s8);}
 .cx-heat-item{display:inline-flex;align-items:center;gap:5px;}

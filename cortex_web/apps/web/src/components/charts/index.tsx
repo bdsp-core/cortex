@@ -13,6 +13,7 @@
 // verdict. RT has no target. Verdict colors come from the theme ramp tokens,
 // never invented.
 
+import { useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { cssVar } from "../../../ui/theme";
 import { useTheme } from "../../theme/ThemeProvider";
 
@@ -310,6 +311,19 @@ export function HeatLegend() {
 // Each cell shows its date on hover; future days in the current week are blank.
 export function Heatmap({ activity = {} }: { activity?: Record<string, number> } = {}) {
   useTheme();
+  // GitHub-style hover tooltip: a custom popover that appears instantly on enter
+  // and sits centered ABOVE the hovered cell (the native <title> is slow and
+  // anchors at the cursor). Positioned from the cell's rendered box so it tracks
+  // the scaled SVG correctly.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const showTip = (e: RMouseEvent<SVGRectElement>, text: string) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const cr = e.currentTarget.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    setTip({ x: cr.left - wr.left + cr.width / 2, y: cr.top - wr.top, text });
+  };
   const weeks = 16, days = 7, cell = 13, gap = 3, padL = 14, padT = 14;
   const W = padL + weeks * (cell + gap);
   const H = padT + days * (cell + gap) + 10;
@@ -332,12 +346,11 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
       const level = activity[keyOf(ms)] ?? 0;
       const x = padL + w * (cell + gap);
       const y = padT + d * (cell + gap);
-      const title = level > 0 ? `${niceOf(ms)}: ${ACTIVITY_LABEL[level]}` : niceOf(ms);
+      const text = level > 0 ? `${niceOf(ms)}: ${ACTIVITY_LABEL[level]}` : niceOf(ms);
       cells.push(
         <rect key={`${w}-${d}`} x={x} y={y} width={cell} height={cell} rx={2}
-          fill={heatFillLevel(level)} stroke={gridInk}>
-          <title>{title}</title>
-        </rect>,
+          fill={heatFillLevel(level)} stroke={gridInk}
+          onMouseEnter={(e) => showTip(e, text)} onMouseLeave={() => setTip(null)} />,
       );
     }
   }
@@ -351,9 +364,14 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
     </text>
   ));
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Activity heatmap, last 16 weeks">
-      {lbls}
-      {cells}
-    </svg>
+    <div className="cx-heat" ref={wrapRef}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Activity heatmap, last 16 weeks">
+        {lbls}
+        {cells}
+      </svg>
+      {tip && (
+        <div className="cx-heat-tip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>
+      )}
+    </div>
   );
 }
