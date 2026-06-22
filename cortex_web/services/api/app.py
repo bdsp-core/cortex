@@ -390,7 +390,10 @@ def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
         y = diag.get("y") if diag else None
         pick = row.get("pick")
         pick = int(pick) if pick is not None else None
-        is_spike = (k is not None and k < len(classes) and classes[k] == "spike")
+        # Spike phase vs IIIC phase. Use the manifest's taskClasses when present;
+        # otherwise fall back to the canonical spike index (0).
+        is_spike = k is not None and (
+            classes[k] == "spike" if (classes and k < len(classes)) else k == 0)
         answer = correct = None
         is_correct = None
         if is_spike:
@@ -415,7 +418,9 @@ def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
         out.append({
             "q": (row.get("trial_index", 0) or 0) + 1,
             "taskK": k,
-            "domain": labels[k] if (k is not None and k < len(labels)) else (f"task {k}" if k is not None else "—"),
+            # The test phase, not the engine-probed sub-domain (which reads as if
+            # it were the correct answer). The correct pattern is its own column.
+            "domain": ("—" if k is None else ("Spike" if is_spike else "IIIC")),
             "answer": answer,
             "correct": correct,
             "isCorrect": is_correct,

@@ -432,7 +432,9 @@ def test_question_breakdown_pure():
          "diag": _diag(2, 0, 0.0, 0.5)},
     ]
     rows = _question_breakdown(trials, _TRUTH)
+    # domain reads the PHASE (Spike / IIIC), not the probed sub-domain
     assert rows[0]["q"] == 1 and rows[0]["domain"] == "Spike"
+    assert rows[1]["domain"] == "IIIC" and rows[2]["domain"] == "IIIC"
     assert rows[0]["answer"] == "Yes" and rows[0]["correct"] == "Yes" and rows[0]["isCorrect"] is True
     assert rows[0]["deltaR"] == 0.2 and rows[0]["pi"] == 0.6 and rows[0]["ell"] == 0.5
     assert rows[1]["answer"] == "LPD" and rows[1]["correct"] == "LPD" and rows[1]["isCorrect"] is True
@@ -461,7 +463,7 @@ def test_history_questions_endpoint(client, monkeypatch):
     q0, q1, q2 = r["questions"]
     assert q0["domain"] == "Spike" and q0["answer"] == "Yes" and q0["isCorrect"] is True and q0["rt"] == 1500
     assert q1["answer"] == "No" and q1["correct"] == "No" and q1["isCorrect"] is True
-    assert q2["answer"] == "LPD" and q2["correct"] == "GPD" and q2["isCorrect"] is False
+    assert q2["domain"] == "IIIC" and q2["answer"] == "LPD" and q2["correct"] == "GPD" and q2["isCorrect"] is False
 
     # auth-scoped: another participant cannot read this session's questions
     e2, p2 = _make_participant(client)
