@@ -123,6 +123,9 @@ export interface MiniChartProps {
   band?: [number[], number[]] | null;
   rule?: { v: number; label: string } | null;
   zeroRule?: boolean;
+  // Per-point phase ("eval"|"recert"=certification anchor, "train"=training).
+  // Anchors render as solid, larger, darker dots; training points lighter.
+  phases?: string[];
 }
 
 export function MiniChart(o: MiniChartProps) {
@@ -235,12 +238,22 @@ export function MiniChart(o: MiniChartProps) {
   }
 
   const d = s.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
-  const dots = s.map((v, i) => (
-    <circle
-      key={`d${i}`} cx={X(i).toFixed(1)} cy={Y(v).toFixed(1)} r={2.2}
-      fill={i === n - 1 ? teal : panel} stroke={teal} strokeWidth={1.4}
-    />
-  ));
+  // Certification anchors (eval/recert) read darker + larger than training
+  // points; without phase info, fall back to emphasizing the latest point.
+  const inkDark = cssVar("--ink");
+  const isCert = (i: number) =>
+    o.phases ? (o.phases[i] === "eval" || o.phases[i] === "recert") : i === n - 1;
+  const dots = s.map((v, i) => {
+    const cert = isCert(i);
+    return (
+      <circle
+        key={`d${i}`} cx={X(i).toFixed(1)} cy={Y(v).toFixed(1)} r={cert ? 3.3 : 2.2}
+        fill={cert ? (o.phases ? inkDark : teal) : panel}
+        stroke={cert ? (o.phases ? inkDark : teal) : teal} strokeWidth={1.4}
+        opacity={cert ? 1 : 0.8}
+      />
+    );
+  });
 
   return (
     <svg

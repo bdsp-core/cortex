@@ -468,6 +468,7 @@ interface TrajVM {
   theta: number[];
   sd: number[];
   rt: number[];   // ms
+  phase: string[];   // per-point: "eval" | "train" | "recert" (drives marker weight)
 }
 
 function buildTasks(d: api.DashboardData): TaskVM[] {
@@ -498,11 +499,12 @@ function buildTraj(points: api.TrajectoryPoint[]): Map<number, TrajVM> {
   const m = new Map<number, TrajVM>();
   for (const p of points) {
     let v = m.get(p.taskK);
-    if (!v) { v = { ell: [], theta: [], sd: [], rt: [] }; m.set(p.taskK, v); }
+    if (!v) { v = { ell: [], theta: [], sd: [], rt: [], phase: [] }; m.set(p.taskK, v); }
     v.ell.push(p.ell);
     v.theta.push(p.theta);
     v.sd.push(p.sd);
     v.rt.push(p.rt);
+    v.phase.push(p.phase);
   }
   return m;
 }
@@ -551,7 +553,7 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
         </div>
         <MiniChart
           series={traj.ell} yMin={aMin} yMax={aMax} fmt={(v) => v.toFixed(2)}
-          label={`${task.label} skill ℓ trajectory toward ℓ*`}
+          label={`${task.label} skill ℓ trajectory toward ℓ*`} phases={traj.phase}
           band={[lows, highs]} rule={{ v: ellStar, label: "ℓ* = " + ellStar.toFixed(2) }}
         />
       </div>
@@ -561,7 +563,7 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
           <span className="cur">now <b>{fmtTheta(thNow)}</b> · neutral 0</span>
         </div>
         <MiniChart
-          series={traj.theta} yMin={-tAbs} yMax={tAbs} fmt={fmtTheta}
+          series={traj.theta} yMin={-tAbs} yMax={tAbs} fmt={fmtTheta} phases={traj.phase}
           label={`${task.label} decision bias θ trajectory toward neutral`} zeroRule
         />
       </div>
@@ -573,7 +575,7 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
         {rtFinite ? (
           <MiniChart
             series={rtS} yMin={rMin} yMax={rMax} fmt={(v) => v.toFixed(1) + "s"}
-            label={`${task.label} median reaction-time trend`}
+            label={`${task.label} median reaction-time trend`} phases={traj.phase}
           />
         ) : (
           <div className="cx-placeholder">Reaction-time data not recorded for this attempt.</div>
