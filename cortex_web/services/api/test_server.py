@@ -458,6 +458,68 @@ def test_results_writes_eval_trajectory(client):
     assert len([p for p in pts2 if p["phase"] == "eval"]) == 7
 
 
+def test_backfill_legacy_eval_trajectory(client):
+    # A legacy result (verdicts + trials blob, NO perTask) gets its eval point
+    # reconstructed from the final trial's lMean/tMean + trials reaction times.
+    from . import backfill_eval_trajectories as bf
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    # trials-table rows with reaction times (median RT source): task 0 → 2050
+    for i, (tk, rt) in enumerate([(0, 2000), (0, 2100), (3, 3000)]):
+        client.post("/api/progress", headers=hdr, json={"sessionId": sid,
+            "trial": {"trialIndex": i, "taskK": tk, "reactionMs": rt}})
+    lmean = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
+    tmean = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7]
+    legacy = {"verdicts": ["PASS"] * 5 + ["FAIL"] * 2,
+              "trials": [{"trialIndex": 0, "lMean": [0] * 7, "tMean": [0] * 7},
+                         {"trialIndex": 1, "lMean": lmean, "tMean": tmean}]}
+    client.post("/api/results", headers=hdr, json={"sessionId": sid, "result": legacy,
+                "stopReason": "all_resolved", "nQuestions": 2})
+
+    # before: legacy (ℓ null), no trajectory points
+    d0 = client.get("/api/dashboard", headers=hdr).json()
+    assert d0["tasks"][0]["ell"] is None
+    assert client.get("/api/trajectories", headers=hdr).json()["trajectories"] == []
+
+    ell_star = [0.30, 0.25, 0.50, 0.33, 0.48, 0.49, 0.44]
+    db = client.app.state.db
+    summary = bf.run(db, ell_star, apply=True)
+    assert any(s.get("session_id") == sid and s["status"] == "reconstructed"
+               for s in summary["sessions"])
+
+    # after: dashboard ℓ/ℓ* real, 7 eval trajectory points with median RT
+    d1 = client.get("/api/dashboard", headers=hdr).json()
+    t0 = next(t for t in d1["tasks"] if t["taskK"] == 0)
+    assert t0["ell"] == 1.0 and t0["ellStar"] == 0.30 and t0["auroc"] is None
+    pts = client.get("/api/trajectories", headers=hdr).json()["trajectories"]
+    assert len(pts) == 7 and all(p["phase"] == "eval" for p in pts)
+    p0 = next(p for p in pts if p["taskK"] == 0)
+    assert p0["ell"] == 1.0 and p0["theta"] == 0.1 and p0["rt"] == 2050  # median(2000,2100)
+    assert next(p for p in pts if p["taskK"] == 1)["rt"] is None  # no trials for task 1
+
+    # idempotent: re-run does not reconstruct this session again
+    summary2 = bf.run(db, ell_star, apply=True)
+    assert not any(s.get("session_id") == sid and s["status"] == "reconstructed"
+                   for s in summary2["sessions"])
+
+
+def test_backfill_unrecoverable_without_trials(client):
+    # A legacy result with no trials array can't be reconstructed → skipped.
+    from . import backfill_eval_trajectories as bf
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    client.post("/api/results", headers=hdr, json={"sessionId": sid,
+                "result": {"verdicts": ["PASS"] * 7}, "stopReason": "x", "nQuestions": 7})
+    summary = bf.run(client.app.state.db, [0.3] * 7, apply=True)
+    assert any(s.get("session_id") == sid and s["status"] == "unrecoverable"
+               for s in summary["sessions"])
+    assert client.get("/api/trajectories", headers=hdr).json()["trajectories"] == []
+
+
 def test_regimen_empty_then_real(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
