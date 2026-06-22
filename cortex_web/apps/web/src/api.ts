@@ -349,6 +349,23 @@ export interface HistorySession {
   result: CertResult;
 }
 
+// One question's breakdown row (GET /api/history/{id}/questions). Nullable
+// fields are absent on legacy/partial trials or when ground truth is unknown.
+export interface QuestionRow {
+  q: number;                 // 1-based question number
+  taskK: number | null;
+  domain: string;            // task label
+  answer: boolean | null;    // examinee answered "yes" for this pattern
+  correct: boolean | null;   // the pattern was truly present
+  isCorrect: boolean | null; // answer === correct
+  rt: number | null;         // reaction time, ms
+  deltaR: number | null;     // per-question Δ info gain for the domain
+  R: number | null;          // cumulative info gain (R)
+  pi: number | null;         // pass-mass P(ℓ>ℓ*)
+  ell: number | null;        // running skill ℓ
+  theta: number | null;      // running bias θ
+}
+
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
@@ -363,6 +380,9 @@ export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
 }
 export function getHistory(): Promise<{ sessions: HistorySession[] }> {
   return authedFetch("/api/history");
+}
+export function getQuestions(sessionId: string): Promise<{ sessionId: string; nQuestions: number; questions: QuestionRow[] }> {
+  return authedFetch(`/api/history/${encodeURIComponent(sessionId)}/questions`);
 }
 export function startTrainingSession(taskFocus?: string): Promise<{ trainingId: string }> {
   return authedFetch("/api/training-sessions", {

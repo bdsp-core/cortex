@@ -80,7 +80,10 @@ const SHELL_CSS = `
 .cx-signout:hover{background:var(--panel-hover);border-color:var(--bd);}
 .cx-signout .ic{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;
   stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
-.cx-wrap{display:flex;flex-direction:column;min-height:100vh;}
+/* min-width:0 lets the content column shrink below a wide child's min-content
+   (e.g. the per-question table), so the table scrolls inside its own container
+   instead of pushing the page wider. */
+.cx-wrap{display:flex;flex-direction:column;min-height:100vh;min-width:0;}
 .cx-content{flex:1 0 auto;width:100%;box-sizing:border-box;padding:var(--s24) var(--s32) var(--s48);}
 
 .cx-kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s16);
@@ -297,6 +300,24 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-hist-cell .tk{font-size:13px;font-weight:600;}
 .cx-hist-cell .tk .au{display:block;font-family:var(--mono);font-size:11px;
   color:var(--ink-subtle);font-weight:400;}
+/* per-question breakdown table (scrolls; adapts to width without page overflow) */
+.cx-q-section{margin-top:var(--s16);}
+.cx-q-title{font-size:11px;font-weight:600;color:var(--ink-subtle);
+  text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--s8);}
+.cx-q-scroll{max-height:min(60vh,520px);overflow:auto;
+  border:1px solid var(--bd-subtle);border-radius:var(--radius-ctl);background:var(--panel);
+  -webkit-overflow-scrolling:touch;}
+.cx-q-table{width:100%;min-width:660px;border-collapse:collapse;font-size:12.5px;}
+.cx-q-table th,.cx-q-table td{padding:6px 10px;text-align:left;white-space:nowrap;
+  border-bottom:1px solid var(--bd-subtle);}
+.cx-q-table th{position:sticky;top:0;z-index:1;background:var(--panel);font-weight:600;
+  font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-subtle);}
+.cx-q-table th.r,.cx-q-table td.r{text-align:right;}
+.cx-q-table td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.cx-q-table td.ok{color:var(--pass);font-weight:600;}
+.cx-q-table td.no{color:var(--fail);font-weight:600;}
+.cx-q-table tbody tr:last-child td{border-bottom:none;}
+.cx-q-table tbody tr:hover{background:var(--panel-hover);}
 
 /* ---------- training: practice banner + CTA ---------- */
 .cx-practice-banner{display:flex;align-items:center;gap:var(--s12);
@@ -1031,10 +1052,14 @@ function ProtocolSurface() {
 }
 
 // ── Certification history: past attempts (getHistory) — REAL data ────────────
+type QState = api.QuestionRow[] | "loading" | "error" | undefined;
+
 function HistorySurface() {
   const [sessions, setSessions] = useState<api.HistorySession[] | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  // Per-question breakdown, lazy-loaded per session the first time it's opened.
+  const [qBy, setQBy] = useState<Record<string, QState>>({});
 
   useEffect(() => {
     let live = true;
@@ -1043,6 +1068,17 @@ function HistorySurface() {
       .catch(() => { if (live) setErr(true); });
     return () => { live = false; };
   }, []);
+
+  const toggle = (sid: string) => {
+    const next = open === sid ? null : sid;
+    setOpen(next);
+    if (next && qBy[next] === undefined) {
+      setQBy((m) => ({ ...m, [next]: "loading" }));
+      api.getQuestions(next)
+        .then((r) => setQBy((m) => ({ ...m, [next]: r.questions })))
+        .catch(() => setQBy((m) => ({ ...m, [next]: "error" })));
+    }
+  };
 
   return (
     <section className="cx-panel" aria-label="Certification history">
@@ -1066,7 +1102,7 @@ function HistorySurface() {
                   type="button"
                   className="cx-hist-head"
                   aria-expanded={isOpen}
-                  onClick={() => setOpen(isOpen ? null : s.session_id)}
+                  onClick={() => toggle(s.session_id)}
                 >
                   <span className="date">{fmtDate(s.finished_utc)}</span>
                   <span className="qn">{s.n_questions ?? "—"} questions</span>
@@ -1093,6 +1129,18 @@ function HistorySurface() {
                         );
                       })}
                     </div>
+                    <div className="cx-q-section">
+                      <div className="cx-q-title">Per-question breakdown</div>
+                      {qBy[s.session_id] === "loading" && (
+                        <div className="cx-placeholder">Loading questions…</div>
+                      )}
+                      {qBy[s.session_id] === "error" && (
+                        <div className="cx-placeholder">Could not load the question breakdown.</div>
+                      )}
+                      {Array.isArray(qBy[s.session_id]) && (
+                        <QuestionTable rows={qBy[s.session_id] as api.QuestionRow[]} />
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1101,6 +1149,53 @@ function HistorySurface() {
         </div>
       )}
     </section>
+  );
+}
+
+// Scrollable, responsive per-question table for one certification attempt.
+// Up to ~500 rows; the scroll container caps height and handles narrow widths
+// via horizontal scroll (the table keeps a min-width so columns never crush).
+function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
+  if (!rows.length) {
+    return <div className="cx-placeholder">No per-question data for this attempt.</div>;
+  }
+  const yn = (b: boolean | null) => (b === null ? "—" : b ? "Yes" : "No");
+  const num = (v: number | null, d = 2) => (v === null ? "—" : v.toFixed(d));
+  return (
+    <div className="cx-q-scroll">
+      <table className="cx-q-table">
+        <thead>
+          <tr>
+            <th className="r">#</th>
+            <th>Domain</th>
+            <th>Your answer</th>
+            <th>Correct</th>
+            <th className="r">RT</th>
+            <th className="r" title="This question's contribution to skill-parameter certainty (Δ normalized info gain)">Δ info</th>
+            <th className="r">ℓ / θ</th>
+            <th className="r" title="Pass-mass P(ℓ > ℓ*)">π</th>
+            <th className="r" title="Cumulative info gain">R</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((q) => (
+            <tr key={q.q}>
+              <td className="r mono">{q.q}</td>
+              <td>{q.domain}</td>
+              <td className={q.isCorrect === null ? "" : q.isCorrect ? "ok" : "no"}>
+                {yn(q.answer)}{q.isCorrect === true ? " ✓" : q.isCorrect === false ? " ✗" : ""}
+              </td>
+              <td>{yn(q.correct)}</td>
+              <td className="r mono">{q.rt === null ? "—" : (q.rt / 1000).toFixed(1) + "s"}</td>
+              <td className="r mono">{num(q.deltaR, 3)}</td>
+              <td className="r mono">{num(q.ell)} / {num(q.theta)}</td>
+              <td className="r mono">{num(q.pi)}</td>
+              <td className="r mono">{num(q.R, 3)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

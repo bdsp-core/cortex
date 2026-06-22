@@ -404,6 +404,72 @@ def test_history_requires_auth(client):
     assert client.get("/api/history").status_code == 401
 
 
+_TRUTH = {"seg": {100: "lpd", 200: "seizure"},
+          "words": ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"],
+          "classes": ["spike", "iiic", "iiic", "iiic", "iiic", "iiic", "iiic"],
+          "labels": ["Spike", "Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"]}
+
+
+def _diag(k, y, s, R, pi=0.5, ell=0.3, theta=-0.1):
+    d = {"taskK": k, "y": y, "s": s, "R": [0.0] * 7, "pi": [0.0] * 7,
+         "lMean": [0.0] * 7, "tMean": [0.0] * 7}
+    d["R"][k] = R; d["pi"][k] = pi; d["lMean"][k] = ell; d["tMean"][k] = theta
+    return d
+
+
+def test_question_breakdown_pure():
+    from .app import _question_breakdown
+    trials = [
+        # spike, said YES, s>0 → truth YES → correct; ΔR from 0 → 0.2
+        {"trial_index": 0, "seg_id": 50, "task_k": 0, "reaction_ms": 1500,
+         "diag": _diag(0, 1, 0.8, 0.2, pi=0.6, ell=0.5, theta=0.1)},
+        # LPD on seg100 (truth lpd), said YES → truth YES → correct; ΔR 0→0.3
+        {"trial_index": 1, "seg_id": 100, "task_k": 2, "reaction_ms": 2000,
+         "diag": _diag(2, 1, 0.0, 0.3)},
+        # LPD on seg200 (truth seizure≠lpd), said YES → truth NO → INCORRECT;
+        # ΔR 0.3→0.5 = 0.2
+        {"trial_index": 2, "seg_id": 200, "task_k": 2, "reaction_ms": 1800,
+         "diag": _diag(2, 1, 0.0, 0.5)},
+    ]
+    rows = _question_breakdown(trials, _TRUTH)
+    assert rows[0]["q"] == 1 and rows[0]["domain"] == "Spike"
+    assert rows[0]["answer"] is True and rows[0]["correct"] is True and rows[0]["isCorrect"] is True
+    assert rows[0]["deltaR"] == 0.2 and rows[0]["pi"] == 0.6 and rows[0]["ell"] == 0.5
+    assert rows[1]["domain"] == "LPD" and rows[1]["isCorrect"] is True and rows[1]["deltaR"] == 0.3
+    assert rows[2]["correct"] is False and rows[2]["isCorrect"] is False
+    assert abs(rows[2]["deltaR"] - 0.2) < 1e-9   # cumulative-R delta on same task
+
+
+def test_history_questions_endpoint(client, monkeypatch):
+    from . import app as app_module
+    monkeypatch.setattr(app_module, "_TRUTH_CACHE", _TRUTH)
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    # diag stored as a real per-trial checkpoint (DB keeps it as a JSON string)
+    for i, (k, y, s, R) in enumerate([(0, 1, 0.9, 0.2), (0, 0, -0.5, 0.35)]):
+        client.post("/api/progress", headers=hdr, json={"sessionId": sid,
+            "trial": {"trialIndex": i, "segId": 1000 + i, "taskK": k,
+                      "pick": y, "reactionMs": 1500 + i, "diag": _diag(k, y, s, R)}})
+    r = client.get(f"/api/history/{sid}/questions", headers=hdr).json()
+    assert r["nQuestions"] == 2
+    q0, q1 = r["questions"]
+    assert q0["domain"] == "Spike" and q0["answer"] is True and q0["isCorrect"] is True
+    assert q0["deltaR"] == 0.2 and q0["rt"] == 1500
+    # said NO, spike s<0 → truth NO → still correct
+    assert q1["answer"] is False and q1["correct"] is False and q1["isCorrect"] is True
+
+    # auth-scoped: another participant cannot read this session's questions
+    e2, p2 = _make_participant(client)
+    assert client.get(f"/api/history/{sid}/questions",
+                      headers=_auth_header(client, e2, p2)).status_code == 404
+
+
+def test_history_questions_requires_auth(client):
+    assert client.get("/api/history/whatever/questions").status_code == 401
+
+
 def test_trajectories_empty_then_real(client):
     # Empty (no fabricated curve) until a REAL (is_real=1) point exists. A point
     # posted without isReal is quarantined (is_real=0) and stays hidden.

@@ -326,6 +326,97 @@ def _dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
     }
 
 
+# ──────────────── per-question breakdown (history) ──────────────
+# The bundle manifest is the ground-truth source: segId → patternClass, the
+# per-task pattern words, and which task is the (binary) spike task. Loaded once
+# and cached — it's the same file the SPA + the ℓ* backfill read.
+_TRUTH_CACHE: dict | None = None
+
+
+def _load_truth_map() -> dict:
+    """{'seg': {segId: patternClass}, 'words': [...], 'classes': [...],
+    'labels': [...]} from the bundle manifest, or empty maps if absent."""
+    global _TRUTH_CACHE
+    if _TRUTH_CACHE is not None:
+        return _TRUTH_CACHE
+    empty = {"seg": {}, "words": [], "classes": [], "labels": []}
+    try:
+        manifests = sorted(BUNDLE_DIR.glob("*/manifest.json"))
+        if not manifests:
+            _TRUTH_CACHE = empty
+            return _TRUTH_CACHE
+        m = json.loads(manifests[0].read_text())
+        _TRUTH_CACHE = {
+            "seg": {int(s["segId"]): s.get("patternClass")
+                    for s in m.get("segments", []) if "segId" in s},
+            "words": m.get("taskPatternWords", []),
+            "classes": m.get("taskClasses", []),
+            "labels": m.get("taskLabels", []),
+        }
+    except Exception:
+        _TRUTH_CACHE = empty
+    return _TRUTH_CACHE
+
+
+def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
+    """Per-question rows for one session: the examinee's answer, the correct
+    answer (spike → s>0; IIIC → segment class == task word), reaction time, the
+    per-question contribution to skill-parameter uncertainty (ΔR, the increment
+    in normalized info gain for the targeted domain), and the running posterior
+    (ℓ/θ), pass-mass π, and cumulative R. Reconstructed from the stored diag, so
+    legacy sessions work too."""
+    seg, words, classes, labels = (truth["seg"], truth["words"],
+                                   truth["classes"], truth["labels"])
+    prev_R: dict[int, float] = {}
+    out = []
+    for row in trials:
+        diag = row.get("diag")
+        if isinstance(diag, str):
+            try:
+                diag = json.loads(diag)
+            except Exception:
+                diag = None
+        k = row.get("task_k")
+        k = int(k) if k is not None else (int(diag["taskK"]) if diag and diag.get("taskK") is not None else None)
+
+        def _at(key, idx):
+            v = diag.get(key) if diag else None
+            return v[idx] if isinstance(v, list) and idx is not None and idx < len(v) else None
+
+        y = diag.get("y") if diag else None
+        answer_yes = (y == 1) if y is not None else None
+        # correct answer (target pattern truly present?)
+        truth_yes = None
+        if k is not None:
+            if k < len(classes) and classes[k] == "spike":
+                s = diag.get("s") if diag else None
+                truth_yes = (s > 0) if isinstance(s, (int, float)) else None
+            else:
+                pc = seg.get(int(row["seg_id"])) if row.get("seg_id") is not None else None
+                if pc is not None and k < len(words):
+                    truth_yes = (pc == words[k])
+        R_k = _at("R", k)
+        d_R = None
+        if R_k is not None and k is not None:
+            d_R = max(0.0, R_k - prev_R.get(k, 0.0))
+            prev_R[k] = R_k
+        out.append({
+            "q": (row.get("trial_index", 0) or 0) + 1,
+            "taskK": k,
+            "domain": labels[k] if (k is not None and k < len(labels)) else (f"task {k}" if k is not None else "—"),
+            "answer": answer_yes,
+            "correct": truth_yes,
+            "isCorrect": (None if (answer_yes is None or truth_yes is None) else answer_yes == truth_yes),
+            "rt": row.get("reaction_ms"),
+            "deltaR": d_R,
+            "R": R_k,
+            "pi": _at("pi", k),
+            "ell": _at("lMean", k),
+            "theta": _at("tMean", k),
+        })
+    return out
+
+
 # ───────────────────────── rate limiter ────────────────────────
 # In-memory sliding-window counter per (route, IP). Resets on restart, which
 # is fine at this scale — restarts are rare and a determined attacker can do
@@ -782,6 +873,17 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         # Completed certification attempts for this participant, newest first.
         # Real data only (no sample); scoped strictly by the authed code.
         return {"sessions": db.list_results_for_code(code)}
+
+    @app.get("/api/history/{session_id}/questions")
+    def history_questions(session_id: str, code: str = Depends(require_auth)):
+        # Per-question breakdown for one of THIS participant's tests. Lazy —
+        # the history UI fetches it only when a test's dropdown is expanded.
+        sess = db.get_session(session_id)
+        if sess is None or sess["code"] != code:
+            raise HTTPException(404, "unknown session")
+        questions = _question_breakdown(db.session_trials(session_id), _load_truth_map())
+        return {"sessionId": session_id, "nQuestions": len(questions),
+                "questions": questions}
 
     # Learning-protocol surfaces (regimen + ℓ/θ/RT trajectories). These carry
     # REAL data only — the active regimen if the trainer has generated one, and
