@@ -1787,7 +1787,7 @@ export function Shell({
                 className="cx-btn primary"
                 onClick={() => { setView("training"); onStartTraining(); }}
               >
-                Resume training <span className="arrow">→</span>
+                Resume training
               </button>
               <button type="button" className="cx-btn" onClick={onStartTest}>
                 Re-take certification test
