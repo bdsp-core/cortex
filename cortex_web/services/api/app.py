@@ -383,18 +383,30 @@ def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
             v = diag.get(key) if diag else None
             return v[idx] if isinstance(v, list) and idx is not None and idx < len(v) else None
 
+        # Answer + correct answer. Spike is binary (Yes/No). IIIC is a 6-way
+        # classification: `pick` is the engine task index of the pattern the
+        # examinee chose, so their answer is that pattern's label and the correct
+        # answer is the segment's true pattern (NOT a Yes/No carried from spike).
         y = diag.get("y") if diag else None
-        answer_yes = (y == 1) if y is not None else None
-        # correct answer (target pattern truly present?)
-        truth_yes = None
-        if k is not None:
-            if k < len(classes) and classes[k] == "spike":
-                s = diag.get("s") if diag else None
-                truth_yes = (s > 0) if isinstance(s, (int, float)) else None
-            else:
-                pc = seg.get(int(row["seg_id"])) if row.get("seg_id") is not None else None
-                if pc is not None and k < len(words):
-                    truth_yes = (pc == words[k])
+        pick = row.get("pick")
+        pick = int(pick) if pick is not None else None
+        is_spike = (k is not None and k < len(classes) and classes[k] == "spike")
+        answer = correct = None
+        is_correct = None
+        if is_spike:
+            answer = ("Yes" if y == 1 else "No") if y is not None else None
+            s = diag.get("s") if diag else None
+            truth_yes = (s > 0) if isinstance(s, (int, float)) else None
+            correct = ("Yes" if truth_yes else "No") if truth_yes is not None else None
+            is_correct = None if (answer is None or correct is None) else (answer == correct)
+        else:
+            answer = labels[pick] if (pick is not None and 0 <= pick < len(labels)) else None
+            pc = seg.get(int(row["seg_id"])) if row.get("seg_id") is not None else None
+            if pc is not None:
+                ci = words.index(pc) if pc in words else None
+                correct = labels[ci] if (ci is not None and ci < len(labels)) else pc.upper()
+            if pick is not None and 0 <= pick < len(words) and pc is not None:
+                is_correct = (words[pick] == pc)
         R_k = _at("R", k)
         d_R = None
         if R_k is not None and k is not None:
@@ -404,9 +416,9 @@ def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
             "q": (row.get("trial_index", 0) or 0) + 1,
             "taskK": k,
             "domain": labels[k] if (k is not None and k < len(labels)) else (f"task {k}" if k is not None else "—"),
-            "answer": answer_yes,
-            "correct": truth_yes,
-            "isCorrect": (None if (answer_yes is None or truth_yes is None) else answer_yes == truth_yes),
+            "answer": answer,
+            "correct": correct,
+            "isCorrect": is_correct,
             "rt": row.get("reaction_ms"),
             "deltaR": d_R,
             "R": R_k,

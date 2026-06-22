@@ -354,10 +354,10 @@ export interface HistorySession {
 export interface QuestionRow {
   q: number;                 // 1-based question number
   taskK: number | null;
-  domain: string;            // task label
-  answer: boolean | null;    // examinee answered "yes" for this pattern
-  correct: boolean | null;   // the pattern was truly present
-  isCorrect: boolean | null; // answer === correct
+  domain: string;            // tested-domain label (whose estimate this informed)
+  answer: string | null;     // their answer: "Yes"/"No" (spike) or pattern label (IIIC)
+  correct: string | null;    // correct answer: "Yes"/"No" (spike) or true pattern (IIIC)
+  isCorrect: boolean | null; // answer matched the correct answer
   rt: number | null;         // reaction time, ms
   deltaR: number | null;     // per-question Δ info gain for the domain
   R: number | null;          // cumulative info gain (R)

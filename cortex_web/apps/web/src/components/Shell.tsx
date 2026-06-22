@@ -1159,7 +1159,6 @@ function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
   if (!rows.length) {
     return <div className="cx-placeholder">No per-question data for this attempt.</div>;
   }
-  const yn = (b: boolean | null) => (b === null ? "—" : b ? "Yes" : "No");
   const num = (v: number | null, d = 2) => (v === null ? "—" : v.toFixed(d));
   return (
     <div className="cx-q-scroll">
@@ -1183,9 +1182,9 @@ function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
               <td className="r mono">{q.q}</td>
               <td>{q.domain}</td>
               <td className={q.isCorrect === null ? "" : q.isCorrect ? "ok" : "no"}>
-                {yn(q.answer)}{q.isCorrect === true ? " ✓" : q.isCorrect === false ? " ✗" : ""}
+                {q.answer ?? "—"}
               </td>
-              <td>{yn(q.correct)}</td>
+              <td>{q.correct ?? "—"}</td>
               <td className="r mono">{q.rt === null ? "—" : (q.rt / 1000).toFixed(1) + "s"}</td>
               <td className="r mono">{num(q.deltaR, 3)}</td>
               <td className="r mono">{num(q.ell)} / {num(q.theta)}</td>
