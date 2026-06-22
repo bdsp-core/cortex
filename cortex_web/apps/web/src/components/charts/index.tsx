@@ -52,7 +52,9 @@ export function Ring({
   const ink = cssVar("--ink");
   const inkSub = cssVar("--ink-subtle");
   const off = circ * (1 - frac);
-  const pct = known ? Math.round(((ell as number) / star) * 100) : null;
+  // Floor at 0: below-baseline skill (ℓ<0) reads "0%", not a negative percent
+  // (the progress arc is already clamped to [0,1]). Above the cut still exceeds 100.
+  const pct = known ? Math.max(0, Math.round(((ell as number) / star) * 100)) : null;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={track} strokeWidth={5} />
