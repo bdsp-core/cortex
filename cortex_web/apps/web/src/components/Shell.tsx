@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import { ThemeToggle } from "../theme/ThemeProvider";
-import { Ring, Sparkline, MiniChart } from "./charts";
+import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
 import { PROFILE_SECTIONS, EXPERTISE } from "../profileFields";
 
@@ -221,8 +221,9 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-weekstrip .d.today .cell{background:var(--panel);border:2px solid var(--teal);}
 .cx-weekstrip .d .lab{font-size:10px;color:var(--ink-faint);}
 .cx-heat-wrap{margin-top:var(--s8);}
-.cx-heat-legend{display:flex;align-items:center;gap:6px;justify-content:flex-end;
+.cx-heat-legend{display:flex;align-items:center;gap:var(--s12);flex-wrap:wrap;
   font-size:11px;color:var(--ink-subtle);margin-top:var(--s8);}
+.cx-heat-item{display:inline-flex;align-items:center;gap:5px;}
 .cx-heat-sw{width:11px;height:11px;border-radius:0;border:1px solid rgba(0,0,0,.05);}
 .cx-deck-mini{margin-top:var(--s8);}
 .cx-deck-mini table.cx-deck td.task{min-width:auto;}
@@ -657,6 +658,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
   const [regimen, setRegimen] = useState<api.RegimenPlan | null>(null);
+  const [activity, setActivity] = useState<Record<string, number>>({});
   const [err, setErr] = useState(false);
   const [selected, setSelected] = useState<string>("gpd");
   const [showWelcome, setShowWelcome] = useState(false);
@@ -673,6 +675,9 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
     api.getRegimen()
       .then((r) => { if (live) setRegimen(r.regimen); })
       .catch(() => { /* leave protocol table empty */ });
+    api.getActivity()
+      .then((a) => { if (live) setActivity(a.days || {}); })
+      .catch(() => { /* leave heatmap empty */ });
     return () => { live = false; };
   }, []);
 
@@ -907,14 +912,14 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             )}
           </div>
 
-          {/* ── consistency sidebar (training-activity surfaces; no data until
-                the trainer ships) ── */}
+          {/* ── consistency sidebar: real activity heatmap (sign-in / cert /
+                training), shown for everyone from day one ── */}
           <aside>
             <section className="cx-panel" aria-label="Recent activity">
               <div className="cx-phead"><h2>Consistency</h2></div>
-              <div className="cx-placeholder">
-                Daily-training activity, streaks, and your contribution calendar will appear here
-                once training begins.
+              <div className="cx-heat-wrap">
+                <Heatmap activity={activity} />
+                <HeatLegend />
               </div>
             </section>
 

@@ -722,6 +722,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         if not row.get("email_verified_utc"):
             raise HTTPException(403, "email_not_verified")
         code = row["code"]
+        db.record_login_day(code)
         token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
@@ -771,6 +772,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 row = row or db.get_participant_by_email(email)
         if row is None or not row.get("active"):
             raise HTTPException(403, "account is disabled")
+        db.record_login_day(row["code"])
         token = security.issue_token(row["code"], ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": row["code"],
@@ -884,6 +886,12 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             "kpis": _dashboard_kpis(tasks, latest.get("finished_utc")),
             "sample": False,
         }
+
+    @app.get("/api/activity")
+    def activity(code: str = Depends(require_auth)):
+        # Per-day activity levels for the consistency heatmap (sign-in / cert /
+        # training), keyed by UTC date. Real data; works before any training.
+        return {"days": db.activity_levels(code)}
 
     @app.get("/api/history")
     def history(code: str = Depends(require_auth)):

@@ -114,6 +114,14 @@ _SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_regimens_code ON regimens(code)",
     "CREATE INDEX IF NOT EXISTS idx_training_code ON training_sessions(code)",
     "CREATE INDEX IF NOT EXISTS idx_param_traj_code ON param_trajectories(code)",
+    # One row per (participant, UTC day) the participant signed in — the
+    # lightest tier of the dashboard activity heatmap (cert/training days are
+    # derived from sessions/training_sessions).
+    """CREATE TABLE IF NOT EXISTS login_days (
+        code  TEXT NOT NULL,
+        day   TEXT NOT NULL,
+        PRIMARY KEY (code, day)
+    )""",
     # Short-lived 6-digit codes for email verification + password reset.
     # One unconsumed (code, purpose) row is kept at a time (put replaces).
     """CREATE TABLE IF NOT EXISTS auth_codes (
@@ -747,3 +755,38 @@ class Database:
                 "SELECT task_k, phase, ell, theta, sd, rt, ts "
                 "FROM param_trajectories WHERE code=? AND is_real=1 "
                 "ORDER BY task_k, ts", (code,))
+
+    # ── activity heatmap ──────────────────────────────────────────
+    def record_login_day(self, code: str) -> None:
+        """Mark today (UTC) as a sign-in day for `code` (idempotent per day)."""
+        day = utc_now()[:10]
+        if self._pg:
+            sql = ("INSERT INTO login_days(code, day) VALUES (?,?) "
+                   "ON CONFLICT (code, day) DO NOTHING")
+        else:
+            sql = "INSERT OR IGNORE INTO login_days(code, day) VALUES (?,?)"
+        with self._lock:
+            self._exec(sql, (code, day))
+            self._conn.commit()
+
+    def activity_levels(self, code: str) -> dict[str, int]:
+        """Per-day activity level (YYYY-MM-DD → level) for the heatmap: 1 = signed
+        in, 2 = certification test, 3 = training completed. Highest level wins."""
+        levels: dict[str, int] = {}
+
+        def bump(ts: Optional[str], lvl: int) -> None:
+            if ts and len(ts) >= 10 and levels.get(ts[:10], 0) < lvl:
+                levels[ts[:10]] = lvl
+
+        with self._lock:
+            for r in self._fetchall("SELECT day FROM login_days WHERE code=?", (code,)):
+                bump(r["day"], 1)
+            for r in self._fetchall(
+                "SELECT s.finished_utc AS f FROM results r "
+                "JOIN sessions s ON s.session_id=r.session_id WHERE s.code=?", (code,)):
+                bump(r["f"], 2)
+            for r in self._fetchall(
+                "SELECT finished_utc AS f FROM training_sessions "
+                "WHERE code=? AND status='complete'", (code,)):
+                bump(r["f"], 3)
+        return levels

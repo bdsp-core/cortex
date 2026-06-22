@@ -273,19 +273,19 @@ export function MiniChart(o: MiniChartProps) {
   );
 }
 
-// ── Heatmap: 16-week contribution calendar, teal sqrt ramp ──────────────────
-const HEAT_MAX = 42;
+// ── Heatmap: 16-week activity calendar, shaded by activity TYPE ─────────────
+// 1 = signed in (light teal), 2 = certification test (medium), 3 = training
+// completed (darkest). The day's highest activity wins.
+const ACTIVITY_LABEL = ["", "Signed in", "Certification test", "Training completed"];
 
-// Theme-aware single-hue teal sqrt ramp; shared by heatmap + legend. sqrt so
-// light days stay visible. Mirrors heatFill() in the mockup.
-function heatFill(c: number): string {
+// Discrete teal shade per activity level (shares the trajectory-chart hue).
+function heatFillLevel(level: number): string {
+  if (level <= 0) return cssVar("--zero-fill");
   const teal = [47, 143, 131];
   const dark = typeof document !== "undefined"
     && document.documentElement.getAttribute("data-theme") === "dark";
   const base = dark ? [20, 22, 28] : [255, 255, 255];
-  if (c <= 0) return cssVar("--zero-fill");
-  const k = Math.sqrt(c / HEAT_MAX);
-  const a = 0.15 + 0.85 * k;
+  const a = level >= 3 ? 1.0 : level === 2 ? 0.6 : 0.3;
   const r = Math.round(base[0] + (teal[0] - base[0]) * a);
   const g = Math.round(base[1] + (teal[1] - base[1]) * a);
   const b = Math.round(base[2] + (teal[2] - base[2]) * a);
@@ -294,44 +294,49 @@ function heatFill(c: number): string {
 
 export function HeatLegend() {
   useTheme();
-  const stops = [0, 0.18, 0.42, 0.68, 1.0].map((f) => heatFill(f * HEAT_MAX));
+  const items: Array<[number, string]> = [[1, "Sign-in"], [2, "Certification"], [3, "Training"]];
   return (
     <div className="cx-heat-legend">
-      <span>less</span>
-      {stops.map((c, i) => (
-        <span key={i} className="cx-heat-sw" style={{ background: c }} />
+      {items.map(([lvl, label]) => (
+        <span key={lvl} className="cx-heat-item">
+          <span className="cx-heat-sw" style={{ background: heatFillLevel(lvl) }} />{label}
+        </span>
       ))}
-      <span>more</span>
     </div>
   );
 }
 
-export function Heatmap({ empty = false }: { empty?: boolean } = {}) {
+// `activity` maps a UTC date (YYYY-MM-DD) → highest activity level that day.
+// Each cell shows its date on hover; future days in the current week are blank.
+export function Heatmap({ activity = {} }: { activity?: Record<string, number> } = {}) {
   useTheme();
   const weeks = 16, days = 7, cell = 13, gap = 3, padL = 14, padT = 14;
-  // deterministic pseudo-random sample counts (matches the mockup's LCG seed)
-  let seed = 20260615;
-  const rnd = () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
-  const max = HEAT_MAX;
   const W = padL + weeks * (cell + gap);
   const H = padT + days * (cell + gap) + 10;
   const gridInk = cssVar("--grid-ink");
+  // Align the grid to today in UTC (matches the server's UTC activity days).
+  // Rows are Monday-first (the M/W/F labels), so map getUTCDay (Sun=0) → Mon=0.
+  const MS = 86400000;
+  const now = new Date();
+  const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const todayRow = (new Date(todayMs).getUTCDay() + 6) % 7;
+  const keyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const niceOf = (ms: number) =>
+    new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const cells: JSX.Element[] = [];
   for (let w = 0; w < weeks; w++) {
     for (let d = 0; d < days; d++) {
-      const r0 = rnd();
-      const recent = w >= weeks - 3 ? 0.4 : 0;
-      const weekend = d === 5 || d === 6 ? -0.18 : 0;
-      let c = empty ? 0 : Math.max(0, Math.round((r0 + recent + weekend) * max));
-      if (!empty && rnd() < 0.12) c = 0;
+      const daysAgo = (weeks - 1 - w) * 7 + (todayRow - d);
+      if (daysAgo < 0) continue;   // future days in the current week
+      const ms = todayMs - daysAgo * MS;
+      const level = activity[keyOf(ms)] ?? 0;
       const x = padL + w * (cell + gap);
       const y = padT + d * (cell + gap);
+      const title = level > 0 ? `${niceOf(ms)} — ${ACTIVITY_LABEL[level]}` : niceOf(ms);
       cells.push(
-        <rect key={`${w}-${d}`} x={x} y={y} width={cell} height={cell} rx={2} fill={heatFill(c)} stroke={gridInk}>
-          <title>{c} items</title>
+        <rect key={`${w}-${d}`} x={x} y={y} width={cell} height={cell} rx={2}
+          fill={heatFillLevel(level)} stroke={gridInk}>
+          <title>{title}</title>
         </rect>,
       );
     }

@@ -475,6 +475,39 @@ def test_history_questions_requires_auth(client):
     assert client.get("/api/history/whatever/questions").status_code == 401
 
 
+def test_activity_heatmap_levels(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)   # /api/auth records today as a login day
+    today = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())[:10]
+    assert client.get("/api/activity", headers=hdr).json()["days"].get(today) == 1
+
+    # a completed cert test bumps today to level 2
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    client.post("/api/results", headers=hdr, json={"sessionId": sid,
+                "result": {"verdicts": ["PASS"] * 7}, "stopReason": "x", "nQuestions": 1})
+    assert client.get("/api/activity", headers=hdr).json()["days"].get(today) == 2
+
+    # a completed training session bumps today to level 3 (highest wins)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.create_training_session("tr-act-1", code, "gpd")
+    db.finalize_training_session("tr-act-1", code, 5, {"mode": "practice"})
+    assert client.get("/api/activity", headers=hdr).json()["days"].get(today) == 3
+
+
+def test_activity_requires_auth_and_login_day_idempotent(client):
+    assert client.get("/api/activity").status_code == 401
+    email, pw = _make_participant(client)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.record_login_day(code)
+    db.record_login_day(code)   # same day again — idempotent
+    days = db.activity_levels(code)
+    assert sum(1 for v in days.values()) == len(days)  # no duplicate-day blowup
+    assert len(days) == 1 and set(days.values()) == {1}
+
+
 def test_trajectories_empty_then_real(client):
     # Empty (no fabricated curve) until a REAL (is_real=1) point exists. A point
     # posted without isReal is quarantined (is_real=0) and stays hidden.

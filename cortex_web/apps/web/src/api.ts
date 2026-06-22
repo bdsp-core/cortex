@@ -369,6 +369,11 @@ export interface QuestionRow {
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
+// Per-day activity levels for the consistency heatmap (UTC date → level:
+// 1 = signed in, 2 = certification test, 3 = training completed).
+export function getActivity(): Promise<{ days: Record<string, number> }> {
+  return authedFetch("/api/activity");
+}
 export function getRegimen(): Promise<{ regimen: RegimenPlan | null; sample: boolean }> {
   return authedFetch("/api/regimen");
 }
