@@ -716,6 +716,28 @@ class Database:
                      p.get("seqInSession"), 1 if p.get("isReal") else 0))
             self._conn.commit()
 
+    def write_eval_trajectory(self, code: str, source_session_id: str,
+                              points: list[dict]) -> None:
+        """Record the per-domain EVAL operating point for a certification
+        session — one real (is_real=1) trajectory point per task. Idempotent on
+        re-post: any prior eval rows for this session are replaced. These seed
+        the evolution charts; training/re-cert points append to the same series."""
+        if not points:
+            return
+        with self._lock:
+            self._exec("DELETE FROM param_trajectories "
+                       "WHERE source_session_id=? AND phase='eval'",
+                       (source_session_id,))
+            for p in points:
+                self._exec(
+                    "INSERT INTO param_trajectories(code, task_k, phase, ell, "
+                    "theta, sd, rt, ts, training_id, source_session_id, "
+                    "seq_in_session, is_real) VALUES (?,?,'eval',?,?,?,?,?,?,?,?,1)",
+                    (code, int(p["taskK"]), p.get("ell"), p.get("theta"),
+                     p.get("sd"), p.get("rt"), utc_now(), None,
+                     source_session_id, 0))
+            self._conn.commit()
+
     def get_trajectories(self, code: str) -> list[dict]:
         # Dashboard reads REAL trainer output only (is_real=1). Synthetic/
         # quarantined rows (is_real=0) are excluded so no fabricated curve can

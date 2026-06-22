@@ -426,6 +426,38 @@ def test_trajectories_empty_then_real(client):
     assert t1["trajectories"][0]["taskK"] == 1
 
 
+def test_results_writes_eval_trajectory(client):
+    # Finishing a cert test seeds one real EVAL trajectory point per task —
+    # ℓ/θ/σ from perTask + the per-task MEDIAN reaction time from the trials.
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    # per-trial reaction times: task 0 has two (median 2050), task 1 has one (2200)
+    for i, (tk, rt) in enumerate([(0, 2000), (0, 2100), (1, 2200)]):
+        client.post("/api/progress", headers=hdr, json={"sessionId": sid,
+            "trial": {"trialIndex": i, "taskK": tk, "reactionMs": rt}})
+    per = [{"taskK": k, "code": c, "label": lab, "ell": 1.0 + k, "theta": 0.1,
+            "sd": 0.2, "ellStar": 0.3, "auroc": 0.8, "verdict": "PASS"}
+           for k, c, lab in _SEVEN]
+    body = {"sessionId": sid, "result": {"verdicts": ["PASS"] * 7, "perTask": per},
+            "stopReason": "all_resolved", "nQuestions": 30}
+    client.post("/api/results", headers=hdr, json=body)
+
+    pts = client.get("/api/trajectories", headers=hdr).json()["trajectories"]
+    assert len(pts) == 7 and all(p["phase"] == "eval" for p in pts)
+    p0 = next(p for p in pts if p["taskK"] == 0)
+    assert p0["ell"] == 1.0 and p0["sd"] == 0.2 and p0["rt"] == 2050  # median(2000,2100)
+    assert next(p for p in pts if p["taskK"] == 1)["rt"] == 2200       # single trial
+    # tasks with no trials still get an eval point, with rt=None
+    assert next(p for p in pts if p["taskK"] == 6)["rt"] is None
+
+    # idempotent on re-post: still 7 eval points, not 14
+    client.post("/api/results", headers=hdr, json=body)
+    pts2 = client.get("/api/trajectories", headers=hdr).json()["trajectories"]
+    assert len([p for p in pts2 if p["phase"] == "eval"]) == 7
+
+
 def test_regimen_empty_then_real(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)

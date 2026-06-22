@@ -40,6 +40,7 @@ import time
 import uuid
 from collections import deque
 from pathlib import Path
+from statistics import median
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -286,6 +287,29 @@ def _dashboard_tasks(result: dict) -> list[dict]:
                 "verdict": legacy_verdict,
             })
     return out
+
+
+def _eval_points_from_result(result: dict, trials: list[dict]) -> list[dict]:
+    """Build the per-domain EVAL operating point from a finished cert result:
+    ℓ/θ/σ from the persisted `perTask` block + the per-task MEDIAN reaction time
+    from that session's trials. Returns [] for a legacy result with no perTask."""
+    per = result.get("perTask")
+    if not isinstance(per, list):
+        return []
+    rts_by_task: dict[int, list[float]] = {}
+    for t in trials:
+        tk, rm = t.get("task_k"), t.get("reaction_ms")
+        if tk is not None and rm is not None:
+            rts_by_task.setdefault(int(tk), []).append(float(rm))
+    pts = []
+    for p in per:
+        if not isinstance(p, dict) or p.get("taskK") is None:
+            continue
+        k = int(p["taskK"])
+        rts = rts_by_task.get(k)
+        pts.append({"taskK": k, "ell": p.get("ell"), "theta": p.get("theta"),
+                    "sd": p.get("sd"), "rt": (median(rts) if rts else None)})
+    return pts
 
 
 def _dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
@@ -724,6 +748,11 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(404, "unknown session")
         db.store_result(body.sessionId, body.result)
         db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
+        # Seed the per-domain evolution charts: record this test's EVAL operating
+        # point (ℓ/θ/σ + median RT) as one real trajectory point per task.
+        eval_pts = _eval_points_from_result(body.result, db.session_trials(body.sessionId))
+        if eval_pts:
+            db.write_eval_trajectory(code, body.sessionId, eval_pts)
         return {"ok": True}
 
     # ── dashboard (cert-result surfaces) ────────────────────────

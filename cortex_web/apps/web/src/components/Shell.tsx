@@ -509,7 +509,7 @@ function buildTraj(points: api.TrajectoryPoint[]): Map<number, TrajVM> {
 
 // Three stacked detail mini-charts for the selected task (ℓ / θ / RT).
 function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
-  if (!traj || traj.ell.length < 2) {
+  if (!traj || traj.ell.length < 1) {
     return <div className="cx-placeholder">No trajectory yet for this task.</div>;
   }
   const n = traj.ell.length;
@@ -519,8 +519,9 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
   const ellStar = task.ellStar ?? 0;
 
   // (a) ℓ — skill toward ℓ*, ±sd band, dashed cut. ℓ is the ONLY param with ℓ*.
-  const lows = traj.ell.map((v, i) => v - traj.sd[i]);
-  const highs = traj.ell.map((v, i) => v + traj.sd[i]);
+  const sd = (i: number) => traj.sd[i] ?? 0;
+  const lows = traj.ell.map((v, i) => v - sd(i));
+  const highs = traj.ell.map((v, i) => v + sd(i));
   let aMin = Math.min(...lows, ellStar);
   let aMax = Math.max(...highs, ellStar);
   const aPad = (aMax - aMin) * 0.14 || 0.1;
@@ -529,8 +530,11 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
   // (b) θ — bias, neutral 0 reference, NO cut. Symmetric domain around 0.
   const tAbs = Math.max(0.2, ...traj.theta.map(Math.abs)) * 1.25;
 
-  // (c) RT — median reaction time (s), NO target line.
-  const rtS = traj.rt.map((v) => v / 1000);
+  // (c) RT — median reaction time (s), NO target line. Reaction time can be
+  // absent (e.g. a seeded/imported result with no per-trial timing); only chart
+  // it when every point has a finite value.
+  const rtFinite = traj.rt.every((v) => typeof v === "number" && isFinite(v));
+  const rtS = traj.rt.map((v) => (v ?? 0) / 1000);
   let rMin = Math.min(...rtS);
   let rMax = Math.max(...rtS);
   const rPad = (rMax - rMin) * 0.18 || 0.3;
@@ -564,12 +568,16 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
       <div className="cx-tri-chart">
         <div className="cx-tri-head">
           <span className="name">RT(t) <span className="k">median reaction time</span></span>
-          <span className="cur">now <b>{(traj.rt[n - 1] / 1000).toFixed(1)}s</b></span>
+          {rtFinite && <span className="cur">now <b>{(traj.rt[n - 1] / 1000).toFixed(1)}s</b></span>}
         </div>
-        <MiniChart
-          series={rtS} yMin={rMin} yMax={rMax} fmt={(v) => v.toFixed(1) + "s"}
-          label={`${task.label} median reaction-time trend`}
-        />
+        {rtFinite ? (
+          <MiniChart
+            series={rtS} yMin={rMin} yMax={rMax} fmt={(v) => v.toFixed(1) + "s"}
+            label={`${task.label} median reaction-time trend`}
+          />
+        ) : (
+          <div className="cx-placeholder">Reaction-time data not recorded for this attempt.</div>
+        )}
       </div>
     </div>
   );
@@ -803,7 +811,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                 </div>
                 {(() => {
                   const tr = trajByK.get(sel.taskK);
-                  if (tr && tr.ell.length >= 2) {
+                  if (tr && tr.ell.length >= 1) {
                     return (
                       <>
                         <DetailCharts task={sel} traj={tr} />
@@ -817,7 +825,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                   }
                   return (
                     <div className="cx-placeholder">
-                      Your ℓ / θ / response-time trajectory will appear here once daily training begins.
+                      Your ℓ / θ / response-time trajectory will appear here once you complete a certification test.
                     </div>
                   );
                 })()}
@@ -1355,7 +1363,7 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
                 </div>
               </div>
             </div>
-            {traj && traj.ell.length >= 2 ? (
+            {traj && traj.ell.length >= 1 ? (
               <>
                 <DetailCharts task={task} traj={traj} />
                 <div className="cx-phase-axis">
@@ -1366,7 +1374,7 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
               </>
             ) : (
               <div className="cx-placeholder">
-                Your ℓ / θ / response-time trajectory will appear here once daily training begins.
+                Your ℓ / θ / response-time trajectory will appear here once you complete a certification test.
               </div>
             )}
           </section>

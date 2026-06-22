@@ -176,16 +176,40 @@ export function App() {
             participantName: (participantRef.current as { name?: string } | null)?.name ?? "Anonymous",
             t: r.traj.t, l: r.traj.l, w: r.traj.w,
           };
+          // Per-task posterior SD of ℓ (σ) from the FINAL particle-cloud step —
+          // the ± band on the ℓ evolution chart. l is [T,N,K] row-major, w is
+          // [T,N]; weighted std over the N particles at t = T-1.
+          const [Tn, Np, Kp] = r.traj.shape;
+          const lCloud = r.traj.l, wCloud = r.traj.w, ti = Tn - 1;
+          const sdPerTask = (inputs.taskCodes ?? []).map((_c, k) => {
+            let wsum = 0, mean = 0;
+            for (let i = 0; i < Np; i++) {
+              const w = wCloud[ti * Np + i];
+              wsum += w; mean += w * lCloud[(ti * Np + i) * Kp + k];
+            }
+            if (wsum <= 0) return null;
+            mean /= wsum;
+            let varAcc = 0;
+            for (let i = 0; i < Np; i++) {
+              const w = wCloud[ti * Np + i];
+              const dl = lCloud[(ti * Np + i) * Kp + k] - mean;
+              varAcc += w * dl * dl;
+            }
+            return Math.sqrt(varAcc / wsum);
+          });
           // Real per-task certification values, persisted so the dashboard reads
-          // genuine numbers (not sample data) for ℓ/θ/AUROC. ℓ/θ are the final
-          // posterior means from the last engine diagnostic (lMean/tMean); ℓ* is
-          // the bundle's Youden cut-score; AUROC is the per-task posterior mean.
+          // genuine numbers (not sample data) for ℓ/θ/σ/AUROC. ℓ/θ are the final
+          // posterior means from the last engine diagnostic (lMean/tMean); σ is
+          // the cloud SD above; ℓ* is the bundle's Youden cut-score; AUROC is the
+          // per-task posterior mean. The backend turns these into the first
+          // "eval" trajectory point per domain.
           const perTask = (inputs.taskCodes ?? []).map((code, k) => ({
             taskK: k,
             code,
             label: inputs.taskLabels?.[k] ?? code,
             ell: d?.lMean?.[k] ?? null,
             theta: d?.tMean?.[k] ?? null,
+            sd: sdPerTask[k] ?? null,
             ellStar: inputs.ellStar?.[k] ?? null,
             auroc: roc[k]?.auroc ?? null,
             aurocHw: roc[k]?.hw ?? null,

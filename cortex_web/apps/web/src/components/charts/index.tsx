@@ -141,7 +141,9 @@ export function MiniChart(o: MiniChartProps) {
   const phaseRule = cssVar("--phase-rule");
   const panel = cssVar("--panel");
   const neutralRule = cssVar("--neutral-rule");
-  const X = (i: number) => mL + (i / (n - 1)) * iw;
+  // A single eval point (n===1) sits in the eval zone at the left; multi-point
+  // series spread eval→training→re-cert across the width.
+  const X = (i: number) => (n <= 1 ? mL + iw * 0.08 : mL + (i / (n - 1)) * iw);
   const Y = (v: number) => mT + (1 - (v - yMin) / (yMax - yMin)) * ih;
 
   // y gridlines + labels
@@ -163,9 +165,11 @@ export function MiniChart(o: MiniChartProps) {
     );
   }
 
-  // phase shading: eval (0..1), training (1..n-2), recert (n-2..last)
-  const xEval = X(1);
-  const xRecert = X(n - 2);
+  // phase shading: eval (0..1), training (1..n-2), recert (n-2..last). With a
+  // single eval point there's no training/re-cert span yet — shade only a thin
+  // eval zone on the left.
+  const xEval = n >= 2 ? X(1) : mL + iw * 0.16;
+  const xRecert = n >= 2 ? X(n - 2) : W - mR;
   const phases = (
     <>
       <rect x={mL} y={mT} width={(xEval - mL).toFixed(1)} height={ih} fill={phaseEval} />
@@ -175,12 +179,22 @@ export function MiniChart(o: MiniChartProps) {
     </>
   );
 
-  // optional ±sd band
+  // optional ±sd band — a filled ribbon for a series, or a vertical ±σ error
+  // bar at the single eval point.
   let band: JSX.Element | null = null;
-  if (o.band) {
+  if (o.band && n >= 2) {
     const top = s.map((_v, i) => `${X(i).toFixed(1)},${Y(o.band![1][i]).toFixed(1)}`);
     const bot = s.map((_v, i) => `${X(i).toFixed(1)},${Y(o.band![0][i]).toFixed(1)}`).reverse();
     band = <polygon points={top.concat(bot).join(" ")} fill={teal} fillOpacity={0.14} />;
+  } else if (o.band && n === 1) {
+    const x0 = X(0);
+    band = (
+      <line
+        x1={x0.toFixed(1)} y1={Y(o.band[1][0]).toFixed(1)}
+        x2={x0.toFixed(1)} y2={Y(o.band[0][0]).toFixed(1)}
+        stroke={teal} strokeWidth={6} strokeOpacity={0.18} strokeLinecap="round"
+      />
+    );
   }
 
   // optional neutral θ=0 reference (solid faint, NOT a cut)
