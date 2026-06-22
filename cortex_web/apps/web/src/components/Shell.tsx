@@ -294,10 +294,16 @@ td.ellcell .of{color:var(--ink-faint);}
   background:var(--page);}
 .cx-hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
   gap:var(--s8);}
-.cx-hist-cell{display:flex;align-items:center;justify-content:space-between;
-  gap:var(--s8);padding:var(--s8) var(--s12);border:1px solid var(--bd-subtle);
+/* wrap so a long verdict chip (e.g. "Refer · borderline") drops to its own line
+   inside the cell instead of overflowing; margin-left:auto keeps it right-aligned
+   whether it sits inline or wraps below the task name. */
+.cx-hist-cell{display:flex;align-items:center;flex-wrap:wrap;
+  gap:4px var(--s8);padding:var(--s8) var(--s12);border:1px solid var(--bd-subtle);
   border-radius:var(--radius-ctl);background:var(--panel);}
-.cx-hist-cell .tk{font-size:13px;font-weight:600;}
+.cx-hist-cell .tk{font-size:13px;font-weight:600;min-width:0;}
+/* the longest chip ("Refer · uninformative") exceeds the cell even on its own
+   line, so bound it to the cell and let its text wrap rather than overflow. */
+.cx-hist-cell .cx-chip{margin-left:auto;max-width:100%;white-space:normal;text-align:right;}
 .cx-hist-cell .tk .au{display:block;font-family:var(--mono);font-size:11px;
   color:var(--ink-subtle);font-weight:400;}
 /* per-question breakdown table (scrolls; adapts to width without page overflow) */
