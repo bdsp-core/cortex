@@ -324,19 +324,21 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
     const wr = wrap.getBoundingClientRect();
     setTip({ x: cr.left - wr.left + cr.width / 2, y: cr.top - wr.top, text });
   };
-  const weeks = 16, days = 7, cell = 13, gap = 3, padL = 14, padT = 14;
+  const weeks = 16, days = 7, cell = 13, gap = 3, padL = 30, padT = 22;
   const W = padL + weeks * (cell + gap);
-  const H = padT + days * (cell + gap) + 10;
+  const H = padT + days * (cell + gap) + 4;
   const gridInk = cssVar("--grid-ink");
+  const inkFaint = cssVar("--ink-faint");
   // Align the grid to today in UTC (matches the server's UTC activity days).
-  // Rows are Monday-first (the M/W/F labels), so map getUTCDay (Sun=0) → Mon=0.
+  // Rows are Sunday-first (Sun at the top), so the row index = getUTCDay (Sun=0).
   const MS = 86400000;
   const now = new Date();
   const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const todayRow = (new Date(todayMs).getUTCDay() + 6) % 7;
+  const todayRow = new Date(todayMs).getUTCDay();
   const keyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
   const niceOf = (ms: number) =>
-    new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    new Date(ms).toLocaleDateString(undefined,
+      { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
   const cells: JSX.Element[] = [];
   for (let w = 0; w < weeks; w++) {
     for (let d = 0; d < days; d++) {
@@ -354,18 +356,37 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
       );
     }
   }
-  const inkFaint = cssVar("--ink-faint");
-  const lbls = ([["M", 0], ["W", 2], ["F", 4]] as const).map(([t, d]) => (
-    <text
-      key={t} x={2} y={padT + d * (cell + gap) + cell - 2}
-      fontFamily="system-ui,sans-serif" fontSize={8} fill={inkFaint}
-    >
-      {t}
-    </text>
+  // Day-of-week labels (Sunday-first): Mon / Wed / Fri at rows 1 / 3 / 5.
+  const lbls = ([["Mon", 1], ["Wed", 3], ["Fri", 5]] as const).map(([t, d]) => (
+    <text key={t} x={padL - 5} y={padT + d * (cell + gap) + cell - 3} textAnchor="end"
+      fontFamily="system-ui,sans-serif" fontSize={9} fill={inkFaint}>{t}</text>
   ));
+  // Month labels across the top, centered over each contiguous run of weeks
+  // whose Sunday falls in that month. 1-week edge runs are too narrow to label.
+  const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const colMonth: number[] = [];
+  for (let w = 0; w < weeks; w++) {
+    const sundayMs = todayMs - ((weeks - 1 - w) * 7 + todayRow) * MS;
+    colMonth[w] = new Date(sundayMs).getUTCMonth();
+  }
+  const monthLbls: JSX.Element[] = [];
+  for (let w = 0, start = 0; w <= weeks; w++) {
+    if (w === weeks || colMonth[w] !== colMonth[start]) {
+      const end = w - 1;
+      if (end > start) {   // run spans >= 2 weeks
+        const cx = padL + ((start + end) / 2) * (cell + gap) + cell / 2;
+        monthLbls.push(
+          <text key={`m${start}`} x={cx} y={padT - 7} textAnchor="middle"
+            fontFamily="system-ui,sans-serif" fontSize={9} fill={inkFaint}>{MONTH[colMonth[start]]}</text>,
+        );
+      }
+      start = w;
+    }
+  }
   return (
     <div className="cx-heat" ref={wrapRef}>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Activity heatmap, last 16 weeks">
+        {monthLbls}
         {lbls}
         {cells}
       </svg>
