@@ -795,7 +795,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       }}
                     >
                       <div className="ringcell">
-                        <Ring ell={t.ell} ellStar={t.ellStar} chipClass={chipFor(t.verdict).cls} />
+                        <Ring ell={t.ell} ellStar={t.ellStar} />
                       </div>
                       <div className="head">
                         <div className="task">

@@ -32,49 +32,55 @@ export function verdictVar(chipClass: string): string {
   return VERDICT_VAR[chipClass] ?? "--teal";
 }
 
-// ── Ring: progress toward ℓ* (verdict-colored arc + center "% ℓ*") ──────────
+// Diverging "margin to ℓ*" color: green shades when ℓ is at/above ℓ* (positive
+// margin), red shades when below — paler near the threshold, deeper further
+// away. |ℓ − ℓ*| ≥ MARGIN_SAT is fully saturated.
+const MARGIN_SAT = 0.75;
+function marginColor(d: number): string {
+  const t = Math.min(1, Math.abs(d) / MARGIN_SAT);
+  const dark = typeof document !== "undefined"
+    && document.documentElement.getAttribute("data-theme") === "dark";
+  const base = dark ? [42, 46, 54] : [233, 236, 238];   // pale start
+  const green = [38, 152, 90], red = [206, 66, 62];
+  const target = d >= 0 ? green : red;
+  const a = 0.28 + 0.72 * t;   // keep a visible tint even at the threshold
+  const m = (i: number) => Math.round(base[i] + (target[i] - base[i]) * a);
+  return `rgb(${m(0)},${m(1)},${m(2)})`;
+}
+
+// ── Ring: signed margin to ℓ* (ℓ − ℓ*), colored red→green by that margin ─────
 export function Ring({
-  ell, ellStar, chipClass, size = 56,
+  ell, ellStar, size = 56,
 }: {
-  ell: number | null; ellStar: number | null; chipClass: string; size?: number;
+  ell: number | null; ellStar: number | null; size?: number;
 }) {
   useTheme(); // re-render on theme flip
   const r = size / 2 - 5;
   const cx = size / 2;
   const cy = size / 2;
-  const circ = 2 * Math.PI * r;
   // No measured ℓ (legacy verdicts-only result) → indeterminate track + "—".
-  const known = typeof ell === "number" && typeof ellStar === "number";
-  const star = (ellStar ?? 0) || 1;
-  const frac = known ? Math.max(0, Math.min(1, (ell as number) / star)) : 0;
-  const over = known && (ell as number) >= star;
-  const stroke = over ? cssVar(verdictVar(chipClass)) : cssVar("--teal");
+  const d = (typeof ell === "number" && typeof ellStar === "number") ? ell - ellStar : null;
   const track = cssVar("--bd-subtle");
   const ink = cssVar("--ink");
   const inkSub = cssVar("--ink-subtle");
-  const off = circ * (1 - frac);
-  // Floor at 0: below-baseline skill (ℓ<0) reads "0%", not a negative percent
-  // (the progress arc is already clamped to [0,1]). Above the cut still exceeds 100.
-  const pct = known ? Math.max(0, Math.round(((ell as number) / star) * 100)) : null;
+  const margin = d === null ? "—" : (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(2);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={track} strokeWidth={5} />
-      <circle
-        cx={cx} cy={cy} r={r} fill="none" stroke={stroke} strokeWidth={5}
-        strokeLinecap="round" strokeDasharray={circ.toFixed(1)}
-        strokeDashoffset={off.toFixed(1)} transform={`rotate(-90 ${cx} ${cy})`}
-      />
+      {d !== null && (
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={marginColor(d)} strokeWidth={5} />
+      )}
       <text
         x={cx} y={cy - 1} textAnchor="middle" dominantBaseline="middle"
-        fontFamily="ui-monospace,Menlo,monospace" fontSize={13} fontWeight={700} fill={ink}
+        fontFamily="ui-monospace,Menlo,monospace" fontSize={d === null ? 13 : 11} fontWeight={700} fill={ink}
       >
-        {pct === null ? "—" : pct}
+        {margin}
       </text>
       <text
         x={cx} y={cy + 11} textAnchor="middle" dominantBaseline="middle"
         fontFamily="system-ui,sans-serif" fontSize={7} fill={inkSub} letterSpacing="0.5"
       >
-        % ℓ*
+        vs ℓ*
       </text>
     </svg>
   );
