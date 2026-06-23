@@ -337,24 +337,27 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
   const inkFaint = cssVar("--ink-faint");
   // Align the grid to today in UTC (matches the server's UTC activity days).
   // Rows are Sunday-first (Sun at the top), so the row index = getUTCDay (Sun=0).
-  const MS = 86400000;
+  // Local time (matches the server, which keys activity by the user's local day
+  // via the tz offset). The Date constructor is DST-safe for date arithmetic.
   const now = new Date();
-  const todayMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const todayRow = new Date(todayMs).getUTCDay();
-  const keyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  const niceOf = (ms: number) =>
-    new Date(ms).toLocaleDateString(undefined,
-      { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayRow = today.getDay();   // local day-of-week, Sun=0
+  const dayAt = (ago: number) =>
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - ago);
+  const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
+  const keyOf = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const niceOf = (dt: Date) =>
+    dt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const cells: JSX.Element[] = [];
   for (let w = 0; w < weeks; w++) {
     for (let d = 0; d < days; d++) {
       const daysAgo = (weeks - 1 - w) * 7 + (todayRow - d);
       if (daysAgo < 0) continue;   // future days in the current week
-      const ms = todayMs - daysAgo * MS;
-      const level = activity[keyOf(ms)] ?? 0;
+      const dt = dayAt(daysAgo);
+      const level = activity[keyOf(dt)] ?? 0;
       const x = padL + w * (cell + gap);
       const y = padT + d * (cell + gap);
-      const text = level > 0 ? `${niceOf(ms)}: ${ACTIVITY_LABEL[level]}` : niceOf(ms);
+      const text = level > 0 ? `${niceOf(dt)}: ${ACTIVITY_LABEL[level]}` : niceOf(dt);
       cells.push(
         <rect key={`${w}-${d}`} x={x} y={y} width={cell} height={cell} rx={2}
           fill={heatFillLevel(level)} stroke={gridInk}
@@ -372,8 +375,7 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
   const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const colMonth: number[] = [];
   for (let w = 0; w < weeks; w++) {
-    const sundayMs = todayMs - ((weeks - 1 - w) * 7 + todayRow) * MS;
-    colMonth[w] = new Date(sundayMs).getUTCMonth();
+    colMonth[w] = dayAt((weeks - 1 - w) * 7 + todayRow).getMonth();
   }
   const monthLbls: JSX.Element[] = [];
   for (let w = 0, start = 0; w <= weeks; w++) {

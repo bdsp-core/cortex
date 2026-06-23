@@ -108,7 +108,9 @@ export async function login(email: string, password: string): Promise<{
   const res = await fetch(`${API_BASE}/api/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    // tzOffset = getTimezoneOffset() (minutes UTC is ahead of local) so the
+    // sign-in is logged on the user's LOCAL day, not the UTC day.
+    body: JSON.stringify({ email, password, tzOffset: new Date().getTimezoneOffset() }),
   });
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
@@ -130,7 +132,7 @@ export async function loginWithGoogle(credential: string): Promise<{
   const res = await fetch(`${API_BASE}/api/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ credential }),
+    body: JSON.stringify({ credential, tzOffset: new Date().getTimezoneOffset() }),
   });
   const body = await parse(res);
   setToken(body.token);
@@ -369,10 +371,11 @@ export interface QuestionRow {
 export function getDashboard(): Promise<DashboardData> {
   return authedFetch("/api/dashboard");
 }
-// Per-day activity levels for the consistency heatmap (UTC date → level:
-// 1 = signed in, 2 = certification test, 3 = training completed).
+// Per-day activity levels for the consistency heatmap (LOCAL date → level:
+// 1 = signed in, 2 = certification test, 3 = training completed). `tz` is the
+// browser's getTimezoneOffset so the server reports days in the user's local time.
 export function getActivity(): Promise<{ days: Record<string, number> }> {
-  return authedFetch("/api/activity");
+  return authedFetch(`/api/activity?tz=${new Date().getTimezoneOffset()}`);
 }
 export function getRegimen(): Promise<{ regimen: RegimenPlan | null; sample: boolean }> {
   return authedFetch("/api/regimen");

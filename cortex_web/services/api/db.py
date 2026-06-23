@@ -18,6 +18,7 @@ that used "INSERT OR REPLACE" (Postgres needs ON CONFLICT … DO UPDATE).
 """
 from __future__ import annotations
 
+import calendar
 import json
 import os
 import sqlite3
@@ -182,6 +183,19 @@ _TRAINING_SESSIONS_MIGRATION_COLUMNS = [
 
 def utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _local_day(utc_iso: Optional[str], tz_offset_min: int) -> Optional[str]:
+    """The local calendar day (YYYY-MM-DD) for a UTC ISO timestamp, given the
+    browser's getTimezoneOffset (minutes UTC is AHEAD of local). VPN-safe: the
+    offset comes from the device clock, not IP geolocation."""
+    if not utc_iso or len(utc_iso) < 19:
+        return utc_iso[:10] if utc_iso else None
+    try:
+        secs = calendar.timegm(time.strptime(utc_iso[:19], "%Y-%m-%dT%H:%M:%S"))
+        return time.strftime("%Y-%m-%d", time.gmtime(secs - (tz_offset_min or 0) * 60))
+    except Exception:
+        return utc_iso[:10]
 
 
 def _is_pg_url(s: str) -> bool:
@@ -757,9 +771,10 @@ class Database:
                 "ORDER BY task_k, ts", (code,))
 
     # ── activity heatmap ──────────────────────────────────────────
-    def record_login_day(self, code: str) -> None:
-        """Mark today (UTC) as a sign-in day for `code` (idempotent per day)."""
-        day = utc_now()[:10]
+    def record_login_day(self, code: str, tz_offset_min: int = 0) -> None:
+        """Mark today (the user's LOCAL day, per their tz offset) as a sign-in
+        day for `code` (idempotent per day)."""
+        day = _local_day(utc_now(), tz_offset_min)
         if self._pg:
             sql = ("INSERT INTO login_days(code, day) VALUES (?,?) "
                    "ON CONFLICT (code, day) DO NOTHING")
@@ -769,14 +784,16 @@ class Database:
             self._exec(sql, (code, day))
             self._conn.commit()
 
-    def activity_levels(self, code: str) -> dict[str, int]:
-        """Per-day activity level (YYYY-MM-DD → level) for the heatmap: 1 = signed
-        in, 2 = certification test, 3 = training completed. Highest level wins."""
+    def activity_levels(self, code: str, tz_offset_min: int = 0) -> dict[str, int]:
+        """Per-day activity level (LOCAL YYYY-MM-DD → level) for the heatmap:
+        1 = signed in, 2 = certification test, 3 = training completed. Highest
+        level wins. Cert/training UTC timestamps are shifted to the user's local
+        day; login_days are already stored local."""
         levels: dict[str, int] = {}
 
-        def bump(ts: Optional[str], lvl: int) -> None:
-            if ts and len(ts) >= 10 and levels.get(ts[:10], 0) < lvl:
-                levels[ts[:10]] = lvl
+        def bump(day: Optional[str], lvl: int) -> None:
+            if day and levels.get(day, 0) < lvl:
+                levels[day] = lvl
 
         with self._lock:
             for r in self._fetchall("SELECT day FROM login_days WHERE code=?", (code,)):
@@ -784,9 +801,9 @@ class Database:
             for r in self._fetchall(
                 "SELECT s.finished_utc AS f FROM results r "
                 "JOIN sessions s ON s.session_id=r.session_id WHERE s.code=?", (code,)):
-                bump(r["f"], 2)
+                bump(_local_day(r["f"], tz_offset_min), 2)
             for r in self._fetchall(
                 "SELECT finished_utc AS f FROM training_sessions "
                 "WHERE code=? AND status='complete'", (code,)):
-                bump(r["f"], 3)
+                bump(_local_day(r["f"], tz_offset_min), 3)
         return levels

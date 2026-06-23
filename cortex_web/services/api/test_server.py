@@ -535,6 +535,35 @@ def test_activity_requires_auth_and_login_day_idempotent(client):
     assert len(days) == 1 and set(days.values()) == {1}
 
 
+def test_local_day_shift():
+    from .db import _local_day
+    # PDT (offset 420 = UTC ahead 7h): a 04:00 UTC event is still the prior day
+    assert _local_day("2026-06-23T04:00:00Z", 420) == "2026-06-22"
+    assert _local_day("2026-06-23T20:00:00Z", 420) == "2026-06-23"
+    # UTC+2 (offset -120): a 23:00 UTC event is already the next local day
+    assert _local_day("2026-06-22T23:00:00Z", -120) == "2026-06-23"
+    assert _local_day("2026-06-23T04:00:00Z", 0) == "2026-06-23"   # offset 0 = UTC
+
+
+def test_activity_endpoint_honors_tz(client):
+    email, pw = _make_participant(client)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    # a cert session finished at 2026-01-15 04:00 UTC (past, won't collide w/ login)
+    with db._lock:
+        db._exec("INSERT INTO sessions(session_id,code,participant,started_utc,"
+                 "finished_utc,status) VALUES(?,?,?,?,?, 'complete')",
+                 ("act-tz", code, "{}", "2026-01-15T03:00:00Z", "2026-01-15T04:00:00Z"))
+        db._conn.commit()
+    db.store_result("act-tz", {"verdicts": []})
+    hdr = _auth_header(client, email, pw)
+    # PDT (tz=420): the 04:00 UTC cert lands on the LOCAL Jan 14, not UTC Jan 15
+    a = client.get("/api/activity?tz=420", headers=hdr).json()["days"]
+    assert a.get("2026-01-14") == 2 and "2026-01-15" not in a
+    # UTC (tz=0): lands on Jan 15
+    assert client.get("/api/activity?tz=0", headers=hdr).json()["days"].get("2026-01-15") == 2
+
+
 def test_trajectories_empty_then_real(client):
     # Empty (no fabricated curve) until a REAL (is_real=1) point exists. A point
     # posted without isReal is quarantined (is_real=0) and stays hidden.

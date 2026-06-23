@@ -90,10 +90,12 @@ REPORT_TO = os.environ.get("CORTEX_REPORT_TO", "elikeldsen@icloud.com")
 class AuthIn(BaseModel):
     email: str
     password: str
+    tzOffset: Optional[int] = None   # getTimezoneOffset() — for the local login day
 
 
 class AuthGoogleIn(BaseModel):
     credential: str   # Google ID token (JWT) returned by Sign in with Google
+    tzOffset: Optional[int] = None
 
 
 class RegisterIn(BaseModel):
@@ -737,7 +739,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         if not row.get("email_verified_utc"):
             raise HTTPException(403, "email_not_verified")
         code = row["code"]
-        db.record_login_day(code)
+        db.record_login_day(code, body.tzOffset or 0)
         token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
@@ -787,7 +789,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 row = row or db.get_participant_by_email(email)
         if row is None or not row.get("active"):
             raise HTTPException(403, "account is disabled")
-        db.record_login_day(row["code"])
+        db.record_login_day(row["code"], body.tzOffset or 0)
         token = security.issue_token(row["code"], ttl_seconds=TOKEN_TTL,
                                      extra={"email": email})
         return {"token": token, "expiresIn": TOKEN_TTL, "code": row["code"],
@@ -908,10 +910,10 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         }
 
     @app.get("/api/activity")
-    def activity(code: str = Depends(require_auth)):
+    def activity(tz: int = 0, code: str = Depends(require_auth)):
         # Per-day activity levels for the consistency heatmap (sign-in / cert /
-        # training), keyed by UTC date. Real data; works before any training.
-        return {"days": db.activity_levels(code)}
+        # training), keyed by the user's LOCAL date. `tz` = getTimezoneOffset().
+        return {"days": db.activity_levels(code, tz)}
 
     @app.get("/api/history")
     def history(code: str = Depends(require_auth)):
