@@ -371,6 +371,33 @@ def test_dashboard_legacy_result_verdicts_only(client):
     assert d["kpis"]["tasksCertified"] == 7 and d["kpis"]["meanAuroc"] is None
 
 
+def test_dashboard_ring_uses_latest_trajectory(client):
+    # The mastery ring's ℓ tracks the LATEST real measurement: a training point
+    # added after the cert eval (newer ts) overrides the cert ℓ; ℓ* is unchanged.
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    per = [{"taskK": k, "code": c, "label": lab, "ell": 0.2, "theta": 0.0,
+            "sd": 0.2, "ellStar": 0.3, "auroc": 0.8, "verdict": "FAIL"}
+           for k, c, lab in _SEVEN]
+    client.post("/api/results", headers=hdr, json={"sessionId": sid,
+        "result": {"verdicts": ["FAIL"] * 7, "perTask": per},
+        "stopReason": "x", "nQuestions": 30})
+    # before training: ℓ is the cert eval value
+    assert client.get("/api/dashboard", headers=hdr).json()["tasks"][0]["ell"] == 0.2
+    # a later real training point for domain 0 raises ℓ (newer ts wins)
+    code = client.app.state.db.get_participant_by_email(email)["code"]
+    client.app.state.db.append_trajectory_points(code, [
+        {"taskK": 0, "phase": "train", "ell": 0.9, "theta": 0.15, "sd": 0.1,
+         "rt": 1000, "ts": "2099-01-01T00:00:00Z", "isReal": True}])
+    d = client.get("/api/dashboard", headers=hdr).json()
+    t0 = next(t for t in d["tasks"] if t["taskK"] == 0)
+    assert t0["ell"] == 0.9 and t0["theta"] == 0.15   # latest measurement
+    assert t0["ellStar"] == 0.3                         # threshold unchanged
+    assert next(t for t in d["tasks"] if t["taskK"] == 1)["ell"] == 0.2  # untouched
+
+
 def test_history_empty_then_after_result_with_isolation(client):
     e1, p1 = _make_participant(client)
     e2, p2 = _make_participant(client)

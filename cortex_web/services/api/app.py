@@ -253,11 +253,17 @@ _CANONICAL_TASKS = [
 ]
 
 
-def _dashboard_tasks(result: dict) -> list[dict]:
+def _dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[dict]:
     """Per-task mastery summary derived from a real cert result. Reads the
     persisted `perTask` block (real ℓ/θ/ℓ*/AUROC + verdict) when present; for a
     legacy result (verdicts only) ℓ/ℓ*/AUROC come back None and just the verdict
-    is shown. Always returns all 7 canonical tasks in engine-index order."""
+    is shown. Always returns all 7 canonical tasks in engine-index order.
+
+    `latest_traj` (task_k → latest real trajectory point) overrides ℓ/θ with the
+    most recent MEASUREMENT — a training/re-cert point once those exist, else the
+    cert eval point (same value). ℓ* (the threshold), AUROC and verdict stay from
+    the certification result."""
+    latest_traj = latest_traj or {}
     per = result.get("perTask")
     by_k: dict[int, dict] = {}
     if isinstance(per, list):
@@ -268,22 +274,31 @@ def _dashboard_tasks(result: dict) -> list[dict]:
     out = []
     for k, code, label in _CANONICAL_TASKS:
         p = by_k.get(k)
+        lt = latest_traj.get(k)
         legacy_verdict = verdicts[k] if k < len(verdicts) else "PENDING"
+        # Latest measurement wins for ℓ/θ; fall back to the cert perTask values.
+        ell = p.get("ell") if p else None
+        theta = p.get("theta") if p else None
+        if lt is not None:
+            if lt.get("ell") is not None:
+                ell = lt["ell"]
+            if lt.get("theta") is not None:
+                theta = lt["theta"]
         if p is not None:
             out.append({
                 "taskK": k,
                 "code": p.get("code") or code,
                 "label": p.get("label") or label,
-                "ell": p.get("ell"),
+                "ell": ell,
                 "ellStar": p.get("ellStar"),
-                "theta": p.get("theta"),
+                "theta": theta,
                 "auroc": p.get("auroc"),
                 "verdict": p.get("verdict") or legacy_verdict,
             })
         else:
             out.append({
                 "taskK": k, "code": code, "label": label,
-                "ell": None, "ellStar": None, "theta": None, "auroc": None,
+                "ell": ell, "ellStar": None, "theta": theta, "auroc": None,
                 "verdict": legacy_verdict,
             })
     return out
@@ -878,7 +893,12 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                     "kpis": None, "sample": False}
         latest = sessions[0]
         result = latest["result"]
-        tasks = _dashboard_tasks(result)
+        # Latest real measurement per domain (rows come ordered by task_k, ts
+        # ascending, so the last one seen per task is the most recent).
+        latest_traj: dict[int, dict] = {}
+        for r in db.get_trajectories(code):
+            latest_traj[int(r["task_k"])] = r
+        tasks = _dashboard_tasks(result, latest_traj)
         return {
             "result": result,
             "hasResult": True,
