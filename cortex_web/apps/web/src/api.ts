@@ -42,33 +42,40 @@ export class EmailNotVerifiedError extends Error {
   }
 }
 
+// The session token lives in sessionStorage, NOT localStorage: it is scoped to
+// the tab and is cleared when the tab/window is closed, so reopening the app
+// requires signing in again (no persistent cached session). One-time cleanup of
+// any token left in localStorage by the previous (persistent) scheme.
+try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(DISPLAY_NAME_KEY); } catch { /* private mode */ }
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }
 export function setToken(t: string): void {
-  localStorage.setItem(TOKEN_KEY, t);
+  sessionStorage.setItem(TOKEN_KEY, t);
 }
 export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 export function isAuthed(): boolean {
   return !!getToken();
 }
 
-// Logged-in display name, persisted alongside the token so the shell can greet
-// the clinician without an extra round-trip. Set on login/register success.
+// Logged-in display name, kept alongside the token (same tab-scoped lifetime) so
+// the shell can greet the clinician without an extra round-trip.
 export function getDisplayName(): string | null {
-  return localStorage.getItem(DISPLAY_NAME_KEY);
+  return sessionStorage.getItem(DISPLAY_NAME_KEY);
 }
 export function setDisplayName(name: string): void {
-  if (name) localStorage.setItem(DISPLAY_NAME_KEY, name);
+  if (name) sessionStorage.setItem(DISPLAY_NAME_KEY, name);
 }
 
-// Sign out: drop the token AND the display name. Pending results stay queued
-// (they belong to the device, not the session) and flush on the next sign-in.
+// Sign out: drop the token AND the display name. Pending results stay queued in
+// localStorage (they belong to the device, not the session) and flush on the
+// next sign-in.
 export function logout(): void {
   clearToken();
-  localStorage.removeItem(DISPLAY_NAME_KEY);
+  sessionStorage.removeItem(DISPLAY_NAME_KEY);
   try { sessionStorage.removeItem("cortex-welcome-seen"); } catch { /* private mode */ }
 }
 

@@ -62,6 +62,29 @@ export function App() {
     if (api.isAuthed()) void api.flushPendingResults();
   }, [phase]);
 
+  // Auto sign-out after 30 minutes of inactivity. Any interaction resets the
+  // timer; a visibility change re-checks immediately (covers a tab left in the
+  // background past the limit). Only runs while signed in.
+  useEffect(() => {
+    if (phase === "auth") return;
+    const IDLE_MS = 30 * 60 * 1000;
+    let last = Date.now();
+    const bump = () => { last = Date.now(); };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
+    const check = () => {
+      if (Date.now() - last >= IDLE_MS) { api.logout(); setPhase("auth"); }
+    };
+    const id = window.setInterval(check, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, bump));
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [phase]);
+
   const bundleRef = useRef<Bundle | null>(null);
 
   // ── flow transitions ──────────────────────────────────────────
