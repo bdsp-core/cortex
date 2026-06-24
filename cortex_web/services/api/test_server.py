@@ -957,6 +957,8 @@ def test_pg_exec_rolls_back_on_error(tmp_path):
             raise RuntimeError("simulated deadlock")
 
     class _FakeConn:
+        closed = False        # a live connection with only an aborted txn —
+        broken = False        # _exec must roll back (not reconnect) this case
         def __init__(self):
             self.rolled_back = 0
         def cursor(self):
@@ -1008,6 +1010,98 @@ def test_pg_fetch_commits_read_txn(tmp_path):
     db._fetchone("SELECT 1")
     db._fetchall("SELECT 1")
     assert fake.committed == 2, "each read must commit so the shared conn never lingers idle-in-transaction"
+
+
+class _Info:
+    """Stand-in for psycopg's conn.info — only transaction_status is read by
+    _exec (0 == PQTRANS_IDLE, 2 == PQTRANS_INTRANS). Kept psycopg-free so these
+    run in the SQLite-only dev/CI venv, like the other _pg tests above."""
+    def __init__(self, status): self.transaction_status = status
+
+
+def test_pg_reconnects_when_connection_severed(tmp_path, monkeypatch):
+    """Regression for the 2026-06-24 prod auth outage: on Postgres the single
+    long-lived connection can be SEVERED out from under the app — a Postgres
+    restart (an unattended-upgrade of a libpq dependency bounces the service), a
+    terminated backend, or a dropped socket. With no recovery the dead connection
+    makes every later request 500 until a manual restart (the connection killed
+    by the Jun-23 06:21 Postgres restart surfaced as AdminShutdown on the next
+    login and stayed down). _exec must detect the dead connection, reconnect, and
+    retry the statement at a clean transaction boundary so the request self-heals.
+    Driven with fakes (the _exec discriminator is the conn's broken flag, not the
+    exception type), so it needs no Postgres."""
+    db = Database(tmp_path / "rx.db")   # real sqlite instance; we override _pg
+
+    class _DeadCursor:
+        def execute(self, sql, params):
+            raise RuntimeError("the connection is lost")
+
+    class _DeadConn:                 # server killed it: next op fails, conn broken
+        closed, broken = False, True
+        info = _Info(0)              # was idle when killed → clean boundary
+        def cursor(self): return _DeadCursor()
+        def rollback(self): raise RuntimeError("the connection is lost")
+        def close(self): pass
+
+    class _LiveCursor:
+        def __init__(self, conn): self._conn = conn
+        def execute(self, sql, params): self._conn.executed += 1
+        def fetchone(self): return {"ok": 1}
+        def close(self): pass
+
+    class _FreshConn:                # what _reconnect() hands back
+        closed, broken = False, False
+        info = _Info(0)
+        def __init__(self): self.executed = 0; self.committed = 0
+        def cursor(self): return _LiveCursor(self)
+        def commit(self): self.committed += 1
+        def close(self): pass
+
+    fresh = _FreshConn()
+    db._pg = True
+    db._conn = _DeadConn()
+    monkeypatch.setattr(db, "_pg_connect", lambda: fresh)
+
+    # A read on the severed connection must transparently reconnect + retry,
+    # returning the row instead of bubbling a 500.
+    row = db._fetchone("SELECT * FROM participants WHERE email=?", ("x@y.z",))
+    assert db._conn is fresh, "must reconnect to a fresh connection"
+    assert fresh.executed == 1, "must retry the statement on the fresh connection"
+    assert row == {"ok": 1}
+
+
+def test_pg_severed_mid_transaction_does_not_retry(tmp_path, monkeypatch):
+    """Safety guard for the reconnect path: if the connection dies mid-write (an
+    earlier statement in the transaction was already lost with it), _exec must
+    reconnect for the NEXT request but must NOT retry this statement — replaying
+    half of a multi-statement write on the fresh connection would persist a
+    partial write. So it reconnects and re-raises; the next request starts
+    clean."""
+    db = Database(tmp_path / "rx2.db")
+
+    class _DeadCursor:
+        def execute(self, sql, params):
+            raise RuntimeError("the connection is lost")
+
+    class _DeadConn:
+        closed, broken = False, True
+        info = _Info(2)             # 2 == PQTRANS_INTRANS → mid-transaction
+        def cursor(self): return _DeadCursor()
+        def rollback(self): pass
+        def close(self): pass
+
+    reconnected = {"n": 0}
+    def fake_connect():
+        reconnected["n"] += 1
+        return _DeadConn()
+    db._pg = True
+    db._conn = _DeadConn()
+    monkeypatch.setattr(db, "_pg_connect", fake_connect)
+
+    with pytest.raises(RuntimeError):
+        db._exec("INSERT INTO participants(code,password_hash,created_utc) VALUES (?,?,?)",
+                 ("c", "h", "t"))
+    assert reconnected["n"] == 1, "must reconnect so the next request is clean"
 
 
 # ───────────────────── signup profile + Settings ─────────────────────

@@ -213,9 +213,8 @@ class Database:
         if self._pg:
             # psycopg3 — opt-in dep. Lazy-imported so SQLite-only dev installs
             # don't need it.
-            import psycopg
-            from psycopg.rows import dict_row
-            self._conn = psycopg.connect(raw, autocommit=False, row_factory=dict_row)
+            self._raw = raw                  # retained so a severed connection
+            self._conn = self._pg_connect()  # can be re-established (see _reconnect)
             self.path = None
         else:
             self.path = Path(raw)
@@ -280,26 +279,104 @@ class Database:
         """Translate `?` placeholders to `%s` when on Postgres."""
         return sql.replace("?", "%s") if self._pg else sql
 
+    def _pg_connect(self):
+        """Open the shared psycopg3 connection (autocommit=False, dict rows).
+        Single source of truth for both the initial connect and _reconnect, so
+        the connection parameters can't drift between them."""
+        import psycopg
+        from psycopg.rows import dict_row
+        return psycopg.connect(self._raw, autocommit=False, row_factory=dict_row)
+
+    def _reconnect(self) -> None:
+        """Re-establish the shared PG connection after it was severed (Postgres
+        restart, terminated backend, dropped socket). The schema/migrations
+        already ran against the database, so only the connection is recreated.
+        The caller holds self._lock, so this is serialized with all other DB
+        access — the single-connection model is preserved, just made durable."""
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+        self._conn = self._pg_connect()
+
+    def _pg_conn_dead(self) -> bool:
+        """True when the shared PG connection can no longer be used — the server
+        closed it (restart / pg_terminate_backend) or the socket broke. Lets a
+        *severed* connection (→ reconnect) be told apart from a merely *aborted*
+        transaction on a live connection (→ rollback)."""
+        try:
+            return bool(self._conn.closed) or bool(self._conn.broken)
+        except Exception:
+            return True   # can't tell → assume dead and reconnect (a fresh
+                          # connection is always usable; never loops in prod
+                          # because a real psycopg conn always exposes both flags)
+
+    def _pg_tx_idle(self) -> bool:
+        """True if the PG connection has no open transaction right now, i.e. a
+        statement that fails can be safely retried on a fresh connection without
+        losing earlier work. libpq's transaction status is read WITHOUT any I/O,
+        so it reflects the last known state even for a connection the server
+        killed while idle. Compared numerically (PQTRANS_IDLE == 0) so the helper
+        doesn't require psycopg to be importable, e.g. in SQLite-only test runs."""
+        try:
+            return int(self._conn.info.transaction_status) == 0   # 0 == PQTRANS_IDLE
+        except Exception:
+            return False   # unknown → assume mid-transaction → don't retry
+
     def _exec(self, sql: str, params: tuple = ()) -> Any:
         """Execute one statement, return a cursor (or sqlite3's conn.execute).
         Wraps the placeholder translation so callers stay backend-agnostic.
 
-        On Postgres the single shared connection runs with autocommit=False, so a
-        statement that errors mid-transaction (deadlock victim, statement
-        timeout, an uncaught UNIQUE violation, …) leaves the transaction in an
-        aborted state. If we don't roll back, EVERY later statement on this
-        connection raises InFailedSqlTransaction until the process restarts —
-        a single transient error becomes a total outage. So roll the transaction
-        back before re-raising, returning the connection to a clean, usable
-        state. (SQLite doesn't poison subsequent statements this way; left as-is.)
+        On Postgres the single shared connection (autocommit=False) has two
+        independent failure modes this guards against:
+
+        1. **Statement error on a live connection** (deadlock victim, statement
+           timeout, an uncaught UNIQUE violation, …) aborts the transaction. If we
+           don't roll back, EVERY later statement raises InFailedSqlTransaction
+           until the process restarts — a single transient error becomes a total
+           login outage (the 2026-06-21 incident). So roll back before re-raising.
+
+        2. **The connection itself is severed** — Postgres restarted (an
+           unattended-upgrade of a libpq dependency bounces the service), the
+           backend was terminated, or the socket dropped. The held connection is
+           dead and, with no recovery, every later request fails forever until a
+           manual restart (the 2026-06-24 incident: an idle connection killed by
+           the Jun-23 06:21 Postgres restart surfaced as AdminShutdown on the next
+           login and stayed down ~all day). So detect the dead connection,
+           reconnect, and — only when we were at a clean transaction boundary —
+           retry the statement once. The app self-heals instead of going dark.
+
+        (SQLite neither poisons later statements nor gets bounced this way; the
+        rollback/reconnect machinery is Postgres-only, leaving SQLite as-is.)
         """
         if self._pg:
+            idle_before = self._pg_tx_idle()   # retry is safe only at a txn boundary
             try:
                 cur = self._conn.cursor()
                 cur.execute(self._q(sql), params)
                 return cur
             except Exception:
-                self._conn.rollback()
+                if self._pg_conn_dead():
+                    # Connection severed. Reconnect so the app recovers; retry this
+                    # statement only if nothing earlier in this operation's
+                    # transaction was lost with it (a bare read, or the first
+                    # statement of a write — the common case, incl. a connection
+                    # killed while idle between requests). If we were mid
+                    # multi-statement write, re-raise instead of persisting a
+                    # partial write; the next request starts clean on the new conn.
+                    self._reconnect()
+                    if idle_before:
+                        cur = self._conn.cursor()
+                        cur.execute(self._q(sql), params)
+                        return cur
+                    raise
+                # Live connection, aborted transaction — roll back so later
+                # statements aren't poisoned. If the rollback itself finds the
+                # connection gone, reconnect before re-raising.
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    self._reconnect()
                 raise
         return self._conn.execute(self._q(sql), params)
 
