@@ -28,16 +28,19 @@ USAGE
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import os
 import sys
+import time
+from collections import Counter
 from pathlib import Path
 
 import h5py
 import numpy as np
 import pandas as pd
 
-REPO = Path(__file__).resolve().parent.parent.parent  # ideal-test-multi/
+REPO = Path(__file__).resolve().parents[4]  # repo root (…/cortex_web/apps/web/scripts/ → up 4 after the monorepo move)
 BANK = REPO / "data" / "eeg_bank.h5"
 # K=7 unified signals (spike + 6 IIIC; NaN where not applicable). The pre-K=7
 # iiic_segment_signals.csv only had the 6 IIIC columns.
@@ -208,10 +211,34 @@ def _emit_segment(g: h5py.Group, sid: int, test_class: str, pattern: str,
     }, spec_shape is not None)
 
 
+def _update_registry(bundle_root: Path, version: str, manifest: dict,
+                     args, source_bank: Path) -> None:
+    """Append/update a bank registry entry (modular-growth provenance, goal 4),
+    mirroring data/DATA_PROVENANCE.md discipline: one JSON keyed by version with
+    counts, source, profile, cert_block, and the manifest sha256."""
+    reg_path = bundle_root / "BANK_REGISTRY.json"
+    registry = json.loads(reg_path.read_text()) if reg_path.exists() else {}
+    man_sha = hashlib.sha256(
+        (bundle_root / version / "manifest.json").read_bytes()).hexdigest()
+    registry[version] = {
+        "built_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "n_segments": manifest["nSegments"],
+        "per_class": dict(Counter(s["patternClass"] for s in manifest["segments"])),
+        "profile": manifest.get("engineProfile"),
+        "cert_block": manifest.get("certBlock"),
+        "n_particles": manifest.get("nParticles"),
+        "source_bank": str(source_bank),
+        "append_from": args.append_from,
+        "manifest_sha256": man_sha,
+    }
+    reg_path.write_text(json.dumps(registry, indent=2, sort_keys=True))
+    print(f"  registry: {reg_path} (version {version}, sha256 {man_sha[:12]}…)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="v1.5-k7")
-    ap.add_argument("--out", type=Path, default=REPO / "cortex_web" / "public" / "bundle")
+    ap.add_argument("--out", type=Path, default=REPO / "cortex_web" / "apps" / "web" / "public" / "bundle")
     ap.add_argument("--bank", type=Path, default=BANK,
                     help=f"source h5 bank with /iiic and /spike groups (default {BANK}).")
     ap.add_argument("--cert-block", default="ell_star_unified_v15",
@@ -232,12 +259,35 @@ def main():
     ap.add_argument("--max-spike", type=int, default=None,
                     help="separate cap for #spike segments (keeps spike-first from "
                          "dominating a small test bundle). Defaults to --max.")
+    ap.add_argument("--append-from", default=None,
+                    help="modular bank growth: carry forward an existing bundle "
+                         "version's segments + blobs (hardlinked, no data copy) "
+                         "and add only the source segs not already in it. New "
+                         "version dir, shared storage; use the SAME "
+                         "--profile/--cert-block as the base.")
     args = ap.parse_args()
     include_spike = not args.no_spike
 
     out_root = args.out / args.version
     seg_dir = out_root / "seg"
     seg_dir.mkdir(parents=True, exist_ok=True)
+
+    # Modular append (goal 4): seed from an existing version — carry its segments
+    # forward and HARDLINK its blobs into the new version dir (shared inodes, no
+    # data copy), so only genuinely-new source segs are quantized below.
+    carried: list[dict] = []
+    existing_ids: set[int] = set()
+    if args.append_from:
+        base_root = args.out / args.append_from
+        base_manifest = json.loads((base_root / "manifest.json").read_text())
+        carried = list(base_manifest["segments"])
+        existing_ids = {int(s["segId"]) for s in carried}
+        for fpath in (base_root / "seg").iterdir():
+            dst = seg_dir / fpath.name
+            if not dst.exists():
+                os.link(fpath, dst)        # hardlink (same filesystem); instant
+        print(f"  append-from {args.append_from}: carried {len(carried)} segs + "
+              f"hardlinked their blobs")
 
     ell_star = load_ell_star(args.cert_block)
     corr_l = load_corr_l()
@@ -249,7 +299,7 @@ def main():
     if missing:
         raise SystemExit(f"{SIGNALS} missing columns: {missing}")
 
-    segments: list[dict] = []
+    segments: list[dict] = list(carried)   # carried-forward base segs (append mode)
     n_spec = 0
     n_skip_pattern = n_skip_signal = n_skip_nan = 0
 
@@ -271,6 +321,8 @@ def main():
             if cap:
                 seg_ids = seg_ids[:cap]
             for sid in seg_ids:
+                if sid in existing_ids:        # already carried from --append-from
+                    continue
                 g = f[grp_name][str(sid)]
                 pattern = str(g.attrs.get("pattern_class", ""))
                 # The v4-k7 spike group doesn't carry pattern_class (it's
@@ -329,6 +381,7 @@ def main():
     else:
         manifest["engineProfile"] = "pilot-frozen"
     (out_root / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    _update_registry(args.out, args.version, manifest, args, args.bank)
 
     total = sum(p.stat().st_size for p in seg_dir.glob("*"))
     skips = (f"  skipped: pattern={n_skip_pattern}  no-signal={n_skip_signal}  "

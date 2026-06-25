@@ -5,7 +5,9 @@ Run from cortex_web/:
 """
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,12 +53,52 @@ def test_jwt_tamper_rejected():
 
 # ───────────────────────── API round-trip ─────────────────────────
 
+def _write_test_bank(bundle_dir, version="test-bank", per_class=8):
+    """Write a minimal web bundle manifest (7 classes × per_class segs) so the
+    server-side draw (POST /api/session) has something to sample. No EEG blobs —
+    server tests never run the browser engine. CI-safe (no real bundle needed)."""
+    words = ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"]
+    segs, sid = [], 0
+    for k, w in enumerate(words):
+        for i in range(per_class):
+            sm = [0.0] * 7
+            sm[k] = 1.0 + 0.05 * i           # informative on the true task
+            segs.append({
+                "segId": sid, "patternClass": w,
+                "testClass": "spike" if w == "spike" else "iiic",
+                "sMean": sm, "sSd": [0.3] * 7,
+                "applicableTaskIdx": [0] if w == "spike" else [1, 2, 3, 4, 5, 6],
+                "fsHz": 200, "nCh": 20, "nSamp": 100, "channelNames": [],
+                "specShape": None, "eeg": f"seg/{sid}.eeg", "spec": "",
+            })
+            sid += 1
+    manifest = {
+        "version": version, "eegScale": 4.0, "specDbRange": [-10.0, 25.0],
+        "taskCodes": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"],
+        "taskLabels": ["Spike", "Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"],
+        "taskPatternWords": words,
+        "taskClasses": ["spike", "iiic", "iiic", "iiic", "iiic", "iiic", "iiic"],
+        "certBlock": "test", "ellStar": [0.0] * 7,
+        "corrL": [[1.0 if i == j else 0.0 for j in range(7)] for i in range(7)],
+        "corrT": [[1.0 if i == j else 0.0 for j in range(7)] for i in range(7)],
+        "nParticles": 1200, "nSegments": len(segs), "segments": segs,
+    }
+    d = Path(bundle_dir) / version
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "manifest.json").write_text(json.dumps(manifest))
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CORTEX_ADMIN_TOKEN", "test-admin")
     monkeypatch.setenv("CORTEX_JWT_SECRET", "test-secret")
     monkeypatch.setenv("CORTEX_EMAIL_BACKEND", "dev")        # no real SES in tests
     monkeypatch.setenv("CORTEX_EMAIL_EXPOSE_CODE", "1")      # echo codes for the flow
+    # A tiny fixture question bank so POST /api/session can draw (goal 3).
+    _write_test_bank(tmp_path / "bundle", "test-bank", per_class=8)
+    monkeypatch.setenv("CORTEX_BUNDLE_DIR", str(tmp_path / "bundle"))
+    monkeypatch.setenv("CORTEX_BUNDLE_URL", "/bundle/test-bank")
+    monkeypatch.setenv("CORTEX_SESSION_SAMPLE", "21")        # draw 21 of 56 → 3/class
     app = create_app(db_path=tmp_path / "t.db")
     return TestClient(app)
 
@@ -150,7 +192,8 @@ def test_full_session_flow(client):
     hdr = _auth_header(client, code, pw)
 
     man = client.get("/api/manifest", headers=hdr).json()
-    assert man["sessionSample"] == 500
+    assert man["sessionSample"] == 21
+    assert man["version"] == "test-bank"        # real bundle id, not "v1.1-local"
 
     sid = client.post("/api/session", headers=hdr,
                       json={"participant": {"expertise": "attending",
@@ -197,6 +240,78 @@ def test_progress_rejects_foreign_session(client):
     r = client.post("/api/progress", headers=hdr_b,
                     json={"sessionId": sid, "trial": {"trialIndex": 0}})
     assert r.status_code == 404
+
+
+def test_session_returns_balanced_server_drawn_bank(client):
+    code, pw = _make_participant(client)
+    hdr = _auth_header(client, code, pw)
+    body = client.post("/api/session", headers=hdr,
+                       json={"participant": {}, "sampleSeed": 7}).json()
+    assert body["sessionId"] and body["sampleSeed"] == 7
+    bank = body["bank"]
+    assert bank["bundleUrl"] == "/bundle/test-bank"
+    assert bank["version"] == "test-bank"
+    assert bank["nParticles"] == 1200                 # v15 engine inputs flow through
+    segs = bank["segments"]
+    assert len(segs) == 21                            # CORTEX_SESSION_SAMPLE
+    # balanced: every one of the 7 classes represented (3 each)
+    from collections import Counter
+    classes = Counter(s["patternClass"] for s in segs)
+    assert len(classes) == 7 and all(c == 3 for c in classes.values())
+    # the session row is stamped with the bundle version (provenance O3)
+    row = next(s for s in client.get("/api/admin/sessions",
+                                     headers={"X-Admin-Token": "test-admin"}).json()
+               if s["session_id"] == body["sessionId"])
+    assert row.get("bundle_version") == "test-bank"
+
+
+def test_session_draw_excludes_recently_seen_segments(client):
+    code, pw = _make_participant(client)
+    hdr = _auth_header(client, code, pw)
+    # First sitting: record every served seg as the SPA would (via /api/progress).
+    first = client.post("/api/session", headers=hdr,
+                        json={"participant": {}, "sampleSeed": 1}).json()
+    seen = [s["segId"] for s in first["bank"]["segments"]]
+    for i, sid in enumerate(seen):
+        client.post("/api/progress", headers=hdr, json={
+            "sessionId": first["sessionId"],
+            "trial": {"trialIndex": i, "segId": sid, "taskK": 0}})
+    # Second sitting (same participant): the draw must exclude every seen seg.
+    second = client.post("/api/session", headers=hdr,
+                         json={"participant": {}, "sampleSeed": 2}).json()
+    got = {s["segId"] for s in second["bank"]["segments"]}
+    assert got.isdisjoint(set(seen))
+
+
+def test_tutorial_example_returns_one_iiic_segment(client):
+    code, pw = _make_participant(client)
+    hdr = _auth_header(client, code, pw)
+    ex = client.get("/api/tutorial-example", headers=hdr).json()
+    assert ex["bundleUrl"] == "/bundle/test-bank"
+    assert len(ex["segments"]) == 1
+    assert ex["segments"][0]["testClass"] == "iiic"
+
+
+def test_exposure_exclusion_windows(tmp_path):
+    db = Database(tmp_path / "x.db")
+    with db._lock:                                   # FK: sessions.code → participants
+        db._exec("INSERT INTO participants(code, password_hash, created_utc) "
+                 "VALUES (?,?,?)", ("C", "x", "2000-01-01T00:00:00Z"))
+        db._conn.commit()
+    db.create_session("sA", "C", {}, 1)
+    db.upsert_trial("sA", {"trialIndex": 0, "segId": 10, "taskK": 0})
+    db.create_session("sB", "C", {}, 2)
+    db.upsert_trial("sB", {"trialIndex": 0, "segId": 20, "taskK": 0})
+    with db._lock:                                   # backdate sA far into the past
+        db._exec("UPDATE sessions SET started_utc=? WHERE session_id=?",
+                 ("2000-01-01T00:00:00Z", "sA"))
+        db._conn.commit()
+    # narrow windows → only the recent sB (last 1 session AND within 30 days)
+    excl = db.get_exposure_exclusion("C", days_window=30, session_window=1)
+    assert 20 in excl and 10 not in excl
+    # wide day window → sA re-enters via the time clause despite session_window=1
+    excl2 = db.get_exposure_exclusion("C", days_window=99999, session_window=1)
+    assert {10, 20} <= excl2
 
 
 def test_admin_requires_token(client):

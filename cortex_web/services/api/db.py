@@ -148,6 +148,19 @@ _SCHEMA_STATEMENTS = [
         withdrawn_utc   TEXT,
         PRIMARY KEY (code, consent_type, consent_version)
     )""",
+    # Per-question TRAINING exposure (forward hook for the L1 trainer). Empty
+    # until the real trainer ships; get_exposure_exclusion already unions it
+    # with test `trials` so test↔train re-exposure spacing works the day
+    # training data starts landing. (Test exposure lives in `trials`.)
+    """CREATE TABLE IF NOT EXISTS training_trials (
+        training_id   TEXT NOT NULL,
+        code          TEXT NOT NULL,
+        seg_id        INTEGER NOT NULL,
+        task_k        INTEGER,
+        shown_utc     TEXT NOT NULL,
+        PRIMARY KEY (training_id, seg_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_training_trials_code ON training_trials(code)",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -178,6 +191,11 @@ _PARAM_TRAJ_MIGRATION_COLUMNS = [
 _TRAINING_SESSIONS_MIGRATION_COLUMNS = [
     ("regimen_id",        "TEXT"),
     ("source_session_id", "TEXT"),
+]
+# Provenance stamp (O3): which bundle/bank version produced a session, so a
+# 35k/v15 session stays attributable + reproducible after a bundle change.
+_SESSIONS_MIGRATION_COLUMNS = [
+    ("bundle_version",    "TEXT"),
 ]
 
 
@@ -230,6 +248,7 @@ class Database:
             self._migrate_participants()
             self._add_missing_columns("param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
             self._add_missing_columns("training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
+            self._add_missing_columns("sessions", _SESSIONS_MIGRATION_COLUMNS)
             # Quarantine backfill: every pre-existing trajectory row is synthetic
             # (the only writer before the L1 trainer was the removed Shell.tsx
             # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
@@ -629,12 +648,14 @@ class Database:
 
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,
-                        sample_seed: Optional[int]) -> None:
+                        sample_seed: Optional[int],
+                        bundle_version: Optional[str] = None) -> None:
         with self._lock:
             self._exec(
                 "INSERT INTO sessions(session_id, code, participant, sample_seed, "
-                "started_utc, status) VALUES (?,?,?,?,?, 'in_progress')",
-                (session_id, code, json.dumps(participant), sample_seed, utc_now()),
+                "bundle_version, started_utc, status) VALUES (?,?,?,?,?,?, 'in_progress')",
+                (session_id, code, json.dumps(participant), sample_seed,
+                 bundle_version, utc_now()),
             )
             self._conn.commit()
 
@@ -689,6 +710,40 @@ class Database:
             return self._fetchall(
                 "SELECT * FROM trials WHERE session_id=? ORDER BY trial_index",
                 (session_id,))
+
+    def get_exposure_exclusion(self, code: str, days_window: int,
+                               session_window: int) -> set:
+        """Seg_ids this participant saw recently — the UNION of their last
+        `session_window` sittings AND everything within `days_window` days
+        (whichever is stricter), across BOTH test (`trials`) and training
+        (`training_trials`). Drives question-reuse spacing at draw time so a
+        segment seen in testing or training isn't re-shown too soon."""
+        cutoff = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ",
+            time.gmtime(time.time() - max(0, days_window) * 86400))
+        excl: set = set()
+        with self._lock:
+            # (sitting table, its id column, the per-question table keyed by it)
+            for sess_tbl, id_col, trial_tbl in (
+                ("sessions", "session_id", "trials"),
+                ("training_sessions", "training_id", "training_trials"),
+            ):
+                sittings = self._fetchall(
+                    f"SELECT {id_col} AS sid, started_utc AS started_utc "
+                    f"FROM {sess_tbl} WHERE code=? ORDER BY started_utc DESC",
+                    (code,))
+                keep = [r["sid"] for i, r in enumerate(sittings)
+                        if i < session_window or (r["started_utc"] or "") >= cutoff]
+                if not keep:
+                    continue
+                qmarks = ",".join("?" for _ in keep)
+                rows = self._fetchall(
+                    f"SELECT DISTINCT seg_id FROM {trial_tbl} "
+                    f"WHERE seg_id IS NOT NULL AND {id_col} IN ({qmarks})",
+                    tuple(keep))
+                excl.update(int(r["seg_id"]) for r in rows
+                            if r["seg_id"] is not None)
+        return excl
 
     # ── results ───────────────────────────────────────────────────
     def store_result(self, session_id: str, result: dict) -> None:

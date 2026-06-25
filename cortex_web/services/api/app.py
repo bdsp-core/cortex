@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import secrets
 import shutil
@@ -54,6 +55,7 @@ from starlette.concurrency import run_in_threadpool
 from . import email as email_mod
 from . import security
 from .db import Database, utc_now
+from .session_bank import SessionBank
 
 HERE = Path(__file__).resolve().parent       # services/api/
 CORTEX_WEB = HERE.parents[1]                  # cortex_web/
@@ -78,7 +80,12 @@ SCRIPTS_DIR = os.environ.get(
 
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
-DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "500"))
+# Per-session candidate-pool size (the server-drawn subset the client engine
+# selects within). Latency at N=1200 scales ~linearly with this: ~300ms/q at
+# 250, ~530ms at 400, ~1s at 700 (engine/_latency_bench). 400 balances
+# between-question speed against per-task resolution headroom; OC sets the final
+# value (with per_domain_cap). Raise it once speculative precompute lands.
+DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "400"))
 TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 
 # Where user reports (the /report page) are emailed. Overridable via env.
@@ -604,6 +611,27 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     app.state.db = db
     limiter = _RateLimiter()
 
+    # ── per-session question bank (goal 3: server-side balanced draw) ──
+    # Bundle config is read here (not at import) so tests/dev can point it at a
+    # fixture bundle via env. The bank (the full signal index = the bundle
+    # manifest) loads LAZILY on first /api/session and is cached for the app's
+    # lifetime; a missing manifest (CI / fresh box) leaves it None and yields a
+    # clear 503 instead of breaking app construction or unrelated endpoints.
+    bundle_url = os.environ.get("CORTEX_BUNDLE_URL", DEFAULT_BUNDLE_URL)
+    bundle_dir = Path(os.environ.get("CORTEX_BUNDLE_DIR", str(BUNDLE_DIR)))
+    session_sample = int(os.environ.get("CORTEX_SESSION_SAMPLE", str(DEFAULT_SESSION_SAMPLE)))
+    spacing_days = int(os.environ.get("CORTEX_SPACING_DAYS", "30"))
+    spacing_sessions = int(os.environ.get("CORTEX_SPACING_SESSIONS", "3"))
+    _bank_cache: dict[str, Optional[SessionBank]] = {}
+
+    def get_session_bank() -> Optional[SessionBank]:
+        if "bank" not in _bank_cache:
+            version = bundle_url.rstrip("/").split("/")[-1]
+            mpath = bundle_dir / version / "manifest.json"
+            _bank_cache["bank"] = (
+                SessionBank(mpath, bundle_url) if mpath.exists() else None)
+        return _bank_cache["bank"]
+
     origins = os.environ.get(
         "CORTEX_CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000",
@@ -848,17 +876,43 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     # ── gated ───────────────────────────────────────────────────
     @app.get("/api/manifest")
     def manifest(_code: str = Depends(require_auth)):
+        # Real bundle identity (replaces the hardcoded "v1.1-local"). The SPA
+        # uses bundleUrl as the base for lazily-fetched EEG/spec blobs; the
+        # per-session question SET now comes from POST /api/session (the
+        # server-side draw), so sessionSample is advisory only.
+        bank = get_session_bank()
         return {
-            "bundleUrl": DEFAULT_BUNDLE_URL,
-            "version": "v1.1-local",
-            "sessionSample": DEFAULT_SESSION_SAMPLE,
+            "bundleUrl": bundle_url,
+            "version": bank.version if bank else None,
+            "sessionSample": session_sample,
         }
+
+    @app.get("/api/tutorial-example")
+    def tutorial_example(_code: str = Depends(require_auth)):
+        # One IIIC example segment for the tutorial walkthrough (goal 3: no
+        # full-manifest fetch to the browser). 503 if the bank isn't configured.
+        bank = get_session_bank()
+        if bank is None:
+            raise HTTPException(503, "question bank unavailable")
+        return bank.example()
 
     @app.post("/api/session")
     def new_session(body: SessionIn, code: str = Depends(require_auth)):
+        # Server-side balanced draw (goal 3): pick this sitting's ~session_sample
+        # questions from the full bank, excluding the participant's recently-seen
+        # segments (goal 5 spacing), and stamp the bundle version (provenance O3).
+        # The browser SMC engine runs over `bank.segments` exactly as before.
+        bank = get_session_bank()
+        if bank is None:
+            raise HTTPException(503, "question bank unavailable")
+        seed = (body.sampleSeed if body.sampleSeed is not None
+                else random.randint(0, 2**31 - 1))
+        exclude = db.get_exposure_exclusion(code, spacing_days, spacing_sessions)
+        drawn = bank.draw(seed, session_sample, exclude)
         session_id = uuid.uuid4().hex
-        db.create_session(session_id, code, body.participant, body.sampleSeed)
-        return {"sessionId": session_id}
+        db.create_session(session_id, code, body.participant, seed,
+                          bundle_version=bank.version)
+        return {"sessionId": session_id, "sampleSeed": seed, "bank": drawn}
 
     @app.post("/api/progress")
     def progress(body: ProgressIn, code: str = Depends(require_auth)):

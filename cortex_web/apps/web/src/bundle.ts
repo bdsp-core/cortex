@@ -20,6 +20,16 @@ export interface BundleManifest extends EngineInputs {
   })[];
 }
 
+// A server-drawn per-session bank (POST /api/session, goal 3): the engine
+// inputs + the ~drawn segment subset + the bundle base, in place of fetching
+// the full manifest. Same shape as BundleManifest (minus nSegments) plus the
+// base URL and the draw bookkeeping.
+export type SessionBank = Omit<BundleManifest, "nSegments"> & {
+  bundleUrl: string;
+  sampleSeed?: number;
+  nPool?: number;
+};
+
 export interface SegmentData {
   eeg: Float32Array; // (nCh × nSamp) row-major, µV
   nCh: number;
@@ -42,6 +52,13 @@ export class Bundle {
   static async load(base: string): Promise<Bundle> {
     const manifest = (await (await fetch(`${base}/manifest.json`)).json()) as BundleManifest;
     return new Bundle(base, manifest);
+  }
+
+  // Build a Bundle from a server-drawn session bank (goal 3) — no full-manifest
+  // fetch. The engine runs over bank.segments; EEG/spec blobs are still fetched
+  // lazily from bank.bundleUrl via each segment's `eeg`/`spec` path.
+  static fromSessionBank(bank: SessionBank): Bundle {
+    return new Bundle(bank.bundleUrl, bank as unknown as BundleManifest);
   }
 
   get inputs(): EngineInputs {

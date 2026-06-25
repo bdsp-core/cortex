@@ -7,14 +7,22 @@
 // `vite dev` the dev server proxies /api → :8000 (see vite.config.ts), so the
 // empty base works there too.
 
+import type { SessionBank } from "./bundle";
+
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const TOKEN_KEY = "cortex_token";
 const DISPLAY_NAME_KEY = "cortex_display_name";
 
 export interface Manifest {
   bundleUrl: string;
-  version: string;
-  sessionSample: number;
+  version: string | null;   // real bundle id (null only if no bank configured)
+  sessionSample: number;    // advisory; the question SET comes from startSession
+}
+
+export interface StartSessionResult {
+  sessionId: string;
+  sampleSeed: number;
+  bank: SessionBank;        // the server-drawn per-session question subset
 }
 
 export interface TrialCheckpoint {
@@ -438,15 +446,21 @@ export interface api_TrajectoryPointIn {
   rt?: number;
 }
 
-export async function createSession(
+// Start a sitting: the server draws this participant's balanced, spacing-aware
+// question subset (goal 3) and returns it with the session id + sample seed.
+export async function startSession(
   participant: Record<string, unknown>,
-  sampleSeed: number,
-): Promise<string> {
-  const body = await authedFetch("/api/session", {
+): Promise<StartSessionResult> {
+  return authedFetch("/api/session", {
     method: "POST",
-    body: JSON.stringify({ participant, sampleSeed }),
+    body: JSON.stringify({ participant }),
   });
-  return body.sessionId;
+}
+
+// One representative IIIC segment for the in-context tutorial (no full-manifest
+// fetch) — returned as a 1-segment bank the client wraps in a Bundle.
+export function tutorialExample(): Promise<SessionBank> {
+  return authedFetch("/api/tutorial-example");
 }
 
 // Fire-and-forget per-trial checkpoint (crash-safety). Never throws into the

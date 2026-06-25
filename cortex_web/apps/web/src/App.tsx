@@ -14,8 +14,6 @@ import { Viewer, Item } from "./components/Viewer";
 import { SpikeViewer } from "./components/SpikeViewer";
 import { resolutionConfidence, Progress } from "./progress";
 import { empiricalPoint, onCurvePoint } from "./roc";
-import { sampleSession } from "./sampleSession";
-import { MAX_QUESTIONS } from "../engine/session";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
@@ -93,8 +91,8 @@ export function App() {
   const enterTutorial = useCallback(async () => {
     setPhase("loading");
     try {
-      const manifest = await api.getManifest();
-      const b = await Bundle.load(manifest.bundleUrl);
+      const ex = await api.tutorialExample();
+      const b = Bundle.fromSessionBank(ex);
       bundleRef.current = b;
       setBundle(b);
       // Load the account profile (collected at signup) into the session record,
@@ -118,21 +116,25 @@ export function App() {
   const startTest = useCallback(async () => {
     setPhase("loading");
     try {
-      const manifest = await api.getManifest();
-      const b = bundleRef.current ?? await Bundle.load(manifest.bundleUrl);
+      // Server-side draw (goal 3): the backend picks this sitting's balanced,
+      // spacing-aware question subset from the full 35k bank and returns it —
+      // the browser never downloads the full manifest.
+      const { sessionId, sampleSeed, bank } = await api.startSession(
+        { ...(participantRef.current ?? {}) },
+      );
+      const b = Bundle.fromSessionBank(bank);
       bundleRef.current = b;
       setBundle(b);
-      const { inputs, info } = sampleSession(b.inputs, manifest.sessionSample);
+      const inputs = b.inputs;
       console.info(
-        `[cortex] session sample: ${info.nSampled} of ${info.nPool} pool ` +
-        `(seed ${info.seed}); per-class`, info.perClass,
-      );
-      const sessionId = await api.createSession(
-        { ...(participantRef.current ?? {}) }, info.seed,
+        `[cortex] session bank: ${inputs.segments.length} of ${bank.nPool} pool ` +
+        `(seed ${sampleSeed})`,
       );
       sessionIdRef.current = sessionId;
 
-      const maxQ = Math.min(MAX_QUESTIONS, inputs.segments.length);
+      // Adaptive test: the engine ends on per-task resolution (AD6 + per-domain
+      // cap), bounded by the drawn pool — use the pool as the progress max.
+      const maxQ = inputs.segments.length;
       setProgress({ answered: 0, maxQ, resolveConf: null });
 
       const client = new EngineClient({
@@ -248,7 +250,7 @@ export function App() {
             servedSegIds: r.servedSegIds,
             trials: r.trials,
             participant: participantRef.current,
-            sampleSeed: info.seed,
+            sampleSeed,
           }, r.stopReason, r.nQuestions);
           if (!delivered) console.warn("[cortex] results upload deferred; retained locally");
           setPhase("done");
@@ -256,7 +258,7 @@ export function App() {
         onError: (m) => { setMsg(m); setPhase("error"); },
       });
       clientRef.current = client;
-      client.start(inputs, `web-${info.seed}`);
+      client.start(inputs, `web-${sampleSeed}`);
       setPhase("running");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
