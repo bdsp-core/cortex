@@ -28,7 +28,10 @@ self.onmessage = async (ev: MessageEvent) => {
         onItem: (item) => (self as any).postMessage({ type: "item", ...item }),
         onTrial: (diag) => (self as any).postMessage({ type: "trial", diag }),
         onDone: (result) => (self as any).postMessage({ type: "done", result }),
-      });
+        // Speculative precompute ON by default in production (bit-identical to
+        // inline; hides the N=1200 selection in think-time). An init message may
+        // set speculative:false to fall back to inline compute.
+      }, { speculative: msg.speculative ?? true });
       session.run().catch((e) =>
         (self as any).postMessage({ type: "error", message: String(e?.stack || e) }),
       );

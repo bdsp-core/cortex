@@ -111,7 +111,7 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     const r = await runSim(inputs, new Array(K).fill(0), new Array(K).fill(0.6), 1);
     expect(r.nQ).toBeGreaterThan(0);
     expect(r.nQ).toBeLessThanOrEqual(inputs.segments.length);
-    expect(["all_resolved", "bank_exhausted"]).toContain(r.stopReason);
+    expect(["all_resolved", "resolved_or_referred", "bank_exhausted"]).toContain(r.stopReason);
   }, 240000);
 
   it.runIf(onRealBank)("a clearly-skilled rater earns mostly PASS", async () => {

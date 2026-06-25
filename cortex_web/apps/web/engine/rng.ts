@@ -109,4 +109,17 @@ export class Rng {
     }
     return idx;
   }
+
+  // Exact copy of the generator state — for speculative branch isolation
+  // (engine/advance.ts). A cloned Rng reproduces the identical stream from this
+  // point, so a branch's draws don't disturb the live stream until adopted.
+  clone(): Rng {
+    const r = new Rng(0);
+    r.s0 = this.s0;
+    r.s1 = this.s1;
+    r.s2 = this.s2;
+    r.s3 = this.s3;
+    r.gaussSpare = this.gaussSpare;
+    return r;
+  }
 }

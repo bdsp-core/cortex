@@ -36,6 +36,10 @@ export interface EngineInputs {
   // OPT-IN (v15 staging). Particle count; defaults to N_PARTICLES (600) when
   // absent. v15 manifests carry 1200.
   nParticles?: number;
+  // OPT-IN (v1.6 adaptive termination). Per-domain question budget: a task
+  // still PENDING after this many of its own questions is REFERred. Absent →
+  // engine default PER_DOMAIN_CAP. Emitted by the v15+ bundle build.
+  perDomainCap?: number;
   ellStar: number[]; // (K) Youden cut-scores from the cert_config block
   segments: SegmentMeta[];
 }

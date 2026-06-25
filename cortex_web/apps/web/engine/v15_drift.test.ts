@@ -143,7 +143,7 @@ describe("v15 drift-guard — opt-in flag changes behaviour", () => {
           // its size then abort so we don't drive the full session loop. Defer
           // the abort to a microtask so it lands after run() has registered its
           // answer resolver (onItem fires synchronously before awaitAnswer).
-          captured = (session as any).state.N;
+          captured = (session as any).core.state.N;
           queueMicrotask(() => session.abort());
         },
       });

@@ -126,4 +126,16 @@ export class AD6Policy {
           : VERDICT.REFER_UNINFORMATIVE,
     );
   }
+
+  // Deep copy of the monotonic verdict state — for speculative branch isolation
+  // (engine/advance.ts). Params (ℓ*, varPrior, thresholds) are immutable and
+  // shared; only verdicts + lastR are per-branch mutable.
+  clone(): AD6Policy {
+    const p = new AD6Policy(this.ellStar, this.varPrior, {
+      nMin: this.nMin, rStar: this.rStar, alpha: this.alpha, Z: this.Z,
+    });
+    p.verdicts = this.verdicts.slice();
+    p.lastR = this.lastR.slice();
+    return p;
+  }
 }

@@ -1,26 +1,42 @@
 // Adaptive session loop — port of CortexSession.run (scripts/session_controller.py),
 // reshaped for the browser's async answer flow.
 //
-// The desktop blocks a worker thread on a queue.get() for each answer; here
-// the loop awaits a Promise that submitAnswer() resolves. The binary-Y
-// reduction (Y = 1 iff the rater's 0-based 6-way pick == the task k the
-// engine asked) happens in submitAnswer, exactly as EngineWorker._y_source.
+// The per-trial step (reweight → maybe rejuvenate → AD6 + per-domain cap →
+// choose next) lives in engine/advance.ts as advanceCore, so it can run either
+// INLINE (committed straight onto the live core) or SPECULATIVELY: during the
+// participant's think-time the worker precomputes BOTH answer branches on clones
+// of the core, then adopts the matching one when the real answer arrives. The
+// answer is binary (Y = 1 iff the rater's 6-way pick == the asked task), so two
+// branches cover every outcome. Because both paths call the SAME advanceCore on
+// an exact clone, a speculative session is BIT-IDENTICAL to the inline one
+// (proven in speculative.test.ts) — speculation hides the heavy N=1200 selection
+// in otherwise-idle think-time without changing a single result.
 
-import { EngineInputs, ParticleState, TrialDiag } from "./types";
+import { EngineInputs, TrialDiag } from "./types";
 import { precomputePriorPair } from "./prior";
-import { makeState, update, ess, resampleAndRejuvenate, posteriorMeans } from "./particles";
+import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
-import { BankArrays, chooseItem, chooseFirstItem, Chosen } from "./choose_item";
+import { Chosen } from "./choose_item";
 import { AD6Policy } from "./policy";
 import { Rng } from "./rng";
+import {
+  SessionCore, AdvanceParams, AdvanceResult, cloneCore, advanceCore, chooseNext,
+} from "./advance";
 
 // Default particle count (frozen-pilot instrument). v15 staging (OPT-IN) lets a
 // manifest override this via EngineInputs.nParticles (1200); when absent the
 // session resolves to this value, keeping the default path bit-identical.
 export const N_PARTICLES = 600;
-// Paper-grade max (v1.3.6 instrument freeze): 500 questions cap, matching
-// the desktop. Most sessions finish well before this.
+// Legacy fixed-sweep cap (v1.3.6), superseded by adaptive termination: the
+// engine loop ends on AD6 resolution, bounded by the per-domain budget below
+// (K × PER_DOMAIN_CAP). Kept exported for back-compat; no longer used.
 export const MAX_QUESTIONS = 500;
+// Per-domain question budget (v1.6 adaptive termination). A task still PENDING
+// after this many of its OWN questions is capped out of selection and REFERred
+// at finalize — bounding the worst-case single-domain tail so the test ends on
+// resolution, not a fixed sweep. Manifest-overridable via
+// EngineInputs.perDomainCap; OC sets the shipped value.
+export const PER_DOMAIN_CAP = 120;
 export const N_MH_STEPS = 15;
 export const ESS_THRESHOLD_FRAC = 0.5;
 export const FIRST_ITEM_TOPN = 10;
@@ -45,6 +61,14 @@ export interface SessionCallbacks {
   onDone?: (result: SessionResult) => void;
 }
 
+export interface SessionOptions {
+  // Speculative precompute (v1.6): compute both answer branches during the
+  // participant's think-time so the answer→next-item path is just a branch
+  // adopt. Bit-identical to the inline path; defaults OFF (tests/back-compat
+  // opt in explicitly; the worker turns it ON in production).
+  speculative?: boolean;
+}
+
 export interface SessionResult {
   sessionId: string;
   nQuestions: number;
@@ -60,15 +84,15 @@ export interface SessionResult {
   traj: { t: Float32Array; l: Float32Array; w: Float32Array; shape: [number, number, number] };
 }
 
+const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
+
 export class WebCortexSession {
   private inputs: EngineInputs;
   private sessionId: string;
   private seed: number;
-  private state!: ParticleState;
-  private policy!: AD6Policy;
-  private rng!: Rng;
-  private remaining!: Set<number>;
-  private nPerTask!: number[];
+  // All mutable per-trial state lives in one cloneable bag so a speculative
+  // branch can run on an exact copy and be adopted atomically.
+  private core!: SessionCore;
   private trials: TrialDiag[] = [];
   private served: number[] = [];
   // Per-question particle-cloud snapshots for the visualization videos (#8).
@@ -76,16 +100,21 @@ export class WebCortexSession {
   private lTraj: Float64Array[] = [];
   private wTraj: Float64Array[] = [];
   private proposalScale: number;
+  private speculative: boolean;
   private cb: SessionCallbacks;
   private answerResolver: ((pick: number) => void) | null = null;
   private aborted = false;
 
-  constructor(inputs: EngineInputs, sessionId: string, seed: number, cb: SessionCallbacks = {}) {
+  constructor(
+    inputs: EngineInputs, sessionId: string, seed: number,
+    cb: SessionCallbacks = {}, opts: SessionOptions = {},
+  ) {
     this.inputs = inputs;
     this.sessionId = sessionId;
     this.seed = seed;
     this.cb = cb;
     this.proposalScale = 2.38 / Math.sqrt(2 * inputs.taskCodes.length);
+    this.speculative = opts.speculative ?? false;
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
@@ -106,37 +135,6 @@ export class WebCortexSession {
     return new Promise((resolve) => (this.answerResolver = resolve));
   }
 
-  // Build per-task candidate arrays over the remaining (unserved) bank. A
-  // segment only contributes to the task indices listed in its
-  // applicableTaskIdx — IIIC items to the 6 IIIC tasks, spike items to spike
-  // — so the engine can't accidentally select an IIIC clip for the spike task
-  // (sMean/sSd at the inapplicable indices are sentinel 0.0, not real signals).
-  // Pre-K=7 bundles omit applicableTaskIdx; we then fall back to "all K tasks".
-  private bankArrays(): BankArrays {
-    const K = this.inputs.taskCodes.length;
-    const sMean: number[][] = Array.from({ length: K }, () => []);
-    const sSd: number[][] = Array.from({ length: K }, () => []);
-    const segId: number[][] = Array.from({ length: K }, () => []);
-    for (const seg of this.inputs.segments) {
-      if (!this.remaining.has(seg.segId)) continue;
-      const applicable = seg.applicableTaskIdx;
-      if (applicable) {
-        for (const k of applicable) {
-          sMean[k].push(seg.sMean[k]);
-          sSd[k].push(seg.sSd[k]);
-          segId[k].push(seg.segId);
-        }
-      } else {
-        for (let k = 0; k < K; k++) {
-          sMean[k].push(seg.sMean[k]);
-          sSd[k].push(seg.sSd[k]);
-          segId[k].push(seg.segId);
-        }
-      }
-    }
-    return { sMean, sSd, segId };
-  }
-
   async run(): Promise<SessionResult> {
     const K = this.inputs.taskCodes.length;
     // N is opt-in (v15 staging): default 600 (frozen pilot) unless the manifest
@@ -144,139 +142,97 @@ export class WebCortexSession {
     // manifest carries it (v15), else corrL for both blocks (pilot — bit-
     // identical to the single-PriorPieces era).
     const nParticles = this.inputs.nParticles ?? N_PARTICLES;
-    this.rng = new Rng(this.seed);
+    const rng = new Rng(this.seed);
     const prior = precomputePriorPair(this.inputs.corrL, this.inputs.corrT);
-    this.state = makeState(nParticles, K, prior, this.rng);
-    this.policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
-    this.remaining = new Set(this.inputs.segments.map((s) => s.segId));
-    this.nPerTask = new Array(K).fill(0);
+    const state = makeState(nParticles, K, prior, rng);
+    const policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
+    const perDomainCap = this.inputs.perDomainCap ?? PER_DOMAIN_CAP;
+    // Phase-aware selection (desktop session_controller.py l.241+): for K=7
+    // bundles with spike at index 0, run the spike block first (Phase A) until
+    // spike locks or its bank exhausts, then Phase B (only IIIC).
+    const spikeIdx = this.inputs.taskClasses
+      ? this.inputs.taskClasses.findIndex((c) => c === "spike")
+      : -1;
+
+    this.core = {
+      state,
+      rng,
+      policy,
+      remaining: new Set(this.inputs.segments.map((s) => s.segId)),
+      nPerTask: new Array(K).fill(0),
+      cappedTasks: new Set<number>(),
+      lastVerdicts: new Array(K).fill("PENDING"),
+      lastTaskK: -1,
+      streakCount: 0,
+    };
+    const params: AdvanceParams = {
+      K,
+      nParticles,
+      perDomainCap,
+      nMhSteps: N_MH_STEPS,
+      essThresholdFrac: ESS_THRESHOLD_FRAC,
+      proposalScale: this.proposalScale,
+      firstItemTopN: FIRST_ITEM_TOPN,
+      maxConsecutiveSameDomain: MAX_CONSECUTIVE_SAME_DOMAIN,
+      k7Spike: spikeIdx >= 0,
+      spikeIdx,
+    };
+    // Safety backstop: every task either resolves or hits its per-domain cap,
+    // so K × cap bounds the session even if AD6 never fires.
+    const maxQ = Math.min(K * perDomainCap, this.inputs.segments.length);
 
     let stopReason = "bank_exhausted";
-    const maxQ = Math.min(MAX_QUESTIONS, this.inputs.segments.length);
+    // Cold start: the opener (chooseFirstItem consumes rng). Guard the empty bank.
+    let chosen: Chosen = this.core.remaining.size > 0
+      ? chooseNext(this.core, this.inputs, params, 0)
+      : NO_ITEM;
 
-    // Phase-aware selection (desktop session_controller.py l.241+). For K=7
-    // bundles with spike at index 0 we run the spike block first (Phase A:
-    // only spike is selectable) until either the spike verdict locks or the
-    // spike bank exhausts, then switch to Phase B (only IIIC). Pre-K=7
-    // bundles have no phase concept and select across all tasks.
-    const tc = this.inputs.taskClasses;
-    const spikeIdx = tc ? tc.findIndex((c) => c === "spike") : -1;
-    const k7Spike = spikeIdx >= 0;
-    let lastVerdicts: string[] = new Array(K).fill("PENDING");
-
-    // Variety-cap streak tracking. lastTaskK = the task served on the previous
-    // trial (or -1 if none); streakCount = how many in a row that task has run.
-    let lastTaskK = -1;
-    let streakCount = 0;
-
-    for (let trialIndex = 0; trialIndex < maxQ; trialIndex++) {
-      if (this.remaining.size === 0 || this.aborted) break;
-      const bank = this.bankArrays();
-
-      // Phase exclusion: in K=7, Phase A only allows spike; Phase B excludes
-      // spike. The spike bank being empty (no spike items in the bundle yet,
-      // or already exhausted) transitions us into Phase B even if spike is
-      // still PENDING.
-      const phaseExcluded = new Set<number>();
-      if (k7Spike) {
-        const spikePending = lastVerdicts[spikeIdx] === "PENDING";
-        const spikeBankNonEmpty = bank.sMean[spikeIdx]?.length > 0;
-        if (spikePending && spikeBankNonEmpty) {
-          // Phase A: exclude every non-spike task.
-          for (let k = 0; k < K; k++) if (k !== spikeIdx) phaseExcluded.add(k);
-        } else {
-          // Phase B: exclude spike.
-          phaseExcluded.add(spikeIdx);
-        }
-      }
-
-      // Variety cap composed with phase: don't exclude a task if doing so
-      // would empty the candidate set.
-      const excluded = new Set(phaseExcluded);
-      if (trialIndex > 0 && streakCount >= MAX_CONSECUTIVE_SAME_DOMAIN
-            && !excluded.has(lastTaskK)) {
-        const otherHasBank = bank.sMean.some(
-          (arr, k) => k !== lastTaskK && !excluded.has(k) && arr.length > 0,
-        );
-        if (otherHasBank) excluded.add(lastTaskK);
-      }
-
-      let chosen: Chosen =
-        trialIndex === 0
-          ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng, excluded)
-          : chooseItem(this.state, bank, excluded);
-      // Defensive fallbacks: if variety+phase leaves nothing, drop the
-      // variety cap; if still nothing (degenerate), drop the phase too.
-      if (chosen.segId === -1)
-        chosen = trialIndex === 0
-          ? chooseFirstItem(this.state, bank, FIRST_ITEM_TOPN, this.rng, phaseExcluded)
-          : chooseItem(this.state, bank, phaseExcluded);
-      if (chosen.segId === -1) chosen = chooseItem(this.state, bank);
-
+    let trialIndex = 0;
+    while (chosen.segId !== -1 && trialIndex < maxQ && !this.aborted) {
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
 
-      const pick = await this.awaitAnswer();
-      if (this.aborted || pick < 0) {
-        stopReason = "aborted";
-        break;
+      // Speculative precompute: during think-time, run BOTH answer branches on
+      // clones of the core. advanceCore is identical to the inline path, so the
+      // adopted branch is bit-identical to computing it after the answer.
+      let branches: [AdvanceResult, AdvanceResult] | null = null;
+      if (this.speculative) {
+        branches = [
+          advanceCore(cloneCore(this.core), this.inputs, chosen, 0, params, trialIndex),
+          advanceCore(cloneCore(this.core), this.inputs, chosen, 1, params, trialIndex),
+        ];
       }
+      // An abort that arrived during the (synchronous) speculation above.
+      if (this.aborted) { stopReason = "aborted"; break; }
+
+      const pick = await this.awaitAnswer();
+      if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
       const y: 0 | 1 = pick === chosen.k ? 1 : 0;
 
-      update(this.state, chosen.k, chosen.s, y, chosen.sSd);
-      let rejuv = false;
-      if (ess(this.state.w) < ESS_THRESHOLD_FRAC * nParticles) {
-        resampleAndRejuvenate(this.state, this.rng, N_MH_STEPS, this.proposalScale);
-        rejuv = true;
-      }
+      const res = branches
+        ? branches[y]
+        : advanceCore(this.core, this.inputs, chosen, y, params, trialIndex);
+      this.core = res.core; // spec: adopt the matching clone; inline: same ref
 
-      this.served.push(chosen.segId);
-      this.remaining.delete(chosen.segId);
-      this.nPerTask[chosen.k] += 1;
-      // Snapshot the (post-update) particle cloud for the visualization videos
-      // (mirrors session_controller.py t_traj/l_traj/w_traj capture).
-      this.tTraj.push(this.state.t.slice());
-      this.lTraj.push(this.state.l.slice());
-      this.wTraj.push(this.state.w.slice());
-      // update variety-cap streak
-      if (chosen.k === lastTaskK) streakCount += 1;
-      else { lastTaskK = chosen.k; streakCount = 1; }
+      this.served.push(res.servedSegId);
+      this.trials.push(res.diag);
+      this.tTraj.push(res.trajSnapshot.t);
+      this.lTraj.push(res.trajSnapshot.l);
+      this.wTraj.push(res.trajSnapshot.w);
+      this.cb.onTrial?.(res.diag);
 
-      const res = this.policy.evaluate(this.state, this.nPerTask);
-      lastVerdicts = res.verdicts;   // feeds the next trial's phase check
-      const { tMean, lMean } = posteriorMeans(this.state);
-      const diag: TrialDiag = {
-        trialIndex,
-        taskK: chosen.k,
-        segId: chosen.segId,
-        s: chosen.s,
-        sSd: chosen.sSd,
-        y,
-        ess: res.ess,
-        rejuv,
-        pi: res.pi,
-        mcse: res.mcse,
-        R: res.R,
-        verdicts: res.verdicts,
-        nPerTask: [...this.nPerTask],
-        tMean,
-        lMean,
-        aurocHw: aurocSummary(this.state.l, this.state.w, this.state.N, K).hw,
-      };
-      this.trials.push(diag);
-      this.cb.onTrial?.(diag);
-
-      if (res.stop) {
-        stopReason = res.stopReason;
-        break;
-      }
+      if (res.done) { stopReason = res.stopReason; break; }
+      chosen = res.nextChosen;
+      // No candidate among the still-active domains → their banks are exhausted.
+      if (chosen.segId === -1) { stopReason = "bank_exhausted"; break; }
+      trialIndex++;
     }
 
-    const verdicts = this.policy.finalize();
+    const verdicts = this.core.policy.finalize();
     const { mean: finalAuroc, hw: finalAurocHw } = aurocSummary(
-      this.state.l, this.state.w, this.state.N, K,
+      this.core.state.l, this.core.state.w, this.core.state.N, K,
     );
     // Flatten the snapshots into [T,N,K] (t,l) and [T,N] (w) Float32 buffers.
-    const T = this.tTraj.length, N = this.state.N;
+    const T = this.tTraj.length, N = this.core.state.N;
     const t = new Float32Array(T * N * K), l = new Float32Array(T * N * K), w = new Float32Array(T * N);
     for (let i = 0; i < T; i++) {
       t.set(this.tTraj[i], i * N * K);

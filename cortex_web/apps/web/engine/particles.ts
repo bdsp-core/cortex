@@ -23,6 +23,24 @@ export function makeState(
   return { N, K, t, l, w, logPrior, logLik, history: [], prior };
 }
 
+// Exact deep copy of a particle cloud — for speculative branch isolation
+// (engine/advance.ts). Typed arrays are sliced; history is shallow-copied (its
+// {k,s,y,sSd} elements are never mutated, only appended); the immutable prior
+// pieces are shared.
+export function cloneState(st: ParticleState): ParticleState {
+  return {
+    N: st.N,
+    K: st.K,
+    t: st.t.slice(),
+    l: st.l.slice(),
+    w: st.w.slice(),
+    logPrior: st.logPrior.slice(),
+    logLik: st.logLik.slice(),
+    history: st.history.slice(),
+    prior: st.prior,
+  };
+}
+
 // Reweight by the likelihood of (k, s, y); update history + logLik in place.
 export function update(
   st: ParticleState,
