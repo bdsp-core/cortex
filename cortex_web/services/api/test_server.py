@@ -587,7 +587,7 @@ def test_question_breakdown_pure():
 
 def test_history_questions_endpoint(client, monkeypatch):
     from . import app as app_module
-    monkeypatch.setattr(app_module, "_TRUTH_CACHE", _TRUTH)
+    monkeypatch.setattr(app_module, "_truth_map_for", lambda *a, **k: _TRUTH)
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     sid = client.post("/api/session", headers=hdr,
@@ -611,6 +611,34 @@ def test_history_questions_endpoint(client, monkeypatch):
     e2, p2 = _make_participant(client)
     assert client.get(f"/api/history/{sid}/questions",
                       headers=_auth_header(client, e2, p2)).status_code == 404
+
+
+def test_truth_map_resolves_per_bundle_version(tmp_path, monkeypatch):
+    # The label bug: a session's per-question correct answer must be resolved
+    # against the bundle that PRODUCED it (its segId space), not a global "first
+    # manifest". Two bundles assign the SAME segId to DIFFERENT classes; the
+    # truth map must follow bundle_version.
+    from . import app as app_module
+    bdir = tmp_path / "bundle"
+    _write_test_bank(bdir, "aaa-first", per_class=4)    # sorts first → legacy fallback
+    _write_test_bank(bdir, "zzz-second", per_class=4)
+    # Repaint seg 5's class differently in each so the maps must diverge.
+    import json as _json
+    for ver, cls in (("aaa-first", "lpd"), ("zzz-second", "gpd")):
+        mp = bdir / ver / "manifest.json"
+        m = _json.loads(mp.read_text())
+        for s in m["segments"]:
+            if s["segId"] == 5:
+                s["patternClass"] = cls
+        mp.write_text(_json.dumps(m))
+    monkeypatch.setattr(app_module, "BUNDLE_DIR", bdir)
+    monkeypatch.setattr(app_module, "_TRUTH_CACHE", {})
+    # version routes to its OWN bundle (the fix)
+    assert app_module._truth_map_for("aaa-first")["seg"][5] == "lpd"
+    assert app_module._truth_map_for("zzz-second")["seg"][5] == "gpd"
+    # unknown/legacy (NULL bundle_version) → alphabetically-first bundle
+    assert app_module._truth_map_for(None)["seg"][5] == "lpd"
+    assert app_module._truth_map_for("nonexistent")["seg"][5] == "lpd"
 
 
 def test_history_questions_requires_auth(client):

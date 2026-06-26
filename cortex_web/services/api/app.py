@@ -354,32 +354,45 @@ def _dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
 # The bundle manifest is the ground-truth source: segId → patternClass, the
 # per-task pattern words, and which task is the (binary) spike task. Loaded once
 # and cached — it's the same file the SPA + the ℓ* backfill read.
-_TRUTH_CACHE: dict | None = None
+# Truth maps cached PER bundle manifest path. The segId space differs across
+# bundles (the 35k v1.6 segIds are absent from the 700-seg pilot bundles), so the
+# per-question "correct answer" MUST be resolved against the bundle that actually
+# produced the session — keyed by sessions.bundle_version (the O3 provenance
+# stamp). A single global "first manifest" map mislabelled IIIC questions for
+# every session not on that bundle.
+_TRUTH_CACHE: dict[str, dict] = {}
+_EMPTY_TRUTH = {"seg": {}, "words": [], "classes": [], "labels": []}
 
 
-def _load_truth_map() -> dict:
-    """{'seg': {segId: patternClass}, 'words': [...], 'classes': [...],
-    'labels': [...]} from the bundle manifest, or empty maps if absent."""
-    global _TRUTH_CACHE
-    if _TRUTH_CACHE is not None:
-        return _TRUTH_CACHE
-    empty = {"seg": {}, "words": [], "classes": [], "labels": []}
-    try:
+def _truth_map_for(version: Optional[str] = None) -> dict:
+    """{'seg': {segId: patternClass}, 'words', 'classes', 'labels'} for the
+    bundle `version` (sessions.bundle_version). Falls back to the alphabetically
+    -first bundle for legacy sessions stamped before provenance (the pilot
+    bundles predate it, and that is the bundle they ran on)."""
+    path = None
+    if version:
+        p = BUNDLE_DIR / version / "manifest.json"
+        if p.exists():
+            path = p
+    if path is None:                       # legacy / unknown → pilot bundle
         manifests = sorted(BUNDLE_DIR.glob("*/manifest.json"))
-        if not manifests:
-            _TRUTH_CACHE = empty
-            return _TRUTH_CACHE
-        m = json.loads(manifests[0].read_text())
-        _TRUTH_CACHE = {
-            "seg": {int(s["segId"]): s.get("patternClass")
-                    for s in m.get("segments", []) if "segId" in s},
-            "words": m.get("taskPatternWords", []),
-            "classes": m.get("taskClasses", []),
-            "labels": m.get("taskLabels", []),
-        }
-    except Exception:
-        _TRUTH_CACHE = empty
-    return _TRUTH_CACHE
+        path = manifests[0] if manifests else None
+    if path is None:
+        return _EMPTY_TRUTH
+    key = str(path)
+    if key not in _TRUTH_CACHE:
+        try:
+            m = json.loads(path.read_text())
+            _TRUTH_CACHE[key] = {
+                "seg": {int(s["segId"]): s.get("patternClass")
+                        for s in m.get("segments", []) if "segId" in s},
+                "words": m.get("taskPatternWords", []),
+                "classes": m.get("taskClasses", []),
+                "labels": m.get("taskLabels", []),
+            }
+        except Exception:
+            _TRUTH_CACHE[key] = _EMPTY_TRUTH
+    return _TRUTH_CACHE[key]
 
 
 def _question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
@@ -982,7 +995,10 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         sess = db.get_session(session_id)
         if sess is None or sess["code"] != code:
             raise HTTPException(404, "unknown session")
-        questions = _question_breakdown(db.session_trials(session_id), _load_truth_map())
+        # Resolve the per-question correct answers against the bundle that
+        # PRODUCED this session (its provenance stamp), not a global default.
+        truth = _truth_map_for(sess.get("bundle_version"))
+        questions = _question_breakdown(db.session_trials(session_id), truth)
         return {"sessionId": session_id, "nQuestions": len(questions),
                 "questions": questions}
 
