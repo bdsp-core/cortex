@@ -181,7 +181,8 @@ export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
             </button>
             <div style={{ color: COLORS.textTertiary, fontSize: 12, marginTop: 8 }}>
               Per-session MP4s: engine explainer, particle collapse, and pass/fail.
-              {vidState === "rendering" && " This takes ~30–60 s."}
+              Video creation may take up to ~10 minutes.
+              {vidState === "rendering" && " Rendering now — please keep this tab open."}
             </div>
             {vidState === "error" && (
               <div style={{ color: COLORS.fail, fontSize: 12, marginTop: 6 }}>{vidErr}</div>
