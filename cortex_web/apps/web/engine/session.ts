@@ -35,8 +35,10 @@ export const MAX_QUESTIONS = 500;
 // after this many of its OWN questions is capped out of selection and REFERred
 // at finalize — bounding the worst-case single-domain tail so the test ends on
 // resolution, not a fixed sweep. Manifest-overridable via
-// EngineInputs.perDomainCap; OC sets the shipped value.
-export const PER_DOMAIN_CAP = 120;
+// EngineInputs.perDomainCap (the served v1.6-k7-35k bundle carries 60); this is
+// the fallback for bundles that don't declare one. Lowered 120→60 (2026-06-26)
+// so a single borderline domain can't consume half the test before REFER.
+export const PER_DOMAIN_CAP = 60;
 export const N_MH_STEPS = 15;
 export const ESS_THRESHOLD_FRAC = 0.5;
 export const FIRST_ITEM_TOPN = 10;

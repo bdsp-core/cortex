@@ -255,6 +255,11 @@ def main():
     ap.add_argument("--no-spike", action="store_true",
                     help="exclude /spike segments (spike is included by default now "
                          "that the SpikeViewer UI is wired).")
+    ap.add_argument("--per-domain-cap", type=int, default=60,
+                    help="per-domain question budget (v1.6 adaptive termination): a "
+                         "task still PENDING after this many of its own questions is "
+                         "REFERred, so one borderline domain can't dominate the test. "
+                         "Emitted into the manifest as the served instrument's cap.")
     ap.add_argument("--max", type=int, default=None, help="cap #segments/group (smoke)")
     ap.add_argument("--max-spike", type=int, default=None,
                     help="separate cap for #spike segments (keeps spike-first from "
@@ -366,6 +371,7 @@ def main():
         "certBlock": args.cert_block,
         "ellStar": ell_star,
         "corrL": corr_l,
+        "perDomainCap": args.per_domain_cap,   # v1.6 adaptive-termination budget
         "nSegments": len(segments),
         "segments": segments,
     }
