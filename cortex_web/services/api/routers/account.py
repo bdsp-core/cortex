@@ -26,11 +26,16 @@ def get_profile(req: Request, code: str = Depends(require_auth)):
             prof = json.loads(row["profile"])
         except Exception:
             prof = {}
+    # Every account gets one at creation/boot-backfill; ensure_public_id is
+    # the lazy repair for any row that slipped past both (e.g. written by an
+    # old process mid-deploy).
+    public_id = row.get("public_id") or db.ensure_public_id(code) or ""
     return {
         "email": row.get("email") or "",
         "displayName": row.get("display_name") or "",
         "expertise": row.get("signup_expertise") or "",
         "authProvider": row.get("auth_provider") or "local",
+        "publicId": str(public_id),
         "profile": prof,
     }
 

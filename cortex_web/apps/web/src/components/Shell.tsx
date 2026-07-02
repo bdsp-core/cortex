@@ -1557,6 +1557,7 @@ function DashboardFooter() {
 function SettingsSurface() {
   const [loaded, setLoaded] = useState(false);
   const [email, setEmail] = useState("");
+  const [publicId, setPublicId] = useState("");
   const [authProvider, setAuthProvider] = useState("local");
   const [displayName, setDisplayName] = useState("");
   const [expertise, setExpertise] = useState("");
@@ -1576,6 +1577,7 @@ function SettingsSurface() {
     api.getProfile()
       .then((a) => {
         setEmail(a.email); setAuthProvider(a.authProvider || "local");
+        setPublicId(a.publicId || "");
         setDisplayName(a.displayName); setExpertise(a.expertise);
         setProfile(a.profile || {});
       })
@@ -1625,6 +1627,16 @@ function SettingsSurface() {
     <div className="cx-settings">
       <h2>Settings</h2>
       <p className="sub">Update your account and profile details. Changes apply to your next test.</p>
+
+      {publicId && (
+        <section className="cx-panel">
+          <h2>User ID</h2>
+          <p className="sub">Your unique 9-digit CORTEX account ID. Include it when contacting support or reporting a problem.</p>
+          <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: 22, letterSpacing: "0.14em", color: "var(--ink)" }}>
+            {publicId}
+          </div>
+        </section>
+      )}
 
       <section className="cx-panel">
         <h2>Profile</h2>

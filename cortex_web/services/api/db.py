@@ -39,6 +39,7 @@ from __future__ import annotations
 import calendar
 import json
 import os
+import secrets
 import sqlite3
 import threading
 import time
@@ -197,6 +198,7 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("google_sub",        "TEXT"),   # Google account id ('sub' claim); unique when set
     ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
     ("profile",           "TEXT"),   # JSON demographic/clinical profile collected at signup, editable in Settings
+    ("public_id",         "TEXT"),   # user-facing 9-digit account id; unique when set (index in _migrate_participants)
 ]
 
 # Columns added to the learning tables after their original schema (Phase O2),
@@ -224,6 +226,26 @@ _SESSIONS_MIGRATION_COLUMNS = [
 
 def utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+# User-facing 9-digit account ids (`participants.public_id`): uniformly random
+# in [100000000, 999999999] — always exactly 9 digits, no leading zero. ~9e8
+# values, so collisions are vanishingly rare; the unique index + the retry in
+# _allocate_public_id are the correctness backstop, not this generator. Stored
+# as TEXT: it is an identifier, never arithmetic.
+_PUBLIC_ID_MAX_TRIES = 20
+
+
+def _random_public_id() -> str:
+    return str(100_000_000 + secrets.randbelow(900_000_000))
+
+
+def _is_public_id_collision(e: Exception) -> bool:
+    """True when a write failed on the public_id unique index specifically
+    (sqlite3.IntegrityError names the column; psycopg UniqueViolation names
+    the index — both messages contain 'public_id')."""
+    s = str(e)
+    return ("UNIQUE" in s or "unique" in s or "duplicate" in s) and "public_id" in s
 
 
 def _local_day(utc_iso: Optional[str], tz_offset_min: int) -> Optional[str]:
@@ -276,6 +298,11 @@ class Database:
             # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
             # belt-and-suspenders for any backend that left it NULL.
             conn.execute("UPDATE param_trajectories SET is_real=0 WHERE is_real IS NULL")
+
+        # Grandfather accounts created before the public_id column: assign a
+        # 9-digit id to every row missing one. Own units of work (the retry on
+        # a collision must not abort the boot-migration transaction above).
+        self._backfill_public_ids()
 
     # ── connection management ─────────────────────────────────────
     def _make_pool(self):
@@ -370,6 +397,11 @@ class Database:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_google_sub "
             "ON participants(google_sub) WHERE google_sub IS NOT NULL"
         )
+        # The user-facing 9-digit id must never repeat across accounts.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_public_id "
+            "ON participants(public_id) WHERE public_id IS NOT NULL"
+        )
 
     def _add_missing_columns(self, conn, table: str,
                              columns: list[tuple[str, str]]) -> None:
@@ -386,12 +418,54 @@ class Database:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
 
     # ── participants ──────────────────────────────────────────────
-    def add_participant(self, code: str, password_hash: str, label: str = "") -> None:
-        self._write(
-            "INSERT INTO participants(code, password_hash, label, created_utc) "
-            "VALUES (?,?,?,?)",
-            (code, password_hash, label, utc_now()),
-        )
+    def _allocate_public_id(self, write_with_pid) -> str:
+        """Run a write that stores a candidate 9-digit public id, retrying
+        with a fresh candidate if the unique index rejects it (two accounts
+        drawing the same number — ~1e-9 per signup). Any other failure
+        (email collision, etc.) propagates to the caller unchanged."""
+        for _ in range(_PUBLIC_ID_MAX_TRIES):
+            pid = _random_public_id()
+            try:
+                write_with_pid(pid)
+                return pid
+            except Exception as e:
+                if _is_public_id_collision(e):
+                    continue
+                raise
+        raise RuntimeError("could not allocate a unique public id")
+
+    def ensure_public_id(self, code: str) -> Optional[str]:
+        """Return the account's 9-digit public id, assigning one first if the
+        row predates the public_id column (grandfathering + lazy repair)."""
+        row = self._fetchone(
+            "SELECT public_id FROM participants WHERE code=?", (code,))
+        if row is None:
+            return None
+        if row.get("public_id"):
+            return str(row["public_id"])
+        # The IS NULL guard makes a concurrent double-assign a no-op for the
+        # loser; the re-read below returns whichever id actually landed.
+        self._allocate_public_id(lambda pid: self._write(
+            "UPDATE participants SET public_id=? WHERE code=? AND public_id IS NULL",
+            (pid, code)))
+        row = self._fetchone(
+            "SELECT public_id FROM participants WHERE code=?", (code,))
+        return str(row["public_id"]) if row and row.get("public_id") else None
+
+    def _backfill_public_ids(self) -> None:
+        """Assign a public id to every account missing one. Idempotent; runs
+        at every boot so pre-column rows (and any row a failed assignment
+        left behind) are repaired without a manual migration."""
+        for r in self._fetchall(
+                "SELECT code FROM participants WHERE public_id IS NULL"):
+            self.ensure_public_id(r["code"])
+
+    def add_participant(self, code: str, password_hash: str, label: str = "") -> str:
+        return self._allocate_public_id(lambda pid: self._write(
+            "INSERT INTO participants(code, password_hash, label, public_id, "
+            "created_utc) VALUES (?,?,?,?,?)",
+            (code, password_hash, label, pid, utc_now()),
+        ))
 
     def get_participant(self, code: str) -> Optional[dict]:
         return self._fetchone(
@@ -419,14 +493,14 @@ class Database:
         optional self-reported role from the signup form (Phase O1; defaults
         None so existing callers are unchanged). `profile` is the JSON
         demographic/clinical record collected during signup (editable later in
-        Settings)."""
-        self._write(
+        Settings). A fresh 9-digit public id is allocated with the row."""
+        self._allocate_public_id(lambda pid: self._write(
             "INSERT INTO participants(code, password_hash, email, "
-            "display_name, signup_ip, signup_expertise, profile, created_utc) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "display_name, signup_ip, signup_expertise, profile, public_id, "
+            "created_utc) VALUES (?,?,?,?,?,?,?,?,?)",
             (code, password_hash, email, display_name, signup_ip,
-             signup_expertise, profile, utc_now()),
-        )
+             signup_expertise, profile, pid, utc_now()),
+        ))
 
     def update_profile(self, code: str, *, display_name: Optional[str],
                        profile: Optional[str], signup_expertise: Optional[str]) -> None:
@@ -474,13 +548,14 @@ class Database:
                                     google_sub: str, signup_ip: Optional[str] = None) -> None:
         """Insert a new Google-authenticated account. password_hash holds a
         non-PBKDF2 sentinel (so password login is impossible); the email is
-        verified by Google, so email_verified_utc is set immediately."""
-        self._write(
+        verified by Google, so email_verified_utc is set immediately. A fresh
+        9-digit public id is allocated with the row."""
+        self._allocate_public_id(lambda pid: self._write(
             "INSERT INTO participants(code, password_hash, email, display_name, "
-            "signup_ip, created_utc, auth_provider, google_sub, email_verified_utc) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "signup_ip, created_utc, auth_provider, google_sub, "
+            "email_verified_utc, public_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (code, "google-oauth:no-password", email, display_name, signup_ip,
-             utc_now(), "google", google_sub, utc_now()))
+             utc_now(), "google", google_sub, utc_now(), pid)))
 
     def link_google_sub(self, code: str, sub: str) -> None:
         """Attach a Google identity to an existing (e.g. password) account."""

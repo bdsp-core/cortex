@@ -6,6 +6,7 @@ Run from cortex_web/:
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -1214,6 +1215,80 @@ def test_change_email(client):
     assert client.post("/api/account/email", headers=hdr,
                        json={"newEmail": "fresh@example.test", "password": pw}).status_code == 200
     assert client.post("/api/auth", json={"email": "fresh@example.test", "password": pw}).status_code == 200
+
+
+# ─────────────── public 9-digit user ids ───────────────
+
+_PID_RE = r"[1-9]\d{8}"   # exactly 9 digits, no leading zero
+
+
+def test_public_id_assigned_at_signup(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    got = client.get("/api/profile", headers=hdr).json()
+    assert re.fullmatch(_PID_RE, got["publicId"]), got
+    # stable across reads
+    assert client.get("/api/profile", headers=hdr).json()["publicId"] == got["publicId"]
+
+
+def test_public_ids_unique_across_accounts(client):
+    pids = set()
+    for _ in range(5):
+        email, pw = _make_participant(client)
+        hdr = _auth_header(client, email, pw)
+        pids.add(client.get("/api/profile", headers=hdr).json()["publicId"])
+    assert len(pids) == 5
+
+
+def test_public_id_backfilled_at_boot(client, tmp_path):
+    """Grandfathering: an account created before the public_id column gets an
+    id assigned by the boot backfill (simulated by clearing the column and
+    re-opening the database, as a deploy restart would)."""
+    email, _pw = _make_participant(client)
+    db = client.app.state.db
+    db._write("UPDATE participants SET public_id=NULL WHERE email=?", (email,))
+    assert db.get_participant_by_email(email)["public_id"] is None
+    db2 = Database(tmp_path / "t.db")
+    try:
+        pid = db2.get_participant_by_email(email)["public_id"]
+        assert pid and re.fullmatch(_PID_RE, pid)
+    finally:
+        db2.close()
+
+
+def test_public_id_lazy_assign_on_profile_read(client):
+    """A row that somehow missed both creation-time assignment and the boot
+    backfill is repaired on the next GET /api/profile."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    db._write("UPDATE participants SET public_id=NULL WHERE email=?", (email,))
+    pid = client.get("/api/profile", headers=hdr).json()["publicId"]
+    assert re.fullmatch(_PID_RE, pid)
+    assert client.get("/api/profile", headers=hdr).json()["publicId"] == pid
+
+
+def test_public_id_collision_retries(client, monkeypatch):
+    """If the random draw repeats an existing id, the unique index rejects it
+    and the allocator retries with a fresh draw (email 409s still propagate)."""
+    from . import db as db_module
+    email1, _pw = _make_participant(client)
+    db = client.app.state.db
+    taken = db.get_participant_by_email(email1)["public_id"]
+    draws = iter([taken, taken, "314159265"])
+    monkeypatch.setattr(db_module, "_random_public_id", lambda: next(draws))
+    email2, _pw2 = _make_participant(client)
+    assert db.get_participant_by_email(email2)["public_id"] == "314159265"
+
+
+def test_admin_seeded_accounts_get_public_ids(client):
+    r = client.post("/api/admin/participants", json={"prefix": "seed", "count": 2},
+                    headers={"X-Admin-Token": "test-admin"})
+    assert r.status_code == 200, r.text
+    db = client.app.state.db
+    pids = {db.get_participant(a["code"])["public_id"] for a in r.json()}
+    assert len(pids) == 2
+    assert all(re.fullmatch(_PID_RE, p) for p in pids)
 
 
 # ─────────────── group-1 hardening (2026-07-01 audit) ───────────────

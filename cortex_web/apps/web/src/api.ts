@@ -270,6 +270,8 @@ export interface AccountProfile {
   displayName: string;
   expertise: string;
   authProvider: string;
+  /** Unique 9-digit account id, shown in Settings (assigned server-side). */
+  publicId?: string;
   profile: Record<string, string>;
 }
 
