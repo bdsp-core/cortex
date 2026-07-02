@@ -12,17 +12,36 @@
 app.cortexeeg.org {
     encode gzip zstd
 
-    # API → uvicorn (pure API service; no static served by uvicorn)
-    handle /api/* {
+    # API → uvicorn (pure API service; no static served by uvicorn).
+    # Request-body caps reject oversized uploads at the EDGE (413) before
+    # uvicorn allocates — Starlette has no default body limit, so this is the
+    # DoS floor. The video render is the one large upload (multipart Float32
+    # trajectory, tens of MB); everything else /api is small JSON. `handle`
+    # blocks are first-match in source order, so the videos matcher MUST come
+    # first. header_up: overwrite (don't append) X-Forwarded-For with the real
+    # TCP peer so a client can't spoof it — the API's per-IP rate limiter keys
+    # on the leftmost XFF value, so without this an attacker rotates a fake
+    # header for a fresh bucket per request and bypasses the brute-force /
+    # signup-spam caps.
+    handle /api/videos* {
+        request_body {
+            max_size 64MB
+        }
         reverse_proxy 127.0.0.1:8000 {
             transport http {
                 keepalive 60s
             }
-            # Caddy is the edge proxy: overwrite (don't append) X-Forwarded-For
-            # with the real TCP peer so a client can't spoof it. The API's
-            # per-IP rate limiter keys on the leftmost XFF value; without this
-            # an attacker rotates a fake header to get a fresh bucket per
-            # request and bypass the brute-force / signup-spam caps.
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+    handle /api/* {
+        request_body {
+            max_size 4MB
+        }
+        reverse_proxy 127.0.0.1:8000 {
+            transport http {
+                keepalive 60s
+            }
             header_up X-Forwarded-For {remote_host}
         }
     }
