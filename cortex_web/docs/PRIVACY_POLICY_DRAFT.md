@@ -11,7 +11,7 @@
 
 Prepared as data-protection counsel; every data-handling claim below was checked
 against the application source (`services/api/db.py`, `app.py`, `security.py`,
-`email.py`, `deploy/scripts/backup_to_box.sh`). Where the policy in Part 2 is
+`mailer.py`, `deploy/scripts/backup_to_box.sh`). Where the policy in Part 2 is
 deliberately vague to protect intellectual property, this Part is precise.
 
 ## 1.1 Framing: whose data is this?

@@ -68,7 +68,7 @@ cortex_web/                  # web-product monorepo root (npm workspaces: ["apps
     web/                     # SPA: src/, engine/, ui/, public/, index.html, vite.config.ts, package.json
     marketing/               # static; redirect-only for now
   services/
-    api/                     # FastAPI: app.py, db.py, security.py, email.py, sample_data.py, tests
+    api/                     # FastAPI: app.py, db.py, security.py, mailer.py, routers/, tests
   deploy/                    # multi-vhost Caddyfile + scripts + systemd
   package.json               # workspace root
 ```

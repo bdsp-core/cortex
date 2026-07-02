@@ -11,7 +11,7 @@ import re
 import time
 from typing import Any
 
-from . import email as email_mod
+from . import mailer
 from . import security
 from .db import Database, utc_now
 
@@ -83,7 +83,7 @@ def issue_code(db: Database, participant_code: str, email: str, purpose: str) ->
     code = security.gen_numeric_code()
     db.put_auth_code(participant_code, purpose, security.hash_code(code),
                      future_utc(security.CODE_TTL_SECONDS))
-    email_mod.send_auth_code(email, code, purpose)
+    mailer.send_auth_code(email, code, purpose)
     return code
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from .. import helpers
-from .. import email as email_mod
+from .. import mailer
 from ..config import REPORT_TO
 from ..deps import client_ip
 from ..models import ReportIn
@@ -26,5 +26,5 @@ def report(body: ReportIn, req: Request):
     email = helpers.norm_email(body.email)
     reply_to = email if helpers.is_email(email) else None
     subject, text = helpers.build_report_email(username, email, message, body.client or {}, ip)
-    email_mod.send_email(REPORT_TO, subject, text, reply_to=reply_to)
+    mailer.send_email(REPORT_TO, subject, text, reply_to=reply_to)
     return {"ok": True}

@@ -864,7 +864,7 @@ def test_smtp_backend_sends_code(monkeypatch):
     """The SMTP backend builds a STARTTLS-authenticated message carrying the code
     to the right recipient. smtplib is faked so no real server is needed."""
     import smtplib
-    from . import email as email_mod
+    from . import mailer as email_mod
 
     sent: dict = {}
 
@@ -922,7 +922,7 @@ def test_db_direct_participant():
 def test_report_emails_receiver_with_diagnostics(client, monkeypatch):
     """A submitted report is emailed to the receiver with the message + the
     browser diagnostics, and Reply-To set to the reporter's (normalized) email."""
-    from . import email as email_mod
+    from . import mailer as email_mod
     sent: dict = {}
 
     def fake_send(to, subject, body, reply_to=None):
@@ -1262,7 +1262,7 @@ def test_register_survives_email_send_failure(client, monkeypatch):
     """An SMTP/SES outage during signup must not strand the account: the
     account row exists, so a 500 would make every retry 409. Instead the
     signup succeeds (no devCode) and the resend path recovers."""
-    from . import email as email_mod
+    from . import mailer as email_mod
     real_send = email_mod.send_auth_code
 
     def boom(*a, **k):
@@ -1345,3 +1345,113 @@ def test_rate_limiter_sweeps_stale_ip_buckets(monkeypatch):
     assert lim.hit("register", "5.6.7.8")
     assert ("register", "1.2.3.4") not in lim._hits
     assert ("register", "5.6.7.8") in lim._hits
+
+
+# ─────────────── videos job queue (2026-07-01) ───────────────
+
+def _viz_files(T=2, N=3, K=4):
+    """Correctly-sized dummy blobs + meta for a (T,N,K) trajectory."""
+    files = {"t": ("t.bin", b"\0" * (T * N * K * 4)),
+             "l": ("l.bin", b"\0" * (T * N * K * 4)),
+             "w": ("w.bin", b"\0" * (T * N * 4))}
+    meta = {"shape": [T, N, K], "taskCodes": ["spike"], "segIds": [1, 2],
+            "trials": [{"q": 1}], "certificate": {"v": 1}}
+    return files, json.dumps(meta)
+
+
+def _poll_job(client, hdr, jid, tries=200, wait=0.05):
+    for _ in range(tries):
+        st = client.get(f"/api/videos/{jid}", headers=hdr).json()
+        if st["status"] in ("done", "error"):
+            return st
+        time.sleep(wait)
+    return st
+
+
+def test_videos_job_flow(client, monkeypatch):
+    """Submit → 202 {jobId}; poll to done; download the zip; ownership and
+    unknown-job lookups 404. The heavy renderer is stubbed — the job plumbing
+    (thread, statuses, registry, files) is what's under test."""
+    import zipfile
+    from .routers import videos as videos_router
+
+    def fake_render(sd):
+        z = sd / "cortex_visualizations.zip"
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("summary.mp4", b"fake-mp4-bytes")
+        return z
+
+    monkeypatch.setattr(videos_router, "_execute_render", fake_render)
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    files, meta = _viz_files()
+    r = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r.status_code == 202, r.text
+    jid = r.json()["jobId"]
+
+    st = _poll_job(client, hdr, jid)
+    assert st["status"] == "done", st
+
+    dl = client.get(f"/api/videos/{jid}/download", headers=hdr)
+    assert dl.status_code == 200
+    assert dl.content[:2] == b"PK"          # a real zip
+    # Re-download works (artifacts persist until the TTL sweep).
+    assert client.get(f"/api/videos/{jid}/download", headers=hdr).status_code == 200
+
+    # Another participant must not see the job at all.
+    email2, pw2 = _make_participant(client)
+    hdr2 = _auth_header(client, email2, pw2)
+    assert client.get(f"/api/videos/{jid}", headers=hdr2).status_code == 404
+    assert client.get(f"/api/videos/{jid}/download", headers=hdr2).status_code == 404
+    assert client.get("/api/videos/no-such-job", headers=hdr).status_code == 404
+
+
+def test_videos_job_error_surfaces(client, monkeypatch):
+    from .routers import videos as videos_router
+
+    def broken_render(sd):
+        raise RuntimeError("ffmpeg exploded")
+
+    monkeypatch.setattr(videos_router, "_execute_render", broken_render)
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    files, meta = _viz_files()
+    r = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r.status_code == 202
+    st = _poll_job(client, hdr, r.json()["jobId"])
+    assert st["status"] == "error"
+    assert "ffmpeg exploded" in st.get("error", "")
+    # Download before/without success is a clean 409, not a 500.
+    assert client.get(f"/api/videos/{r.json()['jobId']}/download", headers=hdr).status_code == 409
+
+
+def test_videos_queue_cap(client, monkeypatch):
+    """One render runs, one may queue; a third submission gets an honest 503.
+    The render is gated on an Event so the test is deterministic."""
+    import threading as _threading
+    import zipfile
+    from .routers import videos as videos_router
+
+    gate = _threading.Event()
+
+    def slow_render(sd):
+        assert gate.wait(timeout=15), "test gate never opened"
+        z = sd / "cortex_visualizations.zip"
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("a.mp4", b"x")
+        return z
+
+    monkeypatch.setattr(videos_router, "_execute_render", slow_render)
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    files, meta = _viz_files()
+
+    r1 = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    r2 = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r1.status_code == 202 and r2.status_code == 202
+    r3 = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r3.status_code == 503                     # queue full
+
+    gate.set()                                       # let both renders finish
+    assert _poll_job(client, hdr, r1.json()["jobId"])["status"] == "done"
+    assert _poll_job(client, hdr, r2.json()["jobId"])["status"] == "done"
