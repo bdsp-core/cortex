@@ -558,7 +558,7 @@ def _diag(k, y, s, R, pi=0.5, ell=0.3, theta=-0.1):
 
 
 def test_question_breakdown_pure():
-    from .app import _question_breakdown
+    from .dashboard_logic import question_breakdown as _question_breakdown
     trials = [
         # spike, said YES, s>0 → correct; ΔR from 0 → 0.2
         {"trial_index": 0, "seg_id": 50, "task_k": 0, "pick": 0, "reaction_ms": 1500,
@@ -584,8 +584,8 @@ def test_question_breakdown_pure():
 
 
 def test_history_questions_endpoint(client, monkeypatch):
-    from . import app as app_module
-    monkeypatch.setattr(app_module, "_truth_map_for", lambda *a, **k: _TRUTH)
+    from . import dashboard_logic
+    monkeypatch.setattr(dashboard_logic, "_truth_map_for", lambda *a, **k: _TRUTH)
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     sid = client.post("/api/session", headers=hdr,
@@ -616,7 +616,7 @@ def test_truth_map_resolves_per_bundle_version(tmp_path, monkeypatch):
     # against the bundle that PRODUCED it (its segId space), not a global "first
     # manifest". Two bundles assign the SAME segId to DIFFERENT classes; the
     # truth map must follow bundle_version.
-    from . import app as app_module
+    from . import config, dashboard_logic
     bdir = tmp_path / "bundle"
     _write_test_bank(bdir, "aaa-first", per_class=4)    # sorts first → legacy fallback
     _write_test_bank(bdir, "zzz-second", per_class=4)
@@ -629,14 +629,14 @@ def test_truth_map_resolves_per_bundle_version(tmp_path, monkeypatch):
             if s["segId"] == 5:
                 s["patternClass"] = cls
         mp.write_text(_json.dumps(m))
-    monkeypatch.setattr(app_module, "BUNDLE_DIR", bdir)
-    monkeypatch.setattr(app_module, "_TRUTH_CACHE", {})
+    monkeypatch.setattr(config, "BUNDLE_DIR", bdir)
+    monkeypatch.setattr(dashboard_logic, "_TRUTH_CACHE", {})
     # version routes to its OWN bundle (the fix)
-    assert app_module._truth_map_for("aaa-first")["seg"][5] == "lpd"
-    assert app_module._truth_map_for("zzz-second")["seg"][5] == "gpd"
+    assert dashboard_logic._truth_map_for("aaa-first")["seg"][5] == "lpd"
+    assert dashboard_logic._truth_map_for("zzz-second")["seg"][5] == "gpd"
     # unknown/legacy (NULL bundle_version) → alphabetically-first bundle
-    assert app_module._truth_map_for(None)["seg"][5] == "lpd"
-    assert app_module._truth_map_for("nonexistent")["seg"][5] == "lpd"
+    assert dashboard_logic._truth_map_for(None)["seg"][5] == "lpd"
+    assert dashboard_logic._truth_map_for("nonexistent")["seg"][5] == "lpd"
 
 
 def test_history_questions_requires_auth(client):
@@ -952,9 +952,9 @@ def test_report_requires_message(client):
 # ── Sign in with Google ──────────────────────────────────────────────────────
 def _google(monkeypatch, claims):
     """Configure GOOGLE_CLIENT_ID + stub the ID-token verifier to return claims."""
-    from . import app as app_module
+    from . import helpers
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
-    monkeypatch.setattr(app_module, "_verify_google_credential", lambda cred, cid: claims)
+    monkeypatch.setattr(helpers, "verify_google_credential", lambda cred, cid: claims)
 
 
 def test_auth_google_creates_then_signs_in_returning_user(client, monkeypatch):
@@ -985,11 +985,11 @@ def test_auth_google_rejects_unverified_email(client, monkeypatch):
 
 
 def test_auth_google_invalid_token_is_401(client, monkeypatch):
-    from . import app as app_module
+    from . import helpers
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client.apps.googleusercontent.com")
     def boom(cred, cid):
         raise ValueError("bad audience / signature")
-    monkeypatch.setattr(app_module, "_verify_google_credential", boom)
+    monkeypatch.setattr(helpers, "verify_google_credential", boom)
     assert client.post("/api/auth/google", json={"credential": "tok"}).status_code == 401
 
 
@@ -1302,18 +1302,18 @@ def test_session_persists_drawn_seg_ids(client):
 def test_truth_map_reuses_loaded_bank(tmp_path, monkeypatch):
     """When the session's bundle IS the loaded bank, the truth map comes from
     the in-memory segments — no manifest re-read from disk."""
-    from . import app as app_module
+    from . import config, dashboard_logic
     from .session_bank import SessionBank
     _write_test_bank(tmp_path / "b", "bank-x")
     bank = SessionBank(tmp_path / "b" / "bank-x" / "manifest.json", "/bundle/bank-x")
     # Point the disk fallback somewhere empty: only the bank can answer.
-    monkeypatch.setattr(app_module, "BUNDLE_DIR", tmp_path / "nowhere")
-    monkeypatch.setattr(app_module, "_TRUTH_CACHE", {})
-    truth = app_module._truth_map_for("bank-x", bank)
+    monkeypatch.setattr(config, "BUNDLE_DIR", tmp_path / "nowhere")
+    monkeypatch.setattr(dashboard_logic, "_TRUTH_CACHE", {})
+    truth = dashboard_logic._truth_map_for("bank-x", bank)
     assert truth["seg"][0] == "spike"
     assert truth["words"] and truth["labels"] and truth["classes"]
     # A different version must NOT be served from this bank.
-    assert app_module._truth_map_for("other-version", bank)["seg"] == {}
+    assert dashboard_logic._truth_map_for("other-version", bank)["seg"] == {}
 
 
 def test_videos_rejects_oversized_shape_and_mismatched_blobs(client):
@@ -1334,10 +1334,10 @@ def test_videos_rejects_oversized_shape_and_mismatched_blobs(client):
 
 
 def test_rate_limiter_sweeps_stale_ip_buckets(monkeypatch):
-    from . import app as app_module
-    lim = app_module._RateLimiter()
+    from . import deps
+    lim = deps.RateLimiter()
     t = [1_000_000.0]
-    monkeypatch.setattr(app_module.time, "time", lambda: t[0])
+    monkeypatch.setattr(deps.time, "time", lambda: t[0])
     assert lim.hit("register", "1.2.3.4")
     assert ("register", "1.2.3.4") in lim._hits
     t[0] += 3601.0                       # register window fully expired
