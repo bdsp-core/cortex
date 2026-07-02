@@ -1,10 +1,17 @@
 """Backend persistence — same API, two backends (SQLite for dev, Postgres for prod).
 
-Four tables (schema is SQL-92, identical on both engines):
-  participants  credential rows (code → PBKDF2 hash). Created by admin CLI.
-  sessions      one row per started test; participant demographics + status.
-  trials        append-only per-question checkpoints (crash-safety).
-  results       one row per finished test; the full serialized session JSON.
+Tables (schema is SQL-92, identical on both engines):
+  participants        accounts (code → PBKDF2 hash, email, profile, OAuth link).
+  sessions            one row per started test; status + provenance stamps.
+  trials              append-only per-question checkpoints (crash-safety).
+  results             one row per finished test; the full session JSON.
+  regimens            training protocol per participant (plan JSON).
+  training_sessions   one row per training sitting.
+  training_trials     per-question training exposure (L1 forward hook).
+  param_trajectories  (task, ℓ, θ, sd, rt) time series for evolution charts.
+  login_days          one row per (participant, local day) signed in.
+  auth_codes          short-lived 6-digit verify/reset codes.
+  consent_events      auditable consent ledger (Phase O1).
 
 `CORTEX_DB` selects the backend:
   unset / a filesystem path  → SQLite (WAL).
@@ -194,8 +201,12 @@ _TRAINING_SESSIONS_MIGRATION_COLUMNS = [
 ]
 # Provenance stamp (O3): which bundle/bank version produced a session, so a
 # 35k/v15 session stays attributable + reproducible after a bundle change.
+# drawn_seg_ids = the exact server-drawn candidate pool (JSON list of seg_ids):
+# the sample_seed alone can't reproduce it later because the exposure exclusion
+# is temporal.
 _SESSIONS_MIGRATION_COLUMNS = [
     ("bundle_version",    "TEXT"),
+    ("drawn_seg_ids",     "TEXT"),
 ]
 
 
@@ -436,6 +447,13 @@ class Database:
         with self._lock:
             self._conn.close()
 
+    def ping(self) -> None:
+        """Round-trip the backend (SELECT 1) — raises when the DB is unusable.
+        Powers GET /api/health?deep=1 so an external monitor sees a DB outage
+        as a 503 instead of the shallow probe's evergreen 200."""
+        with self._lock:
+            self._fetchone("SELECT 1 AS ok")
+
     # ── participants ──────────────────────────────────────────────
     def add_participant(self, code: str, password_hash: str, label: str = "") -> None:
         with self._lock:
@@ -649,13 +667,15 @@ class Database:
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,
                         sample_seed: Optional[int],
-                        bundle_version: Optional[str] = None) -> None:
+                        bundle_version: Optional[str] = None,
+                        drawn_seg_ids: Optional[str] = None) -> None:
         with self._lock:
             self._exec(
                 "INSERT INTO sessions(session_id, code, participant, sample_seed, "
-                "bundle_version, started_utc, status) VALUES (?,?,?,?,?,?, 'in_progress')",
+                "bundle_version, drawn_seg_ids, started_utc, status) "
+                "VALUES (?,?,?,?,?,?,?, 'in_progress')",
                 (session_id, code, json.dumps(participant), sample_seed,
-                 bundle_version, utc_now()),
+                 bundle_version, drawn_seg_ids, utc_now()),
             )
             self._conn.commit()
 

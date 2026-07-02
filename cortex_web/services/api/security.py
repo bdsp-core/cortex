@@ -69,6 +69,14 @@ class TokenError(Exception):
     """Raised when a token is malformed, mis-signed, or expired."""
 
 
+# Dev-secret cache, keyed by resolved file path. The env var is deliberately
+# NOT cached (tests swap it per-case); the file path is — this avoids a disk
+# read on every token/code operation AND keeps the in-process secret stable
+# when the file can't be written (read-only FS): the uncached version minted a
+# fresh secret per call there, so no token could ever verify.
+_FILE_SECRET_CACHE: dict[str, bytes] = {}
+
+
 def _jwt_secret() -> bytes:
     """Resolve the signing secret.
 
@@ -80,14 +88,20 @@ def _jwt_secret() -> bytes:
         return env.encode("utf-8")
     path = Path(os.environ.get("CORTEX_JWT_SECRET_FILE",
                                Path(__file__).with_name(".jwt_secret")))
+    key = str(path)
+    cached = _FILE_SECRET_CACHE.get(key)
+    if cached is not None:
+        return cached
     if path.exists():
-        return path.read_bytes()
-    secret = secrets.token_bytes(32)
-    try:
-        path.write_bytes(secret)
-        path.chmod(0o600)
-    except OSError:
-        pass  # read-only FS (e.g. Lambda) — fall back to in-process secret
+        secret = path.read_bytes()
+    else:
+        secret = secrets.token_bytes(32)
+        try:
+            path.write_bytes(secret)
+            path.chmod(0o600)
+        except OSError:
+            pass  # read-only FS (e.g. Lambda) — keep the in-process secret
+    _FILE_SECRET_CACHE[key] = secret
     return secret
 
 

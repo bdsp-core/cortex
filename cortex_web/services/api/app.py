@@ -5,26 +5,22 @@ browser, so the server only (a) authenticates, (b) hands out the bundle URL,
 and (c) ingests results. No per-question traffic. A single small instance
 serves 100 concurrent participants because there is no shared compute.
 
-Endpoints (all JSON, prefix /api):
-    GET  /api/health                      liveness
-    POST /api/register  {email, password, displayName} → {needsVerification, email}
-    POST /api/verify/confirm {email, code} → {ok}        (marks email verified)
-    POST /api/verify/resend  {email}       → {ok}        (re-issue verify code)
-    POST /api/auth      {email, password}  → {token, expiresIn}  (403 if unverified)
-    POST /api/forgot    {email}            → {ok}        (issue reset code)
-    POST /api/reset     {email, code, newPassword} → {ok}
-    GET  /api/manifest  (Bearer)          → {bundleUrl, version, sessionSample}
-    POST /api/session   (Bearer) {participant, sampleSeed} → {sessionId}
-    POST /api/progress  (Bearer) {sessionId, trial}        → {ok}
-    POST /api/results   (Bearer) {sessionId, result, stopReason, nQuestions} → {ok}
-    GET  /api/admin/participants  (X-Admin-Token)          → [...]
-    POST /api/admin/participants  (X-Admin-Token) {count, prefix} → [{code,password}]
-    GET  /api/admin/sessions      (X-Admin-Token)          → [...]
-    GET  /api/admin/results/{id}  (X-Admin-Token)          → {...}
+Endpoint surface (all JSON, prefix /api). Public: health, register,
+verify/{confirm,resend}, auth, auth/google, forgot, reset, report. Bearer-
+gated: manifest, tutorial-example, session, progress, results, dashboard,
+activity, history (+ /{id}/questions), regimen, trajectories,
+training-sessions (+ /finalize), consent (+ /withdraw), profile,
+account/{password,email}, videos. X-Admin-Token-gated: admin/participants,
+admin/sessions, admin/results/{id}. GET /api/health?deep=1 additionally
+checks the DB (503 when it fails) — point uptime monitors at that.
 
-Run locally:
-    uvicorn server.app:app --reload --port 8000        (from cortex_web/)
-or  python -m server.run
+Run locally (from cortex_web/services/):
+    uvicorn api.app:app --reload --port 8000
+or  python -m api.run
+
+Production runs exactly ONE uvicorn worker (see api/run.py + the systemd
+unit): the in-memory rate limiter, the lazily-loaded SessionBank, and the
+boot migrations all assume a single process.
 """
 from __future__ import annotations
 
@@ -40,6 +36,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from contextlib import asynccontextmanager
 from pathlib import Path
 from statistics import median
 from typing import Any, Optional
@@ -81,11 +78,16 @@ SCRIPTS_DIR = os.environ.get(
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
 # Per-session candidate-pool size (the server-drawn subset the client engine
-# selects within). Latency at N=1200 scales ~linearly with this: ~300ms/q at
-# 250, ~530ms at 400, ~1s at 700 (engine/_latency_bench). 400 balances
-# between-question speed against per-task resolution headroom; OC sets the final
-# value (with per_domain_cap). Raise it once speculative precompute lands.
+# selects within). Prod runs 700 (env): speculative precompute hides the
+# between-question latency that made smaller pools attractive pre-v1.6
+# (engine/_latency_bench has the pool-size numbers).
 DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "400"))
+
+# Deployed-commit stamp. deploy_app.sh writes cortex_web/RELEASE on the box at
+# deploy time; absent (dev/CI checkouts) → None. Surfaced by /api/health so
+# "what SHA is live?" is answerable from the outside.
+_RELEASE_FILE = CORTEX_WEB / "RELEASE"
+RELEASE = (_RELEASE_FILE.read_text().strip()[:200] or None) if _RELEASE_FILE.exists() else None
 TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 
 # Where user reports (the /report page) are emailed. Overridable via env.
@@ -152,7 +154,6 @@ class ResultsIn(BaseModel):
 class AdminGenIn(BaseModel):
     count: int = Field(ge=1, le=1000)
     prefix: str = "cortex"
-    label: str = ""
 
 
 class TrainingStartIn(BaseModel):
@@ -191,10 +192,12 @@ class ConsentWithdrawIn(BaseModel):
 
 class ProfileIn(BaseModel):
     """Edit account/profile details (Settings page). All fields optional so a
-    partial update is fine; None leaves a field unchanged."""
+    partial update is fine; None/omitted leaves a field unchanged. `profile`
+    must default to None (NOT {}): a `{}` default would silently wipe the
+    stored profile on any request that omits the field."""
     displayName: Optional[str] = None
     expertise: Optional[str] = None
-    profile: dict[str, Any] = Field(default_factory=dict)
+    profile: Optional[dict[str, Any]] = None
 
 
 class PasswordChangeIn(BaseModel):
@@ -245,6 +248,15 @@ def _norm_email(s: str) -> str:
 
 def _is_email(s: str) -> bool:
     return bool(_EMAIL_RE.match(s)) and len(s) <= _MAX_FIELD_LEN
+
+
+def _is_unique_violation(e: Exception) -> bool:
+    """True when an insert/update failed on a UNIQUE constraint — the
+    concurrent-signup / email-collision race. Matches both backends' message
+    text (sqlite3.IntegrityError / psycopg UniqueViolation) so endpoints can
+    translate it to a clean 409 instead of a 500."""
+    s = str(e)
+    return "UNIQUE" in s or "unique" in s or "duplicate" in s
 
 
 # ──────────────────── dashboard derivation ─────────────────────
@@ -364,11 +376,27 @@ _TRUTH_CACHE: dict[str, dict] = {}
 _EMPTY_TRUTH = {"seg": {}, "words": [], "classes": [], "labels": []}
 
 
-def _truth_map_for(version: Optional[str] = None) -> dict:
+def _truth_map_for(version: Optional[str] = None,
+                   bank: Optional[SessionBank] = None) -> dict:
     """{'seg': {segId: patternClass}, 'words', 'classes', 'labels'} for the
     bundle `version` (sessions.bundle_version). Falls back to the alphabetically
     -first bundle for legacy sessions stamped before provenance (the pilot
-    bundles predate it, and that is the bundle they ran on)."""
+    bundles predate it, and that is the bundle they ran on).
+
+    When the live SessionBank IS that bundle (every new session), build the map
+    from its already-parsed segments instead of re-reading the ~35 MB manifest
+    from disk — the re-parse was a transient few-hundred-MB spike on a small box."""
+    if bank is not None and version and bank.version == version:
+        key = f"bank:{version}"
+        if key not in _TRUTH_CACHE:
+            _TRUTH_CACHE[key] = {
+                "seg": {int(s["segId"]): s.get("patternClass")
+                        for s in bank.segments if "segId" in s},
+                "words": bank.engine.get("taskPatternWords", []),
+                "classes": bank.engine.get("taskClasses", []),
+                "labels": bank.engine.get("taskLabels", []),
+            }
+        return _TRUTH_CACHE[key]
     path = None
     if version:
         p = BUNDLE_DIR / version / "manifest.json"
@@ -491,15 +519,32 @@ _RATE_LIMITS = {
 
 
 class _RateLimiter:
+    # Every SWEEP_EVERY hits, drop (bucket, ip) keys whose window has fully
+    # expired — otherwise the map grows monotonically with distinct client IPs
+    # for the life of the process.
+    _SWEEP_EVERY = 512
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._hits: dict[tuple[str, str], deque[float]] = {}
+        self._n = 0
+
+    def _sweep(self, now: float) -> None:
+        for key, q in list(self._hits.items()):
+            window_s = _RATE_LIMITS[key[0]][1]
+            while q and now - q[0] > window_s:
+                q.popleft()
+            if not q:
+                del self._hits[key]
 
     def hit(self, bucket: str, ip: str) -> bool:
         """Return True if allowed, False if over the per-window cap."""
         max_n, window_s = _RATE_LIMITS[bucket]
         now = time.time()
         with self._lock:
+            self._n += 1
+            if self._n % self._SWEEP_EVERY == 0:
+                self._sweep(now)
             q = self._hits.setdefault((bucket, ip), deque())
             while q and now - q[0] > window_s:
                 q.popleft()
@@ -550,7 +595,6 @@ def _check_code(db: Database, participant_code: str, purpose: str, presented: st
     row = db.get_auth_code(participant_code, purpose)
     if row is None or row.get("consumed_utc"):
         return False
-    from .db import utc_now
     if utc_now() >= row["expires_utc"]:
         return False
     if int(row.get("attempts") or 0) >= security.CODE_MAX_ATTEMPTS:
@@ -559,6 +603,19 @@ def _check_code(db: Database, participant_code: str, purpose: str, presented: st
         db.increment_auth_attempts(participant_code, purpose)
         return False
     return True
+
+
+# ── /api/videos guards ──────────────────────────────────────────
+# One matplotlib render at a time: renders take minutes, peak at hundreds of
+# MB, and matplotlib's global state is not thread-safe — a second concurrent
+# render on the 2-vCPU/2-GB box risks an OOM kill, so it gets a 503 instead.
+_RENDER_SEM = threading.Semaphore(1)
+# Upload sanity caps for the client-supplied trajectory shape (T, N, K).
+# Prod sessions are ≈(≤420, 1200, 7) ⇒ ~3.5M elements; the caps are generous
+# multiples, and the PRODUCT cap is what actually bounds the allocation
+# (T·N·K float64 ×2 arrays), so a forged meta can't OOM the box.
+_MAX_VIDEO_T, _MAX_VIDEO_N, _MAX_VIDEO_K = 2000, 4096, 16
+_MAX_VIDEO_ELEMS = 8_000_000
 
 
 def _verify_google_credential(credential: str, client_id: str) -> dict:
@@ -619,8 +676,14 @@ def _build_report_email(username: str, email: str, message: str,
 
 
 def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
-    app = FastAPI(title="CORTEX Web API", version="1.0")
     db = Database(db_path)
+
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI):
+        yield
+        db.close()   # release the DB connection on clean shutdown
+
+    app = FastAPI(title="CORTEX Web API", version="1.0", lifespan=_lifespan)
     app.state.db = db
     limiter = _RateLimiter()
 
@@ -636,14 +699,16 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     spacing_days = int(os.environ.get("CORTEX_SPACING_DAYS", "30"))
     spacing_sessions = int(os.environ.get("CORTEX_SPACING_SESSIONS", "3"))
     _bank_cache: dict[str, Optional[SessionBank]] = {}
+    _bank_lock = threading.Lock()   # two first-requests must not both parse the 35 MB manifest
 
     def get_session_bank() -> Optional[SessionBank]:
-        if "bank" not in _bank_cache:
-            version = bundle_url.rstrip("/").split("/")[-1]
-            mpath = bundle_dir / version / "manifest.json"
-            _bank_cache["bank"] = (
-                SessionBank(mpath, bundle_url) if mpath.exists() else None)
-        return _bank_cache["bank"]
+        with _bank_lock:
+            if "bank" not in _bank_cache:
+                version = bundle_url.rstrip("/").split("/")[-1]
+                mpath = bundle_dir / version / "manifest.json"
+                _bank_cache["bank"] = (
+                    SessionBank(mpath, bundle_url) if mpath.exists() else None)
+            return _bank_cache["bank"]
 
     origins = os.environ.get(
         "CORTEX_CORS_ORIGINS",
@@ -678,8 +743,27 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
 
     # ── public ─────────────────────────────────────────────────
     @app.get("/api/health")
-    def health():
-        return {"ok": True, "service": "cortex-web", "version": app.version}
+    def health(deep: int = 0):
+        """Liveness (default) or readiness (?deep=1). The deep probe verifies
+        the DB round-trip — the failure mode that took auth down for a day on
+        2026-06-24 while the shallow probe kept returning 200 — and reports the
+        bank state WITHOUT forcing the lazy 35k-manifest load. Deep failures
+        return 503 so external uptime monitors alert on them."""
+        info: dict[str, Any] = {"ok": True, "service": "cortex-web",
+                                "version": app.version, "release": RELEASE}
+        if deep:
+            try:
+                db.ping()
+                info["db"] = "ok"
+            except Exception as e:
+                info["ok"] = False
+                info["db"] = f"error: {type(e).__name__}"
+            info["bank"] = ("not_loaded_yet" if "bank" not in _bank_cache
+                            else "loaded" if _bank_cache["bank"] is not None
+                            else "missing")
+            if not info["ok"]:
+                return JSONResponse(status_code=503, content=info)
+        return info
 
     @app.post("/api/register")
     def register(body: RegisterIn, req: Request):
@@ -717,15 +801,24 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         except Exception as e:
             # UNIQUE-index violation race (two concurrent signups, same email).
             # Translate to 409 instead of a 500.
-            if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+            if _is_unique_violation(e):
                 raise HTTPException(409, "an account with this email already exists")
             raise
         # No session is issued at signup: the account must verify its email
         # before it can sign in. Email a 6-digit code; the SPA advances to the
         # verify screen.
-        dev_code = _issue_code(db, code, email, "verify")
+        try:
+            dev_code = _issue_code(db, code, email, "verify")
+        except Exception as e:
+            # The account row already exists, so a 500 here would strand it:
+            # the user's retry hits 409 "already exists" with no way forward.
+            # Land them on the verify screen instead — "resend code" covers
+            # the transient email outage.
+            print(f"[cortex.register] verification email failed for {email}: {e}",
+                  file=sys.stderr, flush=True)
+            dev_code = None
         resp = {"needsVerification": True, "email": email, "displayName": display}
-        if _expose_codes():
+        if _expose_codes() and dev_code is not None:
             resp["devCode"] = dev_code
         return resp
 
@@ -823,7 +916,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                         google_sub=sub, signup_ip=ip)
                 except Exception as e:
                     # UNIQUE race (concurrent first sign-in): fall back to lookup.
-                    if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+                    if _is_unique_violation(e):
                         row = db.get_participant_by_google_sub(sub) or db.get_participant_by_email(email)
                     else:
                         raise
@@ -923,8 +1016,14 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         exclude = db.get_exposure_exclusion(code, spacing_days, spacing_sessions)
         drawn = bank.draw(seed, session_sample, exclude)
         session_id = uuid.uuid4().hex
+        # Persist the drawn candidate pool itself (a few KB of seg_ids): the
+        # seed alone does NOT reproduce it later, because the exposure
+        # exclusion is temporal — replaying the same seed after more sittings
+        # yields a different pool. This makes every session exactly replayable.
         db.create_session(session_id, code, body.participant, seed,
-                          bundle_version=bank.version)
+                          bundle_version=bank.version,
+                          drawn_seg_ids=json.dumps(
+                              [s["segId"] for s in drawn["segments"]]))
         return {"sessionId": session_id, "sampleSeed": seed, "bank": drawn}
 
     @app.post("/api/progress")
@@ -997,7 +1096,8 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(404, "unknown session")
         # Resolve the per-question correct answers against the bundle that
         # PRODUCED this session (its provenance stamp), not a global default.
-        truth = _truth_map_for(sess.get("bundle_version"))
+        # The loaded bank short-circuits the manifest re-read when it matches.
+        truth = _truth_map_for(sess.get("bundle_version"), get_session_bank())
         questions = _question_breakdown(db.session_trials(session_id), truth)
         return {"sessionId": session_id, "nQuestions": len(questions),
                 "questions": questions}
@@ -1124,7 +1224,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         try:
             db.update_email(code, new_email)
         except Exception as e:
-            if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e):
+            if _is_unique_violation(e):
                 raise HTTPException(409, "an account with this email already exists")
             raise
         return {"ok": True, "email": new_email}
@@ -1145,22 +1245,25 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             raise HTTPException(503, f"render deps unavailable: {e}")
         info = json.loads(meta)
         T, N, K = (int(x) for x in info["shape"])
-        tb = np.frombuffer(await t.read(), dtype="<f4").reshape(T, N, K).astype(np.float64)
-        lb = np.frombuffer(await l.read(), dtype="<f4").reshape(T, N, K).astype(np.float64)
-        wb = np.frombuffer(await w.read(), dtype="<f4").reshape(T, N).astype(np.float64)
+        # The client-supplied shape dictates the allocation below — bound it
+        # before touching the uploads (blobs are read to exactly the byte count
+        # the shape implies, so a mismatched/oversized upload is rejected
+        # instead of buffered).
+        if not (0 < T <= _MAX_VIDEO_T and 0 < N <= _MAX_VIDEO_N
+                and 0 < K <= _MAX_VIDEO_K and T * N * K <= _MAX_VIDEO_ELEMS):
+            raise HTTPException(413, f"trajectory shape {T}x{N}x{K} exceeds limits")
+
+        async def _read_exact(up: UploadFile, n_elem: int, name: str) -> bytes:
+            raw = await up.read(n_elem * 4 + 1)
+            if len(raw) != n_elem * 4:
+                raise HTTPException(400, f"upload '{name}' does not match meta shape")
+            return raw
+
+        tb = np.frombuffer(await _read_exact(t, T * N * K, "t"), dtype="<f4").reshape(T, N, K).astype(np.float64)
+        lb = np.frombuffer(await _read_exact(l, T * N * K, "l"), dtype="<f4").reshape(T, N, K).astype(np.float64)
+        wb = np.frombuffer(await _read_exact(w, T * N, "w"), dtype="<f4").reshape(T, N).astype(np.float64)
 
         sd = Path(tempfile.mkdtemp(prefix="cortex_viz_"))
-        np.savez_compressed(
-            sd / "trajectory.npz", t_traj=tb, l_traj=lb, w_traj=wb,
-            task_codes=np.array(list(info["taskCodes"])),
-            seg_ids=np.array(list(info["segIds"]), dtype=np.int64),
-            delta_auroc=np.float64("nan"), n_questions=int(T))
-        with open(sd / "trials.jsonl", "w") as fh:
-            for tr in info["trials"]:
-                fh.write(json.dumps(tr) + "\n")
-        (sd / "certificate.json").write_text(json.dumps(info["certificate"]))
-        (sd / "participant.json").write_text(
-            json.dumps({"identity": {"name": info.get("participantName", "Anonymous")}}))
 
         def _render():
             scripts = SCRIPTS_DIR
@@ -1176,11 +1279,33 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                     z.write(p, arcname=Path(p).name)
             return zpath
 
+        # Serialize renders (see _RENDER_SEM). Non-blocking: a second user gets
+        # an immediate, honest 503 rather than queueing ~10 min behind the
+        # first and risking an OOM. Acquired immediately before the guarded
+        # block so every subsequent path — success or failure — releases it.
+        if not _RENDER_SEM.acquire(blocking=False):
+            shutil.rmtree(sd, ignore_errors=True)
+            raise HTTPException(503, "another visualization render is in progress — try again in a few minutes")
         try:
+            np.savez_compressed(
+                sd / "trajectory.npz", t_traj=tb, l_traj=lb, w_traj=wb,
+                task_codes=np.array(list(info["taskCodes"])),
+                seg_ids=np.array(list(info["segIds"]), dtype=np.int64),
+                delta_auroc=np.float64("nan"), n_questions=int(T))
+            with open(sd / "trials.jsonl", "w") as fh:
+                for tr in info["trials"]:
+                    fh.write(json.dumps(tr) + "\n")
+            (sd / "certificate.json").write_text(json.dumps(info["certificate"]))
+            (sd / "participant.json").write_text(
+                json.dumps({"identity": {"name": info.get("participantName", "Anonymous")}}))
             zpath = await run_in_threadpool(_render)
         except Exception as e:
             shutil.rmtree(sd, ignore_errors=True)
+            if isinstance(e, HTTPException):
+                raise
             raise HTTPException(500, f"render failed: {e}")
+        finally:
+            _RENDER_SEM.release()
         return FileResponse(
             zpath, media_type="application/zip", filename="cortex_visualizations.zip",
             background=BackgroundTask(shutil.rmtree, sd, True))

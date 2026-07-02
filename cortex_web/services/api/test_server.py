@@ -1314,3 +1314,134 @@ def test_change_email(client):
     assert client.post("/api/account/email", headers=hdr,
                        json={"newEmail": "fresh@example.test", "password": pw}).status_code == 200
     assert client.post("/api/auth", json={"email": "fresh@example.test", "password": pw}).status_code == 200
+
+
+# ─────────────── group-1 hardening (2026-07-01 audit) ───────────────
+
+def test_health_deep_checks_db_and_reports_bank(client, monkeypatch):
+    # Shallow probe: static liveness (never touches the DB).
+    r = client.get("/api/health")
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert "release" in r.json()
+    # Deep probe: DB round-trip + bank state.
+    r = client.get("/api/health", params={"deep": 1})
+    assert r.status_code == 200
+    assert r.json()["db"] == "ok"
+    assert r.json()["bank"] in ("not_loaded_yet", "loaded", "missing")
+    # DB down → deep probe 503s (this is what an uptime monitor must see),
+    # while the shallow probe stays 200.
+    db = client.app.state.db
+
+    def _dead():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(db, "ping", _dead)
+    r = client.get("/api/health", params={"deep": 1})
+    assert r.status_code == 503 and r.json()["ok"] is False
+    assert r.json()["db"].startswith("error:")
+    assert client.get("/api/health").status_code == 200
+
+
+def test_put_profile_partial_update_preserves_profile(client):
+    """Omitting `profile` in a PUT must NOT wipe the stored profile (the old
+    `{}` default silently did)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    assert client.put("/api/profile", headers=hdr,
+                      json={"displayName": "Name One",
+                            "profile": {"institution": "Stanford"}}).status_code == 200
+    # Partial update: displayName only, `profile` omitted entirely.
+    assert client.put("/api/profile", headers=hdr,
+                      json={"displayName": "Name Two"}).status_code == 200
+    prof = client.get("/api/profile", headers=hdr).json()
+    assert prof["displayName"] == "Name Two"
+    assert prof["profile"].get("institution") == "Stanford"
+
+
+def test_register_survives_email_send_failure(client, monkeypatch):
+    """An SMTP/SES outage during signup must not strand the account: the
+    account row exists, so a 500 would make every retry 409. Instead the
+    signup succeeds (no devCode) and the resend path recovers."""
+    from . import email as email_mod
+    real_send = email_mod.send_auth_code
+
+    def boom(*a, **k):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr(email_mod, "send_auth_code", boom)
+    r = client.post("/api/register",
+                    json={"email": "mailout@example.test",
+                          "password": "test-pw-1234567890",
+                          "displayName": "Outage User"})
+    assert r.status_code == 200, r.text
+    assert r.json()["needsVerification"] is True
+    assert "devCode" not in r.json()
+    # Email service back up → resend issues a fresh code; verification works.
+    monkeypatch.setattr(email_mod, "send_auth_code", real_send)
+    r = client.post("/api/verify/resend", json={"email": "mailout@example.test"})
+    assert r.status_code == 200 and r.json().get("devCode")
+    r = client.post("/api/verify/confirm",
+                    json={"email": "mailout@example.test", "code": r.json()["devCode"]})
+    assert r.status_code == 200
+
+
+def test_session_persists_drawn_seg_ids(client):
+    """The server-drawn candidate pool is stamped onto the session row —
+    the seed alone can't reproduce it later (exposure exclusion is temporal)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    r = client.post("/api/session", json={"participant": {}}, headers=hdr)
+    assert r.status_code == 200, r.text
+    served = [s["segId"] for s in r.json()["bank"]["segments"]]
+    sess = client.app.state.db.get_session(r.json()["sessionId"])
+    assert sess["bundle_version"] == "test-bank"
+    stored = json.loads(sess["drawn_seg_ids"])
+    assert stored == served and len(stored) > 0
+
+
+def test_truth_map_reuses_loaded_bank(tmp_path, monkeypatch):
+    """When the session's bundle IS the loaded bank, the truth map comes from
+    the in-memory segments — no manifest re-read from disk."""
+    from . import app as app_module
+    from .session_bank import SessionBank
+    _write_test_bank(tmp_path / "b", "bank-x")
+    bank = SessionBank(tmp_path / "b" / "bank-x" / "manifest.json", "/bundle/bank-x")
+    # Point the disk fallback somewhere empty: only the bank can answer.
+    monkeypatch.setattr(app_module, "BUNDLE_DIR", tmp_path / "nowhere")
+    monkeypatch.setattr(app_module, "_TRUTH_CACHE", {})
+    truth = app_module._truth_map_for("bank-x", bank)
+    assert truth["seg"][0] == "spike"
+    assert truth["words"] and truth["labels"] and truth["classes"]
+    # A different version must NOT be served from this bank.
+    assert app_module._truth_map_for("other-version", bank)["seg"] == {}
+
+
+def test_videos_rejects_oversized_shape_and_mismatched_blobs(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    files = {"t": ("t.bin", b"\0" * 16), "l": ("l.bin", b"\0" * 16),
+             "w": ("w.bin", b"\0" * 16)}
+    # Forged huge shape → 413 before any allocation.
+    meta = json.dumps({"shape": [99999, 99999, 99], "taskCodes": [], "segIds": [],
+                       "trials": [], "certificate": {}})
+    r = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r.status_code == 413
+    # Plausible shape but blobs that don't match it → 400.
+    meta = json.dumps({"shape": [2, 3, 4], "taskCodes": [], "segIds": [],
+                       "trials": [], "certificate": {}})
+    r = client.post("/api/videos", headers=hdr, data={"meta": meta}, files=files)
+    assert r.status_code == 400
+
+
+def test_rate_limiter_sweeps_stale_ip_buckets(monkeypatch):
+    from . import app as app_module
+    lim = app_module._RateLimiter()
+    t = [1_000_000.0]
+    monkeypatch.setattr(app_module.time, "time", lambda: t[0])
+    assert lim.hit("register", "1.2.3.4")
+    assert ("register", "1.2.3.4") in lim._hits
+    t[0] += 3601.0                       # register window fully expired
+    lim._n = lim._SWEEP_EVERY - 1        # next hit triggers the sweep
+    assert lim.hit("register", "5.6.7.8")
+    assert ("register", "1.2.3.4") not in lim._hits
+    assert ("register", "5.6.7.8") in lim._hits
