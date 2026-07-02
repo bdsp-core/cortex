@@ -542,7 +542,11 @@ export async function flushPendingResults(): Promise<string[]> {
 
 // ── visualization videos (#8) ─────────────────────────────────────
 // POST the particle-cloud trajectory (binary Float32 t/l/w) + a JSON meta to
-// the backend, which runs the desktop renderers and returns a zip of the 4 MP4s.
+// the backend, which renders the 4 MP4s as a background JOB: submit returns
+// {jobId} immediately, we poll its status, then download the zip. (The old
+// contract held one HTTP request open for the full ~10-minute render, which
+// NATs/proxies routinely cut.) The Promise still resolves to the zip Blob,
+// so callers are unchanged.
 export interface VizPayload {
   shape: [number, number, number];
   taskCodes: string[];
@@ -555,6 +559,9 @@ export interface VizPayload {
   w: Float32Array;
 }
 
+const VIDEO_POLL_MS = 5_000;                 // status poll cadence
+const VIDEO_TIMEOUT_MS = 30 * 60_000;        // give up after 30 min (renders run ~10)
+
 export async function requestVideos(p: VizPayload): Promise<Blob> {
   const { t, l, w, ...meta } = p;
   const fd = new FormData();
@@ -565,7 +572,23 @@ export async function requestVideos(p: VizPayload): Promise<Blob> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}/api/videos`, { method: "POST", body: fd, headers });
-  if (!res.ok) throw new Error(`render failed (${res.status}): ${await res.text().catch(() => "")}`);
-  return res.blob();
+  if (!res.ok) throw new Error(`render submit failed (${res.status}): ${await res.text().catch(() => "")}`);
+  const { jobId } = (await res.json()) as { jobId: string };
+
+  const deadline = Date.now() + VIDEO_TIMEOUT_MS;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, VIDEO_POLL_MS));
+    const st = await fetch(`${API_BASE}/api/videos/${jobId}`, { headers });
+    if (!st.ok) throw new Error(`render status failed (${st.status}): ${await st.text().catch(() => "")}`);
+    const body = (await st.json()) as { status: string; error?: string };
+    if (body.status === "done") break;
+    if (body.status === "error") throw new Error(`render failed: ${body.error ?? "unknown error"}`);
+    if (Date.now() > deadline) throw new Error("render timed out — please try again");
+  }
+
+  const dl = await fetch(`${API_BASE}/api/videos/${jobId}/download`, { headers });
+  if (!dl.ok) throw new Error(`render download failed (${dl.status})`);
+  return dl.blob();
 }
