@@ -22,6 +22,9 @@ services/api/*.db
 services/api/*.db-wal
 services/api/*.db-shm
 services/api/.jwt_secret
+# Deploy-time commit stamp (written on the box by deploy_app.sh; read by
+# /api/health). Never a repo artifact.
+RELEASE
 .venv/
 **/__pycache__/
 *.pyc

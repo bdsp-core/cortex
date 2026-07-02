@@ -2,6 +2,10 @@
 # Auth (PBKDF2 + HS256 JWT) is stdlib-only; SQLite is the dev default; Postgres
 # is opt-in for prod via CORTEX_DB=postgresql://… (provisioned by
 # deploy/scripts/provision.sh).
+#
+# These are FLOOR constraints (CI + lock regeneration). Prod deploys install
+# from requirements.lock (exact pins) — regenerate it whenever this file
+# changes (instructions in the lock header).
 fastapi>=0.110
 uvicorn[standard]>=0.27
 # Prod-only: pick up via `pip install -r requirements.txt` on the deploy box;

@@ -1,0 +1,35 @@
+name: CORTEX prod uptime
+
+# External deep-health probe for app.cortexeeg.org. GET /api/health?deep=1
+# round-trips the DB, so this catches the outage class where the box is up
+# and the shallow probe is green but every DB-backed endpoint fails (the
+# 2026-06-24 incident went unnoticed for ~a day for exactly that reason).
+# A failing run emails the workflow author via GitHub's normal
+# failed-workflow notification. Three attempts 30 s apart before failing, so
+# a transient network blip doesn't page.
+#
+# NOTE: GitHub disables cron workflows after ~60 days without repo activity;
+# re-enable from the Actions tab if the repo goes quiet.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deep health check
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 20 \
+              "https://app.cortexeeg.org/api/health?deep=1" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "OK (attempt $i):"; cat /tmp/health.json; exit 0
+            fi
+            echo "attempt $i: HTTP $code"; cat /tmp/health.json 2>/dev/null || true
+            [ "$i" -lt 3 ] && sleep 30
+          done
+          echo "::error::PROD DEEP HEALTH FAILING (app.cortexeeg.org /api/health?deep=1)"
+          exit 1

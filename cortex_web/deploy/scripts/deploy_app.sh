@@ -40,8 +40,15 @@ if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d /opt/cortex/cortex_web ]; then
     exit 2
   fi
 
-  say "refreshing Python deps…"
-  sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/services/api/requirements.txt" >/dev/null
+  say "stamping RELEASE…"
+  git -C "$APP" rev-parse --short=12 HEAD | sudo -u "$CORTEX_USER" tee "$WEB/RELEASE" >/dev/null
+
+  say "refreshing Python deps (lock)…"
+  # requirements.lock pins the exact prod closure (reproducible redeploys);
+  # requirements.txt keeps the floor constraints (CI + regenerating the lock).
+  REQ="$WEB/services/api/requirements.lock"
+  [ -f "$REQ" ] || REQ="$WEB/services/api/requirements.txt"
+  sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$REQ" >/dev/null
 
   say "building the SPA (workspace)…"
   sudo -u "$CORTEX_USER" bash -c "cd $WEB && npm ci && npm run build"
@@ -66,6 +73,16 @@ if [ ! -d "$WEB_LOCAL/apps/web" ] || [ ! -d "$WEB_LOCAL/services/api" ]; then
   exit 1
 fi
 
+# Record what is being shipped (surfaced by /api/health as "release"). A
+# dirty tree still deploys — this is the lab deploy flow — but it is warned
+# about and stamped as +dirty so "what SHA is live?" is always answerable.
+GIT_SHA=$(git -C "$WEB_LOCAL" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+DIRTY=""
+if [ -n "$(git -C "$WEB_LOCAL" status --porcelain -- . 2>/dev/null)" ]; then
+  DIRTY="+dirty"
+  say "WARNING: cortex_web/ working tree is DIRTY — uncommitted changes will deploy (stamped ${GIT_SHA}${DIRTY})"
+fi
+
 say "rsync $WEB_LOCAL → $SSH_HOST:/tmp/cortex_web/"
 # --delete is scoped to the sent tree; the EEG bundle + node_modules + build
 # output + dev artifacts are excluded so the on-box copies are untouched.
@@ -82,6 +99,11 @@ rsync -avz --delete \
   --exclude '__pycache__' \
   "$WEB_LOCAL/" "$SSH_HOST:/tmp/cortex_web/" >/dev/null
 
+# Stamp the release into the staged tree; the on-box rsync layers it into
+# /opt/cortex/cortex_web/RELEASE, where /api/health reads it at boot.
+printf '%s%s %s\n' "$GIT_SHA" "$DIRTY" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  | ssh "$SSH_HOST" 'cat > /tmp/cortex_web/RELEASE'
+
 say "stage on box (chown cortex), refresh deps, rebuild SPA, restart"
 ssh "$SSH_HOST" "sudo bash -s <<'REMOTE'
 set -euo pipefail
@@ -96,7 +118,11 @@ sudo rsync -a --delete \
   /tmp/cortex_web/ \$WEB/
 chown -R ${CORTEX_USER}:${CORTEX_USER} \$APP
 
-sudo -u ${CORTEX_USER} \$APP/.venv/bin/pip install -r \$WEB/services/api/requirements.txt --quiet
+# Install from the lock (exact prod pins) when present; fall back to the
+# floor-constraint requirements.txt on a box that predates the lock.
+REQ=\$WEB/services/api/requirements.lock
+[ -f \$REQ ] || REQ=\$WEB/services/api/requirements.txt
+sudo -u ${CORTEX_USER} \$APP/.venv/bin/pip install -r \$REQ --quiet
 sudo -u ${CORTEX_USER} bash -c \"cd \$WEB && npm ci --no-audit --no-fund\" 2>&1 | tail -3
 sudo -u ${CORTEX_USER} bash -c \"cd \$WEB && npm run build\" 2>&1 | tail -3
 
