@@ -1455,3 +1455,59 @@ def test_videos_queue_cap(client, monkeypatch):
     gate.set()                                       # let both renders finish
     assert _poll_job(client, hdr, r1.json()["jobId"])["status"] == "done"
     assert _poll_job(client, hdr, r2.json()["jobId"])["status"] == "done"
+
+
+# ─────────────── listing-payload slimming (2026-07-01) ───────────────
+
+def _finish_session_with_fat_result(client, hdr):
+    """Start a session and post a result carrying the heavy raw keys."""
+    r = client.post("/api/session", json={"participant": {}}, headers=hdr)
+    assert r.status_code == 200, r.text
+    sid = r.json()["sessionId"]
+    fat_result = {
+        "verdicts": ["PASS"] * 7,
+        "roc": [{"auroc": 0.9, "hw": 0.05}] * 7,
+        "perTask": [{"taskK": k, "ell": 0.1, "theta": 0.0, "sd": 0.2,
+                     "ellStar": 0.0, "auroc": 0.9, "verdict": "PASS"} for k in range(7)],
+        "trials": [{"trialIndex": i, "segId": i, "diag": {"pi": [0.5] * 7}}
+                   for i in range(50)],                      # the heavy key
+        "servedSegIds": list(range(700)),                    # the other heavy key
+        "participant": {"expertise": "attending"},
+        "sampleSeed": 42,
+    }
+    r = client.post("/api/results", headers=hdr,
+                    json={"sessionId": sid, "result": fat_result,
+                          "stopReason": "resolved", "nQuestions": 50})
+    assert r.status_code == 200, r.text
+    return sid
+
+
+def test_history_and_dashboard_strip_heavy_result_keys(client):
+    """Listing surfaces must NOT ship the per-trial bulk (~95% of a stored
+    blob): trials + servedSegIds are stripped, everything the UI reads
+    (verdicts/roc/perTask + metadata) survives. The admin endpoint keeps the
+    FULL blob — it is the export/debug path."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    sid = _finish_session_with_fat_result(client, hdr)
+
+    hist = client.get("/api/history", headers=hdr).json()["sessions"]
+    assert len(hist) == 1 and hist[0]["session_id"] == sid
+    res = hist[0]["result"]
+    assert "trials" not in res and "servedSegIds" not in res
+    assert res["verdicts"] == ["PASS"] * 7
+    assert res["roc"][0]["auroc"] == 0.9
+    assert len(res["perTask"]) == 7
+    assert hist[0]["n_questions"] == 50
+
+    dash = client.get("/api/dashboard", headers=hdr).json()
+    assert dash["hasResult"] is True
+    assert "trials" not in dash["result"] and "servedSegIds" not in dash["result"]
+    assert dash["kpis"]["tasksCertified"] == 7
+    assert len(dash["tasks"]) == 7 and dash["tasks"][0]["verdict"] == "PASS"
+
+    # Admin path: the full blob, untouched.
+    full = client.get(f"/api/admin/results/{sid}",
+                      headers={"X-Admin-Token": "test-admin"}).json()
+    assert len(full["trials"]) == 50
+    assert len(full["servedSegIds"]) == 700

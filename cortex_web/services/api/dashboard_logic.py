@@ -13,6 +13,22 @@ from typing import Optional
 from . import config
 from .session_bank import SessionBank
 
+# Result-blob keys that are NEVER sent to the dashboard/history listing
+# surfaces. A stored result averages ~370 KB (measured in prod, 2026-07-01)
+# and ~95% of it is the raw per-trial array + the ~700-int served-seg list;
+# the listing UIs read only verdicts/roc/perTask + metadata, and per-question
+# detail has its own lazy endpoint backed by the trials TABLE
+# (GET /api/history/{id}/questions). The FULL blob still flows everywhere it
+# is actually needed: the DB row itself, /api/admin/results/{id}, the backfill
+# script, and the research export all bypass this.
+_HEAVY_RESULT_KEYS = ("trials", "servedSegIds")
+
+
+def slim_result(result: dict) -> dict:
+    """A listing-surface copy of a stored result, minus the per-question bulk."""
+    return {k: v for k, v in result.items() if k not in _HEAVY_RESULT_KEYS}
+
+
 # The fixed 7-task ontology (D5: spike + the 6 IIIC patterns; K=7). Used to
 # render every task tile in canonical order, including for legacy results that
 # stored only a bare `verdicts` list (pre-Step-1, no per-task ℓ/θ/AUROC).

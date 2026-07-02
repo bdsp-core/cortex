@@ -35,7 +35,9 @@ def dashboard(req: Request, code: str = Depends(require_auth)):
         latest_traj[int(r["task_k"])] = r
     tasks = dashboard_logic.dashboard_tasks(result, latest_traj)
     return {
-        "result": result,
+        # Slimmed: the raw per-trial bulk (~95% of a ~370 KB blob) never
+        # reaches the dashboard — the Shell reads only hasResult/tasks/kpis.
+        "result": dashboard_logic.slim_result(result),
         "hasResult": True,
         "tasks": tasks,
         "kpis": dashboard_logic.dashboard_kpis(tasks, latest.get("finished_utc")),
@@ -53,8 +55,16 @@ def activity(req: Request, tz: int = 0, code: str = Depends(require_auth)):
 @router.get("/history")
 def history(req: Request, code: str = Depends(require_auth)):
     # Completed certification attempts for this participant, newest first.
-    # Real data only (no sample); scoped strictly by the authed code.
-    return {"sessions": req.app.state.db.list_results_for_code(code)}
+    # Real data only (no sample); scoped strictly by the authed code. Each
+    # result is slimmed (per-trial bulk stripped): the history UI reads only
+    # verdicts/AUROC per attempt, and expanding an attempt fetches the
+    # per-question breakdown lazily from its own endpoint. Without this a
+    # returning participant re-downloaded every attempt's full ~370 KB blob
+    # on every history view.
+    sessions = req.app.state.db.list_results_for_code(code)
+    for s in sessions:
+        s["result"] = dashboard_logic.slim_result(s["result"])
+    return {"sessions": sessions}
 
 
 @router.get("/history/{session_id}/questions")
