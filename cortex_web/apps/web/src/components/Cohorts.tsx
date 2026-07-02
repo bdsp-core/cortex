@@ -56,7 +56,10 @@ function memberLabel(m: { publicId: string; displayName?: string; isYou?: boolea
 }
 
 // ── chart geometry ───────────────────────────────────────────────
-const W = 760, H = 280, mL = 48, mR = 18, mT = 14, mB = 26;
+// The viewBox matches the full-width panel at typical desktop widths so the
+// chart renders near 1:1 (labels stay their designed size) instead of
+// upscaling a narrow drawing.
+const W = 1120, H = 330, mL = 52, mR = 20, mT = 16, mB = 28;
 const IW = W - mL - mR, IH = H - mT - mB;
 
 interface FlatPoint {
@@ -555,10 +558,10 @@ export function CohortSurface() {
     return () => { dead = true; };
   }, [bump]);
 
-  if (!loaded) return <div className="cx-settings"><p className="sub">Loading…</p></div>;
+  if (!loaded) return <div className="cx-settings cx-cohorts"><p className="sub">Loading…</p></div>;
   if (loadErr) {
     return (
-      <div className="cx-settings">
+      <div className="cx-settings cx-cohorts">
         <h2>Cohorts</h2>
         <section className="cx-panel">
           <p className="cx-msg-err">{loadErr}</p>
@@ -571,7 +574,7 @@ export function CohortSurface() {
   // Not in any cohort: the real page, greyed out under an explainer card.
   if (cohorts.length === 0) {
     return (
-      <div className="cx-settings" style={{ position: "relative" }}>
+      <div className="cx-settings cx-cohorts" style={{ position: "relative" }}>
         <div aria-hidden style={{ filter: "grayscale(1) opacity(0.45)", pointerEvents: "none", userSelect: "none" }}>
           <h2>Cohorts</h2>
           <p className="sub">Follow your team's skill and bias evolution.</p>
@@ -598,7 +601,7 @@ export function CohortSurface() {
 
   const sel = cohorts.find((c) => c.cohortId === selected) ?? cohorts[0];
   return (
-    <div className="cx-settings">
+    <div className="cx-settings cx-cohorts">
       <h2>Cohorts</h2>
       <p className="sub">Follow your team's skill and bias evolution. Peers are identified by User ID.</p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "10px 0 16px" }}>

@@ -251,6 +251,9 @@ td.ellcell .of{color:var(--ink-faint);}
 
 /* ---------- settings page ---------- */
 .cx-settings{max-width:760px;}
+/* Cohorts reuses the settings typography but fills the whole content area
+   (centered by the symmetric .cx-content padding). */
+.cx-cohorts{max-width:none;width:100%;margin:0 auto;}
 .cx-settings>h2{font-size:20px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
 .cx-settings>.sub{color:var(--ink-subtle);font-size:13px;margin:0 0 var(--s24);}
 .cx-settings section{margin-bottom:var(--s24);}
