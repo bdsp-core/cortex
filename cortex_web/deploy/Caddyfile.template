@@ -48,14 +48,24 @@ app.cortexeeg.org {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # Clickjacking + injection hardening. These CSP directives govern
-        # framing/base/form behaviour only — they do NOT restrict script/style/
-        # img/connect sources, so they can't break the SPA or the Google
-        # Sign-In flow. A full resource-level CSP (script-src/default-src/
-        # frame-src for accounts.google.com) is deferred until the Google OAuth
-        # path can be human-tested (Google blocks automated sign-in).
-        Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        # Full resource-level CSP. Verified safe against the actual build
+        # (2026-07-02): the bundle has NO eval/Function/wasm; the SMC engine
+        # Web Worker is a same-origin asset (worker-src 'self'); the ONLY
+        # external origin is Google Identity Services. So scripts are locked to
+        # 'self' + the GIS client with NO 'unsafe-inline' (the theme-init
+        # script was externalised to /theme-init.js precisely for this). Styles
+        # keep 'unsafe-inline': React sets element style="" attributes
+        # pervasively and there is one inline <style> theme block — style
+        # injection is low-risk, so this is the accepted trade. The GIS
+        # allowlist (script/style/connect/frame under accounts.google.com/gsi)
+        # is Google's documented CSP for Sign in with Google.
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; worker-src 'self'; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data:; font-src 'self'; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         X-Frame-Options "DENY"
+        # No camera/mic/geo/etc. anywhere in the app; opt out of FLoC too.
+        Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+        # Cross-window isolation (tabnabbing / cross-origin window refs).
+        # -allow-popups keeps any Google OAuth popup fallback working.
+        Cross-Origin-Opener-Policy "same-origin-allow-popups"
         -Server
     }
 }

@@ -7,8 +7,9 @@
     <link rel="icon" type="image/svg+xml" href="/cortex_tab_logo_web.svg" />
     <link rel="icon" type="image/png" href="/cortex_tab_logo_web@3x.png" />
     <link rel="apple-touch-icon" href="/cortex_tab_logo_web@3x.png" />
-    <script>/* set theme before first paint to avoid flash */
-    (function(){try{var t=localStorage.getItem("cortex-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+    <!-- Theme-before-paint. External (not inline) so the CSP can forbid inline
+         scripts entirely; render-blocking in <head> so it still runs pre-paint. -->
+    <script src="/theme-init.js"></script>
     <style>
       /* ============================================================
          CORTEX theme tokens. Theme-scoped CSS variables on
