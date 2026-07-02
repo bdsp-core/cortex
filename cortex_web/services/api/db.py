@@ -17,11 +17,22 @@ Tables (schema is SQL-92, identical on both engines):
   unset / a filesystem path  → SQLite (WAL).
   "postgres://..." / "postgresql://..."  → Postgres via psycopg3.
 
-The methods (add_participant, create_session, upsert_trial, store_result, …)
-are unchanged from the original SQLite-only version, so app.py / admin.py /
-test_server.py don't need touching. The only places that branch on backend are
-(a) connection setup, (b) placeholder syntax (? vs %s), (c) the two upserts
-that used "INSERT OR REPLACE" (Postgres needs ON CONFLICT … DO UPDATE).
+Concurrency model — one `_connection()` unit of work per public method:
+
+  * Postgres: a small psycopg connection POOL. Each operation checks a
+    connection out, runs its statements, and the pool commits on clean exit /
+    rolls back on exception / health-checks and replaces dead connections at
+    checkout. This is the load-bearing design change from the 2026-06 shared-
+    single-connection incidents: rollback-on-error (06-21), commit-after-read
+    so nothing lingers idle-in-transaction (06-22), and reconnect after a
+    Postgres restart severs the socket (06-24) are all the POOL's contract
+    now, not hand-rolled recovery code here.
+  * SQLite (dev/tests): the classic single shared connection under a process
+    lock, committed per unit of work. SQLite has none of the failure modes
+    above, so it keeps the simple shape.
+
+The only places that branch on backend are (a) connection setup, (b) `?` vs
+`%s` placeholders (`_q`), (c) the upserts (INSERT OR REPLACE vs ON CONFLICT).
 """
 from __future__ import annotations
 
@@ -31,8 +42,9 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 _DEFAULT_DB = Path(__file__).with_name("cortex.db")
 
@@ -236,16 +248,14 @@ class Database:
 
     def __init__(self, path_or_url: Optional[Path | str] = None):
         raw = str(path_or_url or os.environ.get("CORTEX_DB", _DEFAULT_DB))
+        self._raw = raw
         self._pg = _is_pg_url(raw)
-        self._lock = threading.Lock()
 
         if self._pg:
-            # psycopg3 — opt-in dep. Lazy-imported so SQLite-only dev installs
-            # don't need it.
-            self._raw = raw                  # retained so a severed connection
-            self._conn = self._pg_connect()  # can be re-established (see _reconnect)
+            self._pool = self._make_pool()
             self.path = None
         else:
+            self._lock = threading.Lock()
             self.path = Path(raw)
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
@@ -253,233 +263,148 @@ class Database:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
 
-        with self._lock:
+        # Boot schema + idempotent additive migrations, one transaction.
+        with self._connection() as conn:
             for stmt in _SCHEMA_STATEMENTS:
-                self._exec(stmt)
-            self._migrate_participants()
-            self._add_missing_columns("param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
-            self._add_missing_columns("training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
-            self._add_missing_columns("sessions", _SESSIONS_MIGRATION_COLUMNS)
+                conn.execute(stmt)
+            self._migrate_participants(conn)
+            self._add_missing_columns(conn, "param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
+            self._add_missing_columns(conn, "training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
+            self._add_missing_columns(conn, "sessions", _SESSIONS_MIGRATION_COLUMNS)
             # Quarantine backfill: every pre-existing trajectory row is synthetic
             # (the only writer before the L1 trainer was the removed Shell.tsx
             # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
             # belt-and-suspenders for any backend that left it NULL.
-            self._exec("UPDATE param_trajectories SET is_real=0 WHERE is_real IS NULL")
-            self._conn.commit()
+            conn.execute("UPDATE param_trajectories SET is_real=0 WHERE is_real IS NULL")
 
-    def _migrate_participants(self) -> None:
-        """Add columns to participants that didn't exist in earlier schemas
-        (email, display_name, signup_ip). Idempotent on both engines."""
-        if self._pg:
-            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
-                self._exec(f"ALTER TABLE participants ADD COLUMN IF NOT EXISTS {col} {typ}")
-        else:
-            cur = self._exec("PRAGMA table_info(participants)")
-            existing = {dict(r)["name"] for r in cur.fetchall()}
-            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
-                if col not in existing:
-                    self._exec(f"ALTER TABLE participants ADD COLUMN {col} {typ}")
-        # Now that the email column is guaranteed to exist, the unique-when-
-        # set index is safe to create on both engines.
-        self._exec(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_email "
-            "ON participants(email) WHERE email IS NOT NULL"
-        )
-        # One CORTEX account per Google identity.
-        self._exec(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_google_sub "
-            "ON participants(google_sub) WHERE google_sub IS NOT NULL"
+    # ── connection management ─────────────────────────────────────
+    def _make_pool(self):
+        """Open the psycopg3 connection pool (lazy import so SQLite-only dev
+        installs don't need psycopg). min_size=1 keeps one warm connection;
+        max_size=4 comfortably covers the single-process API + the backup
+        exporter. `check` re-validates a connection at checkout and silently
+        replaces a dead one — a Postgres restart (the 2026-06-24 outage) now
+        self-heals on the next request instead of failing until a manual
+        service restart."""
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+        return ConnectionPool(
+            self._raw, min_size=1, max_size=4, open=True,
+            check=ConnectionPool.check_connection,
+            kwargs={"row_factory": dict_row},
         )
 
-    def _add_missing_columns(self, table: str, columns: list[tuple[str, str]]) -> None:
-        """Idempotent additive migration for `table` on both backends — the
-        generic form of _migrate_participants, used for the learning tables."""
-        if self._pg:
-            for col, typ in columns:
-                self._exec(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
-        else:
-            cur = self._exec(f"PRAGMA table_info({table})")
-            existing = {dict(r)["name"] for r in cur.fetchall()}
-            for col, typ in columns:
-                if col not in existing:
-                    self._exec(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+    @contextmanager
+    def _connection(self) -> Iterator[Any]:
+        """One transactional unit of work on one connection.
 
-    # ── low-level helpers (backend-aware) ─────────────────────────
+        Postgres: a pooled connection — psycopg_pool commits on clean exit,
+        rolls back on exception, and never leaves it idle-in-transaction
+        (the 2026-06-21/22 failure modes, by construction). SQLite: the shared
+        connection under the process lock, committed on clean exit."""
+        if self._pg:
+            with self._pool.connection() as conn:
+                yield conn
+        else:
+            with self._lock:
+                try:
+                    yield self._conn
+                    self._conn.commit()
+                except Exception:
+                    self._conn.rollback()
+                    raise
+
     def _q(self, sql: str) -> str:
         """Translate `?` placeholders to `%s` when on Postgres."""
         return sql.replace("?", "%s") if self._pg else sql
 
-    def _pg_connect(self):
-        """Open the shared psycopg3 connection (autocommit=False, dict rows).
-        Single source of truth for both the initial connect and _reconnect, so
-        the connection parameters can't drift between them."""
-        import psycopg
-        from psycopg.rows import dict_row
-        return psycopg.connect(self._raw, autocommit=False, row_factory=dict_row)
-
-    def _reconnect(self) -> None:
-        """Re-establish the shared PG connection after it was severed (Postgres
-        restart, terminated backend, dropped socket). The schema/migrations
-        already ran against the database, so only the connection is recreated.
-        The caller holds self._lock, so this is serialized with all other DB
-        access — the single-connection model is preserved, just made durable."""
-        try:
-            self._conn.close()
-        except Exception:
-            pass
-        self._conn = self._pg_connect()
-
-    def _pg_conn_dead(self) -> bool:
-        """True when the shared PG connection can no longer be used — the server
-        closed it (restart / pg_terminate_backend) or the socket broke. Lets a
-        *severed* connection (→ reconnect) be told apart from a merely *aborted*
-        transaction on a live connection (→ rollback)."""
-        try:
-            return bool(self._conn.closed) or bool(self._conn.broken)
-        except Exception:
-            return True   # can't tell → assume dead and reconnect (a fresh
-                          # connection is always usable; never loops in prod
-                          # because a real psycopg conn always exposes both flags)
-
-    def _pg_tx_idle(self) -> bool:
-        """True if the PG connection has no open transaction right now, i.e. a
-        statement that fails can be safely retried on a fresh connection without
-        losing earlier work. libpq's transaction status is read WITHOUT any I/O,
-        so it reflects the last known state even for a connection the server
-        killed while idle. Compared numerically (PQTRANS_IDLE == 0) so the helper
-        doesn't require psycopg to be importable, e.g. in SQLite-only test runs."""
-        try:
-            return int(self._conn.info.transaction_status) == 0   # 0 == PQTRANS_IDLE
-        except Exception:
-            return False   # unknown → assume mid-transaction → don't retry
-
-    def _exec(self, sql: str, params: tuple = ()) -> Any:
-        """Execute one statement, return a cursor (or sqlite3's conn.execute).
-        Wraps the placeholder translation so callers stay backend-agnostic.
-
-        On Postgres the single shared connection (autocommit=False) has two
-        independent failure modes this guards against:
-
-        1. **Statement error on a live connection** (deadlock victim, statement
-           timeout, an uncaught UNIQUE violation, …) aborts the transaction. If we
-           don't roll back, EVERY later statement raises InFailedSqlTransaction
-           until the process restarts — a single transient error becomes a total
-           login outage (the 2026-06-21 incident). So roll back before re-raising.
-
-        2. **The connection itself is severed** — Postgres restarted (an
-           unattended-upgrade of a libpq dependency bounces the service), the
-           backend was terminated, or the socket dropped. The held connection is
-           dead and, with no recovery, every later request fails forever until a
-           manual restart (the 2026-06-24 incident: an idle connection killed by
-           the Jun-23 06:21 Postgres restart surfaced as AdminShutdown on the next
-           login and stayed down ~all day). So detect the dead connection,
-           reconnect, and — only when we were at a clean transaction boundary —
-           retry the statement once. The app self-heals instead of going dark.
-
-        (SQLite neither poisons later statements nor gets bounced this way; the
-        rollback/reconnect machinery is Postgres-only, leaving SQLite as-is.)
-        """
-        if self._pg:
-            idle_before = self._pg_tx_idle()   # retry is safe only at a txn boundary
-            try:
-                cur = self._conn.cursor()
-                cur.execute(self._q(sql), params)
-                return cur
-            except Exception:
-                if self._pg_conn_dead():
-                    # Connection severed. Reconnect so the app recovers; retry this
-                    # statement only if nothing earlier in this operation's
-                    # transaction was lost with it (a bare read, or the first
-                    # statement of a write — the common case, incl. a connection
-                    # killed while idle between requests). If we were mid
-                    # multi-statement write, re-raise instead of persisting a
-                    # partial write; the next request starts clean on the new conn.
-                    self._reconnect()
-                    if idle_before:
-                        cur = self._conn.cursor()
-                        cur.execute(self._q(sql), params)
-                        return cur
-                    raise
-                # Live connection, aborted transaction — roll back so later
-                # statements aren't poisoned. If the rollback itself finds the
-                # connection gone, reconnect before re-raising.
-                try:
-                    self._conn.rollback()
-                except Exception:
-                    self._reconnect()
-                raise
-        return self._conn.execute(self._q(sql), params)
-
     def _fetchone(self, sql: str, params: tuple = ()) -> Optional[dict]:
-        cur = self._exec(sql, params)
-        row = cur.fetchone()
-        if self._pg and cur:
-            cur.close()
-            self._end_read()
-        return dict(row) if row is not None else None
+        with self._connection() as conn:
+            row = conn.execute(self._q(sql), params).fetchone()
+            return dict(row) if row is not None else None
 
     def _fetchall(self, sql: str, params: tuple = ()) -> list[dict]:
-        cur = self._exec(sql, params)
-        rows = cur.fetchall()
-        if self._pg and cur:
-            cur.close()
-            self._end_read()
-        return [dict(r) for r in rows]
+        with self._connection() as conn:
+            return [dict(r) for r in conn.execute(self._q(sql), params).fetchall()]
 
-    def _end_read(self) -> None:
-        """Commit the implicit transaction a read opened. On Postgres the single
-        shared connection runs autocommit=False (db.py __init__), so even a bare
-        SELECT begins a transaction. The write helpers commit; the read helpers
-        historically did NOT — so after any read the connection sat
-        `idle in transaction` indefinitely, holding AccessShare on the queried
-        table(s). That AccessShare blocks the AccessExclusive a *second*
-        Database() instance's boot migrations take (`ALTER TABLE … ADD COLUMN IF
-        NOT EXISTS`, `CREATE UNIQUE INDEX …`) — which is exactly how the nightly
-        backup's `api.admin export-sessions` hung for hours (2026-06-22) — and it
-        also pins the VACUUM xmin horizon, bloating the DB. Committing after each
-        read returns the shared connection to a clean idle state. (This is the
-        read-side complement to the error-path rollback in `_exec`, the
-        2026-06-21 fix.) SQLite opens no transaction for a SELECT, so the read
-        helpers skip this — their write paths already commit."""
-        self._conn.commit()
+    def _write(self, sql: str, params: tuple = ()) -> None:
+        """Execute one write statement as its own unit of work."""
+        with self._connection() as conn:
+            conn.execute(self._q(sql), params)
 
     def close(self) -> None:
-        with self._lock:
-            self._conn.close()
+        if self._pg:
+            self._pool.close()
+        else:
+            with self._lock:
+                self._conn.close()
 
     def ping(self) -> None:
         """Round-trip the backend (SELECT 1) — raises when the DB is unusable.
         Powers GET /api/health?deep=1 so an external monitor sees a DB outage
         as a 503 instead of the shallow probe's evergreen 200."""
-        with self._lock:
-            self._fetchone("SELECT 1 AS ok")
+        with self._connection() as conn:
+            conn.execute("SELECT 1")
+
+    # ── boot migrations (run inside __init__'s transaction) ──────
+    def _migrate_participants(self, conn) -> None:
+        """Add columns to participants that didn't exist in earlier schemas.
+        Idempotent on both engines."""
+        if self._pg:
+            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+                conn.execute(f"ALTER TABLE participants ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            existing = {dict(r)["name"] for r in
+                        conn.execute("PRAGMA table_info(participants)").fetchall()}
+            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE participants ADD COLUMN {col} {typ}")
+        # Now that the email column is guaranteed to exist, the unique-when-
+        # set index is safe to create on both engines.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_email "
+            "ON participants(email) WHERE email IS NOT NULL"
+        )
+        # One CORTEX account per Google identity.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_google_sub "
+            "ON participants(google_sub) WHERE google_sub IS NOT NULL"
+        )
+
+    def _add_missing_columns(self, conn, table: str,
+                             columns: list[tuple[str, str]]) -> None:
+        """Idempotent additive migration for `table` on both backends — the
+        generic form of _migrate_participants, used for the learning tables."""
+        if self._pg:
+            for col, typ in columns:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            existing = {dict(r)["name"] for r in
+                        conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            for col, typ in columns:
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
 
     # ── participants ──────────────────────────────────────────────
     def add_participant(self, code: str, password_hash: str, label: str = "") -> None:
-        with self._lock:
-            self._exec(
-                "INSERT INTO participants(code, password_hash, label, created_utc) "
-                "VALUES (?,?,?,?)",
-                (code, password_hash, label, utc_now()),
-            )
-            self._conn.commit()
+        self._write(
+            "INSERT INTO participants(code, password_hash, label, created_utc) "
+            "VALUES (?,?,?,?)",
+            (code, password_hash, label, utc_now()),
+        )
 
     def get_participant(self, code: str) -> Optional[dict]:
-        with self._lock:
-            return self._fetchone(
-                "SELECT * FROM participants WHERE code=?", (code,))
+        return self._fetchone(
+            "SELECT * FROM participants WHERE code=?", (code,))
 
     def list_participants(self) -> list[dict]:
-        with self._lock:
-            return self._fetchall(
-                "SELECT code,label,active,created_utc FROM participants "
-                "ORDER BY created_utc")
+        return self._fetchall(
+            "SELECT code,label,active,created_utc FROM participants "
+            "ORDER BY created_utc")
 
     def set_participant_active(self, code: str, active: bool) -> None:
-        with self._lock:
-            self._exec("UPDATE participants SET active=? WHERE code=?",
-                       (1 if active else 0, code))
-            self._conn.commit()
+        self._write("UPDATE participants SET active=? WHERE code=?",
+                    (1 if active else 0, code))
 
     # ── public-signup helpers ─────────────────────────────────────
     def register_participant(self, *, code: str, password_hash: str,
@@ -495,15 +420,13 @@ class Database:
         None so existing callers are unchanged). `profile` is the JSON
         demographic/clinical record collected during signup (editable later in
         Settings)."""
-        with self._lock:
-            self._exec(
-                "INSERT INTO participants(code, password_hash, email, "
-                "display_name, signup_ip, signup_expertise, profile, created_utc) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (code, password_hash, email, display_name, signup_ip,
-                 signup_expertise, profile, utc_now()),
-            )
-            self._conn.commit()
+        self._write(
+            "INSERT INTO participants(code, password_hash, email, "
+            "display_name, signup_ip, signup_expertise, profile, created_utc) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (code, password_hash, email, display_name, signup_ip,
+             signup_expertise, profile, utc_now()),
+        )
 
     def update_profile(self, code: str, *, display_name: Optional[str],
                        profile: Optional[str], signup_expertise: Optional[str]) -> None:
@@ -520,62 +443,49 @@ class Database:
         if not sets:
             return
         params.append(code)
-        with self._lock:
-            self._exec(f"UPDATE participants SET {', '.join(sets)} WHERE code=?", tuple(params))
-            self._conn.commit()
+        self._write(f"UPDATE participants SET {', '.join(sets)} WHERE code=?",
+                    tuple(params))
 
     def update_email(self, code: str, new_email: str) -> None:
         """Change an account's email. The UNIQUE-when-set index surfaces a
         collision as a backend IntegrityError the caller maps to a 409."""
-        with self._lock:
-            self._exec("UPDATE participants SET email=? WHERE code=?", (new_email, code))
-            self._conn.commit()
+        self._write("UPDATE participants SET email=? WHERE code=?", (new_email, code))
 
     def get_participant_by_email(self, email: str) -> Optional[dict]:
-        with self._lock:
-            return self._fetchone(
-                "SELECT * FROM participants WHERE email=?", (email,))
+        return self._fetchone(
+            "SELECT * FROM participants WHERE email=?", (email,))
 
     def mark_email_verified(self, code: str) -> None:
-        with self._lock:
-            self._exec(
-                "UPDATE participants SET email_verified_utc=? WHERE code=?",
-                (utc_now(), code))
-            self._conn.commit()
+        self._write(
+            "UPDATE participants SET email_verified_utc=? WHERE code=?",
+            (utc_now(), code))
 
     def set_password_hash(self, code: str, password_hash: str) -> None:
-        with self._lock:
-            self._exec(
-                "UPDATE participants SET password_hash=? WHERE code=?",
-                (password_hash, code))
-            self._conn.commit()
+        self._write(
+            "UPDATE participants SET password_hash=? WHERE code=?",
+            (password_hash, code))
 
     # ── Google OAuth accounts ─────────────────────────────────────
     def get_participant_by_google_sub(self, sub: str) -> Optional[dict]:
-        with self._lock:
-            return self._fetchone(
-                "SELECT * FROM participants WHERE google_sub=?", (sub,))
+        return self._fetchone(
+            "SELECT * FROM participants WHERE google_sub=?", (sub,))
 
     def register_oauth_participant(self, *, code: str, email: str, display_name: str,
                                     google_sub: str, signup_ip: Optional[str] = None) -> None:
         """Insert a new Google-authenticated account. password_hash holds a
         non-PBKDF2 sentinel (so password login is impossible); the email is
         verified by Google, so email_verified_utc is set immediately."""
-        with self._lock:
-            self._exec(
-                "INSERT INTO participants(code, password_hash, email, display_name, "
-                "signup_ip, created_utc, auth_provider, google_sub, email_verified_utc) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
-                (code, "google-oauth:no-password", email, display_name, signup_ip,
-                 utc_now(), "google", google_sub, utc_now()))
-            self._conn.commit()
+        self._write(
+            "INSERT INTO participants(code, password_hash, email, display_name, "
+            "signup_ip, created_utc, auth_provider, google_sub, email_verified_utc) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (code, "google-oauth:no-password", email, display_name, signup_ip,
+             utc_now(), "google", google_sub, utc_now()))
 
     def link_google_sub(self, code: str, sub: str) -> None:
         """Attach a Google identity to an existing (e.g. password) account."""
-        with self._lock:
-            self._exec(
-                "UPDATE participants SET google_sub=? WHERE code=?", (sub, code))
-            self._conn.commit()
+        self._write(
+            "UPDATE participants SET google_sub=? WHERE code=?", (sub, code))
 
     # ── auth codes (email verify + password reset) ────────────────
     def put_auth_code(self, participant_code: str, purpose: str,
@@ -592,32 +502,25 @@ class Database:
             sql = ("INSERT OR REPLACE INTO auth_codes(participant_code, purpose, "
                    "code_hash, created_utc, expires_utc, consumed_utc, attempts) "
                    "VALUES (?,?,?,?,?,NULL,0)")
-        with self._lock:
-            self._exec(sql, (participant_code, purpose, code_hash,
-                             utc_now(), expires_utc))
-            self._conn.commit()
+        self._write(sql, (participant_code, purpose, code_hash,
+                          utc_now(), expires_utc))
 
     def get_auth_code(self, participant_code: str, purpose: str) -> Optional[dict]:
-        with self._lock:
-            return self._fetchone(
-                "SELECT * FROM auth_codes WHERE participant_code=? AND purpose=?",
-                (participant_code, purpose))
+        return self._fetchone(
+            "SELECT * FROM auth_codes WHERE participant_code=? AND purpose=?",
+            (participant_code, purpose))
 
     def increment_auth_attempts(self, participant_code: str, purpose: str) -> None:
-        with self._lock:
-            self._exec(
-                "UPDATE auth_codes SET attempts=attempts+1 "
-                "WHERE participant_code=? AND purpose=?",
-                (participant_code, purpose))
-            self._conn.commit()
+        self._write(
+            "UPDATE auth_codes SET attempts=attempts+1 "
+            "WHERE participant_code=? AND purpose=?",
+            (participant_code, purpose))
 
     def consume_auth_code(self, participant_code: str, purpose: str) -> None:
-        with self._lock:
-            self._exec(
-                "UPDATE auth_codes SET consumed_utc=? "
-                "WHERE participant_code=? AND purpose=?",
-                (utc_now(), participant_code, purpose))
-            self._conn.commit()
+        self._write(
+            "UPDATE auth_codes SET consumed_utc=? "
+            "WHERE participant_code=? AND purpose=?",
+            (utc_now(), participant_code, purpose))
 
     # ── consent ledger (Phase O1) ─────────────────────────────────
     def record_consent(self, code: str, consent_type: str, consent_version: str,
@@ -637,62 +540,53 @@ class Database:
             sql = ("INSERT OR REPLACE INTO consent_events(code, consent_type, "
                    "consent_version, irb_protocol_id, accepted_utc, consent_ip, "
                    "withdrawn_utc) VALUES (?,?,?,?,?,?,NULL)")
-        with self._lock:
-            self._exec(sql, (code, consent_type, consent_version,
-                             irb_protocol_id, utc_now(), consent_ip))
-            self._conn.commit()
+        self._write(sql, (code, consent_type, consent_version,
+                          irb_protocol_id, utc_now(), consent_ip))
 
     def withdraw_consent(self, code: str, consent_type: Optional[str] = None) -> int:
         """Mark consent withdrawn (all types, or one). Honoured at export time
         (future releases only — already-released DOIs are irrevocable)."""
-        with self._lock:
+        with self._connection() as conn:
             if consent_type:
-                cur = self._exec(
+                cur = conn.execute(self._q(
                     "UPDATE consent_events SET withdrawn_utc=? "
-                    "WHERE code=? AND consent_type=?",
+                    "WHERE code=? AND consent_type=?"),
                     (utc_now(), code, consent_type))
             else:
-                cur = self._exec(
-                    "UPDATE consent_events SET withdrawn_utc=? WHERE code=?",
+                cur = conn.execute(self._q(
+                    "UPDATE consent_events SET withdrawn_utc=? WHERE code=?"),
                     (utc_now(), code))
-            self._conn.commit()
             return (cur.rowcount or 0) if hasattr(cur, "rowcount") else 0
 
     def get_consent_events(self, code: str) -> list[dict]:
-        with self._lock:
-            return self._fetchall(
-                "SELECT * FROM consent_events WHERE code=? "
-                "ORDER BY consent_type, consent_version", (code,))
+        return self._fetchall(
+            "SELECT * FROM consent_events WHERE code=? "
+            "ORDER BY consent_type, consent_version", (code,))
 
     # ── sessions ──────────────────────────────────────────────────
     def create_session(self, session_id: str, code: str, participant: dict,
                         sample_seed: Optional[int],
                         bundle_version: Optional[str] = None,
                         drawn_seg_ids: Optional[str] = None) -> None:
-        with self._lock:
-            self._exec(
-                "INSERT INTO sessions(session_id, code, participant, sample_seed, "
-                "bundle_version, drawn_seg_ids, started_utc, status) "
-                "VALUES (?,?,?,?,?,?,?, 'in_progress')",
-                (session_id, code, json.dumps(participant), sample_seed,
-                 bundle_version, drawn_seg_ids, utc_now()),
-            )
-            self._conn.commit()
+        self._write(
+            "INSERT INTO sessions(session_id, code, participant, sample_seed, "
+            "bundle_version, drawn_seg_ids, started_utc, status) "
+            "VALUES (?,?,?,?,?,?,?, 'in_progress')",
+            (session_id, code, json.dumps(participant), sample_seed,
+             bundle_version, drawn_seg_ids, utc_now()),
+        )
 
     def get_session(self, session_id: str) -> Optional[dict]:
-        with self._lock:
-            return self._fetchone(
-                "SELECT * FROM sessions WHERE session_id=?", (session_id,))
+        return self._fetchone(
+            "SELECT * FROM sessions WHERE session_id=?", (session_id,))
 
     def finalize_session(self, session_id: str, stop_reason: Optional[str],
                          n_questions: Optional[int]) -> None:
-        with self._lock:
-            self._exec(
-                "UPDATE sessions SET status='complete', finished_utc=?, "
-                "stop_reason=?, n_questions=? WHERE session_id=?",
-                (utc_now(), stop_reason, n_questions, session_id),
-            )
-            self._conn.commit()
+        self._write(
+            "UPDATE sessions SET status='complete', finished_utc=?, "
+            "stop_reason=?, n_questions=? WHERE session_id=?",
+            (utc_now(), stop_reason, n_questions, session_id),
+        )
 
     # ── trials ────────────────────────────────────────────────────
     def upsert_trial(self, session_id: str, trial: dict) -> None:
@@ -711,25 +605,22 @@ class Database:
             sql = ("INSERT OR REPLACE INTO trials(session_id, trial_index, "
                    "seg_id, task_k, pick, is_correct, reaction_ms, diag, "
                    "received_utc) VALUES (?,?,?,?,?,?,?,?,?)")
-        with self._lock:
-            self._exec(sql, (
-                session_id,
-                int(trial.get("trialIndex", trial.get("trial_index", 0))),
-                trial.get("segId", trial.get("seg_id")),
-                trial.get("taskK", trial.get("task_k")),
-                trial.get("pick"),
-                1 if trial.get("isCorrect") else 0 if "isCorrect" in trial else None,
-                trial.get("reactionMs", trial.get("reaction_ms")),
-                json.dumps(trial.get("diag")) if trial.get("diag") is not None else None,
-                utc_now(),
-            ))
-            self._conn.commit()
+        self._write(sql, (
+            session_id,
+            int(trial.get("trialIndex", trial.get("trial_index", 0))),
+            trial.get("segId", trial.get("seg_id")),
+            trial.get("taskK", trial.get("task_k")),
+            trial.get("pick"),
+            1 if trial.get("isCorrect") else 0 if "isCorrect" in trial else None,
+            trial.get("reactionMs", trial.get("reaction_ms")),
+            json.dumps(trial.get("diag")) if trial.get("diag") is not None else None,
+            utc_now(),
+        ))
 
     def session_trials(self, session_id: str) -> list[dict]:
-        with self._lock:
-            return self._fetchall(
-                "SELECT * FROM trials WHERE session_id=? ORDER BY trial_index",
-                (session_id,))
+        return self._fetchall(
+            "SELECT * FROM trials WHERE session_id=? ORDER BY trial_index",
+            (session_id,))
 
     def get_exposure_exclusion(self, code: str, days_window: int,
                                session_window: int) -> set:
@@ -742,27 +633,27 @@ class Database:
             "%Y-%m-%dT%H:%M:%SZ",
             time.gmtime(time.time() - max(0, days_window) * 86400))
         excl: set = set()
-        with self._lock:
+        with self._connection() as conn:
             # (sitting table, its id column, the per-question table keyed by it)
             for sess_tbl, id_col, trial_tbl in (
                 ("sessions", "session_id", "trials"),
                 ("training_sessions", "training_id", "training_trials"),
             ):
-                sittings = self._fetchall(
+                sittings = [dict(r) for r in conn.execute(self._q(
                     f"SELECT {id_col} AS sid, started_utc AS started_utc "
-                    f"FROM {sess_tbl} WHERE code=? ORDER BY started_utc DESC",
-                    (code,))
+                    f"FROM {sess_tbl} WHERE code=? ORDER BY started_utc DESC"),
+                    (code,)).fetchall()]
                 keep = [r["sid"] for i, r in enumerate(sittings)
                         if i < session_window or (r["started_utc"] or "") >= cutoff]
                 if not keep:
                     continue
                 qmarks = ",".join("?" for _ in keep)
-                rows = self._fetchall(
+                rows = conn.execute(self._q(
                     f"SELECT DISTINCT seg_id FROM {trial_tbl} "
-                    f"WHERE seg_id IS NOT NULL AND {id_col} IN ({qmarks})",
-                    tuple(keep))
-                excl.update(int(r["seg_id"]) for r in rows
-                            if r["seg_id"] is not None)
+                    f"WHERE seg_id IS NOT NULL AND {id_col} IN ({qmarks})"),
+                    tuple(keep)).fetchall()
+                excl.update(int(dict(r)["seg_id"]) for r in rows
+                            if dict(r)["seg_id"] is not None)
         return excl
 
     # ── results ───────────────────────────────────────────────────
@@ -775,45 +666,39 @@ class Database:
         else:
             sql = ("INSERT OR REPLACE INTO results(session_id, result, "
                    "received_utc) VALUES (?,?,?)")
-        with self._lock:
-            self._exec(sql, (session_id, json.dumps(result), utc_now()))
-            self._conn.commit()
+        self._write(sql, (session_id, json.dumps(result), utc_now()))
 
     def get_result(self, session_id: str) -> Optional[dict]:
-        with self._lock:
-            row = self._fetchone(
-                "SELECT result FROM results WHERE session_id=?", (session_id,))
+        row = self._fetchone(
+            "SELECT result FROM results WHERE session_id=?", (session_id,))
         return json.loads(row["result"]) if row else None
 
     def all_sessions(self) -> list[dict]:
-        with self._lock:
-            return self._fetchall(
-                "SELECT * FROM sessions ORDER BY started_utc")
+        return self._fetchall(
+            "SELECT * FROM sessions ORDER BY started_utc")
 
     # ── dashboard: latest certification result for a participant ──
     def latest_result_for_code(self, code: str) -> Optional[dict]:
         """The most recent completed-session result JSON for `code`, or None."""
-        with self._lock:
-            row = self._fetchone(
-                "SELECT r.result AS result FROM results r "
-                "JOIN sessions s ON s.session_id = r.session_id "
-                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC "
-                "LIMIT 1",
-                (code,))
+        row = self._fetchone(
+            "SELECT r.result AS result FROM results r "
+            "JOIN sessions s ON s.session_id = r.session_id "
+            "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC "
+            "LIMIT 1",
+            (code,))
         return json.loads(row["result"]) if row else None
 
     def list_results_for_code(self, code: str) -> list[dict]:
         """All COMPLETED sessions for `code` joined with their result JSON,
         newest first. Mirrors latest_result_for_code's JOIN but returns every
         attempt with its session metadata. Scoped strictly by sessions.code."""
-        with self._lock:
-            rows = self._fetchall(
-                "SELECT s.session_id AS session_id, s.finished_utc AS finished_utc, "
-                "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
-                "r.result AS result FROM results r "
-                "JOIN sessions s ON s.session_id = r.session_id "
-                "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC",
-                (code,))
+        rows = self._fetchall(
+            "SELECT s.session_id AS session_id, s.finished_utc AS finished_utc, "
+            "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
+            "r.result AS result FROM results r "
+            "JOIN sessions s ON s.session_id = r.session_id "
+            "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC",
+            (code,))
         return [
             {"session_id": r["session_id"], "finished_utc": r["finished_utc"],
              "n_questions": r["n_questions"], "stop_reason": r["stop_reason"],
@@ -824,19 +709,20 @@ class Database:
     # ── regimens (training protocol) ──────────────────────────────
     def create_regimen(self, regimen_id: str, code: str,
                         source_session_id: Optional[str], plan: dict) -> None:
-        with self._lock:
-            self._exec("UPDATE regimens SET active=0 WHERE code=?", (code,))
-            self._exec(
+        # Deactivate-then-insert is one transaction: there is never a moment
+        # with zero (or two) active regimens for a participant.
+        with self._connection() as conn:
+            conn.execute(self._q("UPDATE regimens SET active=0 WHERE code=?"),
+                         (code,))
+            conn.execute(self._q(
                 "INSERT INTO regimens(regimen_id, code, source_session_id, plan, "
-                "active, created_utc) VALUES (?,?,?,?,1,?)",
+                "active, created_utc) VALUES (?,?,?,?,1,?)"),
                 (regimen_id, code, source_session_id, json.dumps(plan), utc_now()))
-            self._conn.commit()
 
     def get_active_regimen(self, code: str) -> Optional[dict]:
-        with self._lock:
-            row = self._fetchone(
-                "SELECT * FROM regimens WHERE code=? AND active=1 "
-                "ORDER BY created_utc DESC LIMIT 1", (code,))
+        row = self._fetchone(
+            "SELECT * FROM regimens WHERE code=? AND active=1 "
+            "ORDER BY created_utc DESC LIMIT 1", (code,))
         if not row:
             return None
         row["plan"] = json.loads(row["plan"])
@@ -847,80 +733,75 @@ class Database:
                                 task_focus: Optional[str], *,
                                 regimen_id: Optional[str] = None,
                                 source_session_id: Optional[str] = None) -> None:
-        with self._lock:
-            self._exec(
-                "INSERT INTO training_sessions(training_id, code, task_focus, "
-                "regimen_id, source_session_id, started_utc, status) "
-                "VALUES (?,?,?,?,?,?, 'in_progress')",
-                (training_id, code, task_focus, regimen_id, source_session_id, utc_now()))
-            self._conn.commit()
+        self._write(
+            "INSERT INTO training_sessions(training_id, code, task_focus, "
+            "regimen_id, source_session_id, started_utc, status) "
+            "VALUES (?,?,?,?,?,?, 'in_progress')",
+            (training_id, code, task_focus, regimen_id, source_session_id, utc_now()))
 
     def finalize_training_session(self, training_id: str, code: str,
                                   n_items: Optional[int], summary: Optional[dict]) -> bool:
-        with self._lock:
-            cur = self._exec(
+        with self._connection() as conn:
+            cur = conn.execute(self._q(
                 "UPDATE training_sessions SET status='complete', finished_utc=?, "
-                "n_items=?, summary=? WHERE training_id=? AND code=?",
+                "n_items=?, summary=? WHERE training_id=? AND code=?"),
                 (utc_now(), n_items,
                  json.dumps(summary) if summary is not None else None,
                  training_id, code))
-            self._conn.commit()
             return (cur.rowcount or 0) > 0 if hasattr(cur, "rowcount") else True
 
     def list_training_sessions(self, code: str) -> list[dict]:
-        with self._lock:
-            return self._fetchall(
-                "SELECT * FROM training_sessions WHERE code=? "
-                "ORDER BY started_utc DESC", (code,))
+        return self._fetchall(
+            "SELECT * FROM training_sessions WHERE code=? "
+            "ORDER BY started_utc DESC", (code,))
 
     # ── parameter trajectories ────────────────────────────────────
     def append_trajectory_points(self, code: str, points: list[dict]) -> None:
         if not points:
             return
-        with self._lock:
+        with self._connection() as conn:   # all points in one transaction
             for p in points:
-                self._exec(
+                conn.execute(self._q(
                     "INSERT INTO param_trajectories(code, task_k, phase, ell, "
                     "theta, sd, rt, ts, training_id, source_session_id, "
-                    "seq_in_session, is_real) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "seq_in_session, is_real) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"),
                     (code, int(p["taskK"]), str(p.get("phase", "train")),
                      p.get("ell"), p.get("theta"), p.get("sd"), p.get("rt"),
                      p.get("ts") or utc_now(),
                      p.get("trainingId"), p.get("sourceSessionId"),
                      p.get("seqInSession"), 1 if p.get("isReal") else 0))
-            self._conn.commit()
 
     def write_eval_trajectory(self, code: str, source_session_id: str,
                               points: list[dict]) -> None:
         """Record the per-domain EVAL operating point for a certification
         session — one real (is_real=1) trajectory point per task. Idempotent on
-        re-post: any prior eval rows for this session are replaced. These seed
-        the evolution charts; training/re-cert points append to the same series."""
+        re-post: any prior eval rows for this session are replaced (the DELETE
+        + INSERTs are one transaction). These seed the evolution charts;
+        training/re-cert points append to the same series."""
         if not points:
             return
-        with self._lock:
-            self._exec("DELETE FROM param_trajectories "
-                       "WHERE source_session_id=? AND phase='eval'",
-                       (source_session_id,))
+        with self._connection() as conn:
+            conn.execute(self._q(
+                "DELETE FROM param_trajectories "
+                "WHERE source_session_id=? AND phase='eval'"),
+                (source_session_id,))
             for p in points:
-                self._exec(
+                conn.execute(self._q(
                     "INSERT INTO param_trajectories(code, task_k, phase, ell, "
                     "theta, sd, rt, ts, training_id, source_session_id, "
-                    "seq_in_session, is_real) VALUES (?,?,'eval',?,?,?,?,?,?,?,?,1)",
+                    "seq_in_session, is_real) VALUES (?,?,'eval',?,?,?,?,?,?,?,?,1)"),
                     (code, int(p["taskK"]), p.get("ell"), p.get("theta"),
                      p.get("sd"), p.get("rt"), utc_now(), None,
                      source_session_id, 0))
-            self._conn.commit()
 
     def get_trajectories(self, code: str) -> list[dict]:
         # Dashboard reads REAL trainer output only (is_real=1). Synthetic/
         # quarantined rows (is_real=0) are excluded so no fabricated curve can
         # reach the UI before the L1 trainer ships.
-        with self._lock:
-            return self._fetchall(
-                "SELECT task_k, phase, ell, theta, sd, rt, ts "
-                "FROM param_trajectories WHERE code=? AND is_real=1 "
-                "ORDER BY task_k, ts", (code,))
+        return self._fetchall(
+            "SELECT task_k, phase, ell, theta, sd, rt, ts "
+            "FROM param_trajectories WHERE code=? AND is_real=1 "
+            "ORDER BY task_k, ts", (code,))
 
     # ── activity heatmap ──────────────────────────────────────────
     def record_login_day(self, code: str, tz_offset_min: int = 0) -> None:
@@ -932,9 +813,7 @@ class Database:
                    "ON CONFLICT (code, day) DO NOTHING")
         else:
             sql = "INSERT OR IGNORE INTO login_days(code, day) VALUES (?,?)"
-        with self._lock:
-            self._exec(sql, (code, day))
-            self._conn.commit()
+        self._write(sql, (code, day))
 
     def activity_levels(self, code: str, tz_offset_min: int = 0) -> dict[str, int]:
         """Per-day activity level (LOCAL YYYY-MM-DD → level) for the heatmap:
@@ -947,15 +826,17 @@ class Database:
             if day and levels.get(day, 0) < lvl:
                 levels[day] = lvl
 
-        with self._lock:
-            for r in self._fetchall("SELECT day FROM login_days WHERE code=?", (code,)):
-                bump(r["day"], 1)
-            for r in self._fetchall(
-                "SELECT s.finished_utc AS f FROM results r "
-                "JOIN sessions s ON s.session_id=r.session_id WHERE s.code=?", (code,)):
-                bump(_local_day(r["f"], tz_offset_min), 2)
-            for r in self._fetchall(
-                "SELECT finished_utc AS f FROM training_sessions "
-                "WHERE code=? AND status='complete'", (code,)):
-                bump(_local_day(r["f"], tz_offset_min), 3)
+        with self._connection() as conn:
+            for r in conn.execute(self._q(
+                    "SELECT day FROM login_days WHERE code=?"), (code,)).fetchall():
+                bump(dict(r)["day"], 1)
+            for r in conn.execute(self._q(
+                    "SELECT s.finished_utc AS f FROM results r "
+                    "JOIN sessions s ON s.session_id=r.session_id WHERE s.code=?"),
+                    (code,)).fetchall():
+                bump(_local_day(dict(r)["f"], tz_offset_min), 2)
+            for r in conn.execute(self._q(
+                    "SELECT finished_utc AS f FROM training_sessions "
+                    "WHERE code=? AND status='complete'"), (code,)).fetchall():
+                bump(_local_day(dict(r)["f"], tz_offset_min), 3)
         return levels

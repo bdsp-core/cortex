@@ -10,7 +10,9 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 # Prod-only: pick up via `pip install -r requirements.txt` on the deploy box;
 # dev installs can skip it (the SQLite branch in db.py doesn't import psycopg).
-psycopg[binary]>=3.1
+# `pool` provides psycopg_pool — each DB operation is a pooled unit of work
+# (commit/rollback on exit, dead connections replaced at checkout).
+psycopg[binary,pool]>=3.1
 # "Sign in with Google": verifies Google ID tokens at POST /api/auth/google.
 # Imported lazily in app.py, so dev/test installs without it still load.
 google-auth>=2.28

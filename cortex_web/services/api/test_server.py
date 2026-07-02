@@ -294,18 +294,16 @@ def test_tutorial_example_returns_one_iiic_segment(client):
 
 def test_exposure_exclusion_windows(tmp_path):
     db = Database(tmp_path / "x.db")
-    with db._lock:                                   # FK: sessions.code → participants
-        db._exec("INSERT INTO participants(code, password_hash, created_utc) "
-                 "VALUES (?,?,?)", ("C", "x", "2000-01-01T00:00:00Z"))
-        db._conn.commit()
+    with db._connection() as conn:                   # FK: sessions.code → participants
+        conn.execute("INSERT INTO participants(code, password_hash, created_utc) "
+                     "VALUES (?,?,?)", ("C", "x", "2000-01-01T00:00:00Z"))
     db.create_session("sA", "C", {}, 1)
     db.upsert_trial("sA", {"trialIndex": 0, "segId": 10, "taskK": 0})
     db.create_session("sB", "C", {}, 2)
     db.upsert_trial("sB", {"trialIndex": 0, "segId": 20, "taskK": 0})
-    with db._lock:                                   # backdate sA far into the past
-        db._exec("UPDATE sessions SET started_utc=? WHERE session_id=?",
-                 ("2000-01-01T00:00:00Z", "sA"))
-        db._conn.commit()
+    with db._connection() as conn:                   # backdate sA far into the past
+        conn.execute("UPDATE sessions SET started_utc=? WHERE session_id=?",
+                     ("2000-01-01T00:00:00Z", "sA"))
     # narrow windows → only the recent sB (last 1 session AND within 30 days)
     excl = db.get_exposure_exclusion("C", days_window=30, session_window=1)
     assert 20 in excl and 10 not in excl
@@ -693,11 +691,10 @@ def test_activity_endpoint_honors_tz(client):
     db = client.app.state.db
     code = db.get_participant_by_email(email)["code"]
     # a cert session finished at 2026-01-15 04:00 UTC (past, won't collide w/ login)
-    with db._lock:
-        db._exec("INSERT INTO sessions(session_id,code,participant,started_utc,"
-                 "finished_utc,status) VALUES(?,?,?,?,?, 'complete')",
-                 ("act-tz", code, "{}", "2026-01-15T03:00:00Z", "2026-01-15T04:00:00Z"))
-        db._conn.commit()
+    with db._connection() as conn:
+        conn.execute("INSERT INTO sessions(session_id,code,participant,started_utc,"
+                     "finished_utc,status) VALUES(?,?,?,?,?, 'complete')",
+                     ("act-tz", code, "{}", "2026-01-15T03:00:00Z", "2026-01-15T04:00:00Z"))
     db.store_result("act-tz", {"verdicts": []})
     hdr = _auth_header(client, email, pw)
     # PDT (tz=420): the 04:00 UTC cert lands on the LOCAL Jan 14, not UTC Jan 15
@@ -1086,165 +1083,68 @@ def test_training_session_links_active_regimen(client):
     assert row["regimen_id"] == "rg-9" and row["source_session_id"] == "src-sess-1"
 
 
-def test_pg_exec_rolls_back_on_error(tmp_path):
-    """Regression for the 2026-06-21 prod auth outage: on Postgres the shared
-    autocommit=False connection must roll back when a statement errors, or the
-    aborted transaction poisons every later query (InFailedSqlTransaction) until
-    restart — a single deadlock/timeout becomes a total login outage. CI has no
-    Postgres, so we drive the _pg branch with a fake connection and assert
-    _exec rolls back (and re-raises) on failure."""
-    db = Database(tmp_path / "rb.db")   # real sqlite instance; we override _pg
+def test_pg_branch_drives_the_pool(monkeypatch):
+    """The Postgres branch is one pooled-connection unit of work per
+    operation (checkout → execute → return-to-pool). The resilience the old
+    shared-single-connection code hand-rolled — rollback-on-error (the
+    2026-06-21 outage), commit-after-read so nothing lingers idle-in-
+    transaction (06-22), reconnect after a severed connection (06-24) — is
+    psycopg_pool's contract now: connection() commits/rolls back on exit and
+    `check` replaces dead connections at checkout. CI has no Postgres, so
+    drive the branch with a fake pool and assert the unit-of-work shape."""
+    from contextlib import contextmanager
+    from . import db as db_module
 
-    class _FakeCursor:
-        def execute(self, sql, params):
-            raise RuntimeError("simulated deadlock")
+    class _Cur:
+        rowcount = 1
+        def fetchone(self): return None
+        def fetchall(self): return []
 
-    class _FakeConn:
-        closed = False        # a live connection with only an aborted txn —
-        broken = False        # _exec must roll back (not reconnect) this case
+    class _Conn:
+        def __init__(self, log): self._log = log
+        def execute(self, sql, params=()):
+            self._log.append(sql)
+            return _Cur()
+
+    class _Pool:
         def __init__(self):
-            self.rolled_back = 0
-        def cursor(self):
-            return _FakeCursor()
-        def rollback(self):
-            self.rolled_back += 1
+            self.checkouts, self.closed, self.sql = 0, False, []
+            self._conn = _Conn(self.sql)
+        @contextmanager
+        def connection(self):
+            self.checkouts += 1
+            yield self._conn
+        def close(self): self.closed = True
 
-    fake = _FakeConn()
-    db._pg = True
-    db._conn = fake
-    with pytest.raises(RuntimeError):
-        db._exec("SELECT 1")
-    assert fake.rolled_back == 1, "a failed statement must roll back the txn"
-
-
-def test_pg_fetch_commits_read_txn(tmp_path):
-    """Regression for the 2026-06-22 nightly-backup hang: on Postgres the shared
-    autocommit=False connection must COMMIT after a read, or a bare SELECT leaves
-    it `idle in transaction` indefinitely, holding AccessShare on the table. That
-    AccessShare blocks the AccessExclusive a second Database()'s boot migration
-    needs (the backup's `export-sessions` ALTER hung exactly this way for hours)
-    and pins the VACUUM xmin. CI has no Postgres, so drive the _pg branch with a
-    fake connection and assert _fetchone/_fetchall each commit the read txn."""
-    db = Database(tmp_path / "rc.db")   # real sqlite instance; we override _pg
-
-    class _FakeCursor:
-        def execute(self, sql, params):
-            pass
-        def fetchone(self):
-            return {"x": 1}
-        def fetchall(self):
-            return [{"x": 1}, {"x": 2}]
-        def close(self):
-            pass
-
-    class _FakeConn:
-        def __init__(self):
-            self.committed = 0
-        def cursor(self):
-            return _FakeCursor()
-        def commit(self):
-            self.committed += 1
-        def rollback(self):
-            pass
-
-    fake = _FakeConn()
-    db._pg = True
-    db._conn = fake
-    db._fetchone("SELECT 1")
-    db._fetchall("SELECT 1")
-    assert fake.committed == 2, "each read must commit so the shared conn never lingers idle-in-transaction"
+    pool = _Pool()
+    monkeypatch.setattr(db_module.Database, "_make_pool", lambda self: pool)
+    db = Database("postgresql://u:pw@localhost/x")
+    boot = pool.checkouts
+    assert boot >= 1                                  # schema+migrations ran via the pool
+    assert any("CREATE TABLE" in s for s in pool.sql)
+    assert db.get_participant("nobody") is None       # read = one checkout
+    assert pool.checkouts == boot + 1
+    assert pool.sql[-1] == "SELECT * FROM participants WHERE code=%s"  # ?→%s translated
+    db.ping()                                         # deep-health probe = one checkout
+    assert pool.checkouts == boot + 2
+    db.close()
+    assert pool.closed
 
 
-class _Info:
-    """Stand-in for psycopg's conn.info — only transaction_status is read by
-    _exec (0 == PQTRANS_IDLE, 2 == PQTRANS_INTRANS). Kept psycopg-free so these
-    run in the SQLite-only dev/CI venv, like the other _pg tests above."""
-    def __init__(self, status): self.transaction_status = status
-
-
-def test_pg_reconnects_when_connection_severed(tmp_path, monkeypatch):
-    """Regression for the 2026-06-24 prod auth outage: on Postgres the single
-    long-lived connection can be SEVERED out from under the app — a Postgres
-    restart (an unattended-upgrade of a libpq dependency bounces the service), a
-    terminated backend, or a dropped socket. With no recovery the dead connection
-    makes every later request 500 until a manual restart (the connection killed
-    by the Jun-23 06:21 Postgres restart surfaced as AdminShutdown on the next
-    login and stayed down). _exec must detect the dead connection, reconnect, and
-    retry the statement at a clean transaction boundary so the request self-heals.
-    Driven with fakes (the _exec discriminator is the conn's broken flag, not the
-    exception type), so it needs no Postgres."""
-    db = Database(tmp_path / "rx.db")   # real sqlite instance; we override _pg
-
-    class _DeadCursor:
-        def execute(self, sql, params):
-            raise RuntimeError("the connection is lost")
-
-    class _DeadConn:                 # server killed it: next op fails, conn broken
-        closed, broken = False, True
-        info = _Info(0)              # was idle when killed → clean boundary
-        def cursor(self): return _DeadCursor()
-        def rollback(self): raise RuntimeError("the connection is lost")
-        def close(self): pass
-
-    class _LiveCursor:
-        def __init__(self, conn): self._conn = conn
-        def execute(self, sql, params): self._conn.executed += 1
-        def fetchone(self): return {"ok": 1}
-        def close(self): pass
-
-    class _FreshConn:                # what _reconnect() hands back
-        closed, broken = False, False
-        info = _Info(0)
-        def __init__(self): self.executed = 0; self.committed = 0
-        def cursor(self): return _LiveCursor(self)
-        def commit(self): self.committed += 1
-        def close(self): pass
-
-    fresh = _FreshConn()
-    db._pg = True
-    db._conn = _DeadConn()
-    monkeypatch.setattr(db, "_pg_connect", lambda: fresh)
-
-    # A read on the severed connection must transparently reconnect + retry,
-    # returning the row instead of bubbling a 500.
-    row = db._fetchone("SELECT * FROM participants WHERE email=?", ("x@y.z",))
-    assert db._conn is fresh, "must reconnect to a fresh connection"
-    assert fresh.executed == 1, "must retry the statement on the fresh connection"
-    assert row == {"ok": 1}
-
-
-def test_pg_severed_mid_transaction_does_not_retry(tmp_path, monkeypatch):
-    """Safety guard for the reconnect path: if the connection dies mid-write (an
-    earlier statement in the transaction was already lost with it), _exec must
-    reconnect for the NEXT request but must NOT retry this statement — replaying
-    half of a multi-statement write on the fresh connection would persist a
-    partial write. So it reconnects and re-raises; the next request starts
-    clean."""
-    db = Database(tmp_path / "rx2.db")
-
-    class _DeadCursor:
-        def execute(self, sql, params):
-            raise RuntimeError("the connection is lost")
-
-    class _DeadConn:
-        closed, broken = False, True
-        info = _Info(2)             # 2 == PQTRANS_INTRANS → mid-transaction
-        def cursor(self): return _DeadCursor()
-        def rollback(self): pass
-        def close(self): pass
-
-    reconnected = {"n": 0}
-    def fake_connect():
-        reconnected["n"] += 1
-        return _DeadConn()
-    db._pg = True
-    db._conn = _DeadConn()
-    monkeypatch.setattr(db, "_pg_connect", fake_connect)
-
-    with pytest.raises(RuntimeError):
-        db._exec("INSERT INTO participants(code,password_hash,created_utc) VALUES (?,?,?)",
-                 ("c", "h", "t"))
-    assert reconnected["n"] == 1, "must reconnect so the next request is clean"
+def test_failed_statement_does_not_poison_later_ones(tmp_path):
+    """The incident class behind the old hand-rolled recovery machinery,
+    asserted at the new boundary: a statement that errors must leave the
+    Database usable (its unit of work rolled back), never poison later
+    calls. On Postgres this is psycopg_pool's rollback-on-exception; the
+    SQLite branch mirrors it in _connection()."""
+    db = Database(tmp_path / "poison.db")
+    db.add_participant("dup", "hash-a")
+    with pytest.raises(Exception):
+        db.add_participant("dup", "hash-b")   # PK violation → rolled back
+    db.add_participant("ok", "hash-c")        # must still work afterwards
+    assert db.get_participant("ok") is not None
+    assert db.get_participant("dup")["password_hash"] == "hash-a"
+    db.close()
 
 
 # ───────────────────── signup profile + Settings ─────────────────────
