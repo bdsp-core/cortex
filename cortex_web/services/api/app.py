@@ -106,6 +106,28 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Defense-in-depth security headers on the API's OWN responses. In prod
+    # Caddy fronts /api and sets the site-wide headers, but these travel WITH
+    # the API — so they hold if the service is ever reached directly (the
+    # deferred api.cortexeeg.org split, a health probe hitting :8000, a
+    # future CDN). Scoped to /api so the optional dev static-serving path
+    # (CORTEX_SERVE_STATIC) is untouched. The API only ever returns JSON or a
+    # file download, so a `default-src 'none'` CSP can't break anything, and
+    # `Cache-Control: no-store` keeps authed JSON (dashboard/history/profile)
+    # out of shared and back/forward caches — a real, live improvement that
+    # Caddy does not set for /api.
+    @app.middleware("http")
+    async def _api_security_headers(request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api"):
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("Referrer-Policy", "no-referrer")
+            response.headers.setdefault("Cache-Control", "no-store")
+            response.headers.setdefault("Content-Security-Policy",
+                                        "default-src 'none'; frame-ancestors 'none'")
+            response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        return response
+
     @app.get("/api/health")
     def health(deep: int = 0):
         """Liveness (default) or readiness (?deep=1). The deep probe verifies

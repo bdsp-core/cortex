@@ -1511,3 +1511,30 @@ def test_history_and_dashboard_strip_heavy_result_keys(client):
                       headers={"X-Admin-Token": "test-admin"}).json()
     assert len(full["trials"]) == 50
     assert len(full["servedSegIds"]) == 700
+
+
+# ─────────────── API defense-in-depth headers (2026-07-02) ───────────────
+
+def test_api_security_headers_present(client):
+    """The API sets its own hardening headers so it is self-protecting if ever
+    reached without Caddy in front. JSON-only API → a default-src 'none' CSP
+    is safe, and authed JSON must not be cached."""
+    r = client.get("/api/health")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+    assert r.headers["cross-origin-resource-policy"] == "same-origin"
+
+
+def test_api_headers_on_authed_and_error_responses(client):
+    """Headers ride on authed 200s AND on error responses (a 401 body is still
+    JSON that shouldn't be cached)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    ok = client.get("/api/dashboard", headers=hdr)
+    assert ok.status_code == 200 and ok.headers["cache-control"] == "no-store"
+    unauth = client.get("/api/dashboard")   # no token → 401
+    assert unauth.status_code == 401
+    assert unauth.headers["cache-control"] == "no-store"
+    assert unauth.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
