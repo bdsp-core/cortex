@@ -118,3 +118,13 @@ class PasswordChangeIn(BaseModel):
 class EmailChangeIn(BaseModel):
     newEmail: str
     password: str
+
+
+class CohortCreateIn(BaseModel):
+    name: str
+
+
+class CohortMemberIn(BaseModel):
+    """Manager-side member operations address users by their 9-digit public
+    id only — the internal participant code never crosses the API."""
+    publicId: str

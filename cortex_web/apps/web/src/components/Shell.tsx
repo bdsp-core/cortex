@@ -23,8 +23,9 @@ import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
 import { PROFILE_SECTIONS, EXPERTISE } from "../profileFields";
+import { CohortSurface } from "./Cohorts";
 
-type Surface = "dashboard" | "training" | "protocol" | "history" | "settings";
+type Surface = "dashboard" | "training" | "protocol" | "history" | "cohorts" | "settings";
 // "drilldown" is a routed sub-view of the shell (a focused per-task page),
 // NOT a top-level nav surface — it has no rail entry. The shell tracks it in
 // its own view state alongside the selected task.
@@ -425,6 +426,14 @@ const ICONS: Record<Surface, JSX.Element> = {
       <path d="M5 4h11l3 3v13H5z" /><path d="M8 9h8M8 13h8M8 17h5" />
     </svg>
   ),
+  cohorts: (
+    <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19c.6-3 2.6-4.7 5.5-4.7s4.9 1.7 5.5 4.7" />
+      <circle cx="17" cy="9" r="2.6" />
+      <path d="M15.6 14.9c2.5.2 4.2 1.6 4.8 4.1" />
+    </svg>
+  ),
   settings: (
     <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
@@ -438,6 +447,7 @@ const NAV: Array<{ id: Surface; label: string }> = [
   { id: "training", label: "Daily training" },
   { id: "protocol", label: "My protocol" },
   { id: "history", label: "Certification history" },
+  { id: "cohorts", label: "Cohorts" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -1851,6 +1861,7 @@ export function Shell({
           {view === "training" && <TrainingSurface />}
           {view === "protocol" && <ProtocolSurface />}
           {view === "history" && <HistorySurface />}
+          {view === "cohorts" && <CohortSurface />}
           {view === "settings" && <SettingsSurface />}
         </div>
 

@@ -1291,6 +1291,205 @@ def test_admin_seeded_accounts_get_public_ids(client):
     assert all(re.fullmatch(_PID_RE, p) for p in pids)
 
 
+# ─────────────── cohorts ───────────────
+
+def _pid_of(client, hdr) -> str:
+    return client.get("/api/profile", headers=hdr).json()["publicId"]
+
+
+def _make_cohort(client, name="Unit A"):
+    """A manager account + their cohort. Return (cohort_id, manager_hdr)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    r = client.post("/api/cohorts", headers=hdr, json={"name": name})
+    assert r.status_code == 200, r.text
+    return r.json()["cohortId"], hdr
+
+
+def _join_cohort(client, cid, manager_hdr):
+    """A fresh account invited by the manager + accepted. Return (hdr, pid)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    pid = _pid_of(client, hdr)
+    r = client.post(f"/api/cohorts/{cid}/invite", headers=manager_hdr,
+                    json={"publicId": pid})
+    assert r.status_code == 200, r.text
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=hdr).status_code == 200
+    return hdr, pid
+
+
+def test_cohort_create_and_list(client):
+    cid, mh = _make_cohort(client, name="  ICU Team ")
+    lst = client.get("/api/cohorts", headers=mh).json()["cohorts"]
+    assert len(lst) == 1
+    c = lst[0]
+    assert c["cohortId"] == cid and c["name"] == "ICU Team"
+    assert c["role"] == "manager" and c["status"] == "active"
+    assert c["memberCount"] == 1   # the manager is an active member
+
+
+def test_cohort_invite_accept_flow(client):
+    cid, mh = _make_cohort(client)
+    email, pw = _make_participant(client)
+    uh = _auth_header(client, email, pw)
+    pid = _pid_of(client, uh)
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": pid}).status_code == 200
+    # Pending invitee: sees the cohort (name only) but no members/performance.
+    mine = client.get("/api/cohorts", headers=uh).json()["cohorts"]
+    assert mine[0]["status"] == "invited" and mine[0]["role"] == "member"
+    det = client.get(f"/api/cohorts/{cid}", headers=uh).json()
+    assert det["name"] == "Unit A" and "members" not in det
+    assert client.get(f"/api/cohorts/{cid}/performance", headers=uh).status_code == 403
+    # Accept → active member with full (public-id-keyed) visibility.
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 200
+    det = client.get(f"/api/cohorts/{cid}", headers=uh).json()
+    assert {m["publicId"] for m in det["members"]} >= {pid}
+    assert client.get(f"/api/cohorts/{cid}/performance", headers=uh).status_code == 200
+    # Double-accept is a clean 409, not a state change.
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 409
+
+
+def test_cohort_names_manager_only_and_no_internal_ids(client):
+    cid, mh = _make_cohort(client)
+    uh, _pid = _join_cohort(client, cid, mh)
+    # Manager sees display names; a member never does.
+    mgr_det = client.get(f"/api/cohorts/{cid}", headers=mh)
+    assert all("displayName" in m for m in mgr_det.json()["members"])
+    mem_det = client.get(f"/api/cohorts/{cid}", headers=uh)
+    assert all("displayName" not in m for m in mem_det.json()["members"])
+    mem_perf = client.get(f"/api/cohorts/{cid}/performance", headers=uh)
+    assert all("displayName" not in m for m in mem_perf.json()["members"])
+    mgr_perf = client.get(f"/api/cohorts/{cid}/performance", headers=mh)
+    assert all("displayName" in m for m in mgr_perf.json()["members"])
+    # The internal participant code / email must never cross the cohort API.
+    for r in (mgr_det, mem_det, mem_perf, mgr_perf):
+        assert '"u-' not in r.text and "@example.test" not in r.text
+
+
+def test_cohort_outsider_cannot_probe(client):
+    cid, _mh = _make_cohort(client)
+    email, pw = _make_participant(client)
+    oh = _auth_header(client, email, pw)
+    # Existence is not confirmed to outsiders: 404 (not 403) everywhere.
+    assert client.get(f"/api/cohorts/{cid}", headers=oh).status_code == 404
+    assert client.get(f"/api/cohorts/{cid}/performance", headers=oh).status_code == 404
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=oh,
+                       json={"publicId": "123456789"}).status_code == 404
+    assert client.delete(f"/api/cohorts/{cid}", headers=oh).status_code == 404
+    assert client.get("/api/cohorts/ch-nonexistent", headers=oh).status_code == 404
+
+
+def test_cohort_member_cannot_manage(client):
+    cid, mh = _make_cohort(client)
+    uh, _pid = _join_cohort(client, cid, mh)
+    other_email, other_pw = _make_participant(client)
+    oh = _auth_header(client, other_email, other_pw)
+    opid = _pid_of(client, oh)
+    # A plain member is known to the cohort → 403 (not 404) on manager ops.
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=uh,
+                       json={"publicId": opid}).status_code == 403
+    assert client.post(f"/api/cohorts/{cid}/remove", headers=uh,
+                       json={"publicId": opid}).status_code == 403
+    assert client.delete(f"/api/cohorts/{cid}", headers=uh).status_code == 403
+
+
+def test_cohort_invite_errors(client):
+    cid, mh = _make_cohort(client)
+    uh, pid = _join_cohort(client, cid, mh)
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": "12345"}).status_code == 400
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": "987654321"}).status_code == 404
+    # Re-inviting an existing member → 409 (also covers inviting yourself).
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": pid}).status_code == 409
+
+
+def test_cohort_decline_leave_remove_delete(client):
+    cid, mh = _make_cohort(client)
+    # decline: invited user says no → row gone.
+    email, pw = _make_participant(client)
+    dh = _auth_header(client, email, pw)
+    dpid = _pid_of(client, dh)
+    client.post(f"/api/cohorts/{cid}/invite", headers=mh, json={"publicId": dpid})
+    assert client.post(f"/api/cohorts/{cid}/decline", headers=dh).status_code == 200
+    assert client.get("/api/cohorts", headers=dh).json()["cohorts"] == []
+    # leave: active member leaves → loses access.
+    lh, _lpid = _join_cohort(client, cid, mh)
+    assert client.post(f"/api/cohorts/{cid}/leave", headers=lh).status_code == 200
+    assert client.get(f"/api/cohorts/{cid}", headers=lh).status_code == 404
+    # the manager can neither leave nor be removed
+    mpid = _pid_of(client, mh)
+    assert client.post(f"/api/cohorts/{cid}/leave", headers=mh).status_code == 400
+    assert client.post(f"/api/cohorts/{cid}/remove", headers=mh,
+                       json={"publicId": mpid}).status_code == 400
+    # remove: manager removes an active member by public id.
+    rh, rpid = _join_cohort(client, cid, mh)
+    assert client.post(f"/api/cohorts/{cid}/remove", headers=mh,
+                       json={"publicId": rpid}).status_code == 200
+    assert client.get(f"/api/cohorts/{cid}", headers=rh).status_code == 404
+    # delete: the pod disappears for everyone.
+    xh, _xpid = _join_cohort(client, cid, mh)
+    assert client.delete(f"/api/cohorts/{cid}", headers=mh).status_code == 200
+    assert client.get(f"/api/cohorts/{cid}", headers=mh).status_code == 404
+    assert client.get("/api/cohorts", headers=xh).json()["cohorts"] == []
+
+
+def test_cohort_multi_membership(client):
+    cid1, mh1 = _make_cohort(client, name="Pod One")
+    cid2, mh2 = _make_cohort(client, name="Pod Two")
+    email, pw = _make_participant(client)
+    uh = _auth_header(client, email, pw)
+    pid = _pid_of(client, uh)
+    for cid, mh in ((cid1, mh1), (cid2, mh2)):
+        client.post(f"/api/cohorts/{cid}/invite", headers=mh, json={"publicId": pid})
+        client.post(f"/api/cohorts/{cid}/accept", headers=uh)
+    mine = client.get("/api/cohorts", headers=uh).json()["cohorts"]
+    assert {c["name"] for c in mine} == {"Pod One", "Pod Two"}
+    assert all(c["status"] == "active" for c in mine)
+
+
+def test_cohort_performance_window_and_quarantine(client):
+    """The series contains ONLY real (is_real=1) points inside the 6-month
+    window: recent eval points appear with skill=ℓ / bias=t / sd; stale and
+    synthetic points never reach cohort peers; a data-less member still shows
+    up (empty series) so the pod legend is complete."""
+    cid, mh = _make_cohort(client)
+    uh, upid = _join_cohort(client, cid, mh)
+    db = client.app.state.db
+    ucode = None
+    for m in db.cohort_member_rows(cid):
+        if m["public_id"] == upid:
+            ucode = m["code"]
+    # recent real eval point (what a finished certification test writes)
+    db.write_eval_trajectory(ucode, "sess-recent", [
+        {"taskK": 0, "ell": 1.25, "theta": -0.4, "sd": 0.3, "rt": 900.0},
+        {"taskK": 3, "ell": 0.75, "theta": 0.2, "sd": 0.5, "rt": 1100.0},
+    ])
+    # stale real point (outside the 183-day lookback) + recent synthetic point
+    db.append_trajectory_points(ucode, [
+        {"taskK": 0, "phase": "eval", "ell": 9.0, "theta": 9.0, "sd": 0.1,
+         "ts": "2025-01-01T00:00:00Z", "isReal": 1},
+        {"taskK": 0, "phase": "train", "ell": 8.0, "theta": 8.0, "sd": 0.1,
+         "isReal": 0},
+    ])
+    perf = client.get(f"/api/cohorts/{cid}/performance", headers=uh).json()
+    by_pid = {m["publicId"]: m for m in perf["members"]}
+    me = by_pid[upid]
+    assert me["isYou"] is True
+    series = {s["taskK"]: s["points"] for s in me["series"]}
+    assert set(series) == {0, 3}
+    assert len(series[0]) == 1   # stale + synthetic points filtered out
+    assert series[0][0]["skill"] == 1.25 and series[0][0]["bias"] == -0.4
+    assert series[0][0]["sd"] == 0.3 and series[0][0]["phase"] == "eval"
+    assert series[3][0]["skill"] == 0.75
+    # the manager has no data yet but still appears, with an empty series
+    mgr = next(m for m in perf["members"] if m["isManager"])
+    assert mgr["series"] == []
+    assert perf["from"] < perf["to"]
+
+
 # ─────────────── group-1 hardening (2026-07-01 audit) ───────────────
 
 def test_health_deep_checks_db_and_reports_bank(client, monkeypatch):

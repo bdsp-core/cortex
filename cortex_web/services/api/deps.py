@@ -63,6 +63,8 @@ RATE_LIMITS = {
     "forgot":   (5,  3600),   # request a password-reset code
     "reset":    (20, 3600),   # submit a reset code + new password
     "report":   (5,  3600),   # submit a support/feedback report
+    "cohort_create": (10, 3600),   # create a cohort
+    "cohort_invite": (60, 3600),   # invite by 9-digit id (also bounds id probing)
 }
 
 

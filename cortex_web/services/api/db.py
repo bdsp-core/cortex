@@ -12,6 +12,8 @@ Tables (schema is SQL-92, identical on both engines):
   login_days          one row per (participant, local day) signed in.
   auth_codes          short-lived 6-digit verify/reset codes.
   consent_events      auditable consent ledger (Phase O1).
+  cohorts             manager-run peer groups (isolated pods).
+  cohort_members      cohort membership + pending invites.
 
 `CORTEX_DB` selects the backend:
   unset / a filesystem path  → SQLite (WAL).
@@ -181,6 +183,31 @@ _SCHEMA_STATEMENTS = [
         PRIMARY KEY (training_id, seg_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_training_trials_code ON training_trials(code)",
+    # ── cohorts: manager-run peer groups ──
+    # Each cohort is an isolated pod: membership is the ONLY grant that lets a
+    # participant see other members' performance, and payloads are keyed by
+    # public_id (display names resolve for the manager alone; internal codes
+    # never leave the API). The creator is the manager and is also an active
+    # member (their line plots too).
+    """CREATE TABLE IF NOT EXISTS cohorts (
+        cohort_id     TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        manager_code  TEXT NOT NULL,
+        created_utc   TEXT NOT NULL
+    )""",
+    # status: 'invited' (manager added the public id; no data visible either
+    # direction until the user accepts) | 'active'. Decline/leave/remove all
+    # DELETE the row.
+    """CREATE TABLE IF NOT EXISTS cohort_members (
+        cohort_id     TEXT NOT NULL,
+        code          TEXT NOT NULL,
+        status        TEXT NOT NULL DEFAULT 'invited',
+        invited_utc   TEXT NOT NULL,
+        joined_utc    TEXT,
+        PRIMARY KEY (cohort_id, code)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cohort_members_code ON cohort_members(code)",
+    "CREATE INDEX IF NOT EXISTS idx_cohorts_manager ON cohorts(manager_code)",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -877,6 +904,109 @@ class Database:
             "SELECT task_k, phase, ell, theta, sd, rt, ts "
             "FROM param_trajectories WHERE code=? AND is_real=1 "
             "ORDER BY task_k, ts", (code,))
+
+    # ── cohorts ───────────────────────────────────────────────────
+    def create_cohort(self, cohort_id: str, name: str, manager_code: str) -> None:
+        """Create a cohort; the manager joins as an active member in the same
+        transaction (their performance line is part of the pod)."""
+        now = utc_now()
+        with self._connection() as conn:
+            conn.execute(self._q(
+                "INSERT INTO cohorts(cohort_id, name, manager_code, created_utc) "
+                "VALUES (?,?,?,?)"), (cohort_id, name, manager_code, now))
+            conn.execute(self._q(
+                "INSERT INTO cohort_members(cohort_id, code, status, "
+                "invited_utc, joined_utc) VALUES (?,?,'active',?,?)"),
+                (cohort_id, manager_code, now, now))
+
+    def get_cohort(self, cohort_id: str) -> Optional[dict]:
+        return self._fetchone(
+            "SELECT * FROM cohorts WHERE cohort_id=?", (cohort_id,))
+
+    def cohorts_for(self, code: str) -> list[dict]:
+        """Every cohort `code` belongs to (any status), with their member row."""
+        return self._fetchall(
+            "SELECT c.cohort_id, c.name, c.manager_code, c.created_utc, "
+            "m.status, m.invited_utc, m.joined_utc "
+            "FROM cohort_members m JOIN cohorts c ON c.cohort_id=m.cohort_id "
+            "WHERE m.code=? ORDER BY c.created_utc, c.cohort_id", (code,))
+
+    def count_cohorts_managed(self, code: str) -> int:
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM cohorts WHERE manager_code=?", (code,))
+        return int(row["n"]) if row else 0
+
+    def cohort_membership(self, cohort_id: str, code: str) -> Optional[dict]:
+        return self._fetchone(
+            "SELECT * FROM cohort_members WHERE cohort_id=? AND code=?",
+            (cohort_id, code))
+
+    def cohort_member_rows(self, cohort_id: str) -> list[dict]:
+        """Member rows joined to their participant identity. Stable order =
+        invite time (append-only), so client-side color slots don't reshuffle
+        when someone new joins."""
+        return self._fetchall(
+            "SELECT m.code, m.status, m.invited_utc, m.joined_utc, "
+            "p.public_id, p.display_name "
+            "FROM cohort_members m JOIN participants p ON p.code=m.code "
+            "WHERE m.cohort_id=? ORDER BY m.invited_utc, m.code", (cohort_id,))
+
+    def count_cohort_members(self, cohort_id: str) -> int:
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM cohort_members WHERE cohort_id=?",
+            (cohort_id,))
+        return int(row["n"]) if row else 0
+
+    def invite_cohort_member(self, cohort_id: str, code: str) -> None:
+        """Add a pending invite. The (cohort_id, code) PK surfaces a re-invite
+        of an existing member/invitee as an IntegrityError → caller 409s."""
+        self._write(
+            "INSERT INTO cohort_members(cohort_id, code, status, invited_utc, "
+            "joined_utc) VALUES (?,?,'invited',?,NULL)",
+            (cohort_id, code, utc_now()))
+
+    def accept_cohort_invite(self, cohort_id: str, code: str) -> bool:
+        """Flip the caller's own invite to active. False when there is no
+        pending invite (never touches other statuses/rows)."""
+        with self._connection() as conn:
+            cur = conn.execute(self._q(
+                "UPDATE cohort_members SET status='active', joined_utc=? "
+                "WHERE cohort_id=? AND code=? AND status='invited'"),
+                (utc_now(), cohort_id, code))
+            return cur.rowcount > 0
+
+    def remove_cohort_member(self, cohort_id: str, code: str) -> None:
+        """Decline / leave / manager-remove are all the same row delete."""
+        self._write(
+            "DELETE FROM cohort_members WHERE cohort_id=? AND code=?",
+            (cohort_id, code))
+
+    def delete_cohort(self, cohort_id: str) -> None:
+        with self._connection() as conn:
+            conn.execute(self._q(
+                "DELETE FROM cohort_members WHERE cohort_id=?"), (cohort_id,))
+            conn.execute(self._q(
+                "DELETE FROM cohorts WHERE cohort_id=?"), (cohort_id,))
+
+    def get_participant_by_public_id(self, public_id: str) -> Optional[dict]:
+        return self._fetchone(
+            "SELECT * FROM participants WHERE public_id=?", (public_id,))
+
+    def eval_trajectories_for_codes_since(self, codes: list[str],
+                                          since_ts: str) -> list[dict]:
+        """REAL (is_real=1) trajectory points for a set of members within the
+        lookback window — certification evals today; real training points join
+        the same series the day the L1 trainer ships. Synthetic rows stay
+        quarantined (same is_real=1 contract as get_trajectories)."""
+        if not codes:
+            return []
+        ph = ",".join("?" * len(codes))
+        return self._fetchall(
+            f"SELECT code, task_k, phase, ell, theta, sd, ts "
+            f"FROM param_trajectories "
+            f"WHERE is_real=1 AND ts>=? AND code IN ({ph}) "
+            f"ORDER BY code, task_k, ts",
+            (since_ts, *codes))
 
     # ── activity heatmap ──────────────────────────────────────────
     def record_login_day(self, code: str, tz_offset_min: int = 0) -> None:
