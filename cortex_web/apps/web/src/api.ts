@@ -8,6 +8,7 @@
 // empty base works there too.
 
 import type { SessionBank } from "./bundle";
+import { Outbox, transportFetch, type TransportOpts } from "./transport";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const TOKEN_KEY = "cortex_token";
@@ -101,14 +102,20 @@ async function parse(res: Response): Promise<any> {
   return body;
 }
 
-async function authedFetch(path: string, init: RequestInit = {}): Promise<any> {
+// All calls go through transportFetch: every request gets a time-to-headers
+// timeout (a hung connection must not stall the test flow), and callers mark
+// IDEMPOTENT requests with `retries` so transient failures — network blips
+// and 502/503/504 from the gateway during a deploy — heal invisibly. 4xx
+// (including 401/429) never retries.
+async function authedFetch(path: string, init: RequestInit = {},
+                           opts: TransportOpts = {}): Promise<any> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  const res = await transportFetch(`${API_BASE}${path}`, { ...init, headers }, opts);
   if (res.status === 401) clearToken();
   return parse(res);
 }
@@ -120,7 +127,7 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<any> {
 export async function login(email: string, password: string): Promise<{
   email: string; displayName: string;
 }> {
-  const res = await fetch(`${API_BASE}/api/auth`, {
+  const res = await transportFetch(`${API_BASE}/api/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // tzOffset = getTimezoneOffset() (minutes UTC is ahead of local) so the
@@ -144,7 +151,7 @@ export async function login(email: string, password: string): Promise<{
 export async function loginWithGoogle(credential: string): Promise<{
   email: string; displayName: string;
 }> {
-  const res = await fetch(`${API_BASE}/api/auth/google`, {
+  const res = await transportFetch(`${API_BASE}/api/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ credential, tzOffset: new Date().getTimezoneOffset() }),
@@ -164,7 +171,7 @@ export async function register(
   email: string, password: string, displayName: string, expertise: string,
   profile: Record<string, string>, honeypot: string,
 ): Promise<{ needsVerification: boolean; email: string; displayName: string; devCode?: string }> {
-  const res = await fetch(`${API_BASE}/api/register`, {
+  const res = await transportFetch(`${API_BASE}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, displayName, expertise, profile, honeypot }),
@@ -182,7 +189,7 @@ export async function register(
 // Confirm the 6-digit email-verification code. Throws ApiError(400) on an
 // invalid/expired code, ApiError(429) on rate limiting.
 export async function verifyCode(email: string, code: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/verify/confirm`, {
+  const res = await transportFetch(`${API_BASE}/api/verify/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, code }),
@@ -192,7 +199,7 @@ export async function verifyCode(email: string, code: string): Promise<void> {
 
 // Resend the email-verification code. `devCode` only present in dev/CI.
 export async function resendCode(email: string): Promise<{ devCode?: string }> {
-  const res = await fetch(`${API_BASE}/api/verify/resend`, {
+  const res = await transportFetch(`${API_BASE}/api/verify/resend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -204,7 +211,7 @@ export async function resendCode(email: string): Promise<{ devCode?: string }> {
 // Request a password-reset code. Always 200 (does not reveal whether the email
 // is registered); `devCode` only present in dev/CI.
 export async function requestReset(email: string): Promise<{ devCode?: string }> {
-  const res = await fetch(`${API_BASE}/api/forgot`, {
+  const res = await transportFetch(`${API_BASE}/api/forgot`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -218,7 +225,7 @@ export async function requestReset(email: string): Promise<{ devCode?: string }>
 export async function resetPassword(
   email: string, code: string, newPassword: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/reset`, {
+  const res = await transportFetch(`${API_BASE}/api/reset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, code, newPassword }),
@@ -235,7 +242,7 @@ export async function submitReport(payload: {
   message: string;
   client: Record<string, unknown>;
 }): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/report`, {
+  const res = await transportFetch(`${API_BASE}/api/report`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -245,7 +252,7 @@ export async function submitReport(payload: {
 
 export async function health(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/health`);
+    const res = await transportFetch(`${API_BASE}/api/health`, {}, { timeoutMs: 10_000 });
     return res.ok;
   } catch {
     return false;
@@ -254,7 +261,7 @@ export async function health(): Promise<boolean> {
 
 // ── gated ────────────────────────────────────────────────────────
 export function getManifest(): Promise<Manifest> {
-  return authedFetch("/api/manifest");
+  return authedFetch("/api/manifest", {}, { retries: 2 });
 }
 
 // ── account / profile (Settings page) ────────────────────────────
@@ -267,7 +274,7 @@ export interface AccountProfile {
 }
 
 export function getProfile(): Promise<AccountProfile> {
-  return authedFetch("/api/profile");
+  return authedFetch("/api/profile", {}, { retries: 2 });
 }
 
 export function updateProfile(
@@ -384,28 +391,28 @@ export interface QuestionRow {
 }
 
 export function getDashboard(): Promise<DashboardData> {
-  return authedFetch("/api/dashboard");
+  return authedFetch("/api/dashboard", {}, { retries: 2 });
 }
 // Per-day activity levels for the consistency heatmap (LOCAL date → level:
 // 1 = signed in, 2 = certification test, 3 = training completed). `tz` is the
 // browser's getTimezoneOffset so the server reports days in the user's local time.
 export function getActivity(): Promise<{ days: Record<string, number> }> {
-  return authedFetch(`/api/activity?tz=${new Date().getTimezoneOffset()}`);
+  return authedFetch(`/api/activity?tz=${new Date().getTimezoneOffset()}`, {}, { retries: 2 });
 }
 export function getRegimen(): Promise<{ regimen: RegimenPlan | null; sample: boolean }> {
-  return authedFetch("/api/regimen");
+  return authedFetch("/api/regimen", {}, { retries: 2 });
 }
 export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sample: boolean }> {
-  return authedFetch("/api/trajectories");
+  return authedFetch("/api/trajectories", {}, { retries: 2 });
 }
 export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
-  return authedFetch("/api/training-sessions");
+  return authedFetch("/api/training-sessions", {}, { retries: 2 });
 }
 export function getHistory(): Promise<{ sessions: HistorySession[] }> {
-  return authedFetch("/api/history");
+  return authedFetch("/api/history", {}, { retries: 2 });
 }
 export function getQuestions(sessionId: string): Promise<{ sessionId: string; nQuestions: number; questions: QuestionRow[] }> {
-  return authedFetch(`/api/history/${encodeURIComponent(sessionId)}/questions`);
+  return authedFetch(`/api/history/${encodeURIComponent(sessionId)}/questions`, {}, { retries: 2 });
 }
 export function startTrainingSession(taskFocus?: string): Promise<{ trainingId: string }> {
   return authedFetch("/api/training-sessions", {
@@ -451,25 +458,43 @@ export interface api_TrajectoryPointIn {
 export async function startSession(
   participant: Record<string, unknown>,
 ): Promise<StartSessionResult> {
+  // Retried: a transient failure here would otherwise abort the test before
+  // it begins. The endpoint creates a session row, so a retry after an
+  // ambiguous failure can leave a benign orphan in_progress row (no trials,
+  // never finalized) — accepted trade for a start that survives blips.
   return authedFetch("/api/session", {
     method: "POST",
     body: JSON.stringify({ participant }),
-  });
+  }, { retries: 2, timeoutMs: 30_000 });
 }
 
 // One representative IIIC segment for the in-context tutorial (no full-manifest
 // fetch) — returned as a 1-segment bank the client wraps in a Bundle.
 export function tutorialExample(): Promise<SessionBank> {
-  return authedFetch("/api/tutorial-example");
+  return authedFetch("/api/tutorial-example", {}, { retries: 2 });
 }
 
 // Fire-and-forget per-trial checkpoint (crash-safety). Never throws into the
-// UI — a dropped checkpoint must not interrupt the test.
-export function postProgress(sessionId: string, trial: TrialCheckpoint): void {
-  authedFetch("/api/progress", {
+// UI — and no longer silently DROPS on failure: /api/progress is an
+// idempotent upsert on (sessionId, trialIndex), so unsent checkpoints queue
+// in the outbox and re-flush on each later trial. A network blip mid-test
+// heals instead of losing rows. (The final results blob independently
+// carries every trial, so a checkpoint that never lands costs only mid-test
+// crash granularity, not data. In-memory by design: a tab crash loses the
+// outbox exactly like it loses the session.)
+const progressOutbox = new Outbox<{ sessionId: string; trial: TrialCheckpoint }>({
+  send: (item) => authedFetch("/api/progress", {
     method: "POST",
-    body: JSON.stringify({ sessionId, trial }),
-  }).catch(() => {});
+    body: JSON.stringify(item),
+  }, { timeoutMs: 15_000 }),
+  // Permanent rejections (bad payload / unknown session — anything 4xx except
+  // an expired-token 401, which heals on re-login) must not wedge the queue.
+  shouldDrop: (e) => e instanceof ApiError && e.status !== 401 && e.status < 500,
+});
+
+export function postProgress(sessionId: string, trial: TrialCheckpoint): void {
+  progressOutbox.push({ sessionId, trial });
+  void progressOutbox.flush();
 }
 
 export async function postResults(
@@ -481,7 +506,7 @@ export async function postResults(
   await authedFetch("/api/results", {
     method: "POST",
     body: JSON.stringify({ sessionId, result, stopReason, nQuestions }),
-  });
+  }, { retries: 2, timeoutMs: 60_000 });
 }
 
 // ── result delivery with local persistence + retry (PLAN §8) ──────
@@ -516,6 +541,9 @@ export async function submitResults(
   stopReason: string,
   nQuestions: number,
 ): Promise<boolean> {
+  // Give any straggler trial checkpoints one last chance to land before the
+  // session is finalized (best-effort — the result blob carries them anyway).
+  await progressOutbox.flush();
   const list = loadPending().filter((p) => p.sessionId !== sessionId);
   list.push({ sessionId, result, stopReason, nQuestions });
   savePending(list);
@@ -573,14 +601,19 @@ export async function requestVideos(p: VizPayload): Promise<Blob> {
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/api/videos`, { method: "POST", body: fd, headers });
+  // Submit: the blobs can be tens of MB on a slow uplink — generous timeout.
+  const res = await transportFetch(`${API_BASE}/api/videos`,
+    { method: "POST", body: fd, headers }, { timeoutMs: 120_000 });
   if (!res.ok) throw new Error(`render submit failed (${res.status}): ${await res.text().catch(() => "")}`);
   const { jobId } = (await res.json()) as { jobId: string };
 
   const deadline = Date.now() + VIDEO_TIMEOUT_MS;
   for (;;) {
     await new Promise((r) => setTimeout(r, VIDEO_POLL_MS));
-    const st = await fetch(`${API_BASE}/api/videos/${jobId}`, { headers });
+    // Status polls are idempotent GETs: retry blips so one dropped poll
+    // doesn't abort a render that is still running fine server-side.
+    const st = await transportFetch(`${API_BASE}/api/videos/${jobId}`,
+      { headers }, { retries: 2 });
     if (!st.ok) throw new Error(`render status failed (${st.status}): ${await st.text().catch(() => "")}`);
     const body = (await st.json()) as { status: string; error?: string };
     if (body.status === "done") break;
@@ -588,7 +621,10 @@ export async function requestVideos(p: VizPayload): Promise<Blob> {
     if (Date.now() > deadline) throw new Error("render timed out — please try again");
   }
 
-  const dl = await fetch(`${API_BASE}/api/videos/${jobId}/download`, { headers });
+  // The timeout guards time-to-headers only; the multi-MB body download
+  // itself is unbounded, so slow links still complete.
+  const dl = await transportFetch(`${API_BASE}/api/videos/${jobId}/download`,
+    { headers }, { retries: 2 });
   if (!dl.ok) throw new Error(`render download failed (${dl.status})`);
   return dl.blob();
 }
