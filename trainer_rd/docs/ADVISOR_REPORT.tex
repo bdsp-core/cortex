@@ -1,0 +1,332 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1.05in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\ellstar}{\ell^{*}}
+\DeclareMathOperator{\ESS}{ESS}
+\DeclareMathOperator{\Var}{Var}
+
+\title{An Adaptive Certification--Training Pipeline for Perceptual Classification:\\
+Methodology, Mathematics, and Sandbox Validation}
+\author{Submission to the advisory panel}
+\date{July 6, 2026 (checkpoint M27)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We summarize the mathematics and validation record of a closed pipeline that
+(i) measures a rater's per-task perceptual skill and bias with a sequential Monte
+Carlo (SMC) certification test, (ii) trains deficient tasks with an adaptive,
+belief-driven training loop, and (iii) re-certifies with the same instrument. The
+trainer's graduation is a stopping \emph{recommendation}, never a certification.
+We present the observation model, the inference and decision rules, the learning
+dynamics and their filters, the anytime-valid safety gates, the validation ladder
+from simulation calibration to 125{,}860 real reads, and results from seven human
+testers running the full stack. Seven decisions are put to the panel
+(Section~\ref{sec:asks}). Every number cited is reproducible from a named script
+in the accompanying tree; the full evidence trail is \texttt{docs/PROJECT\_MEMORY.md}.
+\end{abstract}
+
+\section{The pipeline}
+The system is a closed loop over $K$ classification tasks. A \emph{certification
+eval} measures a rater's latent traits with an adaptive test and issues
+PASS/FAIL/REFER verdicts. Its final posterior, variance-inflated, seeds the
+\emph{trainer}'s belief. The trainer runs a partially observed control loop:
+per-task particle filters track the \emph{learning} rater, a mode-conditional
+policy (bias-correction, skill-building, retention) selects items from a real
+89k-item bank, and a deficiency-weighted scheduler interleaves tasks. When the
+trainer's belief says a task is at bar, it \emph{recommends} stopping (decision
+D18); certification authority stays with the eval instrument, which re-certifies
+against the same bar the trainer trained to. Two coordinate systems are bridged
+in exactly one module:
+\begin{equation}
+\sigma = e^{-\ell}, \qquad t = -\theta, \qquad
+z = e^{\ell}(s+\theta) \equiv \frac{s-t}{\sigma},
+\end{equation}
+where $\ell$ is log-skill, $\sigma$ internal noise, $\theta$ (engine) or $t$
+(trainer) the decision criterion, and $s$ the item's signed signal strength.
+
+\section{Observation model}
+Each trial is a yes/no judgment on a stimulus of signal strength $s$. The
+response model is a probit-lapse signal-detection link,
+\begin{equation}
+\label{eq:obs}
+P(y=1 \mid \ell,\theta,s) \;=\; \lambda + (1-2\lambda)\,\Phi\!\big(e^{\ell}(s+\theta)\big),
+\qquad \lambda = 0.025 \text{ (locked)},
+\end{equation}
+one likelihood definition shared by the calibration fitter, the eval engine, and
+the trainer (fitted rater lapses are an order of magnitude below the lock).
+The item signal is itself an estimate with known uncertainty
+$s_{\mathrm{real}} \sim N(s, s_{\mathrm{sd}}^2)$, never observed directly; the
+likelihood marginalizes it in closed form by attenuation,
+\begin{equation}
+\label{eq:atten}
+\mathbb{E}\big[\Phi(e^{\ell}(s_{\mathrm{real}}+\theta))\big]
+= \Phi\!\left(\frac{e^{\ell}(s+\theta)}{\sqrt{1+(e^{\ell} s_{\mathrm{sd}})^2}}\right),
+\end{equation}
+verified by Monte Carlo to $10^{-4}$ and used consistently in every scorer,
+selector, and filter. Skill is reported as a bias-free discrimination index,
+\begin{equation}
+\mathrm{AUROC}(\ell) = \Phi\!\left(\sqrt{2}\,\big/\sqrt{e^{-2\ell}+1}\right),
+\end{equation}
+and the per-task mastery cut-scores $\ellstar_k \in [0.256, 0.534]$ correspond to
+AUROC bars of roughly $0.87$--$0.89$.
+
+\section{Certification: inference and decision rule}
+The eval estimates the joint $2K$-vector $(\theta_{1:K}, \ell_{1:K})$. The prior
+is zero-mean Gaussian with \emph{unit-diagonal correlation} matrices per block
+(marginals $N(0,1)$; fitted cross-task correlations up to ${\approx}0.65$), so
+evidence pools across correlated tasks. The posterior is carried by $N=600$
+weighted particles: reweight on each answer; when
+$\ESS = 1/\sum_i w_i^2$ falls below $N/2$, multinomially resample and apply
+15 Metropolis--Hastings rejuvenation steps with Roberts--Gelman--Gilks proposal
+scaling ($2.38/\sqrt{2K}$), sweeping the full history --- valid here because the
+certified traits are \emph{static}. Item selection is Bayesian A-optimal: choose
+the $(k, s)$ minimizing
+\begin{equation}
+\mathbb{E}[\text{loss}] = P(y{=}1)\, V^{+} + P(y{=}0)\, V^{-},
+\qquad V^{\pm} = \textstyle\sum_k \Var^{\pm}(\theta_k) + \sum_k \Var^{\pm}(\ell_k),
+\end{equation}
+where $V^{\pm}$ are total posterior variances of the two hypothetical
+one-step-ahead posteriors. The anytime verdict rule (AD6) computes, after every
+trial and per task,
+\begin{equation}
+\pi_k = \sum_i w_i\, \mathbf{1}\{\ell_k^{(i)} > \ellstar_k\}, \qquad
+\mathrm{mcse}_k = \sqrt{\pi_k(1-\pi_k)/\ESS}, \qquad
+R_k = 1 - \frac{\Var_{\mathrm{post}}(\ell_k)}{\Var_{\mathrm{prior}}(\ell_k)},
+\end{equation}
+and resolves task $k$ only when $n_k \ge 20$ and $R_k \ge 0.30$ (an information
+gate against prior-dominated verdicts), with
+\begin{equation}
+\text{PASS if } \pi_k - Z\,\mathrm{mcse}_k \ge 1-\alpha, \qquad
+\text{FAIL if } \pi_k + Z\,\mathrm{mcse}_k \le \alpha, \qquad
+(\alpha, Z) = (0.05,\, 2.0).
+\end{equation}
+The Monte Carlo buffer $Z\,\mathrm{mcse}$ guards the finite-particle estimate of
+$\pi_k$; verdicts lock monotonically; unresolved tasks finalize as REFER
+(borderline vs.\ uninformative, by whether the information gate ever opened).
+
+\section{Training: dynamics, filters, and gates}
+\subsection{Learner dynamics}
+The trainer models the rater as a per-task hidden state $(\sigma_k, t_k)$ moving
+under feedback. The criterion follows a soft Rescorla--Wagner update, gated to
+feedback trials only, and log-skill relaxes toward a latent per-learner ceiling
+$\sigma_\infty$ within a Gaussian difficulty window $w(\cdot)$ centered at the
+85\%-correct placement:
+\begin{align}
+t' &= t + \alpha_t\big(\hat p(s_{\mathrm{real}}) - y^{*}\big) + \xi_t,\\
+\log \sigma' &= \log \sigma + \alpha_\sigma\, f\, w(s_{\mathrm{real}})\big(\log
+\sigma_\infty - \log \sigma\big) + \xi_\sigma,
+\end{align}
+where $y^{*}$ is the feedback label and both the response and the update depend
+on the same unobserved $s_{\mathrm{real}}$. The Rescorla--Wagner form is the
+constant-rate analogue of the cross-entropy gradient (re-derived and documented
+as a behavioral postulate, not algebra). Rates are empirical-Bayes anchored to
+1{,}158 real learning curves ($\alpha_t = 0.097$, $\alpha_\sigma = 0.047$),
+deliberately conservative: over-estimated rates provably break filter coverage.
+
+\subsection{Belief}
+Each task carries a bootstrap particle filter (reweight, systematic resample,
+propagate) with \emph{no} MH rejuvenation --- replaying history against a moving
+state targets the wrong posterior. The transition kernel is the exact
+conditional kernel, marginalizing the shared $s_{\mathrm{real}}$ by 21-node
+Gauss--Hermite quadrature; this restores nominal coverage (criterion coverage at
+the 90\% level: $0.63 \to 0.91$) and passes closed-loop simulation-based
+calibration at every checkpoint. Static parameters cannot live on particles
+(path degeneracy), so ceiling uncertainty is a Bayesian model average over a
+$J=7$ grid of $\sigma_\infty$ hypotheses plus a ``does not learn'' stratum, with
+prequential evidence weights. The resulting \emph{trainability}
+$P(\ell_\infty > \ellstar \mid \text{data})$ is an honest posterior; it replaced
+a real failure in which a filter that knows the ceiling clears the bar
+eventually certified its own prior (30/30 false declarations on a static
+below-bar learner; now 0--7/30 depending on margin). Real acquisition arrives as
+\emph{discrete regime shifts at sitting boundaries}, so every session open
+applies a $\sigma$-dominant state shock plus a fixed-share re-mix of the ceiling
+weights,
+\begin{equation}
+\omega \leftarrow (1-\rho)\,\omega + \rho\,\omega_0, \qquad \rho = 0.10,
+\end{equation}
+the exact Bayes update for a hidden-Markov ceiling with per-boundary redraw
+hazard $\rho$ (Herbster--Warmuth fixed-share).
+
+\subsection{Anytime-valid gates}
+Declarations are guarded by certification probes placed at the \emph{cut} state
+$(\sigma^{*}, \hat t)$ --- Fisher-information-optimal for a scale parameter at
+$\tilde z \approx \pm 1.35$ under the lapse link, and deliberately independent of
+the believed skill, which the training placement tracks. Probe outcomes feed a
+mixture of Hoeffding e-processes against every at-or-above-bar null,
+\begin{equation}
+e_\lambda = \exp\!\Big(\lambda \textstyle\sum_i (a_0 - c_i) - n\lambda^2/8\Big),
+\qquad \lambda \in \{0.05, \dots, 0.8\},
+\end{equation}
+each a nonnegative supermartingale under its null, so by Ville's inequality the
+probability of \emph{ever} blocking a truly at-bar learner is at most $\alpha$
+with no multiple-looking correction (measured: type-I $0/200$; power $200/200$
+against a $0.2$ accuracy deficit). The same construction yields a
+contact-onboarding test (a Krichevsky--Trofimov predictor against a chance-band
+null) and a stale-mastery tripwire in the retention layer.
+
+\subsection{Zero-bias serving is derived, not assumed}
+For the soft Rescorla--Wagner criterion under mirror-paired, label-alternating
+items anchored at the true boundary with offset $a$ and effective noise
+$\sigma_e = \sqrt{\sigma^2 + s_{\mathrm{sd}}^2}$,
+\begin{equation}
+\mathbb{E}[t_\infty] = 0, \qquad
+\kappa = \frac{\alpha_t (1-2\lambda)\,\varphi(a/\sigma_e)}{\sigma_e}, \qquad
+\Var_\infty = \frac{q_t^2 + \alpha_t^2 \Var[\hat p]}{\kappa(2-\kappa)}
++ \frac{(\alpha_t \bar\delta)^2}{(2-\kappa)^2},
+\end{equation}
+verified numerically to $\le 3\%$ across the parameter grid. Corollaries:
+placement that tracks the estimated criterion has no restoring force (the
+criterion random-walks, SD ${\approx}3$ vs.\ ${\approx}0.13$); strict label
+alternation is load-bearing (i.i.d.\ balanced labels inject $\alpha_t^2/4$ of
+diffusion, an order-of-magnitude worse floor); and ``zero bias'' is achievable
+exactly to the band $\pm c\,\mathrm{SD}_\infty$, which is what the graduation
+gate demands.
+
+\subsection{Graduation semantics}
+A declaration must survive a confirmation lifecycle (re-approach the bar after
+the boundary hazard re-widens the belief) before it counts; confirmed
+false-graduation (FG) is the priced safety quantity everywhere. Graduation
+remains a recommendation: the eval instrument re-certifies, and its bar equals
+the trainer's bar by construction.
+
+\section{Validation ladder}
+Six rungs, lowest to highest: (1) 299 script-style checks across 21 test files,
+every calibrated constant pinned to the study that produced it; (2)
+\emph{calibration} --- closed-loop simulation-based calibration of the training
+filter nominal at every checkpoint, plus a paired open-loop kernel audit; (3)
+\emph{misspecification envelope} --- a 12-member learner zoo (power-law,
+plateau, drifting ceiling, heavy-tail link, asymmetric lapse, fatigue, careless,
+anti-learner, static below-cut): training efficacy is robust across the zoo, and
+graduation hardening brought adversarial FG to $1/90$ at the capstone; (4)
+\emph{end-to-end safety} --- the re-certification backstop catches $75/75$
+forced false graduations; (5) \emph{real-data validation} --- on 125{,}860 reads
+by 699 users, the likelihood~\eqref{eq:obs} beats or matches alternatives
+held-out; filter skill estimates track real accuracy (Spearman $\rho = 0.87$
+binary task; $0.48$--$0.83$ multiclass); the fitted real link sits inside the
+stress envelope; a cross-domain skill manifold is recovered ($\rho = 0.571$,
+disattenuated $0.771$); dynamics priors are fitted from real learning curves;
+(6) \emph{real humans on the full stack} --- Section~\ref{sec:sandbox}.
+
+\section{Sandbox test results}
+\label{sec:sandbox}
+The sandbox is the delivery-vehicle prototype: real humans run the complete
+validated stack with production-shaped telemetry, per-learner persistent belief
+states, and resumable sessions. Seven tester profiles (USER-A\ldots G; 557
+trials over 14 session sequences at the M23 analysis) have been through it. Its
+central methodological result: \emph{every} protocol gate shipped since M21
+traces to a mechanism first observed in tester data, never in simulation
+(Table~\ref{tab:gates}).
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{p{0.46\textwidth}p{0.46\textwidth}}
+\toprule
+\textbf{Observed in tester data} & \textbf{Shipped mechanism} \\
+\midrule
+Two testers on one shared belief state corrupted scheduling for both &
+Per-learner profiles; shadow windowed-GLR consistency monitor \\
+Render gain bounded achievable $\sigma$ above the mastery bars &
+Ideal-observer render contract; state stamps render parameters \\
+10\% of trials rendered evidence opposing the feedback label &
+Label-consistent truncated stimulus draw \\
+Novice sessions served at ${\sim}50\%$ accuracy (target 84\%) &
+Conservative-quantile placement \\
+Near-mastery task starved (6 trials/session) while 68 trials sank into a
+plateaued task & Trainability-discounted allocation \\
+Behavioral failure flagged $5\times$ with no consequence; tester quit &
+Flag $\Rightarrow$ session-local suspension (post-flag damage $12.9 \to 0$
+trials) \\
+Late-session collapse in 3 of 4 participants, written into belief &
+Differenced fatigue guard ($\delta = 0.35$; FA $5/100$; both real collapses
+caught) \\
+$d' \; 0.8 \to 3.0$ across a 64-second restart; the smooth kernel lags a full
+session & Boundary jump + fixed-share re-mix (jump lag $93.5 \to 15.2$ trials) \\
+Response-time collapse (206\,ms vs.\ engaged $\ge 1059$\,ms) &
+RT floor (0 false alarms in 451 windows) \\
+Pure-guessing onboarding until first ``contact'' with the percept &
+Contact e-process + demonstration ramp \\
+\bottomrule
+\end{tabular}
+\caption{Field-observed mechanisms and the gates they produced (M21--M23, F72--F83, F91).}
+\label{tab:gates}
+\end{table}
+
+Field verification followed each fix: after the M21 corrections, 241 tester
+trials produced zero label contradictions and four clean per-person states. The
+bias-correction mode was validated on a real tester (criterion
+$-0.48 \to -0.13$ with discrimination retained). The onboarding ramp turned the
+observed no-contact profile from censored at 30\% completion into declaration at
+trial 148 with 70\% completion, with healthy learners unharmed and careless
+responders never certifying. Honest accounting: mean delivered per-trial
+training value across the 14 real sessions was $0.48$ of the oracle policy's,
+with belief-lag sessions at $0.15$--$0.17$ --- this number motivated the
+boundary-hazard work and is the primary target of the pilot. The full suite is
+green at 21 files / 299 checks; four consecutive checkpoints (M24--M27)
+adjudicated every queued optimization successor end-to-end and none displaced
+the shipped defaults, which we read as convergence of the current evidence base
+and the reason iteration is now frozen under an explicit stopping rule.
+
+\section{Operating characteristics and limitations}
+A static learner parked $0.15$ \emph{below} the cut is declared ${\sim}30\%$ of
+the time within 240 two-task trials: at that margin the per-probe accuracy
+contrast is ${\approx}0.03$, so refutation needs $O(10^3)$ probes (Bernoulli
+information bound, not gate inefficiency), and three candidate declaration
+conjuncts were measured and rejected against it. The effective protection is
+architectural: the confirmation lifecycle kills $5/6$ of these false
+graduations (declared $6/20 \to$ confirmed $1/20$) and re-certification sits
+above it ($75/75$). All FG claims are therefore priced at the \emph{confirmed}
+level. Under the open-ended protocol with calendar-time forgetting, the median
+simulated learner certifies ${\sim}2$ of 7 tasks in 40 sessions; consolidation
+dynamics are a named pilot endpoint. The trainer certifies nothing; no existing
+dataset contains closed-loop training, so the definitive methodology test is
+the feedback-driven pilot. The onboarding ramp's pedagogical value is
+deliberately unsimulated (simulating it would assume the conclusion) and is a
+queued field check.
+
+\section{Decisions requested of the panel}
+\label{sec:asks}
+\begin{enumerate}
+\item \textbf{Ratify recommendation-only graduation and the hardened
+configuration} (exact kernel, mixture graduation, probes and e-gate) as the
+port default.
+\item \textbf{Acceptance semantics for narrow-margin domains}: is the
+trailing-mean-skill graduation branch ($z = 1.645$, $W = 20$) acceptable as an
+acceptance-testing semantic? (Disabled for mixture graduation.)
+\item \textbf{Re-certification prior}: warm-start from the trainer posterior
+(efficient) or a fresh prior (psychometric integrity)? We recommend fresh.
+\item \textbf{Instrument caveats}: the claimed resolution gain of the v15
+instrument is mostly bar recalibration under an anchoring convention, and
+particle doubling does not fix posterior-$\ell$ coverage; the decisive coverage
+run is port-gated. Comfortable?
+\item \textbf{Confirmed-FG endpoint}: we propose all false-graduation claims,
+including the pilot endpoint, move from declared to confirmed semantics
+(measured $6/20 \to 1/20$). Please ratify before the pilot analysis plan
+freezes.
+\item \textbf{Pilot statistical analysis plan}: power target
+$\alpha = 0.005$, power $0.9$, ${\sim}33$ per arm; consolidation-exponent
+endpoint; decision-level outcomes only.
+\item \textbf{Terminal-confirmation semantics}: should a \emph{confirmed} task
+leave the training rotation for the scheduled re-certification layer? It buys
+$+20$pp pair completion by design and moves post-confirmation regression
+detection from the trainer (${\sim}50\%$ undetected in-run on the thin terminal
+stream) to scheduled re-certs ($0\%$ when the trainer keeps re-polishing). We
+recommend adoption for the pilot, which has scheduled re-certs; it is shipped
+default-off pending your ratification.
+\end{enumerate}
+
+\section{Reproducibility}
+Everything runs from the tree root via \texttt{python3 -m}: the 21-file test
+suite, every study (cached to \texttt{figures/data\_*.npz}), the sandbox
+(\texttt{sandbox.session}), and the per-tester trajectory videos.
+\texttt{docs/ARCHITECTURE.md} gives the module map and the math--code
+correspondence; all coordinate conversions live in one bridge module; every
+default flip is a dated, recorded decision justified by a dominating study.
+
+\end{document}

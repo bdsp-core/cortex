@@ -1,0 +1,158 @@
+==============================================================================
+V15 SIMULATION SPECIFICATION  (recomputed 2026-06-11)
+==============================================================================
+All task identifiers are relabeled to domain1..domain7. The live instrument
+is UNCHANGED (frozen); v15 values below are STAGED and consumed opt-in via
+the cert_config block 'ell_star_unified_v15'. Source artifacts cited per item.
+Domain index order (canonical, matches all matrices/arrays): domain1, domain2, domain3, domain4, domain5, domain6, domain7
+
+##############################################################################
+# TIER 1 - minimum to run simulations under v15 cuts
+##############################################################################
+
+[1] FULL-PRECISION ell* PER DOMAIN (v15, canonical; NOT the 3-decimal values).
+    Source: results/calibration_study/ell_star_v15.json  (reproducible).
+    sigma_star == exp(-ell_star) holds to 16 digits (verified).
+    domain          ell_star (16-digit)            sigma_star
+    domain1          0.2382694370243232    0.7879903487138527
+    domain2          0.1548131161373049    0.8565752426163816
+    domain3          0.3059231418723579    0.7364432189279291
+    domain4          0.2569706571684701    0.7733909069115952
+    domain5          0.3213979957403151    0.7251345930724427
+    domain6          0.3539561460242777    0.7019057480380952
+    domain7          0.3042300471351564    0.7376911431950430
+
+[2] UPDATED expert_ell_mean PER DOMAIN (v15 credentialed panels). Feeds
+    SIGMA_INF = exp(-expert_ell_mean) (skill ceiling / asymptote / LT1 target).
+    Panels DID move under curation - v14 ceilings shown for the gap delta.
+    domain      expert_ell_mean v15       (v14)   SIGMA_INF v15
+    domain1      0.4060763219209274      0.4100        0.666259
+    domain2      0.7278027665746989      0.6290        0.482969
+    domain3      0.6625054948528666      0.7647        0.515558
+    domain4      0.6071706664286960      0.6431        0.544890
+    domain5      0.6729695624602204      0.6810        0.510191
+    domain6      0.7397093010794814      0.7403        0.477253
+    domain7      0.6392080369456032      0.7138        0.527710
+
+[3] UPDATED non_expert_ell_mean PER DOMAIN (v15). Centers the fresh-learner
+    initial-skill prior. Drift from v14 is negligible (<=0.001) on all domains.
+    domain      non_expert_ell_mean v15       (v14)
+    domain1         -0.0610953623377177     -0.0613
+    domain2         -0.0925799387497619     -0.0914
+    domain3         -0.1652586939316961     -0.1669
+    domain4         -0.1501362804591685     -0.1504
+    domain5         -0.0145344338702560     -0.0138
+    domain6          0.0238772226501553      0.0243
+    domain7         -0.0524395036338853     -0.0530
+
+##############################################################################
+# TIER 2 - to simulate the full v15 instrument
+##############################################################################
+
+[4] corr_t MATRIX (7x7 cross-domain bias correlation) + where it enters.
+    Source of truth: Sigma_l_fitted_k7.npy  (load key 'Corr_t'); unit diagonal.
+    Entry point: the hierarchical prior's t (bias) block. In the live engine,
+    selecting corr_t sets Sigma_t = Corr_t, then the particle state is drawn
+    from N(0, blockdiag(Sigma_l=Corr_l, Sigma_t=Corr_t)). Shipped default reuses
+    Corr_l for BOTH blocks; v15 swaps the t-block to Corr_t. corr_l is UNCHANGED
+    (same file, fit 2026-05-29; curation did not touch it).
+    Corr_t (rows/cols = domain1..domain7):
+      [+1.00000000 -0.05736828 -0.01252827 +0.01138251 -0.00787194 -0.02279661 -0.02086324]
+      [-0.05736828 +1.00000000 +0.01445491 +0.01538361 +0.01796636 +0.12116465 -0.03540013]
+      [-0.01252827 +0.01445491 +1.00000000 +0.41125289 +0.29989007 +0.33891438 +0.24557150]
+      [+0.01138251 +0.01538361 +0.41125289 +1.00000000 +0.37370190 +0.46328264 +0.29990478]
+      [-0.00787194 +0.01796636 +0.29989007 +0.37370190 +1.00000000 +0.40207081 +0.17075732]
+      [-0.02279661 +0.12116465 +0.33891438 +0.46328264 +0.40207081 +1.00000000 +0.22519234]
+      [-0.02086324 -0.03540013 +0.24557150 +0.29990478 +0.17075732 +0.22519234 +1.00000000]
+    Corr_l (UNCHANGED; rows/cols = domain1..domain7):
+      [+1.00000000 +0.01595557 +0.06337996 +0.01095206 +0.00958832 +0.02106876 +0.01164551]
+      [+0.01595557 +1.00000000 +0.26895406 +0.23535424 +0.17039946 +0.08243750 +0.24531965]
+      [+0.06337996 +0.26895406 +1.00000000 +0.29053052 +0.26574753 +0.14937140 +0.19798891]
+      [+0.01095206 +0.23535424 +0.29053052 +1.00000000 +0.17376039 +0.16713498 +0.16439387]
+      [+0.00958832 +0.17039946 +0.26574753 +0.17376039 +1.00000000 +0.15563432 +0.11250200]
+      [+0.02106876 +0.08243750 +0.14937140 +0.16713498 +0.15563432 +1.00000000 +0.02467224]
+      [+0.01164551 +0.24531965 +0.19798891 +0.16439387 +0.11250200 +0.02467224 +1.00000000]
+
+[5] N=1200 CONFIGURATION.
+    N=1200 is the PARTICLE COUNT (n_particles), NOT a question budget.
+    Live/frozen = 600; staged = 1200. Question budget and per-domain allocation
+    are simulation knobs, NOT instrument params (no stopping-rule change).
+    Stopping rule UNCHANGED: n_min=20, R_star=0.30, alpha=0.05, Z=2.0; ESS frac=0.5.
+    Regime to simulate: BOTH - frozen (n_particles=600) vs staged (n_particles=1200)
+    for the comparison; the staged 1200 restores nominal interval coverage.
+
+[6] Sigma_l (initial-skill prior variance) - UNCHANGED.
+    Source: Sigma_l_fitted_k7.npy (key 'Sigma_l'); fit 2026-05-29 on the pool;
+    curation did NOT refit it. No '_general' variant exists; this file is canonical.
+    Corr_l is unit-diagonal (the R-gate denominator assumption holds).
+    Sigma_l diagonal (domain1..domain7): [0.4983, 0.8384, 1.4262, 1.696, 1.8106, 2.1119, 1.6322]
+
+##############################################################################
+# TIER 3 - provenance, reproduction, test re-pinning
+##############################################################################
+
+[7] PER-DOMAIN VALIDATION METADATA (v15; completes the block to v14 parity).
+    domain       youden_J      ci_low     ci_high  n_expert  n_non_expert
+    domain1      0.692882    0.237403    0.347917         8          2009
+    domain2      0.668951    0.153006    0.366916        15          1897
+    domain3      0.832613    0.297731    0.531038        12          1852
+    domain4      0.803965    0.252504    0.473810        14          1816
+    domain5      0.782845    0.313018    0.508228        15          1842
+    domain6      0.760594    0.340650    0.524572        15          1817
+    domain7      0.779891    0.294880    0.487580        14          1840
+
+[8] SOURCE ARTIFACT + PROVENANCE + PANEL METHODOLOGY.
+    generated_utc       : 2026-06-11T20:20:06+00:00
+    raters_csv_sha256   : bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f
+    sdt_fits_sha256     : c0a261b2d184c40d3605ec3c041e2d744aaba9bc8bb27dc85b0a9a2604263a54
+    cross_matrix_sha256 : 7a91f86fe5865c40f29b51bda1617465ae607376c63fff92e2922030c47b68c4
+    panel_size_N        : credentialed-group membership (not fixed-N): n_expert per domain in [8,15]
+    bootstrap_n         : 2000
+    seed                : 42
+    sigma_floor         : 0.025
+    candidate_pool      : credentialed groups (group_a, group_b)
+    domain3 robust-trim : drop credentialed experts with domain3 ell <= 0.19
+                          (raises ell* from the unstable raw value to the staged value)
+    pi_confirmed        : 2026-06-10
+
+[9] REALISTIC-BIAS LEARNER SPEC ('correct-sign theta'). Source: sandbox_bias_prior/eb_prior.json
+    True examinee bias is drawn theta ~ N(mu_t, Sigma_t): PER-DOMAIN, CORRELATED
+    (multivariate), NOT a shared scalar. mu_t (domain1..domain7):
+      domain1  +0.484037
+      domain2  -1.135989
+      domain3  -1.727597
+      domain4  -1.811864
+      domain5  -1.759290
+      domain6  -1.772303
+      domain7  -1.566460
+    Sigma_t (the bias covariance) is in the same file (key 'Sigma_t'), with
+    per-entry sd in 'Sigma_t_sd'. Note: mu_t is clipped at +2 for domain2..domain7
+    (censored). The zero-bias arm uses theta = 0 for all domains.
+    Sigma_t (rows/cols = domain1..domain7):
+      [+0.500419 -0.030181 -0.003752 +0.002865 -0.002241 -0.006802 -0.008172]
+      [-0.030181 +0.553077 +0.004551 +0.004070 +0.005378 +0.038006 -0.014576]
+      [-0.003752 +0.004551 +0.179242 +0.061944 +0.051101 +0.060519 +0.057564]
+      [+0.002865 +0.004070 +0.061944 +0.126574 +0.053511 +0.069519 +0.059076]
+      [-0.002241 +0.005378 +0.051101 +0.053511 +0.161992 +0.068255 +0.038052]
+      [-0.006802 +0.038006 +0.060519 +0.069519 +0.068255 +0.177897 +0.052589]
+      [-0.008172 -0.014576 +0.057564 +0.059076 +0.038052 +0.052589 +0.306554]
+
+[10] BANK / LABELS CURATION STATUS - UNCHANGED (confirmation).
+    The per-segment signal table (columns s_mean_domain1..s_mean_domain7 and
+    s_sd_domain1..s_sd_domain7) was NOT re-derived: 89,138 segments, fit
+    2026-05-29 (predates the 2026-06-10 panel recompute). The vote/label source
+    is older still. The production bank (35,193 segments) likewise predates
+    curation. The ~89k bank STANDS - no updated CSVs are needed.
+
+[11] BIAS TOLERANCES t* / PER-DOMAIN MASTERY TARGETS - DO NOT EXIST.
+    The recompute produced NO t* and NO mastery targets. The production decision
+    rule stops on an interval-width criterion, not a binary tolerance. There is
+    no per-domain t* table anywhere; the trainer's DEFAULT_T_STAR = 0.30 has no
+    instrument counterpart. OQ6 remains OPEN.
+
+==============================================================================
+CAVEAT (applies to every resolution claim): all operating-characteristic
+evidence is on UNBIASED examinees (theta = 0). If real examinees are biased
+(item 9 mu_t), resolution can drop sharply; the cohort's per-examinee theta is
+the gating check before trusting any v15 resolution number.
+==============================================================================

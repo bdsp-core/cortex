@@ -1,0 +1,1127 @@
+extset_user_id,did_domain2-7_contest,did_domain1_contest,n_reads_domain2-7,n_reads_domain1,surveyed_domain2-7,surveyed_domain1,role,specialization,experience,derived_tier
+2,True,False,7,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+26,True,True,18,3,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+1196,True,True,16,21,False,True,Other,Not specialized in signal/domain1-7 detection,More than 5 years,novice
+7884,False,True,0,18,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+31969,True,True,43,32,False,False,,,,unknown
+43096,True,True,188,112,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+43379,True,False,5,0,False,False,,,,unknown
+44047,True,True,11,1,False,False,,,,unknown
+44264,False,True,0,2,False,False,,,,unknown
+44529,True,True,3,16,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,0-1 years,borderline
+46967,False,False,0,0,False,True,Other,Specialized in adult signal/domain1-7 detection,None,expert
+54950,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+60070,True,True,25,27,False,False,,,,unknown
+63379,True,True,1,3,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+65588,True,False,93,0,False,False,,,,unknown
+65621,True,True,1,2,False,False,,,,unknown
+69061,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+74372,True,False,9,0,False,False,,,,unknown
+75969,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+112839,True,True,103,5,False,True,Fellow,Not specialized in signal/domain1-7 detection,None,expert
+119623,False,True,0,5,False,False,,,,unknown
+121476,False,True,0,13,False,False,,,,unknown
+123180,True,True,1248,729,False,False,,,,unknown
+123559,True,True,4682,4143,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+123848,False,False,0,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+127225,True,False,69,0,False,False,,,,unknown
+131059,False,True,0,471,False,False,,,,unknown
+132535,True,True,33,36,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+133101,True,True,13,40,False,False,,,,unknown
+139516,False,True,0,5,False,False,,,,unknown
+147231,False,True,0,11,False,False,,,,unknown
+147908,True,False,33,0,False,False,,,,unknown
+154419,True,True,468,40,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+158850,True,False,8,0,False,False,,,,unknown
+159195,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+171119,False,True,0,4,False,False,,,,unknown
+177062,True,False,6,0,False,False,,,,unknown
+180994,True,True,45,21,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+181335,True,True,23,60,False,False,,,,unknown
+185441,True,False,1,0,False,False,,,,unknown
+187180,True,True,2580,4261,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+189963,False,True,0,10,False,False,,,,unknown
+191971,True,True,561,772,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,0-1 years,borderline
+195961,True,True,20,14,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+202841,True,True,242,1,False,False,,,,unknown
+209011,True,False,2,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+216590,False,True,0,5,False,False,,,,unknown
+218955,False,True,0,10,False,False,,,,unknown
+225288,False,True,0,97,False,False,,,,unknown
+226864,True,False,75,0,False,False,,,,unknown
+235741,True,True,132,277,False,False,,,,unknown
+242033,True,False,1,0,False,False,,,,unknown
+242375,True,False,2,0,False,False,,,,unknown
+256615,True,False,9,0,False,False,,,,unknown
+258421,False,True,0,9,False,False,,,,unknown
+260963,False,True,0,1,False,False,,,,unknown
+262204,True,True,46,41,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+264963,True,False,3,0,False,False,,,,unknown
+268686,True,True,200,420,False,False,,,,unknown
+268689,True,True,381,690,False,False,,,,unknown
+270392,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+270967,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+273445,True,False,116,0,False,False,,,,unknown
+274523,False,True,0,18,False,False,,,,unknown
+277850,True,False,206,0,False,False,,,,unknown
+280197,True,True,109,115,False,False,,,,unknown
+282558,True,True,4904,4483,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,1-5 years,borderline
+291950,True,False,1,0,False,False,,,,unknown
+292356,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+292444,True,True,266,157,False,False,,,,unknown
+292933,True,False,1,0,False,False,,,,unknown
+293817,False,True,0,13,False,False,,,,unknown
+295478,True,True,125,116,False,False,,,,unknown
+295616,True,False,7,0,False,False,,,,unknown
+295624,True,False,213,0,False,False,,,,unknown
+296241,True,True,1065,615,False,False,,,,unknown
+299374,True,True,2945,2573,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+299866,True,False,7,0,False,False,,,,unknown
+305108,True,False,33,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+314189,False,True,0,3,True,False,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+315556,True,False,6,0,False,False,,,,unknown
+316516,True,True,72,72,False,True,Other,Specialized in adult signal/domain1-7 detection,More than 5 years,expert
+316710,True,True,2,2,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+317891,False,True,0,3,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+318624,True,True,21,32,False,False,,,,unknown
+318693,False,True,0,2,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+319661,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+322125,True,True,1,18,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+323079,True,True,158,10,False,False,,,,unknown
+326041,True,False,1,0,False,False,,,,unknown
+327093,False,True,0,148,False,False,,,,unknown
+329173,True,True,1,1,False,True,Practicing specialist (non-domain1-7 detection specialist),Specialized in adult signal/domain1-7 detection,0-1 years,expert
+331025,True,False,5,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+332125,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+335323,True,False,109,0,False,False,,,,unknown
+339408,True,True,32,58,False,False,,,,unknown
+339686,True,True,55,43,False,False,,,,unknown
+340774,True,False,10,0,False,False,,,,unknown
+340866,True,True,2,416,False,False,,,,unknown
+340986,False,True,0,3,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+341549,True,False,4,0,False,False,,,,unknown
+343797,True,True,183,79,False,False,,,,unknown
+345499,True,True,5,11,False,False,,,,unknown
+348570,False,True,0,2,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+349681,False,True,0,5,False,False,,,,unknown
+351833,True,False,2,0,False,False,,,,unknown
+351834,True,False,1,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+353214,False,True,0,7,False,False,,,,unknown
+354828,True,False,3,0,False,False,,,,unknown
+357322,True,True,180,385,False,False,,,,unknown
+357603,False,True,0,2,False,False,,,,unknown
+358060,True,True,4378,383,True,False,Resident,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+358907,True,True,6,1,False,False,,,,unknown
+360041,False,True,0,16,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+360169,True,False,1,0,False,False,,,,unknown
+363431,True,True,26,3733,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+363653,True,True,409,1924,False,False,,,,unknown
+363949,True,False,661,0,False,False,,,,unknown
+364382,True,True,41,35,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+364462,True,True,3,28,False,False,,,,unknown
+364505,True,True,114,1345,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+367171,True,True,31,88,False,False,,,,unknown
+368458,True,True,8,6,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+370506,False,True,0,13,False,False,,,,unknown
+370584,True,True,2,46,False,False,,,,unknown
+371504,True,False,30,0,False,False,,,,unknown
+371535,True,False,23,0,False,False,,,,unknown
+371899,True,False,63,0,False,False,,,,unknown
+372514,True,True,32,12,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+376803,True,True,3,2541,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+377009,False,True,0,2,False,False,,,,unknown
+377131,False,False,0,0,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+380157,True,False,43,0,False,False,,,,unknown
+381562,True,True,420,1022,False,False,,,,unknown
+382225,True,True,178,2993,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+383439,True,False,159,0,False,False,,,,unknown
+383578,True,True,73,22,False,False,,,,unknown
+385640,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+385861,True,True,52,699,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+387958,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+388028,True,True,1077,35,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+389034,False,True,0,18,False,False,,,,unknown
+389530,True,False,10,0,False,False,,,,unknown
+389808,True,True,92,165,False,False,,,,unknown
+393316,True,False,7,0,False,False,,,,unknown
+393526,True,True,198,2402,False,False,,,,unknown
+394063,True,False,5,0,False,False,,,,unknown
+395043,True,True,1,3,False,False,,,,unknown
+395045,True,False,331,0,False,False,,,,unknown
+396322,False,True,0,5,False,False,,,,unknown
+397272,True,False,1,0,False,False,,,,unknown
+398119,True,False,53,0,False,False,,,,unknown
+401542,True,True,14,38,False,False,,,,unknown
+401878,True,True,23,1762,False,False,,,,unknown
+403209,True,True,5,5,False,False,,,,unknown
+404030,True,False,5,0,False,False,,,,unknown
+404880,False,True,0,9,False,False,,,,unknown
+404941,True,False,9,0,False,False,,,,unknown
+404989,True,False,12,0,False,False,,,,unknown
+405558,True,False,5,0,False,False,,,,unknown
+405999,False,True,0,5,False,False,,,,unknown
+406067,False,False,0,0,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+406335,True,True,124,23,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+406396,True,True,78,3483,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+406687,True,False,29,0,False,False,,,,unknown
+407905,True,True,98,126,False,False,,,,unknown
+409029,True,False,3,0,False,False,,,,unknown
+410229,True,True,9,112,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+410378,True,True,11,21,False,False,,,,unknown
+410463,True,True,10,6,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+410586,True,False,10,0,False,False,,,,unknown
+410589,True,False,12,0,False,False,,,,unknown
+410661,True,True,132,924,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+410669,False,True,0,8,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+410938,True,False,6,0,False,False,,,,unknown
+411214,True,False,15,0,False,False,,,,unknown
+411261,True,True,39,203,False,False,,,,unknown
+411486,True,False,2,0,False,False,,,,unknown
+412853,True,False,28,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+413098,True,True,14,13,False,False,,,,unknown
+415361,True,False,4,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+415711,True,True,9,35,False,False,,,,unknown
+415824,False,True,0,50,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+417255,True,False,28,0,False,False,,,,unknown
+417588,True,True,23,15,False,False,,,,unknown
+418027,True,False,2,0,False,False,,,,unknown
+418820,False,True,0,12,False,False,,,,unknown
+420976,True,True,1,1,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+421122,True,True,4963,3496,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+423724,True,False,1,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+426774,True,False,23,0,False,False,,,,unknown
+426874,True,False,10,0,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+427026,True,True,22,48,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+427272,True,True,174,185,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+427522,True,True,4907,3745,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+427523,True,True,4971,4709,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+427824,True,False,5,0,False,False,,,,unknown
+428036,True,False,3,0,False,False,,,,unknown
+430213,False,True,0,8,False,False,,,,unknown
+431242,False,True,0,10,False,False,,,,unknown
+432596,True,False,3,0,False,False,,,,unknown
+433291,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+433815,False,True,0,561,False,False,,,,unknown
+436034,True,False,68,0,False,False,,,,unknown
+436223,True,True,189,18,False,True,Student,Specialized in pediatric signal/domain1-7 detection,None,expert
+436777,False,True,0,1,False,False,,,,unknown
+437411,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+437599,True,True,15,4994,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+438239,False,True,0,2,False,False,,,,unknown
+441554,True,False,126,0,False,False,,,,unknown
+442392,False,True,0,5,False,False,,,,unknown
+442462,False,True,0,23,False,False,,,,unknown
+445500,True,True,171,30,False,False,,,,unknown
+445713,True,False,36,0,False,False,,,,unknown
+445849,False,True,0,1,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+445892,True,True,26,12,True,False,Practicing specialist (non-domain1-7 detection specialist),Specialized in adult signal/domain1-7 detection,0-1 years,expert
+446003,True,False,2,0,False,False,,,,unknown
+446198,True,False,8,0,False,False,,,,unknown
+447302,True,False,62,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+447541,True,False,24,0,False,False,,,,unknown
+449146,False,True,0,1,False,False,,,,unknown
+449789,False,True,0,2,False,False,,,,unknown
+450160,True,False,1,0,False,False,,,,unknown
+452176,True,False,2,0,False,False,,,,unknown
+452632,True,False,118,0,False,False,,,,unknown
+453167,True,True,106,1142,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+454972,True,False,5,0,False,False,,,,unknown
+455430,True,True,4,9,False,False,,,,unknown
+456497,True,True,102,6,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+457754,False,True,0,89,False,False,,,,unknown
+457757,True,False,39,0,False,False,,,,unknown
+459512,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+461482,False,True,0,8,False,False,,,,unknown
+461485,False,False,0,0,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+462070,True,True,5,6,False,False,,,,unknown
+462610,True,False,55,0,False,False,,,,unknown
+463110,True,True,379,28,False,False,,,,unknown
+463786,True,False,31,0,False,False,,,,unknown
+464310,True,False,35,0,False,False,,,,unknown
+467218,True,False,1,0,False,False,,,,unknown
+467287,False,True,0,5,False,False,,,,unknown
+467362,True,True,2675,3017,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,1-5 years,borderline
+468188,True,True,16,10,False,False,,,,unknown
+468317,True,False,10,0,False,False,,,,unknown
+469638,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+469845,True,False,11,0,False,False,,,,unknown
+471634,True,False,3,0,False,False,,,,unknown
+472978,True,False,4,0,False,False,,,,unknown
+474366,True,True,628,303,False,True,Student,Specialized in pediatric signal/domain1-7 detection,0-1 years,expert
+474871,True,True,6,8,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+475646,True,True,29,107,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+477552,False,True,0,87,False,False,,,,unknown
+479788,True,True,276,2041,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,0-1 years,borderline
+481254,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+483852,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+484770,True,False,15,0,False,False,,,,unknown
+484801,False,True,0,6,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+487681,True,True,368,6,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+488940,True,True,71,562,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+489184,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+489707,True,True,4949,4931,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+490047,True,True,5,17,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+490406,True,False,1,0,False,False,,,,unknown
+491072,True,False,44,0,False,False,,,,unknown
+492451,True,True,55,96,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+492981,True,True,164,783,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+493926,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+497517,True,False,39,0,False,False,,,,unknown
+498173,False,True,0,9,False,False,,,,unknown
+499508,False,True,0,71,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+499546,True,True,14,1,False,False,,,,unknown
+499684,False,True,0,1,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+501111,True,True,188,1222,False,False,,,,unknown
+502081,True,False,10,0,False,False,,,,unknown
+504058,False,True,0,3,False,False,,,,unknown
+504297,True,False,142,0,False,False,,,,unknown
+504414,True,False,8,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+504641,True,False,11,0,False,False,,,,unknown
+504728,True,True,100,9,False,False,,,,unknown
+504969,True,False,5,0,True,False,Other,Specialized in pediatric signal/domain1-7 detection,1-5 years,expert
+505727,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+505854,True,False,16,0,False,False,,,,unknown
+506307,False,True,0,1,False,False,,,,unknown
+506312,False,True,0,5,False,False,,,,unknown
+507300,False,True,0,36,False,False,,,,unknown
+507517,False,True,0,4,False,False,,,,unknown
+507674,True,False,35,0,False,False,,,,unknown
+507875,True,False,99,0,False,False,,,,unknown
+507897,True,True,26,41,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+508039,True,False,13,0,False,False,,,,unknown
+508744,True,False,5,0,False,False,,,,unknown
+508745,True,True,7,1,False,False,,,,unknown
+508956,True,True,290,10,False,False,,,,unknown
+508965,True,True,20,345,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+509395,True,True,325,2894,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+511270,True,False,6,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+511354,False,True,0,2,False,False,,,,unknown
+512368,False,True,0,1,False,False,,,,unknown
+512889,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+513496,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,1-5 years,novice
+514658,False,True,0,14,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+514731,True,False,4,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+514758,False,True,0,9,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+516714,True,True,2,6,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,0-1 years,borderline
+517730,True,True,85,41,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+517927,True,True,240,86,False,False,,,,unknown
+518455,False,True,0,27,False,False,,,,unknown
+518592,True,True,264,2782,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+519234,True,False,1,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+519297,False,True,0,16,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+519844,True,False,60,0,False,False,,,,unknown
+520589,True,False,5,0,False,False,,,,unknown
+521473,True,False,4,0,False,False,,,,unknown
+521719,True,True,1024,307,False,False,,,,unknown
+523763,False,True,0,178,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+523812,True,False,2,0,False,False,,,,unknown
+524048,True,False,28,0,False,False,,,,unknown
+524893,True,False,5,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+524966,True,True,18,8,False,False,,,,unknown
+525212,False,True,0,16,False,False,,,,unknown
+525327,False,True,0,4,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+526153,True,False,123,0,False,False,,,,unknown
+526838,True,False,1,0,False,False,,,,unknown
+527832,True,False,26,0,False,False,,,,unknown
+528018,True,True,167,332,False,False,,,,unknown
+528824,True,True,604,133,False,False,,,,unknown
+528880,True,True,20,13,False,False,,,,unknown
+530936,False,True,0,151,False,False,,,,unknown
+531182,True,True,37,15,False,False,,,,unknown
+531782,True,False,1,0,False,False,,,,unknown
+532077,True,False,6,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+532292,True,False,7,0,False,False,,,,unknown
+533257,True,True,96,25,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+533266,False,True,0,45,False,False,,,,unknown
+533775,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+534165,False,False,0,0,False,True,Practicing specialist (non-signal detection),Not specialized in signal/domain1-7 detection,0-1 years,novice
+534403,True,False,10,0,False,False,,,,unknown
+534674,True,False,16,0,False,False,,,,unknown
+537189,False,True,0,83,False,False,,,,unknown
+537307,True,False,7,0,False,False,,,,unknown
+538604,False,True,0,13,False,False,,,,unknown
+542409,True,False,34,0,False,False,,,,unknown
+543186,True,False,35,0,False,False,,,,unknown
+543288,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+544224,True,True,1001,424,False,False,,,,unknown
+545514,True,False,21,0,False,False,,,,unknown
+545704,True,False,148,0,False,False,,,,unknown
+545920,True,True,1518,18,False,False,,,,unknown
+547555,True,True,59,18,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+548261,True,False,523,0,False,False,,,,unknown
+549597,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+550438,False,False,0,0,True,False,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+551978,False,True,0,2,False,False,,,,unknown
+552120,True,True,21,8,False,False,,,,unknown
+552947,False,True,0,43,False,True,Resident,Not specialized in signal/domain1-7 detection,1-5 years,borderline
+553255,True,False,4,0,False,False,,,,unknown
+553437,True,True,44,7,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+554066,True,True,379,1806,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+555991,True,False,4,0,False,False,,,,unknown
+556359,True,False,219,0,False,False,,,,unknown
+557450,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+557685,False,True,0,15,False,False,,,,unknown
+558034,False,True,0,3,False,True,Resident,Specialized in adult signal/domain1-7 detection,None,expert
+559265,False,True,0,9,False,False,,,,unknown
+559443,True,False,20,0,False,False,,,,unknown
+560584,True,False,5,0,False,False,,,,unknown
+560658,True,False,39,0,False,False,,,,unknown
+561246,True,False,4,0,False,False,,,,unknown
+561788,True,True,6,105,False,False,,,,unknown
+562422,True,True,3,105,False,False,,,,unknown
+562747,True,True,38,2,False,False,,,,unknown
+562756,True,True,219,1,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+563331,True,False,3,0,False,False,,,,unknown
+564279,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+564286,True,False,8,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+565246,True,True,2096,4976,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+565263,True,True,17,195,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+566163,True,True,1,28,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+566283,True,False,15,0,False,False,,,,unknown
+566370,True,True,2034,986,False,False,,,,unknown
+566739,True,False,16,0,False,False,,,,unknown
+567616,True,True,765,4,False,False,,,,unknown
+568295,False,True,0,522,False,False,,,,unknown
+569432,True,True,1,38,False,False,,,,unknown
+569668,True,True,2801,2932,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+570326,True,True,84,354,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+570381,True,True,125,8,False,False,,,,unknown
+571118,False,True,0,1,False,False,,,,unknown
+572023,True,True,9,24,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+572112,False,True,0,5,False,False,,,,unknown
+572722,False,True,0,1273,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+572980,True,True,1741,3574,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+573531,False,True,0,41,False,False,,,,unknown
+573642,True,False,9,0,False,False,,,,unknown
+574073,True,False,22,0,False,False,,,,unknown
+574935,False,False,0,0,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+574948,False,True,0,10,False,False,,,,unknown
+575292,True,False,102,0,False,False,,,,unknown
+575298,False,False,0,0,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+576334,False,True,0,10,False,False,,,,unknown
+576663,True,False,23,0,False,False,,,,unknown
+578000,False,True,0,67,False,False,,,,unknown
+578243,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+578497,True,False,8,0,False,False,,,,unknown
+578766,False,True,0,33,False,False,,,,unknown
+578973,True,True,4676,4954,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+579427,True,True,39,95,False,True,Resident,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+579547,True,True,4,5,False,False,,,,unknown
+579702,True,True,94,7,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+580597,False,True,0,1,False,False,,,,unknown
+580746,True,True,11,76,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+580853,True,False,2,0,False,False,,,,unknown
+580964,True,False,39,0,False,False,,,,unknown
+581407,True,False,49,0,False,False,,,,unknown
+582334,True,True,3734,3227,False,True,Sub-student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+582929,False,False,0,0,False,True,Sub-student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+583032,False,True,0,1,False,False,,,,unknown
+583107,True,False,1,0,False,False,,,,unknown
+584042,True,False,14,0,False,False,,,,unknown
+584383,False,True,0,34,False,False,,,,unknown
+584675,False,False,0,0,True,False,Practicing specialist (non-domain1-7 detection specialist),Specialized in adult signal/domain1-7 detection,More than 5 years,expert
+585413,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+585806,True,False,478,0,False,False,,,,unknown
+586308,True,False,30,0,False,False,,,,unknown
+586396,True,False,2,0,False,False,,,,unknown
+587421,False,True,0,36,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+587724,True,False,6,0,True,False,Student,Specialized in adult signal/domain1-7 detection,More than 5 years,expert
+588266,False,True,0,2,False,False,,,,unknown
+588731,True,True,4,2,False,False,,,,unknown
+589324,True,False,5,0,False,False,,,,unknown
+590196,False,True,0,25,False,False,,,,unknown
+591096,True,False,10,0,False,False,,,,unknown
+592156,True,True,2309,3827,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+592347,True,False,5,0,False,False,,,,unknown
+592683,False,True,0,104,False,False,,,,unknown
+593236,True,True,27,44,False,False,,,,unknown
+594185,True,False,164,0,False,False,,,,unknown
+594187,False,True,0,39,False,False,,,,unknown
+594391,True,True,6,132,False,False,,,,unknown
+594506,False,True,0,61,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+594521,True,True,260,45,False,False,,,,unknown
+594753,False,True,0,37,False,True,Other,Not specialized in signal/domain1-7 detection,More than 5 years,novice
+594820,True,True,24,40,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+595631,False,True,0,1,False,False,,,,unknown
+596773,True,False,59,0,False,False,,,,unknown
+596797,True,False,1,0,False,False,,,,unknown
+596802,True,True,1661,1893,False,True,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,1-5 years,borderline
+597376,False,True,0,8,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+597886,False,True,0,5,False,False,,,,unknown
+598814,True,False,20,0,False,False,,,,unknown
+598848,True,False,56,0,False,False,,,,unknown
+598885,True,False,7,0,False,False,,,,unknown
+599287,True,False,23,0,False,False,,,,unknown
+599719,True,False,56,0,False,False,,,,unknown
+599814,True,True,3,12,False,False,,,,unknown
+599903,False,True,0,35,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+599968,True,False,104,0,False,False,,,,unknown
+600024,True,False,111,0,False,False,,,,unknown
+600039,True,False,305,0,False,False,,,,unknown
+600056,True,False,2,0,True,False,Student,Specialized in adult signal/domain1-7 detection,None,expert
+600128,True,False,22,0,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+600264,True,True,313,3,False,False,,,,unknown
+600349,True,True,31,625,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+601052,False,True,0,73,False,False,,,,unknown
+601368,True,False,3,0,False,False,,,,unknown
+601639,True,True,112,26,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+601918,True,True,4991,5000,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+602141,True,True,2,189,False,False,,,,unknown
+602353,True,True,4,4,False,False,,,,unknown
+602392,False,True,0,4,False,False,,,,unknown
+602464,True,False,1,0,False,False,,,,unknown
+602486,False,True,0,84,False,False,,,,unknown
+602508,True,False,58,0,False,False,,,,unknown
+602632,True,False,6,0,False,False,,,,unknown
+602768,False,True,0,1,False,False,,,,unknown
+602829,True,True,1,7,False,False,,,,unknown
+602929,True,True,111,1516,False,False,,,,unknown
+602990,True,True,1092,2601,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+603032,False,True,0,4,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+603142,True,True,48,4,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+603472,True,True,22,32,False,False,,,,unknown
+603490,True,True,158,62,False,False,,,,unknown
+603601,False,True,0,63,False,False,,,,unknown
+603674,False,True,0,32,False,False,,,,unknown
+603693,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+603746,True,False,24,0,False,False,,,,unknown
+603748,False,True,0,184,False,False,,,,unknown
+603919,True,True,53,3652,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+604031,True,True,9,420,False,False,,,,unknown
+604272,True,True,58,941,False,False,,,,unknown
+604478,False,True,0,4,False,False,,,,unknown
+604555,True,True,954,2305,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+604775,False,True,0,1,False,False,,,,unknown
+604804,True,False,5,0,False,False,,,,unknown
+604914,False,True,0,1,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+605156,False,True,0,43,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+605215,True,False,10,0,False,False,,,,unknown
+605248,False,True,0,10,False,False,,,,unknown
+605319,False,True,0,34,False,False,,,,unknown
+605360,True,True,18,288,False,False,,,,unknown
+605511,True,True,25,5,False,False,,,,unknown
+605581,True,True,15,7,False,False,,,,unknown
+605631,True,True,9,564,False,False,,,,unknown
+605695,True,False,1,0,False,False,,,,unknown
+605778,True,True,3,17,False,False,,,,unknown
+605792,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+605833,True,True,477,552,False,False,,,,unknown
+605875,True,True,183,1913,False,False,,,,unknown
+606008,True,True,23,19,False,False,,,,unknown
+606098,True,False,28,0,False,False,,,,unknown
+606111,True,True,1636,38,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+606202,True,False,54,0,False,False,,,,unknown
+606228,True,True,139,347,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+606305,False,True,0,4,False,False,,,,unknown
+606309,True,True,63,158,False,False,,,,unknown
+606334,False,True,0,1,False,False,,,,unknown
+606354,False,True,0,4,False,False,,,,unknown
+606561,False,True,0,2,False,False,,,,unknown
+606570,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+606597,True,False,21,0,False,False,,,,unknown
+606604,True,False,13,0,False,False,,,,unknown
+606732,True,True,3,75,False,False,,,,unknown
+606748,True,True,473,757,False,False,,,,unknown
+607084,True,True,1,7,False,False,,,,unknown
+607157,False,True,0,131,False,False,,,,unknown
+607212,False,True,0,59,False,False,,,,unknown
+607266,False,True,0,1030,False,False,,,,unknown
+607322,True,False,25,0,False,False,,,,unknown
+607384,True,False,2,0,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+607407,False,True,0,4,False,False,,,,unknown
+607412,True,False,3,0,False,False,,,,unknown
+607456,False,True,0,8,False,False,,,,unknown
+607510,True,False,98,0,False,False,,,,unknown
+607514,False,True,0,61,False,False,,,,unknown
+607521,True,False,49,0,False,False,,,,unknown
+607547,False,True,0,10,False,False,,,,unknown
+607569,True,False,20,0,False,False,,,,unknown
+607580,True,True,63,110,False,False,,,,unknown
+607645,True,False,35,0,False,False,,,,unknown
+607665,True,False,91,0,False,False,,,,unknown
+607669,True,True,1144,844,False,False,,,,unknown
+607688,True,False,7,0,False,False,,,,unknown
+607707,True,True,3,165,False,False,,,,unknown
+607715,False,True,0,31,False,False,,,,unknown
+607718,True,False,13,0,False,False,,,,unknown
+607736,True,False,3,0,False,False,,,,unknown
+607746,False,True,0,1,False,False,,,,unknown
+607756,True,False,7,0,False,False,,,,unknown
+607775,True,False,41,0,False,False,,,,unknown
+607784,False,True,0,9,False,False,,,,unknown
+607791,True,False,10,0,False,False,,,,unknown
+607795,True,False,43,0,False,False,,,,unknown
+607801,True,False,89,0,False,False,,,,unknown
+607802,True,False,44,0,False,False,,,,unknown
+607813,False,True,0,15,False,False,,,,unknown
+607814,True,False,58,0,False,False,,,,unknown
+607823,True,False,23,0,False,False,,,,unknown
+607826,True,True,136,16,False,False,,,,unknown
+607827,True,False,1,0,False,False,,,,unknown
+607840,True,True,174,25,False,False,,,,unknown
+607856,True,False,31,0,False,False,,,,unknown
+607860,False,True,0,23,False,False,,,,unknown
+607869,True,True,18,12,False,False,,,,unknown
+607887,False,True,0,16,False,False,,,,unknown
+607892,False,True,0,5,False,False,,,,unknown
+607907,True,True,20,42,False,False,,,,unknown
+607916,True,True,4,43,False,False,,,,unknown
+607926,False,True,0,11,False,False,,,,unknown
+607929,False,True,0,59,False,False,,,,unknown
+607934,False,True,0,242,False,False,,,,unknown
+607936,False,True,0,22,False,False,,,,unknown
+607941,False,True,0,11,False,False,,,,unknown
+607942,False,True,0,45,False,False,,,,unknown
+607952,True,False,16,0,False,False,,,,unknown
+607963,True,False,5,0,False,False,,,,unknown
+607981,True,False,2,0,False,False,,,,unknown
+607994,True,True,31,44,False,False,,,,unknown
+607998,True,False,10,0,False,False,,,,unknown
+608004,True,True,130,1,False,False,,,,unknown
+608014,True,True,52,506,False,False,,,,unknown
+608018,False,True,0,44,False,False,,,,unknown
+608025,True,False,4,0,False,False,,,,unknown
+608031,True,False,112,0,False,False,,,,unknown
+608033,False,True,0,148,False,False,,,,unknown
+608057,False,True,0,130,False,False,,,,unknown
+608060,True,False,13,0,False,False,,,,unknown
+608074,True,False,5,0,False,False,,,,unknown
+608076,False,True,0,10,False,False,,,,unknown
+608097,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+608108,True,True,3,12,False,False,,,,unknown
+608116,True,False,42,0,False,False,,,,unknown
+608117,True,False,9,0,False,False,,,,unknown
+608119,False,True,0,126,False,False,,,,unknown
+608122,False,True,0,67,False,False,,,,unknown
+608126,False,True,0,66,False,False,,,,unknown
+608153,True,False,119,0,False,False,,,,unknown
+608168,True,False,51,0,False,False,,,,unknown
+608192,True,False,28,0,False,False,,,,unknown
+608217,True,False,2,0,False,False,,,,unknown
+608237,True,False,11,0,False,False,,,,unknown
+608254,False,True,0,184,False,False,,,,unknown
+608257,True,False,31,0,False,False,,,,unknown
+608269,True,False,21,0,False,False,,,,unknown
+608272,False,True,0,118,False,False,,,,unknown
+608281,False,True,0,4,False,False,,,,unknown
+608286,True,False,26,0,False,False,,,,unknown
+608293,False,True,0,8,False,False,,,,unknown
+608295,True,False,111,0,False,False,,,,unknown
+608307,False,True,0,61,False,False,,,,unknown
+608313,True,False,21,0,False,False,,,,unknown
+608314,True,False,22,0,False,False,,,,unknown
+608335,True,False,2,0,False,False,,,,unknown
+608338,False,True,0,1,False,False,,,,unknown
+608350,True,False,96,0,False,False,,,,unknown
+608354,True,False,1,0,False,False,,,,unknown
+608356,False,True,0,28,False,False,,,,unknown
+608358,True,False,5,0,False,False,,,,unknown
+608363,True,False,5,0,False,False,,,,unknown
+608365,True,True,652,241,False,False,,,,unknown
+608366,False,True,0,1,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+608371,False,True,0,127,False,False,,,,unknown
+608402,False,True,0,6,False,False,,,,unknown
+608403,True,False,4,0,False,False,,,,unknown
+608405,True,False,106,0,False,False,,,,unknown
+608409,True,True,236,272,False,False,,,,unknown
+608438,True,True,101,63,False,False,,,,unknown
+608448,False,True,0,13,False,False,,,,unknown
+608451,True,True,595,21,False,False,,,,unknown
+608452,True,False,142,0,False,False,,,,unknown
+608453,True,False,1,0,False,False,,,,unknown
+608456,True,False,20,0,False,False,,,,unknown
+608480,True,False,45,0,False,False,,,,unknown
+608484,True,True,493,58,False,False,,,,unknown
+608487,False,True,0,9,False,False,,,,unknown
+608489,True,False,81,0,False,False,,,,unknown
+608494,True,True,659,42,True,False,Fellow,Not specialized in signal/domain1-7 detection,0-1 years,expert
+608509,True,True,21,21,False,False,,,,unknown
+608510,True,False,6,0,False,False,,,,unknown
+608519,False,True,0,40,False,False,,,,unknown
+608541,True,False,56,0,False,False,,,,unknown
+608560,False,True,0,5,False,False,,,,unknown
+608566,False,True,0,15,False,False,,,,unknown
+608577,True,True,150,11,False,False,,,,unknown
+608595,False,True,0,34,False,False,,,,unknown
+608623,True,False,8,0,False,False,,,,unknown
+608634,True,True,114,4,False,False,,,,unknown
+608639,True,False,91,0,False,False,,,,unknown
+608642,True,False,115,0,False,False,,,,unknown
+608650,True,False,4,0,False,False,,,,unknown
+608713,True,False,32,0,False,False,,,,unknown
+608723,True,False,39,0,False,False,,,,unknown
+608736,False,True,0,3,False,False,,,,unknown
+608786,True,False,106,0,False,False,,,,unknown
+608807,True,True,512,207,False,False,,,,unknown
+608852,True,False,113,0,False,False,,,,unknown
+608923,False,True,0,16,False,False,,,,unknown
+608934,True,False,2,0,False,False,,,,unknown
+608940,False,True,0,74,False,False,,,,unknown
+608951,False,True,0,12,False,False,,,,unknown
+608997,True,False,10,0,False,False,,,,unknown
+609053,False,True,0,8,False,False,,,,unknown
+609056,True,False,174,0,False,False,,,,unknown
+609078,True,False,21,0,False,False,,,,unknown
+609098,False,True,0,60,False,False,,,,unknown
+609138,True,False,16,0,False,False,,,,unknown
+609171,True,False,10,0,False,False,,,,unknown
+609191,False,True,0,1,False,False,,,,unknown
+609192,True,True,1,14,False,False,,,,unknown
+609260,True,False,6,0,False,False,,,,unknown
+609286,True,False,33,0,False,False,,,,unknown
+609326,True,False,44,0,False,False,,,,unknown
+609354,True,False,17,0,False,False,,,,unknown
+609403,True,True,23,6,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+609426,False,True,0,2,False,False,,,,unknown
+609435,True,False,275,0,False,False,,,,unknown
+609454,True,False,22,0,False,False,,,,unknown
+609483,True,False,15,0,False,False,,,,unknown
+609493,True,False,2,0,False,False,,,,unknown
+609508,True,False,16,0,False,False,,,,unknown
+609527,True,False,23,0,False,False,,,,unknown
+609551,True,False,1,0,False,False,,,,unknown
+609582,True,False,30,0,False,False,,,,unknown
+609586,True,False,4,0,False,False,,,,unknown
+609597,True,False,15,0,False,False,,,,unknown
+609598,True,False,18,0,False,False,,,,unknown
+609628,True,False,20,0,False,False,,,,unknown
+609629,True,False,11,0,False,False,,,,unknown
+609640,True,False,136,0,False,False,,,,unknown
+609644,False,True,0,17,False,False,,,,unknown
+609655,True,False,27,0,False,False,,,,unknown
+609669,True,False,36,0,False,False,,,,unknown
+609674,True,False,6,0,False,False,,,,unknown
+609693,False,True,0,16,False,False,,,,unknown
+609701,True,False,1,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+609709,True,True,226,157,False,False,,,,unknown
+609716,False,True,0,4,False,False,,,,unknown
+609717,True,True,70,1,False,False,,,,unknown
+609733,True,False,40,0,False,False,,,,unknown
+609737,True,False,20,0,False,False,,,,unknown
+609741,False,True,0,1,False,False,,,,unknown
+609747,True,False,6,0,False,False,,,,unknown
+609754,True,False,88,0,False,False,,,,unknown
+609762,True,False,21,0,False,False,,,,unknown
+609775,True,False,2,0,False,False,,,,unknown
+609777,True,False,32,0,False,False,,,,unknown
+609778,True,False,60,0,False,False,,,,unknown
+609780,True,True,81,127,False,False,,,,unknown
+609784,False,True,0,7,False,False,,,,unknown
+609789,True,False,16,0,False,False,,,,unknown
+609790,True,False,39,0,False,False,,,,unknown
+609796,True,False,1,0,False,False,,,,unknown
+609800,True,False,57,0,False,False,,,,unknown
+609803,True,False,45,0,False,False,,,,unknown
+609810,True,False,10,0,False,False,,,,unknown
+609819,True,False,2,0,False,False,,,,unknown
+609830,True,False,5,0,False,False,,,,unknown
+609833,False,True,0,2,False,False,,,,unknown
+609837,True,True,944,1206,False,False,,,,unknown
+609849,True,True,119,34,False,False,,,,unknown
+609883,True,False,1,0,False,False,,,,unknown
+609892,False,True,0,2,False,False,,,,unknown
+609894,False,True,0,13,False,False,,,,unknown
+609897,True,False,2,0,False,False,,,,unknown
+609919,False,True,0,9,False,False,,,,unknown
+609934,True,False,25,0,False,False,,,,unknown
+609938,True,False,11,0,False,False,,,,unknown
+609947,True,True,1936,2412,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+609973,True,False,114,0,False,False,,,,unknown
+609979,False,True,0,15,False,False,,,,unknown
+609981,True,True,49,10,False,False,,,,unknown
+609982,False,True,0,1,False,False,,,,unknown
+609985,False,True,0,84,False,False,,,,unknown
+609989,True,False,23,0,False,False,,,,unknown
+610003,False,True,0,70,False,False,,,,unknown
+610005,True,True,10,38,False,False,,,,unknown
+610012,True,False,16,0,False,False,,,,unknown
+610026,True,False,9,0,False,False,,,,unknown
+610041,False,True,0,42,False,False,,,,unknown
+610052,True,False,7,0,False,False,,,,unknown
+610102,True,False,37,0,False,False,,,,unknown
+610106,True,False,97,0,False,False,,,,unknown
+610108,True,False,33,0,False,False,,,,unknown
+610109,False,True,0,19,False,False,,,,unknown
+610116,True,False,4,0,False,False,,,,unknown
+610117,False,True,0,505,False,False,,,,unknown
+610119,False,True,0,2,False,False,,,,unknown
+610129,True,True,5,19,False,False,,,,unknown
+610132,True,True,34,19,False,False,,,,unknown
+610134,True,False,17,0,False,False,,,,unknown
+610136,True,True,87,175,False,False,,,,unknown
+610137,True,True,595,226,False,False,,,,unknown
+610146,True,False,2,0,False,False,,,,unknown
+610154,True,False,38,0,False,False,,,,unknown
+610164,True,True,19,12,False,False,,,,unknown
+610175,False,True,0,29,False,False,,,,unknown
+610176,True,False,10,0,False,False,,,,unknown
+610195,True,False,15,0,False,False,,,,unknown
+610200,True,False,39,0,False,False,,,,unknown
+610207,False,True,0,61,False,False,,,,unknown
+610213,False,True,0,5,False,False,,,,unknown
+610215,True,True,48,21,False,False,,,,unknown
+610221,True,False,3,0,False,False,,,,unknown
+610235,True,False,25,0,False,False,,,,unknown
+610253,False,True,0,12,False,False,,,,unknown
+610263,False,True,0,11,False,False,,,,unknown
+610275,True,True,312,94,False,False,,,,unknown
+610277,True,False,14,0,False,False,,,,unknown
+610294,True,False,5,0,False,False,,,,unknown
+610299,True,True,40,40,False,False,,,,unknown
+610305,False,True,0,2,False,False,,,,unknown
+610308,True,True,1663,282,False,False,,,,unknown
+610313,True,False,117,0,False,False,,,,unknown
+610319,True,False,9,0,False,False,,,,unknown
+610324,True,False,17,0,False,False,,,,unknown
+610326,True,False,1,0,False,False,,,,unknown
+610329,False,True,0,27,False,False,,,,unknown
+610350,True,True,7,1,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+610357,True,True,91,719,False,False,,,,unknown
+610374,True,False,64,0,False,False,,,,unknown
+610384,True,True,100,41,False,False,,,,unknown
+610391,False,True,0,3,False,False,,,,unknown
+610393,True,False,3,0,False,False,,,,unknown
+610397,True,False,25,0,False,False,,,,unknown
+610410,True,False,1,0,False,False,,,,unknown
+610412,False,True,0,3,False,False,,,,unknown
+610448,True,False,2,0,False,False,,,,unknown
+610452,True,False,1,0,False,False,,,,unknown
+610458,False,True,0,345,False,False,,,,unknown
+610469,True,True,184,170,False,False,,,,unknown
+610481,True,False,2,0,False,False,,,,unknown
+610485,True,False,5,0,False,False,,,,unknown
+610486,True,False,13,0,False,False,,,,unknown
+610489,False,True,0,13,False,True,Sub-student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+610504,False,True,0,20,False,False,,,,unknown
+610523,False,True,0,17,False,False,,,,unknown
+610526,True,True,5,9,False,False,,,,unknown
+610527,True,False,5,0,False,False,,,,unknown
+610533,True,False,3,0,False,False,,,,unknown
+610542,True,False,60,0,False,False,,,,unknown
+610546,True,True,24,16,False,False,,,,unknown
+610554,True,False,11,0,False,False,,,,unknown
+610571,True,False,10,0,False,False,,,,unknown
+610577,True,False,50,0,False,False,,,,unknown
+610582,False,True,0,1,False,False,,,,unknown
+610584,False,True,0,40,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+610585,True,False,7,0,False,False,,,,unknown
+610591,True,False,5,0,False,False,,,,unknown
+610605,True,False,57,0,False,False,,,,unknown
+610606,False,True,0,9,False,False,,,,unknown
+610610,True,False,11,0,False,False,,,,unknown
+610628,True,False,20,0,False,False,,,,unknown
+610651,False,True,0,6,False,False,,,,unknown
+610653,True,False,104,0,False,False,,,,unknown
+610664,True,False,891,0,False,False,,,,unknown
+610684,True,False,15,0,False,False,,,,unknown
+610685,True,True,1721,10,False,False,,,,unknown
+610697,True,False,77,0,False,False,,,,unknown
+610714,True,False,23,0,False,False,,,,unknown
+610745,False,True,0,1,False,False,,,,unknown
+610754,False,True,0,1,False,False,,,,unknown
+610770,True,False,59,0,False,False,,,,unknown
+610786,False,True,0,115,False,False,,,,unknown
+610790,False,True,0,2,False,False,,,,unknown
+610791,True,False,90,0,False,False,,,,unknown
+610800,True,False,59,0,False,False,,,,unknown
+610820,False,True,0,10,False,False,,,,unknown
+610821,True,False,27,0,False,False,,,,unknown
+610826,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+610842,False,True,0,18,False,False,,,,unknown
+610849,False,True,0,20,False,False,,,,unknown
+610850,True,True,2,7,False,False,,,,unknown
+610854,True,False,78,0,False,False,,,,unknown
+610887,True,False,100,0,False,False,,,,unknown
+610972,False,True,0,55,False,False,,,,unknown
+610978,True,False,21,0,False,False,,,,unknown
+611004,True,False,76,0,False,False,,,,unknown
+611010,False,True,0,35,False,False,,,,unknown
+611028,True,False,26,0,False,False,,,,unknown
+611029,False,True,0,16,False,False,,,,unknown
+611038,True,False,1,0,False,False,,,,unknown
+611039,True,False,21,0,False,False,,,,unknown
+611043,False,True,0,65,False,False,,,,unknown
+611046,True,False,11,0,False,False,,,,unknown
+611047,True,False,22,0,False,False,,,,unknown
+611055,False,True,0,25,False,False,,,,unknown
+611061,False,True,0,25,False,False,,,,unknown
+611066,True,True,17,142,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+611108,True,False,18,0,False,False,,,,unknown
+611121,False,True,0,4,False,False,,,,unknown
+611130,True,False,40,0,False,False,,,,unknown
+611179,True,False,10,0,False,False,,,,unknown
+611186,True,False,32,0,False,False,,,,unknown
+611189,False,True,0,6,False,False,,,,unknown
+611198,True,False,45,0,False,False,,,,unknown
+611201,False,True,0,5,False,False,,,,unknown
+611223,True,False,1,0,False,False,,,,unknown
+611228,True,False,1,0,False,False,,,,unknown
+611229,True,False,6,0,False,False,,,,unknown
+611236,True,True,79,5,False,False,,,,unknown
+611238,False,True,0,276,False,False,,,,unknown
+611243,False,True,0,38,False,False,,,,unknown
+611248,True,True,35,83,False,False,,,,unknown
+611251,True,False,6,0,False,False,,,,unknown
+611266,False,True,0,10,False,False,,,,unknown
+611267,False,True,0,5,False,False,,,,unknown
+611273,True,False,2,0,False,False,,,,unknown
+611283,True,False,180,0,False,False,,,,unknown
+611294,True,False,29,0,False,False,,,,unknown
+611301,True,True,35,48,False,False,,,,unknown
+611317,True,False,26,0,False,False,,,,unknown
+611344,True,True,2,14,False,False,,,,unknown
+611370,True,True,12,3,False,False,,,,unknown
+611376,True,False,42,0,False,False,,,,unknown
+611392,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+611400,False,True,0,32,False,False,,,,unknown
+611423,True,False,11,0,False,False,,,,unknown
+611430,False,True,0,120,False,False,,,,unknown
+611433,True,False,60,0,False,False,,,,unknown
+611483,False,True,0,1,False,False,,,,unknown
+611528,False,True,0,13,False,False,,,,unknown
+611565,True,False,58,0,False,False,,,,unknown
+611598,False,True,0,32,False,False,,,,unknown
+611633,True,False,100,0,False,False,,,,unknown
+611642,True,True,2,1,False,False,,,,unknown
+611651,False,True,0,34,False,False,,,,unknown
+611674,True,False,20,0,False,False,,,,unknown
+611675,False,True,0,37,False,False,,,,unknown
+611681,True,True,48,96,False,False,,,,unknown
+611688,False,True,0,17,False,False,,,,unknown
+611689,False,True,0,3,False,False,,,,unknown
+611691,False,True,0,4,False,False,,,,unknown
+611692,True,False,6,0,False,False,,,,unknown
+611702,False,True,0,31,False,False,,,,unknown
+611707,False,True,0,1,False,False,,,,unknown
+611709,False,True,0,17,False,False,,,,unknown
+611710,False,True,0,10,False,False,,,,unknown
+611717,False,True,0,2,False,False,,,,unknown
+611722,True,True,6,25,False,False,,,,unknown
+611749,False,True,0,2,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+611755,True,False,10,0,False,False,,,,unknown
+611775,False,True,0,26,False,False,,,,unknown
+611785,True,False,55,0,False,False,,,,unknown
+611786,True,True,25,2,False,False,,,,unknown
+611797,False,True,0,17,False,False,,,,unknown
+611801,False,True,0,46,False,False,,,,unknown
+611805,False,True,0,19,False,False,,,,unknown
+611812,False,True,0,2,False,False,,,,unknown
+611815,False,True,0,3,False,False,,,,unknown
+611828,False,True,0,43,False,False,,,,unknown
+611860,False,True,0,16,False,False,,,,unknown
+611861,False,True,0,65,False,False,,,,unknown
+611867,False,True,0,30,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+611868,True,False,39,0,False,False,,,,unknown
+611872,True,False,29,0,False,False,,,,unknown
+611887,True,False,3,0,False,False,,,,unknown
+611890,True,False,3,0,False,False,,,,unknown
+611904,False,True,0,1,False,False,,,,unknown
+611924,False,True,0,8,False,False,,,,unknown
+611926,False,True,0,13,False,False,,,,unknown
+612029,True,False,9,0,False,False,,,,unknown
+612031,False,True,0,319,False,False,,,,unknown
+612045,True,False,5,0,False,False,,,,unknown
+612055,True,False,11,0,False,False,,,,unknown
+612072,True,False,331,0,False,False,,,,unknown
+612097,True,False,1,0,False,False,,,,unknown
+612118,False,True,0,5,False,False,,,,unknown
+612123,True,False,10,0,False,False,,,,unknown
+612152,False,True,0,21,False,False,,,,unknown
+612155,True,True,27,20,False,False,,,,unknown
+612157,True,True,148,471,False,False,,,,unknown
+612178,False,True,0,40,False,False,,,,unknown
+612202,False,True,0,7,False,False,,,,unknown
+612218,False,True,0,101,False,False,,,,unknown
+612223,False,True,0,24,False,False,,,,unknown
+612245,False,True,0,122,False,False,,,,unknown
+612248,False,True,0,23,False,False,,,,unknown
+612267,False,True,0,63,False,False,,,,unknown
+612272,False,True,0,9,False,False,,,,unknown
+612283,False,True,0,41,False,False,,,,unknown
+612296,False,True,0,117,False,False,,,,unknown
+612531,True,True,16,77,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+613725,True,False,1,0,True,False,Sub-student,Specialized in pediatric signal/domain1-7 detection,0-1 years,expert
+613919,False,False,0,0,True,False,Resident,Not specialized in signal/domain1-7 detection,More than 5 years,borderline
+613965,True,False,98,0,True,False,Practicing specialist (non-domain1-7 detection specialist),Not specialized in signal/domain1-7 detection,None,borderline
+614024,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614053,True,True,3,10,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614076,True,False,4,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614158,True,False,20,0,True,False,Sub-student,Specialized in adult signal/domain1-7 detection,None,expert
+614177,False,True,0,38,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614212,True,True,5,56,False,True,Sub-student,Specialized in pediatric signal/domain1-7 detection,1-5 years,expert
+614244,False,False,0,0,False,True,Sub-student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+614246,False,True,0,9,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614287,True,True,102,207,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614294,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614366,True,False,12,0,True,False,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+614369,True,True,33,5,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+614398,True,True,51,15,True,False,Sub-student,Specialized in pediatric signal/domain1-7 detection,0-1 years,expert
+614403,True,False,20,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+614423,True,True,18,71,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+614437,True,False,8,0,True,False,Sub-student,Specialized in pediatric signal/domain1-7 detection,0-1 years,expert
+614439,True,True,97,271,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614469,True,True,14,2,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614475,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+614477,True,False,431,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+614494,False,True,0,28,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614495,False,True,0,35,False,True,Resident,Specialized in pediatric signal/domain1-7 detection,More than 5 years,expert
+614519,False,True,0,12,False,True,EEG technologist,Specialized in adult signal/domain1-7 detection,None,expert
+614523,True,True,16,12,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614525,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614531,False,True,0,5,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614533,False,True,0,6,False,True,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+614534,False,True,0,7,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614543,False,True,0,37,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+614545,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614547,True,False,10,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+614553,False,False,0,0,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+614557,False,False,0,0,False,True,Other,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+614558,False,False,0,0,False,True,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+614561,False,True,0,10,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614569,False,True,0,223,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614570,False,True,0,19,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614586,False,True,0,39,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614587,False,True,0,6,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+614593,True,True,4,3,True,False,Student,Specialized in pediatric signal/domain1-7 detection,More than 5 years,expert
+614653,True,False,40,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614660,False,True,0,26,False,True,Sub-student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614667,False,True,0,11,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614668,False,True,0,58,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614684,True,False,26,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+614687,False,True,0,12,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614691,False,True,0,3,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614710,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614724,False,True,0,10,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614755,True,True,92,3,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+614776,True,False,1,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+614777,False,True,0,13,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+614778,False,True,0,2,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614797,True,False,3,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+614837,True,True,1,54,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+614847,False,True,0,3,False,True,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+614848,True,True,2,20,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614849,True,True,7,167,True,False,Resident,Not specialized in signal/domain1-7 detection,0-1 years,borderline
+614860,False,True,0,12,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614862,False,True,0,4,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614909,False,True,0,134,False,True,Resident,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+614918,True,False,3,0,True,False,Sub-student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+614920,True,True,48,132,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+614929,False,True,0,3,False,True,Student,Not specialized in signal/domain1-7 detection,More than 5 years,novice
+614940,False,True,0,20,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+615031,True,False,5,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615035,False,True,0,70,False,True,Other,Specialized in pediatric signal/domain1-7 detection,None,expert
+615037,True,False,58,0,True,False,Sub-student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+615042,True,False,3,0,True,False,Other,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+615113,False,True,0,2,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+615121,False,True,0,82,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615209,True,True,7,2,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+615212,True,True,1,98,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615245,True,True,7,202,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+615248,True,False,16,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615256,True,True,25,67,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+615284,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615312,False,True,0,35,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+615313,False,True,0,3,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615326,False,True,0,56,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+615347,True,False,7,0,True,False,Student,Specialized in pediatric signal/domain1-7 detection,1-5 years,expert
+615371,True,False,8,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615456,False,True,0,1,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+615482,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+615500,False,False,0,0,True,False,Student,Specialized in adult signal/domain1-7 detection,More than 5 years,expert
+615536,True,False,10,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615555,False,True,0,18,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+615607,True,True,51,21,True,False,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+615639,True,False,57,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615686,False,True,0,17,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+615693,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+615700,True,False,51,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615707,True,False,32,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615709,True,False,28,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615776,False,True,0,5,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615790,True,False,26,0,True,False,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615799,True,True,14,3,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+615805,True,False,42,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+615828,True,False,54,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+615834,False,True,0,1,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615880,True,False,9,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+615976,True,True,6,15,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+615978,False,True,0,3,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+615997,True,False,19,0,True,False,Other,Not specialized in signal/domain1-7 detection,More than 5 years,novice
+616002,True,False,73,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616003,False,True,0,13,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+616007,False,True,0,11,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+616027,False,True,0,2,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+616051,False,True,0,5,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616058,True,False,44,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616185,False,True,0,39,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+616200,True,True,2,15,False,True,Sub-student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616236,True,False,91,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616268,False,True,0,29,False,True,Sub-student,Not specialized in signal/domain1-7 detection,1-5 years,novice
+616292,True,False,79,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616320,True,False,3,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616328,False,True,0,5,False,True,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+616347,True,True,84,94,False,True,Other,Specialized in pediatric signal/domain1-7 detection,0-1 years,expert
+616349,True,False,18,0,True,False,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+616354,True,False,10,0,True,False,Other,Specialized in adult signal/domain1-7 detection,None,expert
+616395,True,False,18,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616407,False,True,0,128,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+616419,True,False,4,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616427,False,True,0,18,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+616447,True,False,12,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616452,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616551,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616609,False,True,0,4,False,True,EEG technologist,Not specialized in signal/domain1-7 detection,None,novice
+616611,False,True,0,2,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+616644,True,True,9,7,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616663,False,True,0,64,False,True,Sub-student,Specialized in pediatric signal/domain1-7 detection,1-5 years,expert
+616692,False,True,0,1,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+616773,False,True,0,37,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616775,False,True,0,11,False,True,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+616776,False,True,0,20,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+616791,False,True,0,16,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+616794,True,False,11,0,True,False,Student,Specialized in pediatric signal/domain1-7 detection,None,expert
+616804,False,True,0,108,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+616822,False,True,0,44,False,True,Student,Specialized in adult signal/domain1-7 detection,0-1 years,expert
+616839,True,False,4,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+616840,True,False,35,0,True,False,Other,Not specialized in signal/domain1-7 detection,1-5 years,novice
+617499,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+617844,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+617859,False,False,0,0,True,False,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+617899,False,False,0,0,False,True,Resident,Specialized in adult signal/domain1-7 detection,None,expert
+617970,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+618095,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+618108,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618141,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+618191,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618198,False,False,0,0,True,False,Other,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+618266,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+618271,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+618325,False,False,0,0,False,True,Student,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+618326,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+618336,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618343,False,False,0,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+618385,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618394,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618413,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618427,False,False,0,0,True,False,Resident,Specialized in adult signal/domain1-7 detection,More than 5 years,expert
+618434,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,None,novice
+618444,False,False,0,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618553,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+618574,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+618609,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618636,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,None,novice
+618679,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618700,False,False,0,0,False,True,Other,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618757,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+618904,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+618911,False,False,0,0,False,True,Sub-student,Specialized in pediatric signal/domain1-7 detection,None,expert
+618933,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+619081,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,More than 5 years,novice
+619089,False,False,0,0,False,True,Student,Not specialized in signal/domain1-7 detection,0-1 years,novice
+619138,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+619146,False,False,0,0,True,False,Other,Specialized in adult signal/domain1-7 detection,1-5 years,expert
+619147,False,False,0,0,True,False,Sub-student,Not specialized in signal/domain1-7 detection,None,novice
+619196,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice
+619274,False,False,0,0,True,False,Other,Not specialized in signal/domain1-7 detection,None,novice
+619289,False,False,0,0,False,True,Resident,Not specialized in signal/domain1-7 detection,None,borderline
+619320,False,False,0,0,True,False,Student,Not specialized in signal/domain1-7 detection,None,novice

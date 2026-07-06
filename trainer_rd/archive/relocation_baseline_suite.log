@@ -1,0 +1,459 @@
+# relocation_baseline_suite.log — full script-style suite run
+# date: 2026-07-06 10:52:15 PDT
+# cwd: /data/eli-work/scratch
+# interpreter: /home/exx/anaconda3/bin/python3 — Python 3.12.4
+# numpy 1.26.4 | scipy 1.13.1 | pandas 2.2.2
+
+=== tests.test_audit_fixes ===
+  ok: MA-3 learner: no feedback ⇒ criterion frozen
+  ok: MA-3 filter: no feedback ⇒ criterion frozen
+  ok: MA-1: exact kernel bit-identical to shipped at s_sd=0
+  ok: MA-1: TaskFilter(exact_kernel=True) == study reference
+  ok: MA-9: non-learning belief mass earns zero Q
+  ok: MA-6: honest MCSE ≥ ESS-only (0.0519 ≥ 0.0280, n_anc=87<300)
+  ok: F28 reproduced: POINT filter (exact kernel, M17 default) declares the static sub-cut learner (3/3 seeds)
+  ok: MA-2: mixture NEVER declares the static sub-cut learner (0/3)
+  ok: MA-2: median trainability orders correctly (static 0.54 < well 0.86)
+  ok: e-gate type-I 0/200 ≤ 8% (α=5%)
+  ok: e-gate power vs δ=0.2 deficit: 200/200
+  ok: probe optimum |s−t̂|=0.80 ≈ 1.35·σ* (scale-parameter optimum)
+  ok: probe score prefers low-s_sd items
+  ok: skill_mode_multiplier(0.025) == frozen SKILL_MODE_MULTIPLIER
+  ok: fitted-λ multiplier 1.0173 < frozen 1.0772
+  ok: D23 wiring: probes served on cadence (15/60 at 1-in-4)
+  ok: D23 wiring: e-gate saw exactly the probe outcomes (n=15)
+  ok: D23 wiring: probe_every=None ⇒ no probes, no gate (shipped path)
+  ok: D23 wiring: elevated e-gate blocks declaration
+  ok: 0-bias floor: formula 0.125 vs sim 0.127 (α=0.2, q=0.04, σ=0.6)
+  ok: 0-bias mean: |E[t∞]|=0.0044 ≈ 0 under anchored serving
+  ok: 0-bias floor: formula 0.144 vs sim 0.145 (α=0.35, q=0.05, σ=0.9)
+  ok: 0-bias mean: |E[t∞]|=0.0044 ≈ 0 under anchored serving
+  ok: 0-bias floor: formula 0.163 vs sim 0.168 (α=0.1, q=0.04, σ=0.5)
+  ok: 0-bias mean: |E[t∞]|=0.0084 ≈ 0 under anchored serving
+  ok: derived t* band in product bounds (0.250)
+  ok: M16 fitter: evidence orders true > no-learning dynamics (-88.1 vs -88.8 nats — flat surface is the finding)
+
+M15 AUDIT-FIX SMOKE TEST PASSED — 27 checks.
+--- exit 0
+
+=== tests.test_extset ===
+  ok: task1 read count 167503
+  ok: task1 5,000 segs / 643 raters
+  ok: task1 signals all finite
+  ok: task1 source-gold prevalence 0.239 (read-weighted)
+  ok: LOO self-shift positive toward own response (mean +0.0401)
+  ok: P(say|s_loo) decile curve monotone (0.025→0.851)
+  ok: ≥3/4 expert consensus on 3789 cases
+  ok: task2 valid read count 125860
+  ok: reads on consensus-gold cases 93185
+  ok: task2 LOO signal matrix (n,6) finite
+  ok: task2 per-user clean-gold accuracy 0.253 (n=315 ≥20)
+  ok: read-pooled acc 0.445 > per-user mean (F36 volume effect)
+  ok: task2 own-class shipped signal exceeds LOO (self-vote present)
+  ok: case split: no seg in both halves
+  ok: case split read balance 0.502
+  ok: task1 split valid
+  ok: shipped vs LOO signal corr 0.980 (map faithful)
+
+EXTSET ADAPTER SMOKE TEST PASSED — 17 checks.
+--- exit 0
+
+=== tests.test_m23 ===
+  ok: jump_eps=0 TaskFilter is bit-identical (θ/ℓ/w)
+  ok: forget=1.0 mixture is bit-identical (log_w, strata)
+  ok: boundary_shift with zero hazard/share is a no-op
+  ok: per-trial jump variance factor 2.76 ≈ analytic 2.75
+  ok: boundary_jump ℓ-variance 0.0569 ≈ eps·sd² 0.0563
+  ok: θ shock variance ratio 0.109 ≈ theta_scale² 0.109
+  ok: static-rule filter ignores boundary_jump
+  ok: forget step equals normalized ω^γ (log-gap compression by γ)
+  ok: boundary_shift mixes weights as (1−a)·ω + a·prior
+  ok: null sup-crossing rate 9/400 ≤ α=0.05 (+MC slack)
+  ok: null mean E_T 0.00 consistent with supermartingale
+  ok: contact detected for an 85%-correct responder (median 16 ≤ 25 trials)
+  ok: RT floor fires on a D-shaped collapse, silent on engaged profile
+  ok: robot session served 40 trials with M23 gates enabled
+  ok: trial telemetry carries the shadow contact statistic
+  ok: second session (boundary_shift path) runs clean
+
+M23 SMOKE TEST PASSED — 16 checks.
+--- exit 0
+
+=== tests.test_m24 ===
+  ok: progress_alloc=False scheduler picks bit-identical
+  ok: progress_placement defaults False (M23-identical placement)
+  ok: static-rule TaskFilter earns zero progress
+  ok: mixture score = Σ ω_j Q_j over NON-static strata only (F84-ii)
+  ok: plain TaskFilter path equals the tier-1 Q (β_σ term)
+  ok: below-bar trainable EP (0.0486) ≫ at-ceiling EP (0.00000)
+  ok: above-bar mass earns ~zero σ-progress (bar-referenced)
+  ok: large bias excess earns the capped α_t term (0.097)
+  ok: EP allocation prefers the trainable task (7/8 picks)
+  ok: progress placement serves end-to-end (20 progress picks)
+  ok: sandbox defers F85 allocation and F84 placement (opt-in only)
+
+M24 SMOKE TEST PASSED — 11 checks.
+--- exit 0
+
+=== tests.test_m25 ===
+  ok: new ModeThresholds knobs default off (M24-identical gate/placement)
+  ok: lifecycle/floor OFF scheduler picks bit-identical to M24
+  ok: ever-declared eligible task served through FINISHING (refinish)
+  ok: sub-refinish ever-declared task yields to the EP lane (the F85-ii re-polish loop is dead)
+  ok: bias-out-of-band ever-declared task re-enters the EP lane
+  ok: all-measurement-lane fallback still serves (no F70-style deadlock)
+  ok: exploration floor serves the written-off task (2 vs 1 of 8 picks)
+  ok: mastered task enters ever_declared via the serving loop
+  ok: pure-static belief earns exactly zero rollout value (F84-ii)
+  ok: rollout value deterministic under a fixed rng
+  ok: near-85%-point item out-values a far-outside item (0.1477 vs 0.1261)
+  ok: rollout placement serves end-to-end with the mirror window (5 mirrored pairs)
+  ok: boundary refractory blocks declaration for exactly 5 served trials
+  ok: min_trainability blocks a π-confident belief whose ceiling posterior sits below the cut
+  ok: sandbox wires the EP-v2 lifecycle config + persistent lifecycle key
+
+M25 SMOKE TEST PASSED — 15 checks.
+--- exit 0
+
+=== tests.test_m26 ===
+  ok: n=0 scale is exactly 1.0 in both forms (bit-identical M23 hazard)
+  ok: Beta posterior-mean form c0/(c0+n), monotone ([1.    0.667 0.5   0.4   0.333])
+  ok: floor respected; geometric ablation λ^n
+  ok: never-declared task: boundaries leave scale at 1.0 (F80 untouched)
+  ok: one boundary's debt credits exactly once (n=1, scale 2/3)
+  ok: revocation resets to the full pinned hazard; `ever` survives
+  ok: π-credit: ≥1−α credits, band is inert, collapse resets
+  ok: json round-trip; scale(n=3, c0=5) = 0.625
+  ok: scale ×1.0 boundary_shift is bit-identical to the pinned call
+  ok: scale 0.25 shocks fewer particles (36 < 140, matched rng streams)
+  ok: fixed-share weight movement is exactly linear in the scale (0.0050 = 0.25×0.0200)
+  ok: config knobs present; HAZARD_ADAPT default False (bit-identical)
+  ok: fresh lifecycle persisted in meta (no declarations yet)
+  ok: HAZARD_ADAPT session applies the scaled Gate 4 to the declared task only (scale 0.4)
+
+M26 SMOKE TEST PASSED — 14 checks.
+--- exit 0
+
+=== tests.test_m27 ===
+  ok: terminal_confirmation=True with nothing marked is bit-identical
+  ok: terminal task got exactly maint_probes=2 flagged probes; all training went to the other task
+  ok: all_mastered waits on the unmastered task
+  ok: deep-regressed terminal task revoked by the stale gate (session 1)
+  ok: an at/above-bar terminal task is never revoked (α-direction)
+  ok: onboarding ramp: demo trials until certification (first adaptive trial 22), certification persisted for ['1', '2']
+  ok: healthy certification skips the handoff shift (trainability guard)
+  ok: a pure guesser never certifies contact, never leaves the ramp, never declares
+  ok: λ(time-on-task) verdict cached (easy-read slope +7.5e-04/min — learning dominates; no λ(t) term)
+  ok: ArrayBank filter semantics (exclusion / feedback-safe+margin)
+  ok: a TOY domain plugs into the full stack and a decisively-above-bar learner graduates on it (zero engine changes)
+  ok: BankAdapter satisfies the ItemBank contract structurally
+
+M27 SMOKE TEST PASSED — 12 checks.
+--- exit 0
+
+=== tests.test_misspec ===
+  ok: GH smearing matches probit closed form (max err 2.2e-10)
+  ok: accuracy bar sensible (A_bar=0.819)
+  ok: borderline assumed learner sits exactly AT the bar (A == A_bar)
+  ok: exponential learner converged by 300 weighted trials (σ=0.500)
+  ok: power-law tail converges SLOWER than exponential (σ_pl=0.590 vs σ_exp=0.500)
+  ok: power-law σ stays above the floor
+  ok: plateau learner visits ≤3 discrete σ levels (3)
+  ok: plateau learner ends at the floor (σ=0.500)
+  ok: ceiling drifted up (0.500→0.580)
+  ok: ceiling respects the cap
+  ok: momentum transient sluggish (|Δt| 0.0225 vs base 0.1499)
+  ok: momentum learner still calibrates under balanced stream (|t|=0.001)
+  ok: t3 link slope-matched at the boundary
+  ok: t3 link errs more on easy items (p=0.953 vs probit 0.974)
+  ok: asymmetric lapse floors at λ_fa=0.08 / ceilings at 1−λ_miss=0.99
+  ok: fatigue degrades easy-item accuracy (0.974→0.880)
+  ok: anti-learner criterion diverges (|t|=4.00)
+  ok: anti-learner clipped (finite)
+  ok: careless learner can never reach the bar (A=0.591 < 0.819)
+  ok: static-below-cut never moves
+
+MISSPEC ZOO SMOKE TEST PASSED — 20 checks.
+--- exit 0
+
+=== tests.test_sandbox ===
+  ok: stimulus monotone in s_real (window elevations [-1.68 -0.4   0.45  1.72])
+  ok: rendering deterministic given (seg, session)
+  ok: s_real draw is truncated to the label-consistent sign (F74)
+  ok: truncated draw still deterministic per (seg, session)
+  ok: ideal-observer σ_eff 0.392 ≤ 60% of the tightest bar 0.736 (F73 headroom)
+  ok: session 1 served 20 trials and persisted state
+  ok: trial telemetry logged with belief snapshots
+  ok: state roundtrip: stratum clouds bit-identical after reload
+  ok: gap > MIN_GAP triggers GapAnchor (events [{'event': 'anchor', 'task': 2, 'r_hat': 0.805, 'S_days': 6.93}, {'event': 'contact', 'task': 1, 'n': 8, 'global_trial': 32}])
+  ok: global trial counter continues across sessions
+  ok: serve-once: no segment repeated, ever
+  ok: near-mastery belief triggers PROVISIONAL declaration (events [{'event': 'provisional', 'task': 1, 'global_trial': 41}])
+  ok: post-gap CONFIRMATION rule executed (events [{'event': 'anchor', 'task': 2, 'r_hat': 0.8, 'S_days': 6.85}, {'event': 'anchor', 'task': 1, 'r_hat': 0.823, 'S_days': 6.95}, {'event': 'confirmed', 'task': 1}])
+  ok: every trial carries the shadow consistency statistic
+  ok: consistency monitor state persists in meta
+  ok: monitor window buffer survives the json roundtrip
+  ok: set_user namespaces state, logs and state_io paths
+  ok: a fresh profile starts with no state (isolation from other testers)
+  ok: render-param mismatch blocks resume: state was measured under render params [0.55, 1.0, 48] but config now says [0.85, 1.0, 48] — σ units are not comparable across a stimulus recalibration; run with --reset (M21/F73)
+  [protocol] domain2 paused for this session — recent answers don't match your profile on this task (re-read the instructions; it resumes next session).
+  [protocol] domain3 paused for this session — recent answers don't match your profile on this task (re-read the instructions; it resumes next session).
+  ok: flag → consistency_pause event (events [{'event': 'consistency_flag', 'task': 1, 'glr': 2.617, 'rt_z': 0.0, 'global_trial': 67}, {'event': 'consistency_pause', 'task': 1, 'glr': 2.617, 'global_trial': 68}, {'event': 'consistency_flag', 'task': 2, 'glr': 4.857, 'rt_z': -0.0, 'global_trial': 68}, {'event': 'consistency_pause', 'task': 2, 'glr': 4.857, 'global_trial': 69}, {'event': 'all_mastered_or_empty'}])
+  ok: task 1 not served again after its pause
+  ok: task 2 not served again after its pause
+  ok: paused task's monitor starts the next session with a fresh window
+  [protocol] accuracy has dropped well below your level earlier this session (drop -0.29) — ending the session here; progress is saved.
+  ok: fatigue guard fires and ends the session (served 24, events [{'event': 'fatigue_break', 'deficit': -0.29, 'global_trial': 93}])
+  ok: session ended at the first eligible fatigue check (24 trials)
+═══ sandbox analytics — profile default: 93 trials, 6 sessions ═══
+
+sess      gap trials   acc med RT ms  events
+   1     0.0h     20  0.95       900  contact(t2)
+   2     1.0d     20  0.85       900  anchor(t2); contact(t1)
+   3     0.2h     15  0.80       900  provisional(t1)
+   4     1.0d     12  0.75       900  anchor(t2); anchor(t1); confirmed(t1)
+   5     0.2h      2  0.50       900  consistency_flag(t1); consistency_pause(t1); consistency_flag(t2); consistency_pause(t2); all_mastered_or_empty
+   6     0.2h     24  0.75       900  fatigue_break
+
+per-task state (latest belief):
+    domain2: n=31   recent-acc 0.87  ℓ̂ +0.18±0.52 vs cut 0.15 (π 0.67)  t̂ -0.07 (band ±0.37)  trainability 0.70  egate e=0.9  [CONFIRMED]  glr 0.0
+    domain3: n=62   recent-acc 0.75  ℓ̂ +0.34±0.33 vs cut 0.31 (π 0.55)  t̂ +0.09 (band ±0.34)  trainability 0.63  egate e=1.7  [training]  glr 2.6
+
+GapAnchor trajectory (consolidation endpoint):
+  session 2: task 2 r̂=0.805 → S=6.93 days
+  session 4: task 2 r̂=0.8 → S=6.85 days
+  session 4: task 1 r̂=0.823 → S=6.95 days
+
+recommendation: 1/2 tasks confirmed; keep training the rest.
+
+figure written: /tmp/sandbox_test_tgy5u2rk/logs/figures/trajectory.png
+  ok: analytics report + trajectory figure built
+
+SANDBOX SMOKE TEST PASSED — 26 checks.
+--- exit 0
+
+=== tests.test_step0 ===
+  ok: LAPSE_RATE identical (0.025) in bridge and engine
+  ok: engine→plan→engine round-trip exact to 1e-12
+  ok: plan→engine→plan round-trip exact to 1e-12
+  ok: p_yes plan-form == engine-form (1e-12)
+  ok: p_yes bridge == core_mcmc_general._p_response_yes (1e-12)
+  ok: plan: raising criterion t LOWERS P(yes)
+  ok: engine: raising bias θ RAISES P(yes)
+  ok: accuracy_at_multiplier(difficulty_multiplier(a)) == a (9-point grid, 1e-9)
+  ok: no-lapse 85% point = 1.03643 (the plan's mistaken 1.04)
+  ok: lapse-corrected 85% point = 1.118958
+  ok: SKILL_MODE_MULTIPLIER (D6, Wilson optimum Φ(1) @ λ=0.025) = 1.0772256
+  ok: no-lapse Wilson optimum = exactly 1.0
+  ok: accuracy at the plan's 1.04 under λ=0.025 is 83.33% (F2 confirmed)
+  ok: target accuracy outside (λ, 1−λ) raises ValueError
+  ok: AUROC(ℓ=0) = Φ(1) ≈ 0.841345
+  ok: bridge auroc_from_ell == vendored auroc.auroc_from_l
+  ok: AUROC strictly increasing in ℓ
+  ok: auroc_from_sigma(exp(−ℓ)) == auroc_from_ell(ℓ)
+  ok: σ* = exp(−ℓ*) mastery mapping
+  ok: degenerate cloud: all quantiles equal the point AUROC
+  ok: random cloud: lo < hi quantiles, all within (0, 1)
+  ok: tiny hier session ran (29 questions, stopped_early=True)
+  ok: resample+MH rejuvenation exercised (4 events, mean accept 0.61)
+
+STEP 0 SMOKE TEST PASSED — 23 checks.
+--- exit 0
+
+=== tests.test_step1 ===
+  session: 209 trials, verdicts=['PASS', 'FAIL', 'REFER_BORDERLINE'], n_per_task=[69, 20, 120]
+  ok: session ran past N_MIN on all tasks
+  ok: AD6 produced a mixed, fully-finalized verdict set
+  ok: seed dimensions/meta match the session
+  ok: save→load round-trip exact for all 13 arrays (dtype + values)
+  ok: meta JSON round-trips identically
+  ok: inflation — weighted SD ×1.5 (1e-9), weighted mean unchanged, θ and ℓ, all tasks
+  ok: weights normalized, non-negative
+  ok: task_cloud(k) marginal == joint columns + shared weights (D2)
+  ok: eval-seen seg_ids complete and unique (each segment served once)
+  ok: seg_ids match exactly what was served
+  ok: per-trial absolute epochs present and increasing (D9)
+  ok: per-trial RT field populated (F10)
+  ok: meta carries session_id, ISO created_at, verdicts, ℓ*, AD6 diagnostics
+  ok: post_decision flags default False (no extended-collection trials here)
+  ok: ledger round-trips with order + seq preserved (append-only)
+  ok: entries property returns a copy (append-only enforced)
+  ok: TrialRecord dict round-trip
+  ok: inflate_cloud preserves weighted mean (2-D case)
+
+STEP 1 SMOKE TEST PASSED — 18 checks (209-trial session, verdicts ['PASS', 'FAIL', 'REFER_BORDERLINE']).
+--- exit 0
+
+=== tests.test_step2_5 ===
+  pool sizes: {'domain1': 19332, 'domain2': 69245, 'domain3': 69245, 'domain4': 69245, 'domain5': 69245, 'domain6': 69245, 'domain7': 69245}
+  ok: domain1 pool 19332 ≈ 19,332 candidacy
+  ok: multiclass pools within (15k, 69,806]
+  ok: label reconstruction 98.4% of 498 served items (≥95%)
+  ok: exclude_segids removed 100 eval-seen domain1 segs
+  ok: feedback_safe pool: all coherent + margin≥0.30 (15279 of 19332)
+  ok: candidate arrays are parallel (equal length)
+  ok: candidate arrays finite; y* binary; s_sd ≥ 0
+  ok: constants: σ*=exp(−ℓ*); σ_∞ < σ* every task (LT1 achievable, §2B)
+  ELL_STAR: [0.325, 0.256, 0.534, 0.33, 0.479, 0.486, 0.442]
+  SIGMA_INF: [0.664, 0.533, 0.465, 0.526, 0.506, 0.477, 0.49]
+  per-task conflicted fraction: [0.1, 0.32, 0.08, 0.07, 0.1, 0.09, 0.06]
+  ok: mean conflicted fraction 0.12 in plausible band (trap items exist)
+
+STEP 2.5 SMOKE TEST PASSED — 9 checks (label match 98.4%, mean conflicted 0.12).
+--- exit 0
+
+=== tests.test_step2 ===
+  ok: τ_σ recovery: fit 33.3 vs true 33.3 (<10%)
+  ok: balanced feedback: |t| 0.80 → 0.029 (toward 0)
+  ok: hard vs soft mean t-trajectory agree (max |Δ|/SE = 1.40 < 4)
+  ok: static rule: (σ, t) unchanged over 50 trials
+  ok: zero rates + zero noise: state frozen
+  ok: σ relaxes to σ_∞=0.55 (ended 0.550), no overshoot to 0
+  ok: no feedback (f=0) ⇒ skill frozen
+  ok: engine_state() == bridge plan_to_engine (θ=−t, ℓ=−logσ)
+
+STEP 2 SMOKE TEST PASSED — 8 checks (τ_σ fit 33.3/33, hard≈soft z=1.4).
+--- exit 0
+
+=== tests.test_step3 ===
+  coverage σ=0.958 t=0.963 | RMSE σ=0.100 t=0.179
+  ok: 95% credible coverage calibrated (σ 0.96, t 0.96 ∈ [.85,.99])
+  ok: tracking RMSE bounded (σ 0.10, t 0.18)
+  filter (θ,ℓ) mean=(0.383,-0.440) grid=(0.378,-0.431)
+  ok: static-filter posterior MEAN matches grid (|Δ|<0.06)
+  ok: static-filter posterior SD matches grid (|Δ|<0.06)
+  steady-state SD floor: θ=0.131, ℓ=0.156
+  ok: variance floor measured (ℓ-SD floor 0.156); mastery sd_floor must exceed it
+  careless rater recovered ℓ: [0.14, 0.46, 0.1, 0.13, 0.07, 0.16, 0.59]
+  ok: careless rater (acc 0.23) certifies NO task (mastered=[])
+  ok: recovered mean skill below the mean cut-score (correctly judged sub-threshold)
+
+STEP 3 SMOKE TEST PASSED — 7 checks (cov σ=0.96/t=0.96, ℓ-floor 0.156).
+--- exit 0
+
+=== tests.test_step4 ===
+  running identifiability campaign (3 cells × 3 rate-mults × 30 reps)...
+  ok: σ/t error-confusion |corr| ≤ 0.5 in every cell (max 0.18)
+  ok: posterior |corr(θ,ℓ)| ≤ 0.6 in every cell (max 0.14)
+  ok: correct-spec coverage mean 0.91 (≥0.88), min 0.90 (≥0.80)
+  ok: RMSE < 0.30 in every cell incl. misspecified (max 0.198)
+  ok: 2× rates: coverage ≥ 0.55 every cell (min 0.57)
+  ok: 2× rates: RMSE 0.184 ≤ 1.6× correct-spec 0.150 (no divergence)
+  [info] coverage by rate-mult: 0.5×=0.93  1×=0.91  2×=0.58  (under-estimating rates is the safe direction)
+
+STEP 4 IDENTIFIABILITY GATE PASSED — 6 checks (max err-corr 0.18, correct-spec coverage 0.91).
+--- exit 0
+
+=== tests.test_step5 ===
+  ok: large |t̂| ⇒ BIAS mode (got bias)
+  ok: centered + sub-cut skill ⇒ SKILL mode (got skill)
+  ok: tight posterior above cut + unbiased ⇒ mastered
+  ok: mastered ⇒ RETENTION mode (got retention)
+  ok: bias-mode running label balance stays within ±2 (max |1|)
+  ok: retention bin becomes due exactly at the first interval
+  ok: interval grows ×ease after a correct retrieval (5 → 10)
+  ok: interval resets to first on a lapse
+  ok: scheduler picks the worst (unmastered) task first (got 1)
+  ok: consec cap forces a switch off the dominant task (picks [1, 1, 2, 1, 1])
+  ok: very-easy item exceeds the lapse-probe threshold (F15)
+  integration: 214 trials, mastered=[True, True, True], mode_switches/task=[0, 0, 0]
+  ok: all 3 tasks graduated within budget (214 trials)
+  ok: graduation reached before the trial cap
+  ok: no mode thrashing (max switches 0 ≪ trials)
+  ok: telemetry: every TrialRecord carries a valid mode + epoch (D9)
+  ok: legacy worst-first picks the far/untrainable task
+  ok: trainability discount flips allocation to the trainable task (F77)
+  ok: pick(exclude=) suspends a task (M22 consistency pause hook)
+  ok: all tasks excluded ⇒ None
+  ok: legacy finishing blocked by sd_l a hair above the floor (the crack)
+  ok: finish_sd_tol=1.25 admits the near-mastery task to finishing (F77-ii)
+
+STEP 5 SMOKE TEST PASSED — 21 checks (graduated 3/3 in 214 trials).
+--- exit 0
+
+=== tests.test_step6 ===
+  ok: greedy Q (0.0846) > mean random Q (0.0291)
+  ok: greedy choice is in the top 1% of the reward surface (argmax sanity)
+  label-balance excursion: unconstrained 15, constrained 1
+  ok: UNCONSTRAINED greedy farms one-sided labels (excursion 15)
+  ok: CONSTRAINED greedy keeps balance bounded (excursion 1)
+  retention: spam picks seg 900, gated picks seg 901
+  ok: unconstrained retention bonus ⇒ easy item gets spammed (F6a witnessed)
+  ok: eligibility-gated retention removes the spam incentive (F6a fixed)
+
+STEP 6 SMOKE TEST PASSED — 6 checks.
+--- exit 0
+
+=== tests.test_step7 ===
+  running benchmark pilot (5 policies × 2 rules × 8 seeds)...
+  [soft] tier2=39±10(c0)  tier1=40±10(c0)  staircase85=142±119(c2)  measure_opt=44±11(c0)  random=300±0(c8)
+  [hard] tier2=40±10(c0)  tier1=43±12(c0)  staircase85=53±31(c0)  measure_opt=57±25(c0)  random=267±76(c6)
+  ok: tier2 always reaches mastery (0 censored, mean 39)
+  ok: tier2 39 ≪ random 300
+  ok: tier2 39 ≪ staircase 142 (noise-aware placement wins)
+  ok: tier2 39 ≤ 1.25× measure_opt 44 (comparable when well-specified)
+  ok: tier2 more robust than staircase under hard rule (tier2 40±10 vs staircase 53±31)
+
+STEP 7 SMOKE TEST PASSED — 5 checks (tier2 39 vs measure_opt 44 vs random 300).
+--- exit 0
+
+=== tests.test_step8 ===
+  running end-to-end pipeline (eval → train → re-cert)...
+  tasks           : ['domain2', 'domain3', 'domain4']
+  eval verdicts   : ['FAIL', 'FAIL', 'FAIL']
+  true ℓ eval→post: [-0.295, -0.144, -0.193] → [0.621, 0.667, 0.606]
+  recert verdicts : ['PASS', 'PASS', 'PASS']
+  PASS flips      : ['domain2', 'domain3', 'domain4']  (174 train trials)
+  ok: eval: at least one trained task not PASS (['FAIL', 'FAIL', 'FAIL'])
+  ok: training raised true skill on every task (Δℓ=[0.92, 0.81, 0.8])
+  ok: every task off FAIL at re-cert (['PASS', 'PASS', 'PASS'])
+  ok: ≥1 task flipped to PASS after training (['domain2', 'domain3', 'domain4'])
+  ok: training telemetry non-empty (174 records)
+  ok: re-cert recovered skill ℓ̂ 0.92 > eval ℓ̂ -0.54 (engine sees gains)
+  ok: re-cert ℓ̂ improved on every task ([-0.527, -0.607, -0.491] → [0.84, 1.356, 0.56])
+  ok: mean re-cert ℓ̂ 0.92 clears the mean cut 0.37
+
+STEP 8 SMOKE TEST PASSED — 8 checks (flips ['domain2', 'domain3', 'domain4'], 174 train trials).
+--- exit 0
+
+=== tests.test_tier3 ===
+  ok: nearest-target lookup exact (label-respecting)
+  ok: bias mode targets the criterion t̂ (|t̂|>t*)
+  ok: skill mode is boundary-centered 85%-point (side +)
+  ok: side/label alternate with parity
+  ok: valid index, deterministic under fixed rng
+  ok: label-balance constraint honored (F6b)
+  ok: picks the productive 85%-point item ([0, 0, 0, 0, 0])
+  ok: graduates the biased+sub-skill learner (n=28 < budget)
+  ok: cost 15 ms/trial < 100
+
+TIER-3 SMOKE TEST PASSED — 9 checks.
+--- exit 0
+
+=== tests.test_v15 ===
+  ok: v15 block complete (7 tasks)
+  ok: sigma* == exp(−ell*) to 1e-15, full-precision, all 7 tasks
+  ok: v14 and v13 blocks untouched (7 tasks each)
+  ok: particle counts: frozen 600 / staged 1200
+  ok: all 7 v15 cuts below v14
+  ok: domain3 v15 ell* exact (16-digit)
+  ok: v15 credentialed ceilings clear every cut (LT1 feasible)
+  ok: ceiling-to-cut gap widens on all tasks (domain1 0.085→0.168)
+  ok: v15 t-block prior is Corr_t (the swap is real)
+  ok: v14 reuses Corr_l for both blocks; l-block shared (unchanged)
+  ok: Corr_l unit-diagonal and positive-definite
+  ok: Corr_t unit-diagonal and positive-definite
+  ok: mu_t matches spec (domain1 +0.484, domain3 −1.728)
+  ok: bias Sigma_t == npy 'Sigma_t'
+  ok: 6000 draws reproduce mu_t (<0.05)
+  ok: +2 clip respected (domain2..7)
+  ok: zero-bias arm is exactly 0
+  ok: for_tasks subsets the prior matrices correctly
+  ok: v14 micro-eval runs; skilled rater's ℓ̂ clears all cuts
+  ok: v15 micro-eval runs; skilled rater's ℓ̂ clears all cuts
+  ok: no-kwargs default path still runs (shipped behavior)
+
+V15 SMOKE TEST PASSED — 21 checks.
+--- exit 0
+
+# SUITE_OVERALL_FAIL=0

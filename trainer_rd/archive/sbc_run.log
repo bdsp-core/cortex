@@ -1,0 +1,13 @@
+PROPER SBC: J=80 reps, 48 walkers, 1000+2000 steps, 60×80 reads, over-dispersed init
+/data/eli-work/scratch/studies/study_extset_sbc.py:81: RuntimeWarning: invalid value encountered in divide
+  return np.sqrt(var / Wv)                              # (dim,)
+/data/eli-work/scratch/studies/study_extset_sbc.py:81: RuntimeWarning: invalid value encountered in divide
+  return np.sqrt(var / Wv)                              # (dim,)
+  (5029s)
+       mu_l: max R̂=2.17  converged 69/80  uniformity p=0.07
+       sd_l: max R̂=nan  converged 67/80  uniformity p=0.85
+       mu_t: max R̂=5.42  converged 59/80  uniformity p=0.44
+       sd_t: max R̂=nan  converged 61/80  uniformity p=0.00
+       a_fa: max R̂=1.65  converged 70/80  uniformity p=0.62
+     a_miss: max R̂=3.35  converged 71/80  uniformity p=0.45
+saved figures/data_extset_sbc.npz
