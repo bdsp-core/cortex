@@ -7,6 +7,44 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ trainer_rd relocation (2026-07-06) — adaptive-trainer R&D subproject homed into the repo
+
+Housekeeping / repo structure. **No shipped engine, policy, bank, calibration,
+or test change** — a new compartmentalized subdirectory is added; nothing
+existing is touched.
+
+### What
+
+* **`trainer_rd/`** — the adaptive-trainer learning-algorithm prototype
+  (eval→training→re-certification: SMC skill/bias measurement → POMDP training
+  protocol → re-cert) relocated **verbatim** from its standalone development
+  directory (`/data/eli-work/scratch`, 2026-07-06). It joins `methodology_rd/`
+  and `discrimination_rd/` as a self-contained R&D sibling: its own 21-file /
+  299-check script-style suite, its own interpreter (system `python3`, run from
+  inside the directory), its own vendored engine + `*_general` data banks. It
+  is **frozen for advisor review** and is **not part of the shipped
+  distribution** (absent from the `pyproject.toml` package list).
+* **Isolation.** `trainer_rd/conftest.py` (`collect_ignore_glob = ["*"]`) makes
+  an explicit `pytest trainer_rd/` collect 0 items; the repo suite is already
+  pinned to `<repo>/tests` by `testpaths`, so a normal `pytest` never descends
+  there. Repo `README.md` + `CLAUDE.md` document the subproject and add a
+  "never sweep it into repo-wide invariant scans" rule.
+
+### Evidence (gated relocation, `trainer_rd/docs/REPO_RELOCATION_PLAN.md`)
+
+* Pre-move baseline (`/data/eli-work/scratch`): full suite **21 files / 299
+  checks, all PASSED**.
+* Post-move (`trainer_rd/`, same interpreter): **21 files / 299 checks**, per-
+  file check counts **bit-identical** to the baseline; state-read + viz smokes
+  clean. Logs: `trainer_rd/archive/relocation_{baseline,postmove}_suite.log`.
+* Repo pytest before and after the guard: **485 passed / 2 failed / 11 skipped
+  / 28 deselected**, unchanged (the 2 failures are pre-existing, unrelated to
+  this change: `tests/test_phase1_data.py::test_canonical_table_sizes[datasets.csv-5]`
+  and `::test_carry_forwards_present`, from in-progress `data/labels/` work).
+  Collection count unchanged (498/526); `pytest trainer_rd/` collects 0.
+
+---
+
 ## ▶ CORTEX bundle (2026-06-04) — `cortex-v1.4.2` — scrollable results screen
 
 UI fix. **Engine, policy, bank, and calibration UNCHANGED** — no decision or statistic changes.
