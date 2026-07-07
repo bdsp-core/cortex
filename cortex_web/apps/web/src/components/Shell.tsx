@@ -1761,9 +1761,16 @@ export function Shell({
   // CTAs — a brand-new user gets a single "Take the certification test" instead
   // of Resume training / Re-take (neither applies before the first test).
   const [hasResult, setHasResult] = useState<boolean | null>(null);
+  // Training-exposure flag (server-driven: all/cohort/off). Default hidden until
+  // the dashboard confirms it, so a gated build never flashes the entry.
+  const [trainingEnabled, setTrainingEnabled] = useState(false);
   useEffect(() => {
     let live = true;
-    api.getDashboard().then((d) => { if (live) setHasResult(d.hasResult); }).catch(() => {});
+    api.getDashboard().then((d) => {
+      if (!live) return;
+      setHasResult(d.hasResult);
+      setTrainingEnabled(d.trainingEnabled ?? false);
+    }).catch(() => {});
     return () => { live = false; };
   }, []);
 
@@ -1807,13 +1814,15 @@ export function Shell({
             </button>
           ) : (
             <>
-              <button
-                type="button"
-                className="cx-btn primary"
-                onClick={() => { setView("training"); onStartTraining(); }}
-              >
-                Resume training
-              </button>
+              {trainingEnabled && (
+                <button
+                  type="button"
+                  className="cx-btn primary"
+                  onClick={() => { setView("training"); onStartTraining(); }}
+                >
+                  Resume training
+                </button>
+              )}
               <button type="button" className="cx-btn" onClick={onStartTest}>
                 Re-take certification test
               </button>

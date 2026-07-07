@@ -24,6 +24,31 @@ from .session_bank import SessionBank
 _HEAVY_RESULT_KEYS = ("trials", "servedSegIds")
 
 
+def training_enabled(cfg: dict, code: str, participant: Optional[dict]) -> bool:
+    """Whether the training-protocol entry is available to this participant,
+    per the `training_mode` flag ("all" | "cohort" | "off"). Pure: the caller
+    passes the participant row (only consulted for cohort-allowlist matching).
+    Default posture is "all" (every authed user), preserving the 2026-07-07
+    live-for-everyone deploy."""
+    mode = (cfg or {}).get("training_mode", "all")
+    if mode == "off":
+        return False
+    if mode == "all":
+        return True
+    # cohort: match code / 9-digit public_id / email against the allowlist
+    allow = (cfg or {}).get("training_allowlist") or frozenset()
+    if not allow:
+        return False
+    if code.lower() in allow:
+        return True
+    if participant:
+        pub = str(participant.get("public_id") or "").lower()
+        email = str(participant.get("email") or "").lower()
+        if pub in allow or email in allow:
+            return True
+    return False
+
+
 def slim_result(result: dict) -> dict:
     """A listing-surface copy of a stored result, minus the per-question bulk."""
     return {k: v for k, v in result.items() if k not in _HEAVY_RESULT_KEYS}

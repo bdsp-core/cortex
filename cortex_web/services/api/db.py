@@ -944,6 +944,100 @@ class Database:
                     (code, tk, p.get("ell"), p.get("theta"), p.get("sd"),
                      p.get("rt"), utc_now(), training_id, p.get("seqInSession")))
 
+    # ── training pilot monitor (admin) ────────────────────────────
+    def training_monitor(self) -> dict:
+        """Aggregate safety + volume telemetry for the deployed trainer. Volume
+        metrics are SQL; the SAFETY metric — confirmed false-graduation (the
+        trainer declared a domain mastered, but the participant's next fresh
+        retest did NOT pass it) — is cross-referenced in Python by linking each
+        training session's final per-task ℓ against ℓ* and the subsequent cert
+        verdict. See docs/TRAINER_PILOT_SAP.md for the endpoint definitions."""
+        def _n(sql: str) -> int:
+            row = self._fetchone(sql)
+            return int((row["n"] if row else 0) or 0)
+
+        learners = _n("SELECT COUNT(DISTINCT code) AS n FROM param_trajectories "
+                      "WHERE is_real=1 AND phase='train'")
+        started = _n("SELECT COUNT(*) AS n FROM training_sessions")
+        completed = _n("SELECT COUNT(*) AS n FROM training_sessions "
+                       "WHERE status='complete'")
+        trials = _n("SELECT COUNT(*) AS n FROM param_trajectories "
+                    "WHERE is_real=1 AND phase='train'")
+        exposure = _n("SELECT COUNT(*) AS n FROM training_trials")
+        per_domain = [
+            {"taskK": int(r["task_k"]), "trials": int(r["n"])}
+            for r in self._fetchall(
+                "SELECT task_k, COUNT(*) AS n FROM param_trajectories "
+                "WHERE is_real=1 AND phase='train' GROUP BY task_k ORDER BY task_k")]
+        return {
+            "learners": learners,
+            "sessionsStarted": started,
+            "sessionsCompleted": completed,
+            "trainingTrials": trials,
+            "exposureRows": exposure,
+            "perDomainTrials": per_domain,
+            **self._graduation_safety(),
+        }
+
+    def _graduation_safety(self) -> dict:
+        """Graduation count + CONFIRMED false-graduation rate (the SAP primary
+        safety endpoint). A (participant, domain) 'graduated' if its final
+        trained ℓ ≥ ℓ*; it's a 'confirmed retest' if a fresh cert finished after
+        that training; a 'false graduation' if that retest's verdict ≠ PASS."""
+        def _per_task(result: dict, task: int, field: str):
+            for p in (result or {}).get("perTask") or []:
+                if isinstance(p, dict) and p.get("taskK") == task:
+                    return p.get(field)
+            return None
+
+        rows = self._fetchall(
+            "SELECT code, training_id, task_k, ell FROM param_trajectories "
+            "WHERE is_real=1 AND phase='train' AND training_id IS NOT NULL "
+            "AND ell IS NOT NULL ORDER BY ts")
+        final_ell: dict = {}   # (code, training_id, task) -> final ℓ (ts-ordered, last wins)
+        for r in rows:
+            final_ell[(r["code"], r["training_id"], int(r["task_k"]))] = float(r["ell"])
+        empty = {"graduatedDomains": 0, "confirmedRetests": 0,
+                 "falseGraduations": 0, "falseGraduationRate": None}
+        if not final_ell:
+            return empty
+        tfin = {t["training_id"]: t.get("finished_utc")
+                for t in self._fetchall(
+                    "SELECT training_id, finished_utc FROM training_sessions")}
+        # cert results per participant, ascending by finish time (ISO ⇒ sortable)
+        results: dict = {}
+        for code in {c for (c, _t, _k) in final_ell}:
+            rs = [r for r in self.list_results_for_code(code) if r.get("finished_utc")]
+            rs.sort(key=lambda r: r["finished_utc"])
+            results[code] = rs
+        graduated = confirmed = false_grad = 0
+        for (code, tid, task), ell in final_ell.items():
+            rs = results.get(code, [])
+            # ℓ* is bundle-wide: take it from any of the participant's results
+            ellstar = next((v for r in rs
+                            if (v := _per_task(r["result"], task, "ellStar")) is not None), None)
+            if ellstar is None or ell < float(ellstar):
+                continue
+            graduated += 1
+            tf = tfin.get(tid)
+            if not tf:
+                continue
+            nxt = next((r for r in rs if r["finished_utc"] > tf), None)
+            if nxt is None:
+                continue
+            verdict = _per_task(nxt["result"], task, "verdict")
+            if verdict is None:
+                continue
+            confirmed += 1
+            if str(verdict).upper() != "PASS":
+                false_grad += 1
+        return {
+            "graduatedDomains": graduated,
+            "confirmedRetests": confirmed,
+            "falseGraduations": false_grad,
+            "falseGraduationRate": (false_grad / confirmed) if confirmed else None,
+        }
+
     # ── cohorts ───────────────────────────────────────────────────
     def create_cohort(self, cohort_id: str, name: str, manager_code: str) -> None:
         """Create a cohort; the manager joins as an active member in the same

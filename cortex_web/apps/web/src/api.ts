@@ -421,6 +421,7 @@ export interface DashboardData {
   hasResult: boolean;
   tasks: DashboardTask[];
   kpis: DashboardKpis | null;   // null until a cert result exists
+  trainingEnabled?: boolean;    // training-exposure flag (all/cohort/off); absent on legacy responses
 }
 
 export interface TrajectoryPoint {

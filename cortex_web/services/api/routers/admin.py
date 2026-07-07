@@ -17,6 +17,19 @@ def admin_list(req: Request, _: bool = Depends(require_admin)):
     return [dict(r) for r in req.app.state.db.list_participants()]
 
 
+@router.get("/training-monitor")
+def admin_training_monitor(req: Request, _: bool = Depends(require_admin)):
+    """Pilot safety + volume telemetry for the deployed trainer (SAP §Monitoring):
+    learners/sessions/trials/exposure, per-domain trial counts, graduation count,
+    and the confirmed false-graduation rate."""
+    cfg = req.app.state.cfg
+    return {
+        "trainingMode": cfg.get("training_mode", "all"),
+        "cohortSize": len(cfg.get("training_allowlist") or ()),
+        **req.app.state.db.training_monitor(),
+    }
+
+
 @router.post("/participants")
 def admin_gen(body: AdminGenIn, req: Request, _: bool = Depends(require_admin)):
     """Seed test accounts. Since accounts are email+password since the

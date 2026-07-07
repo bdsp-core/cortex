@@ -3,12 +3,16 @@
 Status: **SHIPPED + LIVE ON PROD 2026-07-07** (commit `656927c`, release
 `656927c653f7`). Authored 2026-07-06 as a gated spec; G0–G4 all built and merged to
 `main`, then deployed to app.cortexeeg.org — "Resume training" is live for all users
-on the 35k `v1.6-k7-35k` bank. **The G5 prod-pilot gate was WAIVED by owner decision,
-not satisfied** (no PI sign-off; no cohort-scoping/monitoring built; the owner
-accepted that training excludes a user's trained segments from their future cert
-draws). Rollback = `git revert 656927c` + rerun `cortex_web/deploy/scripts/deploy_app.sh`
-(prior good commit `a1f9748`). See `docs/G4_CLOSEOUT.md` §7. The G0–G3 Python trainer
-package + tests remain uncommitted (not deployed; separate follow-up).
+on the 35k `v1.6-k7-35k` bank. **G5 engineering + governance are now CLOSED**
+(2026-07-07): the retrofit guardrails are built — a `training_mode` flag (all/cohort/off
+kill-switch), an admin monitor with the confirmed false-graduation metric, and a
+registered SAP (`docs/TRAINER_PILOT_SAP.md`) with **owner-reported PI sign-off**. Two
+items remain **human-gated** (not autonomously completable): (1) file the durable PI
+sign-off artifact; (2) run the pilot to N + complete the SAP analysis on real data.
+Honest caveats: the deploy *preceded* the SAP (owner call), exposure is still
+all-users (flag built but left at "all"), and the sign-off is owner-attested. Rollback
+= `training_mode=off` (soft) or `git revert 656927c` + redeploy (hard). See
+`docs/G4_CLOSEOUT.md` §7. The G0–G3 Python trainer package + tests remain uncommitted.
 
 Scope: wire the frozen `trainer_rd/` learning algorithm into the production
 **test → train → retest** loop so that a candidate is examined, enters adaptive
@@ -481,21 +485,38 @@ was done locally (two-terminal stack, `_smoke_big` bundle) and confirmed by the 
 > **STATUS 2026-07-07:** a full-exposure prod deploy already happened (G4 §7) on
 > owner call, so the *code* is live — but the pilot's actual guardrails below were
 > **NOT** built. These are now outstanding follow-ups on a live surface, not
-> pre-deploy work: **(a)** the feature-flag / cohort-scoping (training is currently
-> visible to ALL users, not a pilot cohort); **(b)** the monitoring; **(c)** PI
-> sign-off + the pre-registered SAP. Until (a) exists, the "reversible" story is the
-> revert-and-redeploy rollback, not a flag toggle.
+> pre-deploy work. **UPDATE 2026-07-07 — the retrofit guardrails are now BUILT
+> (still full-exposure by owner choice):**
+> - ✅ **(a) Feature flag / cohort-scoping.** `CORTEX_TRAINING_MODE` = all (default,
+>   current) | cohort (`CORTEX_TRAINING_ALLOWLIST`) | off (kill-switch). Server-enforced
+>   on `POST /regimen` + `/training-sessions`; surfaced as `trainingEnabled` on
+>   `/dashboard`; the Shell hides "Resume training" when off. Reversibility is now a
+>   **config change + restart, no redeploy**. (`config.py`, `app.py` cfg,
+>   `dashboard_logic.training_enabled`, `Shell.tsx`.)
+> - ✅ **(b) Monitoring.** `GET /api/admin/training-monitor` (admin-gated) →
+>   `db.training_monitor()`: learners/sessions/trials/exposure, per-domain trials,
+>   graduated domains, and the **confirmed false-graduation rate** (the trainer graduated
+>   a domain the next cold retest didn't pass). Unit-tested.
+> - ✅ **(c) SAP registered** — `docs/TRAINER_PILOT_SAP.md`; **PI sign-off obtained
+>   (owner-reported 2026-07-07)**. Two honest caveats recorded there: the SAP is
+>   *post-hoc* (deploy preceded it), and the sign-off is *owner-attested* pending a
+>   filed signed artifact.
+
 - Feature-flagged, cohort-scoped, **K=1–3 pilot scope** (matches trainer_rd's
-  honest "median learner graduates ~2 of 7 in 40 sessions").
+  honest "median learner graduates ~2 of 7 in 40 sessions"). *(Flag built; scope kept
+  at all-users by owner choice.)*
 - **Monitoring:** per-trial delivered value, graduation-vs-confirmed rates,
   retest deltas per domain, false-graduation at the *confirmed* (post-retest)
-  level, exposure-budget consumption.
-- **Rollback:** feature flag off restores the pure exam path; the training tables
-  are additive and the exam path is untouched, so rollback is data-safe.
-- Pre-register a pilot SAP (~33/arm per trainer_rd power note); PI sign-off before
-  expanding K beyond the pilot set.
+  level, exposure-budget consumption. *(Built — see the monitor endpoint above.)*
+- **Rollback:** `training_mode=off` restores the pure exam path (soft, no redeploy);
+  training tables are additive and the exam path is untouched, so rollback is data-safe.
+- Pre-register a pilot SAP (~33/arm per trainer_rd power note); PI sign-off. *(Done —
+  SAP registered + owner-reported sign-off.)*
 
-**Exit:** pilot SAP met; PI sign-off; documented decision to expand K.
+**Exit:** ⚠️ **Engineering + governance closed; two items remain HUMAN-GATED and are
+NOT autonomously completable:** (1) file the durable PI sign-off artifact (name/date);
+(2) run the pilot to N on real accrued data and complete the SAP §8 analysis, then the
+PI's documented decision to expand scope. The build/telemetry/flag/SAP are done.
 
 ---
 

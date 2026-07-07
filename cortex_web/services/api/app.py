@@ -92,6 +92,11 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                                              str(config.DEFAULT_SESSION_SAMPLE))),
         "spacing_days": int(os.environ.get("CORTEX_SPACING_DAYS", "30")),
         "spacing_sessions": int(os.environ.get("CORTEX_SPACING_SESSIONS", "3")),
+        "training_mode": os.environ.get("CORTEX_TRAINING_MODE", "all").strip().lower(),
+        "training_allowlist": frozenset(
+            x.strip().lower()
+            for x in os.environ.get("CORTEX_TRAINING_ALLOWLIST", "").split(",")
+            if x.strip()),
     }
 
     origins = os.environ.get(

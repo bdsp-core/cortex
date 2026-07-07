@@ -51,3 +51,20 @@ TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 
 # Where user reports (the /report page) are emailed. Overridable via env.
 REPORT_TO = os.environ.get("CORTEX_REPORT_TO", "elikeldsen@icloud.com")
+
+# Training-protocol exposure gate (the adaptive trainer went live for all users
+# 2026-07-07). A soft, flag-based control so exposure is reversible WITHOUT a
+# revert-and-redeploy:
+#   "all"    — every authenticated user (the current prod posture)
+#   "cohort" — only participants in CORTEX_TRAINING_ALLOWLIST (a pilot cohort)
+#   "off"    — nobody (kill-switch: hides the entry + 403s the start endpoints;
+#              in-flight sessions still finalize)
+# The allowlist matches a participant's code, 9-digit public_id, or email
+# (case-insensitive). These are ALSO re-read per-app in create_app() so tests
+# can flip the mode via env.
+TRAINING_MODE = os.environ.get("CORTEX_TRAINING_MODE", "all").strip().lower()
+TRAINING_ALLOWLIST = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_TRAINING_ALLOWLIST", "").split(",")
+    if x.strip()
+)

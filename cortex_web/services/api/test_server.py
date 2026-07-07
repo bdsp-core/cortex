@@ -1885,3 +1885,102 @@ def test_g4_train_retest_loop_staging(client):
                 json={"points": [{"taskK": 0, "ell": 9.9, "phase": "train"}]}, headers=h)
     traj = client.get("/api/trajectories", headers=h).json()["trajectories"]
     assert not any(p.get("ell") == 9.9 for p in traj), "quarantined synthetic point leaked"
+
+
+def test_training_flag_modes(client):
+    """The training-exposure flag gates /dashboard trainingEnabled + 403s the
+    training start endpoints. Default 'all' preserves the live-for-everyone
+    posture; 'off' is a kill-switch; 'cohort' restricts to the allowlist."""
+    email, pw = _make_participant(client)
+    h = _auth_header(client, email, pw)
+    result = {"verdicts": ["FAIL"] * 7,
+              "perTask": [{"taskK": k, "ellStar": 0.3, "verdict": "FAIL",
+                           "ell": 0.0, "theta": 0.0} for k in range(7)]}
+    sid = client.post("/api/session", json={}, headers=h).json()["sessionId"]
+    client.post("/api/results",
+                json={"sessionId": sid, "result": result, "nQuestions": 5}, headers=h)
+    cfg = client.app.state.cfg
+
+    cfg["training_mode"] = "all"
+    assert client.get("/api/dashboard", headers=h).json()["trainingEnabled"] is True
+    assert client.post("/api/regimen", json={}, headers=h).status_code == 200
+    assert client.post("/api/training-sessions", json={}, headers=h).status_code == 200
+
+    cfg["training_mode"] = "off"
+    assert client.get("/api/dashboard", headers=h).json()["trainingEnabled"] is False
+    assert client.post("/api/regimen", json={}, headers=h).status_code == 403
+    assert client.post("/api/training-sessions", json={}, headers=h).status_code == 403
+
+    cfg["training_mode"] = "cohort"
+    cfg["training_allowlist"] = frozenset()
+    assert client.get("/api/dashboard", headers=h).json()["trainingEnabled"] is False
+    cfg["training_allowlist"] = frozenset({email.lower()})
+    assert client.get("/api/dashboard", headers=h).json()["trainingEnabled"] is True
+    assert client.post("/api/regimen", json={}, headers=h).status_code == 200
+
+
+def test_training_monitor_false_graduation(client):
+    """The admin monitor computes the SAP safety endpoint: a domain the trainer
+    graduated (final trained ℓ ≥ ℓ*) whose next fresh retest did NOT pass is a
+    CONFIRMED false graduation. Built deterministically via controlled timestamps
+    (utc_now is second-resolution, so the API can't order these reliably)."""
+    db = client.app.state.db
+    email, _pw = _make_participant(client)         # real participant (sessions.code FK)
+    code = db.get_participant_by_email(email)["code"]
+    ELLSTAR = 0.3
+
+    def result(v3, v5):
+        vmap = {3: v3, 5: v5}
+        return {"verdicts": ["PASS"] * 7,
+                "perTask": [{"taskK": k, "ellStar": ELLSTAR,
+                             "verdict": vmap.get(k, "PASS"),
+                             "ell": 0.0, "theta": 0.0} for k in range(7)]}
+
+    def insert_result(sid, when, res):
+        with db._connection() as conn:
+            conn.execute(db._q(
+                "INSERT INTO sessions(session_id, code, participant, started_utc, "
+                "finished_utc, status, n_questions) VALUES (?,?,'{}',?,?, 'complete', 5)"),
+                (sid, code, when, when))
+            conn.execute(db._q(
+                "INSERT INTO results(session_id, result, received_utc) VALUES (?,?,?)"),
+                (sid, json.dumps(res), when))
+
+    def insert_training(tid, when, grad_tasks):
+        with db._connection() as conn:
+            conn.execute(db._q(
+                "INSERT INTO training_sessions(training_id, code, started_utc, "
+                "finished_utc, status, n_items) VALUES (?,?,?,?, 'complete', 4)"),
+                (tid, code, when, when))
+            for task in grad_tasks:
+                conn.execute(db._q(
+                    "INSERT INTO param_trajectories(code, task_k, phase, ell, ts, "
+                    "training_id, is_real) VALUES (?,?,'train',?,?,?, 1)"),
+                    (code, task, 0.5, when, tid))       # 0.5 ≥ ℓ*=0.3 ⇒ graduated
+
+    # cert(pre, both FAIL) → train (graduate 3 & 5) → retest: task3 FAIL, task5 PASS
+    insert_result("s-pre", "2026-01-01T00:00:00Z", result("FAIL", "FAIL"))
+    insert_training("tr-1", "2026-01-02T00:00:00Z", grad_tasks=[3, 5])
+    insert_result("s-post", "2026-01-03T00:00:00Z", result("FAIL", "PASS"))
+
+    m = db.training_monitor()
+    assert m["trainingTrials"] == 2
+    assert m["learners"] == 1
+    assert m["graduatedDomains"] == 2       # both 3 and 5 cleared ℓ*
+    assert m["confirmedRetests"] == 2       # both had a later retest
+    assert m["falseGraduations"] == 1       # only task 3's retest FAILed
+    assert abs(m["falseGraduationRate"] - 0.5) < 1e-9
+
+    # endpoint: admin-gated + echoes the flag mode
+    r = client.get("/api/admin/training-monitor",
+                   headers={"X-Admin-Token": "test-admin"})
+    assert r.status_code == 200, r.text
+    assert r.json()["falseGraduations"] == 1 and r.json()["trainingMode"] == "all"
+    assert client.get("/api/admin/training-monitor").status_code == 403
+
+
+def test_training_monitor_empty(client):
+    """Monitor on an empty DB returns zeros + a null rate (no divide-by-zero)."""
+    m = client.app.state.db.training_monitor()
+    assert m["learners"] == 0 and m["trainingTrials"] == 0
+    assert m["graduatedDomains"] == 0 and m["falseGraduationRate"] is None

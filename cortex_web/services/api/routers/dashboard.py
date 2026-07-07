@@ -20,13 +20,24 @@ from ..models import (
 router = APIRouter(prefix="/api")
 
 
+def _training_enabled(req: Request, code: str) -> bool:
+    """Resolve the training-exposure flag for this participant. Only hits the DB
+    for a participant lookup in cohort mode (all/off need no row)."""
+    cfg = req.app.state.cfg
+    participant = (req.app.state.db.get_participant(code)
+                   if cfg.get("training_mode") == "cohort" else None)
+    return dashboard_logic.training_enabled(cfg, code, participant)
+
+
 @router.get("/dashboard")
 def dashboard(req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
     sessions = db.list_results_for_code(code)
+    training_enabled = _training_enabled(req, code)
     if not sessions:
         return {"result": None, "hasResult": False, "tasks": [],
-                "kpis": None, "sample": False}
+                "kpis": None, "sample": False,
+                "trainingEnabled": training_enabled}
     latest = sessions[0]
     result = latest["result"]
     # Latest real measurement per domain (rows come ordered by task_k, ts
@@ -43,6 +54,7 @@ def dashboard(req: Request, code: str = Depends(require_auth)):
         "tasks": tasks,
         "kpis": dashboard_logic.dashboard_kpis(tasks, latest.get("finished_utc")),
         "sample": False,
+        "trainingEnabled": training_enabled,
     }
 
 
@@ -114,6 +126,8 @@ def training_list(req: Request, code: str = Depends(require_auth)):
 
 @router.post("/training-sessions")
 def training_start(body: TrainingStartIn, req: Request, code: str = Depends(require_auth)):
+    if not _training_enabled(req, code):
+        raise HTTPException(403, "training is not enabled for this account")
     db = req.app.state.db
     training_id = uuid.uuid4().hex
     reg = db.get_active_regimen(code)   # link the sitting to its regimen (Phase O2)
@@ -138,6 +152,8 @@ def regimen_create(req: Request, code: str = Depends(require_auth)):
     """Build (and activate) a training regimen from this participant's latest
     certification result: one track per NON-PASSED task, carrying its mastery
     bar ℓ*. The client trainer trains these tasks; the fresh retest re-certifies."""
+    if not _training_enabled(req, code):
+        raise HTTPException(403, "training is not enabled for this account")
     db = req.app.state.db
     sessions = db.list_results_for_code(code)
     if not sessions:
