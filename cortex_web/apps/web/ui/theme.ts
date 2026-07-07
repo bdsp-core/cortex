@@ -18,7 +18,7 @@ export const COLORS = {
   textTertiary: "var(--ink-subtle)",
   textMuted: "var(--ink-faint)",
   textFaint: "var(--ink-faint)",
-  accent: "var(--accent)", // answer-selection outline (amber, theme-constant)
+  accent: "var(--accent)", // answer-selection + exam-button accent = site teal (theme-constant)
   pass: "var(--pass)",
   fail: "var(--fail)",
   referBorderline: "var(--refer-b)",

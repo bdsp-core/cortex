@@ -106,7 +106,7 @@ export function Button({
     border: "1px solid transparent",
   };
   const kinds: Record<BtnKind, CSSProperties> = {
-    primary: { background: COLORS.accent, color: "#1a1206", border: "none" },
+    primary: { background: COLORS.accent, color: "#fff", border: "none" },
     ghost: {
       background: "transparent",
       color: COLORS.textSecondary,

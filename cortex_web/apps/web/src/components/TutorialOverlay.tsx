@@ -94,7 +94,7 @@ export function TutorialOverlay({ steps, onFinish }: { steps: TutorialStep[]; on
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
           <button onClick={advance} style={{
             height: 38, minWidth: last ? 132 : 100, cursor: "pointer",
-            background: COLORS.accent, color: "#1a1205", border: "none", borderRadius: 4,
+            background: COLORS.accent, color: "#fff", border: "none", borderRadius: 4,
             fontWeight: 700, fontSize: 13, fontFamily: FONTS.sans,
           }}>
             {last ? "BEGIN" : "NEXT"}

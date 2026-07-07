@@ -34,8 +34,9 @@
         /* ONE accent - clinical teal (constant in both themes) */
         --teal:#2f8f83;
         --teal-hover:#287a70;   /* darker teal for primary-button hover */
-        /* answer-selection affordance (clinical viewer); constant */
-        --accent:#f5a623;
+        /* answer-selection affordance (clinical viewer) — unified with the
+           site teal so the exam matches the rest of CORTEX (was amber #f5a623). */
+        --accent:var(--teal);
       }
 
       /* ---------- LIGHT theme (default = locked-v1 Dir-C) ---------- */

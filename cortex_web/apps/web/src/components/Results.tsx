@@ -172,7 +172,7 @@ export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
               }}
               style={{
                 background: vidState === "rendering" ? COLORS.cardAlt : COLORS.accent,
-                color: vidState === "rendering" ? COLORS.textTertiary : "#1a1205",
+                color: vidState === "rendering" ? COLORS.textTertiary : "#fff",
                 border: "none", borderRadius: 4, padding: "10px 16px", fontWeight: 700, fontSize: 13,
                 cursor: vidState === "rendering" ? "default" : "pointer", fontFamily: FONTS.sans,
               }}
