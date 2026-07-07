@@ -443,10 +443,19 @@ export interface RegimenDeckEntry {
   learning: number;
   due: number;
 }
+// The learner's measured per-task cert posterior (engine coords), handed to the
+// trainer to seed its belief clouds. Structurally matches the trainer's TaskPrior.
+export interface RegimenTaskPrior {
+  taskK: number;
+  ell: number;
+  theta: number;
+  sd: number | null;
+}
 export interface RegimenPlan {
   weeks: number;
   weekOf: number;
   deck: RegimenDeckEntry[];
+  prior?: RegimenTaskPrior[];
 }
 
 // One completed certification attempt (real data) from /api/history.
@@ -517,6 +526,30 @@ export function appendTrajectories(points: api_TrajectoryPointIn[]): Promise<{ o
   return authedFetch("/api/trajectories", {
     method: "POST",
     body: JSON.stringify({ points }),
+  });
+}
+// Build (and activate) a training regimen from the latest cert result: one track
+// per non-PASSED task. The server derives the weak set + ℓ*.
+export function createRegimen(): Promise<{ regimenId: string; regimen: RegimenPlan }> {
+  return authedFetch("/api/regimen", { method: "POST", body: "{}" });
+}
+export interface api_TrainingPointIn {
+  taskK: number;
+  segId?: number;
+  ell?: number;
+  theta?: number;
+  sd?: number;
+  rt?: number;
+  seqInSession?: number;
+}
+// Persist REAL per-trial trainer output for an owned training session (exposure
+// rows + is_real trajectory points; the server sets is_real/phase, anti-tamper).
+export function postTrainingProgress(
+  trainingId: string, points: api_TrainingPointIn[],
+): Promise<{ ok: boolean; n: number }> {
+  return authedFetch("/api/training-progress", {
+    method: "POST",
+    body: JSON.stringify({ trainingId, points }),
   });
 }
 // Record the participant's consent acceptance (Phase O1). Authenticated; the

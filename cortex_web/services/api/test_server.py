@@ -1812,3 +1812,76 @@ def test_api_headers_on_authed_and_error_responses(client):
     assert unauth.status_code == 401
     assert unauth.headers["cache-control"] == "no-store"
     assert unauth.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+
+
+# ───────────────── G4: test → train → retest loop (staging) ─────────────────
+
+def test_g4_train_retest_loop_staging(client):
+    """G4 staging e2e: one simulated participant through cert → regimen → train →
+    fresh retest, three rounds. Verifies the regimen weak set, that real
+    (is_real=1) training exposure + trajectories are persisted, that EVERY trained
+    segment is excluded from every subsequent retest draw (D-INT-4/7 spacing), and
+    that the is_real quarantine holds against a raw synthetic post."""
+    email, pw = _make_participant(client)
+    h = _auth_header(client, email, pw)
+
+    def exam_draw():
+        r = client.post("/api/session", json={}, headers=h)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        return d["sessionId"], [s["segId"] for s in d["bank"]["segments"]]
+
+    verdicts = ["PASS", "PASS", "REFER_BORDERLINE", "PASS", "FAIL", "PASS", "PASS"]
+    result = {"verdicts": verdicts,
+              "perTask": [{"taskK": k, "ellStar": 0.3, "verdict": v,
+                           "ell": 0.4, "theta": 0.0} for k, v in enumerate(verdicts)]}
+
+    # E0 → store a result with two non-PASSED tasks (lpd=2, lrda=4)
+    sid0, drawn0 = exam_draw()
+    r = client.post("/api/results",
+                    json={"sessionId": sid0, "result": result, "nQuestions": len(drawn0)},
+                    headers=h)
+    assert r.status_code == 200, r.text
+
+    # regimen = the weak set
+    r = client.post("/api/regimen", json={}, headers=h)
+    assert r.status_code == 200, r.text
+    reg = r.json()["regimen"]
+    assert {t["taskK"] for t in reg["deck"]} == {2, 4}
+    # real-skill handoff: a measured per-task posterior for ALL 7 tasks
+    assert {p["taskK"] for p in reg["prior"]} == set(range(7))
+    assert all("ell" in p and "theta" in p and "sd" in p for p in reg["prior"])
+
+    all_trained: set[int] = set()
+    prev_drawn = drawn0
+    for round_i in range(3):
+        r = client.post("/api/training-sessions", json={"taskFocus": "2"}, headers=h)
+        tid = r.json()["trainingId"]
+        train_segs = prev_drawn[:6]                     # train on fresh (unexcluded) segs
+        points = [{"taskK": 2 if i % 2 == 0 else 4, "segId": s, "ell": 0.5 + 0.02 * i,
+                   "theta": 0.0, "sd": 0.3, "rt": 1500, "seqInSession": i}
+                  for i, s in enumerate(train_segs)]
+        r = client.post("/api/training-progress",
+                        json={"trainingId": tid, "points": points}, headers=h)
+        assert r.status_code == 200 and r.json()["n"] == len(points), r.text
+        assert client.post("/api/training-sessions/finalize",
+                           json={"trainingId": tid, "nItems": len(points)},
+                           headers=h).status_code == 200
+        all_trained.update(train_segs)
+
+        # real trajectories surfaced (is_real=1, phase='train')
+        traj = client.get("/api/trajectories", headers=h).json()["trajectories"]
+        assert any(p["phase"] == "train" for p in traj)
+
+        # fresh RETEST excludes every trained segment
+        sid, drawn = exam_draw()
+        leaked = all_trained.intersection(drawn)
+        assert not leaked, f"round {round_i}: trained segs leaked into retest {leaked}"
+        client.post("/api/results", json={"sessionId": sid, "result": result}, headers=h)
+        prev_drawn = drawn
+
+    # is_real quarantine: a raw client trajectory post (no isReal) must NOT surface
+    client.post("/api/trajectories",
+                json={"points": [{"taskK": 0, "ell": 9.9, "phase": "train"}]}, headers=h)
+    traj = client.get("/api/trajectories", headers=h).json()["trajectories"]
+    assert not any(p.get("ell") == 9.9 for p in traj), "quarantined synthetic point leaked"

@@ -80,6 +80,14 @@ class TrajectoryIn(BaseModel):
     points: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class TrainingProgressIn(BaseModel):
+    """One or more real training trials to persist (L1). Each point carries
+    {taskK, segId?, ell?, theta?, sd?, rt?, seqInSession?}. The server sets
+    is_real/phase/code from the authenticated training session."""
+    trainingId: str
+    points: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class ReportIn(BaseModel):
     """Public support/feedback report. `client` carries browser-collected
     diagnostics (OS, timezone, screen, etc.) for troubleshooting."""

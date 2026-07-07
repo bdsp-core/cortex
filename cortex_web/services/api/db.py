@@ -905,6 +905,45 @@ class Database:
             "FROM param_trajectories WHERE code=? AND is_real=1 "
             "ORDER BY task_k, ts", (code,))
 
+    def training_session_owner(self, training_id: str) -> Optional[str]:
+        """The participant `code` that owns a training session (None if absent).
+        The anti-tamper gate: only the owner may record its progress."""
+        row = self._fetchone(
+            "SELECT code FROM training_sessions WHERE training_id=?",
+            (training_id,))
+        return row["code"] if row else None
+
+    def record_training_progress(self, code: str, training_id: str,
+                                 points: list[dict]) -> None:
+        """Server-authoritative per-trial training record (L1). For each point:
+        (1) an idempotent `training_trials` exposure row (its seg_id then feeds
+        `get_exposure_exclusion`, so retests never re-show a trained segment —
+        D-INT-4/7); and (2) a REAL `param_trajectories` row. `is_real`, `phase`,
+        and `code` are set HERE from the authenticated session — never trusted
+        from the client (anti-tamper). Caller must have verified ownership."""
+        if not points:
+            return
+        if self._pg:
+            excl = ("INSERT INTO training_trials(training_id, code, seg_id, "
+                    "task_k, shown_utc) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT (training_id, seg_id) DO NOTHING")
+        else:
+            excl = ("INSERT OR IGNORE INTO training_trials(training_id, code, "
+                    "seg_id, task_k, shown_utc) VALUES (?,?,?,?,?)")
+        with self._connection() as conn:
+            for p in points:
+                seg = p.get("segId")
+                tk = int(p["taskK"])
+                if seg is not None:
+                    conn.execute(self._q(excl),
+                                 (training_id, code, int(seg), tk, utc_now()))
+                conn.execute(self._q(
+                    "INSERT INTO param_trajectories(code, task_k, phase, ell, "
+                    "theta, sd, rt, ts, training_id, seq_in_session, is_real) "
+                    "VALUES (?,?,'train',?,?,?,?,?,?,?,1)"),
+                    (code, tk, p.get("ell"), p.get("theta"), p.get("sd"),
+                     p.get("rt"), utc_now(), training_id, p.get("seqInSession")))
+
     # ── cohorts ───────────────────────────────────────────────────
     def create_cohort(self, cohort_id: str, name: str, manager_code: str) -> None:
         """Create a cohort; the manager joins as an active member in the same

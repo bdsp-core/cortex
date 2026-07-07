@@ -19,6 +19,11 @@ export interface EegCanvasProps {
   // translucent red rectangle + red border is drawn so the rater knows which
   // portion of the clip is being scored. Hidden for spike clips.
   labeledEpoch?: { startS: number; endS: number };
+  // When true, trace drawing is clipped to the plot rectangle so a hard
+  // deflection (up to ±EEG_CLIP_MULT×gain ≈ 1.5 rows) can't overflow past the
+  // bottom row into the time-axis labels. Default false → exam rendering is
+  // byte-identical; the trainer opts in.
+  clipTraces?: boolean;
 }
 
 export function EegCanvas(props: EegCanvasProps) {
@@ -83,6 +88,13 @@ export function EegCanvas(props: EegCanvasProps) {
 
     const clip = EEG_CLIP_MULT * gainUv;
     ctx.textAlign = "right";
+    // keep traces inside the plot so they never paint over the time labels
+    if (props.clipTraces) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(padL, padT, plotW, plotH);
+      ctx.clip();
+    }
     for (let r = 0; r < nRows; r++) {
       const row = rows[r];
       const yMid = padT + (r + 0.5) * rowH;
@@ -110,6 +122,7 @@ export function EegCanvas(props: EegCanvasProps) {
       }
       ctx.stroke();
     }
+    if (props.clipTraces) ctx.restore();
 
     // scale bar (1 s + gain µV): placed at the Fz-Cz / Cz-Pz boundary of the
     // bipolar montage, within the second-to-last second of the window. Falls

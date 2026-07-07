@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PrivacyPage } from "./components/PrivacyPage";
 import { ReportPage } from "./components/ReportPage";
 import { TermsPage } from "./components/TermsPage";
@@ -19,14 +20,16 @@ const isCitation = path === "/citation";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ThemeProvider>
-      <LanguageProvider>
-        {isPrivacy ? <PrivacyPage />
-          : isReport ? <ReportPage />
-          : isTerms ? <TermsPage />
-          : isCitation ? <CitationPage />
-          : <App />}
-      </LanguageProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          {isPrivacy ? <PrivacyPage />
+            : isReport ? <ReportPage />
+            : isTerms ? <TermsPage />
+            : isCitation ? <CitationPage />
+            : <App />}
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

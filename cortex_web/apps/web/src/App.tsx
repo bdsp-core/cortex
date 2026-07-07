@@ -24,6 +24,10 @@ import { Results, ResultSummary } from "./components/Results";
 import { Shell } from "./components/Shell";
 import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
+import { TrainingRunner } from "./components/TrainingRunner";
+import { buildTrainerBank, cutScores, seedClouds, seedCloudsFromPrior } from "./trainerBank";
+import { ArrayBank, TrainerSession, buildFilters } from "../trainer/session";
+import type { FilterParams } from "../trainer/filter";
 
 type Phase =
   | "auth"
@@ -33,8 +37,16 @@ type Phase =
   | "loading"
   | "running"
   | "computing"
+  | "training"
   | "done"
   | "error";
+
+// The trainer's assumed learner dynamics (anchored EXTSET rates; matches the
+// Python production defaults). sigmaInf is per-task, set in startTraining.
+const TRAINER_PARAMS: FilterParams = {
+  alphaT: 0.097, alphaSigma: 0.047, sigmaInf: 0.4,
+  qT: 0.05, qSigma: 0.02, rho: 0.5, rule: "soft",
+};
 
 export function App() {
   const [phase, setPhase] = useState<Phase>(api.isAuthed() ? "dashboard" : "auth");
@@ -44,6 +56,9 @@ export function App() {
   const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, resolveConf: null });
   const [summary, setSummary] = useState<ResultSummary | null>(null);
   const [msg, setMsg] = useState("");
+  const [trainState, setTrainState] = useState<
+    { session: TrainerSession; trainingId: string; labels: string[]; bundle: Bundle } | null
+  >(null);
 
   const clientRef = useRef<EngineClient | null>(null);
   const participantRef = useRef<Participant | null>(null);
@@ -288,6 +303,36 @@ export function App() {
   }, []);
 
   // ── render ────────────────────────────────────────────────────
+  const startTraining = useCallback(async () => {
+    setPhase("loading");
+    try {
+      const { regimen: plan } = await api.createRegimen();  // weak-set + measured prior
+      const { trainingId } = await api.startTrainingSession();
+      // Candidate pool (spacing-aware + media) — reuse the balanced draw; the
+      // trainer picks adaptively from it and each seg is renderable.
+      const { bank } = await api.startSession({ ...(participantRef.current ?? {}) });
+      const b = Bundle.fromSessionBank(bank);
+      const inputs = b.inputs;
+      const ellStar = inputs.ellStar ?? inputs.taskCodes.map(() => 0.3);
+      const { ellStars, sigmaStars, sigmaInf } = cutScores(ellStar);
+      // Real-skill handoff: seed each task's belief from the learner's measured
+      // cert posterior (variance-inflated); fall back to a generic prior only if
+      // the regimen carries no posterior (legacy result).
+      const clouds = plan?.prior && plan.prior.length
+        ? seedCloudsFromPrior(plan.prior, ellStars.length, 200, 1)
+        : seedClouds(ellStars.map(() => 0.0), 200, 1);
+      const filters = buildFilters(clouds, TRAINER_PARAMS, sigmaInf, ellStars, { seed: 7, useMixture: false });
+      const session = new TrainerSession(
+        filters, ellStars, sigmaStars,
+        new ArrayBank(buildTrainerBank({ segments: inputs.segments })), { seed: 7 });
+      setTrainState({ session, trainingId, labels: inputs.taskLabels, bundle: b });
+      setPhase("training");
+    } catch (e) {
+      setMsg(String((e as Error)?.message ?? e));
+      setPhase("error");
+    }
+  }, []);
+
   switch (phase) {
     case "auth":
       return <AuthFlow onAuthed={() => setPhase("dashboard")} />;
@@ -295,7 +340,7 @@ export function App() {
       return (
         <Shell
           onStartTest={() => setPhase("consent")}
-          onStartTraining={() => {}}
+          onStartTraining={startTraining}
           onSignOut={() => { api.logout(); setPhase("auth"); }}
         />
       );
@@ -344,6 +389,16 @@ export function App() {
         <Viewer bundle={bundle!} item={item} onAnswer={onAnswer} />
       );
     }
+    case "training":
+      return trainState ? (
+        <TrainingRunner
+          bundle={trainState.bundle}
+          session={trainState.session}
+          trainingId={trainState.trainingId}
+          labels={trainState.labels}
+          onExit={() => { setTrainState(null); setPhase("dashboard"); }}
+        />
+      ) : <Computing note="Preparing your training session…" />;
     case "done":
       return summary
         ? <Results summary={summary} onDownloadVideos={downloadVideos}

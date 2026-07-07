@@ -14,7 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import dashboard_logic
 from ..deps import require_auth
-from ..models import TrainingFinalizeIn, TrainingStartIn, TrajectoryIn
+from ..models import (
+    TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn, TrajectoryIn)
 
 router = APIRouter(prefix="/api")
 
@@ -130,3 +131,72 @@ def training_finalize(body: TrainingFinalizeIn, req: Request, code: str = Depend
     if not ok:
         raise HTTPException(404, "unknown training session")
     return {"ok": True}
+
+
+@router.post("/regimen")
+def regimen_create(req: Request, code: str = Depends(require_auth)):
+    """Build (and activate) a training regimen from this participant's latest
+    certification result: one track per NON-PASSED task, carrying its mastery
+    bar ℓ*. The client trainer trains these tasks; the fresh retest re-certifies."""
+    db = req.app.state.db
+    sessions = db.list_results_for_code(code)
+    if not sessions:
+        raise HTTPException(400, "no certification result to build a regimen from")
+    latest = sessions[0]
+    src = latest.get("session_id")
+    tasks = dashboard_logic.dashboard_tasks(latest["result"])
+    # One deck row per NON-PASSED task. Shape MUST match the client RegimenPlan /
+    # RegimenDeckEntry the dashboard renders (deck[].ell/ellStar are .toFixed'd,
+    # so coerce nullable ℓ/ℓ* to floats). New/learning/due start at 0 for a fresh
+    # regimen; they light up as the trainer's exposure/SRS state accrues.
+    deck = [
+        {
+            "taskK": t["taskK"],
+            "code": t["code"],
+            "label": t.get("label") or t["code"],
+            "ell": float(t["ell"]) if t.get("ell") is not None else 0.0,
+            "ellStar": float(t["ellStar"]) if t.get("ellStar") is not None else 0.0,
+            "new": 0, "learning": 0, "due": 0,
+        }
+        for t in tasks
+        if str(t.get("verdict") or "").upper() != "PASS"
+    ]
+    # Real-skill handoff: the learner's MEASURED per-task posterior (ALL 7 tasks,
+    # engine coords ℓ/θ + the ℓ posterior SD from the cert `perTask` block, which
+    # dashboard_tasks doesn't carry). The client seeds the trainer's belief clouds
+    # from this instead of a generic prior, so training starts where the learner
+    # actually is.
+    per = latest["result"].get("perTask") or []
+    sd_by_k = {
+        int(p["taskK"]): p.get("sd")
+        for p in per
+        if isinstance(p, dict) and p.get("taskK") is not None
+    }
+    prior = [
+        {
+            "taskK": t["taskK"],
+            "ell": float(t["ell"]) if t.get("ell") is not None else 0.0,
+            "theta": float(t["theta"]) if t.get("theta") is not None else 0.0,
+            "sd": (float(sd_by_k[t["taskK"]])
+                   if sd_by_k.get(t["taskK"]) is not None else None),
+        }
+        for t in tasks
+    ]
+    plan = {"weeks": 8, "weekOf": 1, "deck": deck, "prior": prior, "sourceSessionId": src}
+    regimen_id = uuid.uuid4().hex
+    db.create_regimen(regimen_id, code, src, plan)
+    return {"regimenId": regimen_id, "regimen": plan}
+
+
+@router.post("/training-progress")
+def training_progress(body: TrainingProgressIn, req: Request,
+                      code: str = Depends(require_auth)):
+    """Persist real per-trial trainer output for an OWNED training session:
+    exposure rows (`training_trials`, so retests exclude trained segments) +
+    real trajectory points (`is_real=1`, set server-side). Anti-tamper: the
+    training session must belong to the authenticated participant."""
+    db = req.app.state.db
+    if db.training_session_owner(body.trainingId) != code:
+        raise HTTPException(404, "unknown training session")
+    db.record_training_progress(code, body.trainingId, body.points)
+    return {"ok": True, "n": len(body.points)}

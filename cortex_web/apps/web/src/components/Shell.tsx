@@ -910,7 +910,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                     </tr>
                   </thead>
                   <tbody>
-                    {regimen.deck.map((row) => (
+                    {(regimen.deck ?? []).map((row) => (
                       <tr key={row.code}>
                         <td className="task">
                           {row.label}
@@ -957,7 +957,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       </tr>
                     </thead>
                     <tbody>
-                      {regimen.deck.map((row) => (
+                      {(regimen.deck ?? []).map((row) => (
                         <tr key={row.code}>
                           <td className="task">{row.label}</td>
                           <td className={`cnt new${row.new ? "" : " zero"}`}>{row.new}</td>
@@ -1056,7 +1056,7 @@ function ProtocolSurface() {
               </tr>
             </thead>
             <tbody>
-              {regimen.deck.map((row) => {
+              {(regimen.deck ?? []).map((row) => {
                 const reached = row.ell >= row.ellStar;
                 return (
                   <tr key={row.code}>
@@ -1325,7 +1325,7 @@ function TrainingSurface() {
             </tr>
           </thead>
           <tbody>
-            {regimen.deck.map((row) => (
+            {(regimen.deck ?? []).map((row) => (
               <tr key={row.code}>
                 <td className="task">
                   {row.label}<span className="cx-task-sub">{row.code}</span>
