@@ -8,7 +8,7 @@
 // (a spike). "No" submits an out-of-range sentinel (K) → y=0 (no spike).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bundle, SegmentData } from "../bundle";
+import { Bundle, SegmentData, Item } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
 import { Progress } from "../progress";
@@ -17,11 +17,7 @@ import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS, NOTCH_OPTIONS,
 } from "../../ui/theme";
 
-export interface Item {
-  trialIndex: number;
-  taskK: number;
-  segId: number;
-}
+export type { Item };
 
 export function SpikeViewer({
   bundle, item, onAnswer, spikeTaskIdx, totalTasks,
@@ -34,6 +30,7 @@ export function SpikeViewer({
   totalTasks: number;          // K — used as the "No" sentinel pick (out of range)
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
+  const [segError, setSegError] = useState(false);
   const [montage, setMontage] = useState<string>("bipolar");
   const [gain, setGain] = useState(100);
   const [bandpass, setBandpass] = useState(BANDPASS_OPTIONS[0]);
@@ -50,9 +47,12 @@ export function SpikeViewer({
     if (!item) return;
     let alive = true;
     setSeg(null);
+    setSegError(false);
     setPick(null);
     answered.current = false;
-    bundle.segment(item.segId).then((s) => alive && setSeg(s));
+    bundle.segment(item.segId)
+      .then((s) => { if (alive) setSeg(s); })
+      .catch(() => { if (alive) setSegError(true); });
     return () => { alive = false; };
   }, [item, bundle]);
 
@@ -170,6 +170,11 @@ export function SpikeViewer({
         {seg ? (
           <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={dur || 10}
             panStartS={0} width={eegSize.w} height={eegSize.h} />
+        ) : segError ? (
+          <div style={{ color: "#ff5c5c", padding: 20 }}>
+            This recording failed to load. Check your connection and answer to
+            continue, or reload the page.
+          </div>
         ) : (
           <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>
         )}

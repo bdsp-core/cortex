@@ -140,6 +140,20 @@ CORTEX_PORT=8000
 CORTEX_RCLONE_REMOTE=box
 CORTEX_BOX_PATH=CORTEX/backups
 CORTEX_BACKUP_RETENTION_DAYS=30
+# ── FILL THESE IN (see deploy/.env.example for full docs) ──
+# Without the email vars, signup email-verification falls back to the dev stub
+# (logs codes to stderr, sends nothing) and NEW users can't complete signup.
+# CORTEX_EMAIL_BACKEND=smtp
+# CORTEX_SMTP_HOST=email-smtp.us-west-2.amazonaws.com
+# CORTEX_SMTP_PORT=587
+# CORTEX_SMTP_SECURITY=starttls
+# CORTEX_SMTP_USER=
+# CORTEX_SMTP_PASSWORD=
+# CORTEX_EMAIL_FROM=CORTEX <no-reply@$DOMAIN>
+# Without GOOGLE_CLIENT_ID the /api/auth/google endpoint 503s + the button hides.
+# GOOGLE_CLIENT_ID=
+# Where /report submissions are emailed (defaults to elikeldsen@icloud.com).
+# CORTEX_REPORT_TO=
 EOF
 
 # ── Caddy ──────────────────────────────────────────────────────────
@@ -177,5 +191,8 @@ cat <<NEXT
           /opt/cortex/.venv/bin/python -m api.admin \\
             --db "\$(grep ^CORTEX_DB /etc/cortex/cortex.env | cut -d= -f2-)" \\
             gen --count 50 --prefix cortex --out /tmp/codes.csv
-  6. Sanity check:    curl -s https://$DOMAIN/api/health
+  6. Fill in email (SMTP/SES) + GOOGLE_CLIENT_ID in $CONF/cortex.env, then
+        systemctl restart cortex.service
+     Until then signup email-verification uses the dev stub and Google login 503s.
+  7. Sanity check:    curl -s "https://$DOMAIN/api/health?deep=1"   # expect "ok": true
 NEXT

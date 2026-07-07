@@ -20,10 +20,13 @@ COPY . .
 RUN npm run build
 
 # ── stage 2: runtime (pure-API service + optional static) ───────
-FROM python:3.11-slim
+# python:3.12 matches prod (Ubuntu 24.04); install from requirements.lock (the
+# exact prod pin closure) when present so the image reproduces prod, falling
+# back to the floor-constraint requirements.txt.
+FROM python:3.12-slim
 WORKDIR /app
-COPY services/api/requirements.txt ./services/api/requirements.txt
-RUN pip install --no-cache-dir -r services/api/requirements.txt
+COPY services/api/requirements.txt services/api/requirements.lock* ./services/api/
+RUN pip install --no-cache-dir -r "$(test -f services/api/requirements.lock && echo services/api/requirements.lock || echo services/api/requirements.txt)"
 COPY services ./services
 COPY --from=spa /build/apps/web/dist ./apps/web/dist
 # apps/web/public/bundle is mounted at runtime (see header).

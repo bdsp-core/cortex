@@ -14,12 +14,6 @@ const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const TOKEN_KEY = "cortex_token";
 const DISPLAY_NAME_KEY = "cortex_display_name";
 
-export interface Manifest {
-  bundleUrl: string;
-  version: string | null;   // real bundle id (null only if no bank configured)
-  sessionSample: number;    // advisory; the question SET comes from startSession
-}
-
 export interface StartSessionResult {
   sessionId: string;
   sampleSeed: number;
@@ -250,20 +244,6 @@ export async function submitReport(payload: {
   await parse(res);
 }
 
-export async function health(): Promise<boolean> {
-  try {
-    const res = await transportFetch(`${API_BASE}/api/health`, {}, { timeoutMs: 10_000 });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// ── gated ────────────────────────────────────────────────────────
-export function getManifest(): Promise<Manifest> {
-  return authedFetch("/api/manifest", {}, { retries: 2 });
-}
-
 // ── account / profile (Settings page) ────────────────────────────
 export interface AccountProfile {
   email: string;
@@ -485,8 +465,17 @@ export interface QuestionRow {
   theta: number | null;      // running bias θ
 }
 
+// In-flight coalescing for the dashboard read: on first paint both the Shell
+// (hasResult/trainingEnabled) and the DashboardSurface (full payload) request
+// it. Sharing the pending promise collapses those into ONE round-trip. The
+// entry clears the moment it settles, so a later mount always refetches fresh
+// data — this is request dedup, not a stale cache.
+let _dashInFlight: Promise<DashboardData> | null = null;
 export function getDashboard(): Promise<DashboardData> {
-  return authedFetch("/api/dashboard", {}, { retries: 2 });
+  if (_dashInFlight) return _dashInFlight;
+  _dashInFlight = authedFetch("/api/dashboard", {}, { retries: 2 })
+    .finally(() => { _dashInFlight = null; });
+  return _dashInFlight;
 }
 // Per-day activity levels for the consistency heatmap (LOCAL date → level:
 // 1 = signed in, 2 = certification test, 3 = training completed). `tz` is the
@@ -499,9 +488,6 @@ export function getRegimen(): Promise<{ regimen: RegimenPlan | null; sample: boo
 }
 export function getTrajectories(): Promise<{ trajectories: TrajectoryPoint[]; sample: boolean }> {
   return authedFetch("/api/trajectories", {}, { retries: 2 });
-}
-export function listTrainingSessions(): Promise<{ sessions: unknown[] }> {
-  return authedFetch("/api/training-sessions", {}, { retries: 2 });
 }
 export function getHistory(): Promise<{ sessions: HistorySession[] }> {
   return authedFetch("/api/history", {}, { retries: 2 });
@@ -521,12 +507,6 @@ export function finalizeTrainingSession(
   return authedFetch("/api/training-sessions/finalize", {
     method: "POST",
     body: JSON.stringify({ trainingId, nItems, summary: summary ?? null }),
-  });
-}
-export function appendTrajectories(points: api_TrajectoryPointIn[]): Promise<{ ok: boolean }> {
-  return authedFetch("/api/trajectories", {
-    method: "POST",
-    body: JSON.stringify({ points }),
   });
 }
 // Build (and activate) a training regimen from the latest cert result: one track
@@ -562,16 +542,6 @@ export function recordConsent(consentVersion: string, irbProtocolId?: string,
     body: JSON.stringify({ consentType, consentVersion, irbProtocolId }),
   });
 }
-// The shape POSTed to /api/trajectories (a subset of TrajectoryPoint).
-export interface api_TrajectoryPointIn {
-  taskK: number;
-  phase?: "eval" | "train" | "recert";
-  ell?: number;
-  theta?: number;
-  sd?: number;
-  rt?: number;
-}
-
 // Start a sitting: the server draws this participant's balanced, spacing-aware
 // question subset (goal 3) and returns it with the session id + sample seed.
 export async function startSession(
@@ -648,8 +618,17 @@ function loadPending(): PendingResult[] {
     return [];
   }
 }
-function savePending(list: PendingResult[]): void {
-  localStorage.setItem(PENDING_KEY, JSON.stringify(list));
+function savePending(list: PendingResult[]): boolean {
+  // localStorage.setItem throws on quota-exceeded / private-mode. Guarded so a
+  // storage failure can't reject submitResults and strand the user (the result
+  // is still delivered from memory below); returns whether the durable-retry
+  // copy was written.
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(list));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Enqueue then deliver. Resolves true if delivered now, false if it was kept
@@ -663,10 +642,21 @@ export async function submitResults(
   // Give any straggler trial checkpoints one last chance to land before the
   // session is finalized (best-effort — the result blob carries them anyway).
   await progressOutbox.flush();
+  // Persist FIRST (durable retry copy), then attempt delivery of THIS result
+  // directly. We don't route delivery through flushPendingResults() because if
+  // the storage write failed (quota / private mode) the item wouldn't be in
+  // localStorage to re-read — the direct POST still delivers it from memory.
   const list = loadPending().filter((p) => p.sessionId !== sessionId);
   list.push({ sessionId, result, stopReason, nQuestions });
   savePending(list);
-  return (await flushPendingResults()).includes(sessionId);
+  try {
+    await postResults(sessionId, result, stopReason, nQuestions);
+    // Delivered: drop it from the durable queue (best-effort).
+    savePending(loadPending().filter((p) => p.sessionId !== sessionId));
+    return true;
+  } catch {
+    return false;   // retained for flushPendingResults() on the next authed load
+  }
 }
 
 // Retry every queued result; returns the session ids successfully delivered.

@@ -13,7 +13,7 @@
 // verdict. RT has no target. Verdict colors come from the theme ramp tokens,
 // never invented.
 
-import { useRef, useState, type MouseEvent as RMouseEvent } from "react";
+import { memo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { cssVar } from "../../../ui/theme";
 import { useTheme } from "../../theme/ThemeProvider";
 
@@ -49,7 +49,9 @@ function marginColor(d: number): string {
 }
 
 // ── Ring: signed margin to ℓ* (ℓ − ℓ*), colored red→green by that margin ─────
-export function Ring({
+// memo: the mastery grid renders 7 of these; a tile-selection re-render of the
+// parent must not re-run all their SVG geometry (primitive props are stable).
+export const Ring = memo(function Ring({
   ell, ellStar, size = 56,
 }: {
   ell: number | null; ellStar: number | null; size?: number;
@@ -84,10 +86,12 @@ export function Ring({
       </text>
     </svg>
   );
-}
+});
 
 // ── Sparkline: ℓ trend (teal line + endpoint dot) ───────────────────────────
-export function Sparkline({
+// memo for the same reason as Ring — one per mastery tile; `series` comes from
+// the parent's memoized trajectory map so the reference is stable.
+export const Sparkline = memo(function Sparkline({
   series, w = 72, h = 22,
 }: {
   series: number[]; w?: number; h?: number;
@@ -115,7 +119,7 @@ export function Sparkline({
       <circle cx={last[0].toFixed(1)} cy={last[1].toFixed(1)} r={1.8} fill={teal} />
     </svg>
   );
-}
+});
 
 // ── MiniChart: generic single-hue phase-shaded line chart ───────────────────
 // opts mirror the mockup miniChart():
@@ -315,7 +319,7 @@ export function HeatLegend() {
 
 // `activity` maps a UTC date (YYYY-MM-DD) → highest activity level that day.
 // Each cell shows its date on hover; future days in the current week are blank.
-export function Heatmap({ activity = {} }: { activity?: Record<string, number> } = {}) {
+export const Heatmap = memo(function Heatmap({ activity = {} }: { activity?: Record<string, number> } = {}) {
   useTheme();
   // GitHub-style hover tooltip: a custom popover that appears instantly on enter
   // and sits centered ABOVE the hovered cell (the native <title> is slow and
@@ -403,4 +407,4 @@ export function Heatmap({ activity = {} }: { activity?: Record<string, number> }
       )}
     </div>
   );
-}
+});

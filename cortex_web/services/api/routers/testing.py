@@ -81,12 +81,12 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
     sess = db.get_session(body.sessionId)
     if sess is None or sess["code"] != code:
         raise HTTPException(404, "unknown session")
-    db.store_result(body.sessionId, body.result)
-    db.finalize_session(body.sessionId, body.stopReason, body.nQuestions)
-    # Seed the per-domain evolution charts: record this test's EVAL operating
-    # point (ℓ/θ/σ + median RT) as one real trajectory point per task.
+    # Derive the EVAL operating points (ℓ/θ/σ + median RT per task) BEFORE
+    # writing, then store-result + finalize-session + trajectory-replace land
+    # as ONE transaction — no half-finalized session can survive a crash
+    # between statements.
     eval_pts = dashboard_logic.eval_points_from_result(
         body.result, db.session_trials(body.sessionId))
-    if eval_pts:
-        db.write_eval_trajectory(code, body.sessionId, eval_pts)
+    db.store_result_finalized(body.sessionId, code, body.result,
+                              body.stopReason, body.nQuestions, eval_pts)
     return {"ok": True}

@@ -19,6 +19,28 @@ from ..models import (
 
 router = APIRouter(prefix="/api")
 
+# A sitting is ≤ a few hundred questions; anything past this is a client bug
+# or abuse, not data (the outbox posts small batches).
+MAX_POINTS_PER_POST = 1000
+
+
+def _validate_points(points: list[dict]) -> None:
+    """Reject a malformed batch up front: every point needs an integer taskK
+    (and an integer segId when present). Without this a bad point raised
+    KeyError mid-transaction → a 500 that discarded the whole batch."""
+    if len(points) > MAX_POINTS_PER_POST:
+        raise HTTPException(413, f"too many points (max {MAX_POINTS_PER_POST})")
+    for i, p in enumerate(points):
+        try:
+            int(p["taskK"])
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(422, f"point {i}: integer 'taskK' required")
+        if p.get("segId") is not None:
+            try:
+                int(p["segId"])
+            except (TypeError, ValueError):
+                raise HTTPException(422, f"point {i}: 'segId' must be an integer")
+
 
 def _training_enabled(req: Request, code: str) -> bool:
     """Resolve the training-exposure flag for this participant. Only hits the DB
@@ -32,13 +54,14 @@ def _training_enabled(req: Request, code: str) -> bool:
 @router.get("/dashboard")
 def dashboard(req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
-    sessions = db.list_results_for_code(code)
+    # LIMIT-1 fetch: the dashboard reads only the newest attempt, so it must
+    # not pull + JSON-parse every historical ~370 KB result blob.
+    latest = db.latest_result_for_code(code)
     training_enabled = _training_enabled(req, code)
-    if not sessions:
+    if latest is None:
         return {"result": None, "hasResult": False, "tasks": [],
                 "kpis": None, "sample": False,
                 "trainingEnabled": training_enabled}
-    latest = sessions[0]
     result = latest["result"]
     # Latest real measurement per domain (rows come ordered by task_k, ts
     # ascending, so the last one seen per task is the most recent).
@@ -115,6 +138,7 @@ def trajectories(req: Request, code: str = Depends(require_auth)):
 
 @router.post("/trajectories")
 def trajectories_append(body: TrajectoryIn, req: Request, code: str = Depends(require_auth)):
+    _validate_points(body.points)
     req.app.state.db.append_trajectory_points(code, body.points)
     return {"ok": True}
 
@@ -155,10 +179,9 @@ def regimen_create(req: Request, code: str = Depends(require_auth)):
     if not _training_enabled(req, code):
         raise HTTPException(403, "training is not enabled for this account")
     db = req.app.state.db
-    sessions = db.list_results_for_code(code)
-    if not sessions:
+    latest = db.latest_result_for_code(code)
+    if latest is None:
         raise HTTPException(400, "no certification result to build a regimen from")
-    latest = sessions[0]
     src = latest.get("session_id")
     tasks = dashboard_logic.dashboard_tasks(latest["result"])
     # One deck row per NON-PASSED task. Shape MUST match the client RegimenPlan /
@@ -211,6 +234,7 @@ def training_progress(body: TrainingProgressIn, req: Request,
     exposure rows (`training_trials`, so retests exclude trained segments) +
     real trajectory points (`is_real=1`, set server-side). Anti-tamper: the
     training session must belong to the authenticated participant."""
+    _validate_points(body.points)
     db = req.app.state.db
     if db.training_session_owner(body.trainingId) != code:
         raise HTTPException(404, "unknown training session")

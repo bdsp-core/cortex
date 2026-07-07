@@ -1,5 +1,21 @@
 # CORTEX Web — status & handoff
 
+> **CURRENT STATE (2026-07-07).** The sections below are the original
+> 2026-05-29 build-session brief and are kept for history — several details are
+> now stale. What is true today:
+> - **DEPLOYED and live** at <https://app.cortexeeg.org> (EC2 + Caddy serving
+>   the SPA + EEG bundle; uvicorn as a pure API; Postgres). Phase 6 "not yet
+>   deployed" below is obsolete.
+> - **Monorepo layout**: the SPA is `apps/web/` (engine, trainer, src, ui) and
+>   the backend is `services/api/` (was `server/`). Any `server/` path below is
+>   stale — see [`LOCAL_DEV.md`](LOCAL_DEV.md) for current paths + commands.
+> - **Tests**: backend `services/api/test_server.py` = 117; research = 4;
+>   frontend vitest = ~101 cases (engine drift-guards + trainer + src).
+> - Since the original brief: Postgres backend + psycopg pool, routers/ split,
+>   deep health probe, adaptive trainer (test→train→retest), cohorts, i18n (8
+>   langs), Google sign-in, SES email, and the 2026-07-07 efficiency/robustness
+>   pass (see `docs/OPTIMIZATION_PASS_2026-07.md`).
+
 Last updated: 2026-05-29 (overnight build session). Cold-start brief so a
 future session can pick up the browser port without re-deriving anything.
 Pairs with [`PLAN.md`](PLAN.md) (architecture/design) — this file is "where we

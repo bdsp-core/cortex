@@ -26,12 +26,12 @@ import json
 from statistics import median
 from typing import Optional
 
+from .dashboard_logic import CANONICAL_TASKS as CANONICAL
 from .db import Database
 
-# Fixed 7-domain ontology (engine task index → code/label), matching app.py.
-CANONICAL = [(0, "spike", "Spike"), (1, "sz", "Seizure"), (2, "lpd", "LPD"),
-             (3, "gpd", "GPD"), (4, "lrda", "LRDA"), (5, "grda", "GRDA"),
-             (6, "iic", "Other")]
+# CANONICAL (the fixed 7-domain ontology, engine task index → code/label) is the
+# single source of truth in dashboard_logic; imported here so the two never
+# drift.
 
 
 def load_ell_star(manifest_path: str) -> list[float]:

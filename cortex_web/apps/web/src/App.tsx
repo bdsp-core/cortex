@@ -61,6 +61,13 @@ export function App() {
   >(null);
 
   const clientRef = useRef<EngineClient | null>(null);
+  // Terminate + forget the engine worker. Idempotent; called before a new
+  // sitting, on done/error, and on sign-out so workers never accumulate or
+  // outlive the session (each startTest spins up a fresh Worker).
+  const disposeClient = useCallback(() => {
+    clientRef.current?.dispose();
+    clientRef.current = null;
+  }, []);
   const participantRef = useRef<Participant | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const shownAtRef = useRef<number>(0);
@@ -86,7 +93,7 @@ export function App() {
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
     events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
     const check = () => {
-      if (Date.now() - last >= IDLE_MS) { api.logout(); setPhase("auth"); }
+      if (Date.now() - last >= IDLE_MS) { disposeClient(); api.logout(); setPhase("auth"); }
     };
     const id = window.setInterval(check, 30_000);
     const onVisible = () => { if (document.visibilityState === "visible") check(); };
@@ -96,7 +103,7 @@ export function App() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [phase]);
+  }, [phase, disposeClient]);
 
   const bundleRef = useRef<Bundle | null>(null);
 
@@ -173,6 +180,7 @@ export function App() {
           });
         },
         onDone: async (r) => {
+         try {
           setPhase("computing");
           const d = lastDiagRef.current;
           // Per-task ROC: posterior-mean AUROC + the examinee's empirical
@@ -268,10 +276,20 @@ export function App() {
             sampleSeed,
           }, r.stopReason, r.nQuestions);
           if (!delivered) console.warn("[cortex] results upload deferred; retained locally");
+          disposeClient();     // sitting complete → terminate the worker
           setPhase("done");
+         } catch (err) {
+          // A throw while building/delivering the result must not strand the
+          // user on the Computing screen (onDone is an un-awaited worker
+          // callback, so its rejection would otherwise be unhandled).
+          disposeClient();
+          setMsg(err instanceof Error ? err.message : String(err));
+          setPhase("error");
+         }
         },
-        onError: (m) => { setMsg(m); setPhase("error"); },
+        onError: (m) => { disposeClient(); setMsg(m); setPhase("error"); },
       });
+      disposeClient();         // never leak a prior sitting's worker
       clientRef.current = client;
       client.start(inputs, `web-${sampleSeed}`);
       setPhase("running");
@@ -279,7 +297,7 @@ export function App() {
       setMsg(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, []);
+  }, [disposeClient]);
 
   const onAnswer = useCallback((pick: number) => {
     lastPickRef.current = pick;
@@ -306,11 +324,16 @@ export function App() {
   const startTraining = useCallback(async () => {
     setPhase("loading");
     try {
-      const { regimen: plan } = await api.createRegimen();  // weak-set + measured prior
+      // createRegimen and startSession are independent server calls; run them
+      // in parallel (was a 3-call sequential waterfall). startTrainingSession is
+      // sequenced after the regimen since it links the sitting to it.
+      const [{ regimen: plan }, { bank }] = await Promise.all([
+        api.createRegimen(),                                  // weak-set + measured prior
+        // Candidate pool (spacing-aware + media) — reuse the balanced draw; the
+        // trainer picks adaptively from it and each seg is renderable.
+        api.startSession({ ...(participantRef.current ?? {}) }),
+      ]);
       const { trainingId } = await api.startTrainingSession();
-      // Candidate pool (spacing-aware + media) — reuse the balanced draw; the
-      // trainer picks adaptively from it and each seg is renderable.
-      const { bank } = await api.startSession({ ...(participantRef.current ?? {}) });
       const b = Bundle.fromSessionBank(bank);
       const inputs = b.inputs;
       const ellStar = inputs.ellStar ?? inputs.taskCodes.map(() => 0.3);
@@ -341,7 +364,7 @@ export function App() {
         <Shell
           onStartTest={() => setPhase("consent")}
           onStartTraining={startTraining}
-          onSignOut={() => { api.logout(); setPhase("auth"); }}
+          onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
         />
       );
     case "consent":

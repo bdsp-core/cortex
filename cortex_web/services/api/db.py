@@ -335,15 +335,21 @@ class Database:
     def _make_pool(self):
         """Open the psycopg3 connection pool (lazy import so SQLite-only dev
         installs don't need psycopg). min_size=1 keeps one warm connection;
-        max_size=4 comfortably covers the single-process API + the backup
-        exporter. `check` re-validates a connection at checkout and silently
-        replaces a dead one — a Postgres restart (the 2026-06-24 outage) now
-        self-heals on the next request instead of failing until a manual
-        service restart."""
+        max_size defaults to 10 (env CORTEX_PG_POOL_MAX): sync routes run on
+        Starlette's ~40-thread pool, so a burst of >max_size DB-touching
+        requests queues on checkout — 4 was a needlessly low ceiling for the
+        "100 concurrent participants" target on local Postgres. `check`
+        re-validates a connection at checkout and silently replaces a dead
+        one — a Postgres restart (the 2026-06-24 outage) self-heals on the
+        next request instead of failing until a manual service restart; the
+        extra SELECT 1 round-trip is sub-ms against the on-box DB and is the
+        deliberate robustness>latency trade."""
         from psycopg.rows import dict_row
         from psycopg_pool import ConnectionPool
         return ConnectionPool(
-            self._raw, min_size=1, max_size=4, open=True,
+            self._raw, min_size=1,
+            max_size=int(os.environ.get("CORTEX_PG_POOL_MAX", "10")),
+            open=True,
             check=ConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
         )
@@ -682,13 +688,18 @@ class Database:
         return self._fetchone(
             "SELECT * FROM sessions WHERE session_id=?", (session_id,))
 
+    def _finalize_session_stmt(self, conn, session_id: str,
+                               stop_reason: Optional[str],
+                               n_questions: Optional[int]) -> None:
+        conn.execute(self._q(
+            "UPDATE sessions SET status='complete', finished_utc=?, "
+            "stop_reason=?, n_questions=? WHERE session_id=?"),
+            (utc_now(), stop_reason, n_questions, session_id))
+
     def finalize_session(self, session_id: str, stop_reason: Optional[str],
                          n_questions: Optional[int]) -> None:
-        self._write(
-            "UPDATE sessions SET status='complete', finished_utc=?, "
-            "stop_reason=?, n_questions=? WHERE session_id=?",
-            (utc_now(), stop_reason, n_questions, session_id),
-        )
+        with self._connection() as conn:
+            self._finalize_session_stmt(conn, session_id, stop_reason, n_questions)
 
     # ── trials ────────────────────────────────────────────────────
     def upsert_trial(self, session_id: str, trial: dict) -> None:
@@ -759,7 +770,7 @@ class Database:
         return excl
 
     # ── results ───────────────────────────────────────────────────
-    def store_result(self, session_id: str, result: dict) -> None:
+    def _store_result_stmt(self, conn, session_id: str, result: dict) -> None:
         if self._pg:
             sql = ("INSERT INTO results(session_id, result, received_utc) "
                    "VALUES (?,?,?) "
@@ -768,7 +779,11 @@ class Database:
         else:
             sql = ("INSERT OR REPLACE INTO results(session_id, result, "
                    "received_utc) VALUES (?,?,?)")
-        self._write(sql, (session_id, json.dumps(result), utc_now()))
+        conn.execute(self._q(sql), (session_id, json.dumps(result), utc_now()))
+
+    def store_result(self, session_id: str, result: dict) -> None:
+        with self._connection() as conn:
+            self._store_result_stmt(conn, session_id, result)
 
     def get_result(self, session_id: str) -> Optional[dict]:
         row = self._fetchone(
@@ -780,15 +795,27 @@ class Database:
             "SELECT * FROM sessions ORDER BY started_utc")
 
     # ── dashboard: latest certification result for a participant ──
+    # NULLS LAST: on Postgres a NULL finished_utc sorts FIRST under DESC, so a
+    # half-finalized session (result stored, finalize interrupted) would shadow
+    # the true latest attempt. SQLite ≥3.30 accepts the same syntax.
     def latest_result_for_code(self, code: str) -> Optional[dict]:
-        """The most recent completed-session result JSON for `code`, or None."""
+        """The most recent completed-session attempt for `code` (same row shape
+        as one list_results_for_code entry), or None. LIMIT 1 — the dashboard
+        must not pay O(attempts × blob) just to read the newest result."""
         row = self._fetchone(
-            "SELECT r.result AS result FROM results r "
+            "SELECT s.session_id AS session_id, s.finished_utc AS finished_utc, "
+            "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
+            "r.result AS result FROM results r "
             "JOIN sessions s ON s.session_id = r.session_id "
-            "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC "
+            "WHERE s.code=? "
+            "ORDER BY s.finished_utc DESC NULLS LAST, s.started_utc DESC "
             "LIMIT 1",
             (code,))
-        return json.loads(row["result"]) if row else None
+        if row is None:
+            return None
+        return {"session_id": row["session_id"], "finished_utc": row["finished_utc"],
+                "n_questions": row["n_questions"], "stop_reason": row["stop_reason"],
+                "result": json.loads(row["result"])}
 
     def list_results_for_code(self, code: str) -> list[dict]:
         """All COMPLETED sessions for `code` joined with their result JSON,
@@ -799,7 +826,8 @@ class Database:
             "s.n_questions AS n_questions, s.stop_reason AS stop_reason, "
             "r.result AS result FROM results r "
             "JOIN sessions s ON s.session_id = r.session_id "
-            "WHERE s.code=? ORDER BY s.finished_utc DESC, s.started_utc DESC",
+            "WHERE s.code=? "
+            "ORDER BY s.finished_utc DESC NULLS LAST, s.started_utc DESC",
             (code,))
         return [
             {"session_id": r["session_id"], "finished_utc": r["finished_utc"],
@@ -873,6 +901,22 @@ class Database:
                      p.get("trainingId"), p.get("sourceSessionId"),
                      p.get("seqInSession"), 1 if p.get("isReal") else 0))
 
+    def _write_eval_trajectory_stmts(self, conn, code: str,
+                                     source_session_id: str,
+                                     points: list[dict]) -> None:
+        conn.execute(self._q(
+            "DELETE FROM param_trajectories "
+            "WHERE source_session_id=? AND phase='eval'"),
+            (source_session_id,))
+        for p in points:
+            conn.execute(self._q(
+                "INSERT INTO param_trajectories(code, task_k, phase, ell, "
+                "theta, sd, rt, ts, training_id, source_session_id, "
+                "seq_in_session, is_real) VALUES (?,?,'eval',?,?,?,?,?,?,?,?,1)"),
+                (code, int(p["taskK"]), p.get("ell"), p.get("theta"),
+                 p.get("sd"), p.get("rt"), utc_now(), None,
+                 source_session_id, 0))
+
     def write_eval_trajectory(self, code: str, source_session_id: str,
                               points: list[dict]) -> None:
         """Record the per-domain EVAL operating point for a certification
@@ -883,18 +927,24 @@ class Database:
         if not points:
             return
         with self._connection() as conn:
-            conn.execute(self._q(
-                "DELETE FROM param_trajectories "
-                "WHERE source_session_id=? AND phase='eval'"),
-                (source_session_id,))
-            for p in points:
-                conn.execute(self._q(
-                    "INSERT INTO param_trajectories(code, task_k, phase, ell, "
-                    "theta, sd, rt, ts, training_id, source_session_id, "
-                    "seq_in_session, is_real) VALUES (?,?,'eval',?,?,?,?,?,?,?,?,1)"),
-                    (code, int(p["taskK"]), p.get("ell"), p.get("theta"),
-                     p.get("sd"), p.get("rt"), utc_now(), None,
-                     source_session_id, 0))
+            self._write_eval_trajectory_stmts(conn, code, source_session_id, points)
+
+    def store_result_finalized(self, session_id: str, code: str, result: dict,
+                               stop_reason: Optional[str],
+                               n_questions: Optional[int],
+                               eval_points: list[dict]) -> None:
+        """POST /api/results as ONE transaction: store the result blob,
+        finalize the session, and replace its eval trajectory points together.
+        The previous three separate units of work could be interrupted between
+        statements, leaving a results row whose session was still
+        'in_progress' (finished_utc NULL) — a half-state that shadowed the
+        participant's true latest attempt on Postgres (NULLs sort first under
+        ORDER BY … DESC)."""
+        with self._connection() as conn:
+            self._store_result_stmt(conn, session_id, result)
+            self._finalize_session_stmt(conn, session_id, stop_reason, n_questions)
+            if eval_points:
+                self._write_eval_trajectory_stmts(conn, code, session_id, eval_points)
 
     def get_trajectories(self, code: str) -> list[dict]:
         # Dashboard reads REAL trainer output only (is_real=1). Synthetic/
@@ -1004,12 +1054,23 @@ class Database:
         tfin = {t["training_id"]: t.get("finished_utc")
                 for t in self._fetchall(
                     "SELECT training_id, finished_utc FROM training_sessions")}
-        # cert results per participant, ascending by finish time (ISO ⇒ sortable)
+        # Cert results per participant, ascending by finish time (ISO ⇒
+        # sortable) — ONE query across all learner codes, not one per code
+        # (the old per-code list_results_for_code loop was an N+1 that also
+        # re-parsed every learner's full result blobs once per learner).
+        codes = sorted({c for (c, _t, _k) in final_ell})
+        ph = ",".join("?" * len(codes))
         results: dict = {}
-        for code in {c for (c, _t, _k) in final_ell}:
-            rs = [r for r in self.list_results_for_code(code) if r.get("finished_utc")]
-            rs.sort(key=lambda r: r["finished_utc"])
-            results[code] = rs
+        for r in self._fetchall(
+                f"SELECT s.code AS code, s.finished_utc AS finished_utc, "
+                f"r.result AS result FROM results r "
+                f"JOIN sessions s ON s.session_id = r.session_id "
+                f"WHERE s.code IN ({ph}) AND s.finished_utc IS NOT NULL "
+                f"ORDER BY s.code, s.finished_utc",
+                tuple(codes)):
+            results.setdefault(r["code"], []).append(
+                {"finished_utc": r["finished_utc"],
+                 "result": json.loads(r["result"])})
         graduated = confirmed = false_grad = 0
         for (code, tid, task), ell in final_ell.items():
             rs = results.get(code, [])
@@ -1089,6 +1150,18 @@ class Database:
             "SELECT COUNT(*) AS n FROM cohort_members WHERE cohort_id=?",
             (cohort_id,))
         return int(row["n"]) if row else 0
+
+    def active_member_counts(self, cohort_ids: list[str]) -> dict[str, int]:
+        """cohort_id → active-member count, one grouped query for the whole
+        list (the cohort list view needs only the counts, not member rows)."""
+        if not cohort_ids:
+            return {}
+        ph = ",".join("?" * len(cohort_ids))
+        rows = self._fetchall(
+            f"SELECT cohort_id, COUNT(*) AS n FROM cohort_members "
+            f"WHERE status='active' AND cohort_id IN ({ph}) GROUP BY cohort_id",
+            tuple(cohort_ids))
+        return {r["cohort_id"]: int(r["n"]) for r in rows}
 
     def invite_cohort_member(self, cohort_id: str, code: str) -> None:
         """Add a pending invite. The (cohort_id, code) PK surfaces a re-invite

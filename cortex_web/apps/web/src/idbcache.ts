@@ -70,7 +70,13 @@ export async function idbPut(key: string, value: ArrayBuffer): Promise<void> {
 export async function cachedArrayBuffer(url: string, cacheKey: string): Promise<ArrayBuffer> {
   const hit = await idbGet(cacheKey);
   if (hit) return hit;
-  const buf = await (await fetch(url)).arrayBuffer();
+  const res = await fetch(url);
+  // A transient 404/500 returns an HTML/JSON error body; without this check it
+  // would be decoded as Int16Array EEG AND written to IndexedDB under the
+  // version key — permanently serving garbage for that segment. Only cache a
+  // genuine 2xx response.
+  if (!res.ok) throw new Error(`fetch ${url} failed (${res.status})`);
+  const buf = await res.arrayBuffer();
   void idbPut(cacheKey, buf);
   return buf;
 }

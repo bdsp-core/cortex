@@ -1,18 +1,25 @@
 """Admin CLI for the CORTEX web backend — credentials + results export.
 
-Talks to the SQLite DB directly (no running server needed), so it's the tool
-you use to mint participant codes before a study and pull results after.
+Talks to the DB directly (no running server needed), so it's the tool you use
+to mint participant codes before a study and pull results after. Defaults to the
+local SQLite DB — pass `--db postgresql://…` (or set CORTEX_DB) to operate on
+the prod Postgres instead of silently mutating an empty local file.
 
-Usage (from cortex_web/):
-    python -m server.admin gen --count 100 --prefix cortex --out codes.csv
-    python -m server.admin add --code cortex-alice --password s3cret
-    python -m server.admin list
-    python -m server.admin disable --code cortex-alice
-    python -m server.admin export-sessions --out sessions.csv
-    python -m server.admin export-results  --out results/        # one JSON each
+Usage (from cortex_web/services/):
+    python -m api.admin gen --count 100 --prefix cortex --out codes.csv
+    python -m api.admin add --code cortex-alice --password s3cret
+    python -m api.admin list
+    python -m api.admin disable --code cortex-alice
+    python -m api.admin export-sessions --out sessions.csv
+    python -m api.admin export-results  --out results/        # one JSON each
 
 The `gen` command is the bulk path: it writes a CSV of (code,password) you
 distribute to participants. Passwords are shown ONCE — they're stored hashed.
+
+NOTE: gen/add create legacy code+password accounts with NO email. The public
+`/api/auth` login requires a verified email, so these accounts cannot sign in
+through the web UI — they exist for the desktop/CLI replay path and admin
+tooling. Public web signup goes through POST /api/register (email + verify).
 """
 from __future__ import annotations
 

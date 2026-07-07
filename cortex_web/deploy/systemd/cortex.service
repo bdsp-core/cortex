@@ -2,6 +2,10 @@
 Description=CORTEX web — FastAPI + uvicorn (pure API; Caddy serves the SPA + bundle)
 After=network-online.target postgresql.service
 Wants=network-online.target
+# Restart-loop backstop: if the unit crashes >5x in 60s, stop trying — a bad
+# deploy should fail loudly, not thrash the box (and Postgres) with restarts.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=exec
@@ -15,8 +19,12 @@ EnvironmentFile=/etc/cortex/cortex.env
 # bundle) is served by Caddy, so CORTEX_SERVE_STATIC is intentionally unset.
 # SINGLE worker by design (no --workers): the in-memory rate limiter, the
 # lazily-loaded SessionBank, and the boot migrations assume one process.
+# --timeout-keep-alive trims idle keep-alive sockets so a pile of slow/abandoned
+# clients can't hold the single worker's connections open; --limit-concurrency
+# sheds excess load with a clean 503 instead of unbounded queue growth → OOM.
 ExecStart=/opt/cortex/.venv/bin/python -m uvicorn api.app:app \
-    --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+    --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1 \
+    --timeout-keep-alive 15 --limit-concurrency 128
 Restart=on-failure
 RestartSec=3
 # Modest hardening.
@@ -25,6 +33,14 @@ PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/var/lib/cortex /var/log/cortex
+# Resource caps for the 2 GB / 2 vCPU box. The API is light, but /api/videos
+# spawns matplotlib + ffmpeg; MemoryMax bounds the UNIT so a render burst is
+# OOM-killed in isolation rather than taking the whole instance (and Postgres)
+# down. MemoryHigh applies back-pressure first. Tune up if the box grows.
+MemoryHigh=1200M
+MemoryMax=1500M
+TasksMax=256
+LimitNOFILE=8192
 
 [Install]
 WantedBy=multi-user.target

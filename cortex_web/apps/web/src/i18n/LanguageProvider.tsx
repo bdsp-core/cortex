@@ -11,14 +11,7 @@
 import {
   createContext, useCallback, useContext, useEffect, useState, ReactNode,
 } from "react";
-import en from "./locales/en.json";
-import es from "./locales/es.json";
-import fr from "./locales/fr.json";
-import de from "./locales/de.json";
-import pt from "./locales/pt.json";
-import it from "./locales/it.json";
-import zhHans from "./locales/zh-Hans.json";
-import ja from "./locales/ja.json";
+import enRaw from "./locales/en.json";
 
 export type Lang = "en" | "es" | "fr" | "de" | "pt" | "it" | "zh-Hans" | "ja";
 
@@ -35,14 +28,27 @@ export const LANGS: { code: Lang; label: string }[] = [
 ];
 
 type Catalog = Record<string, string>;
-const CATALOGS = {
-  en, es, fr, de, pt, it, "zh-Hans": zhHans, ja,
-} as Record<Lang, Catalog>;
+const en: Catalog = enRaw;
+
+// Only English (the fallback catalog every lookup falls back to) is bundled
+// eagerly. The other 7 catalogs (~190 KB of JSON) load on demand — Vite emits
+// one async chunk per locale from this static-prefixed dynamic import. `t()`
+// stays synchronous and falls back to English until the active catalog lands,
+// so switching languages never blanks the UI.
+const LOADED: Partial<Record<Lang, Catalog>> = { en };
+
+function loadCatalog(lang: Lang): Promise<Catalog | null> {
+  if (lang === "en") return Promise.resolve(en);
+  return import(`./locales/${lang}.json`)
+    .then((m) => { LOADED[lang] = m.default as Catalog; return LOADED[lang]!; })
+    .catch(() => null);   // fall back to English on a failed chunk load
+}
 
 const STORAGE_KEY = "cortex-lang";
+const LANG_CODES = LANGS.map((l) => l.code);
 
 function isLang(s: string | null): s is Lang {
-  return !!s && Object.prototype.hasOwnProperty.call(CATALOGS, s);
+  return !!s && (LANG_CODES as string[]).includes(s);
 }
 
 function initialLang(): Lang {
@@ -70,18 +76,30 @@ const Ctx = createContext<I18nCtx | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initialLang);
+  // Bumped when a lazily-loaded catalog lands, to re-render with real strings.
+  const [, setReady] = useState(0);
+
+  const ensureLoaded = useCallback((l: Lang) => {
+    if (LOADED[l]) return;
+    void loadCatalog(l).then(() => setReady((n) => n + 1));
+  }, []);
 
   const setLang = useCallback((l: Lang) => {
     try { localStorage.setItem(STORAGE_KEY, l); } catch { /* blocked storage */ }
+    ensureLoaded(l);
     setLangState(l);
-  }, []);
+  }, [ensureLoaded]);
+
+  // Load the initial (possibly stored non-English) catalog on mount.
+  useEffect(() => { ensureLoaded(lang); }, [lang, ensureLoaded]);
 
   useEffect(() => {
     if (typeof document !== "undefined") document.documentElement.lang = lang;
   }, [lang]);
 
   const t = useCallback<TFn>((key, vars) => {
-    const s = CATALOGS[lang][key] ?? CATALOGS.en[key] ?? key;
+    const cat = LOADED[lang] ?? en;
+    const s = cat[key] ?? en[key] ?? key;
     return interpolate(s, vars);
   }, [lang]);
 

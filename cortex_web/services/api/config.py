@@ -36,9 +36,10 @@ SCRIPTS_DIR = os.environ.get(
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
 # Per-session candidate-pool size (the server-drawn subset the client engine
-# selects within). Prod runs 700 (env): speculative precompute hides the
-# between-question latency that made smaller pools attractive pre-v1.6
-# (engine/_latency_bench has the pool-size numbers).
+# selects within). The prod value is env-driven from /etc/cortex/cortex.env
+# (provision.sh writes 500); speculative precompute hides the between-question
+# latency that made smaller pools attractive pre-v1.6 (engine/_latency_bench
+# has the pool-size numbers).
 DEFAULT_SESSION_SAMPLE = int(os.environ.get("CORTEX_SESSION_SAMPLE", "400"))
 
 # Deployed-commit stamp. deploy_app.sh writes cortex_web/RELEASE on the box at

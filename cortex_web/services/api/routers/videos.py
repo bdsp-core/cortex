@@ -35,6 +35,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from ..config import SCRIPTS_DIR
 from ..deps import require_auth
@@ -57,10 +58,34 @@ _JOBS: dict[str, dict[str, Any]] = {}
 _JOBS_LOCK = threading.Lock()
 
 
+_ORPHANS_SWEPT = False
+
+
+def _sweep_orphan_dirs(now: Optional[float] = None) -> None:
+    """Reclaim cortex_viz_* temp dirs left behind by a PREVIOUS process. Jobs
+    live in memory, so a service restart forgets them but leaves their dirs —
+    an unbounded /tmp leak on the small box. Only dirs older than the job TTL
+    and not owned by a live job in THIS process are touched."""
+    now = now if now is not None else time.time()
+    with _JOBS_LOCK:
+        live = {str(j["sd"]) for j in _JOBS.values()}
+    for d in Path(tempfile.gettempdir()).glob("cortex_viz_*"):
+        try:
+            if str(d) not in live and now - d.stat().st_mtime > _JOB_TTL_SECONDS:
+                shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def _sweep_jobs(now: Optional[float] = None) -> None:
     """Drop finished jobs past their TTL and delete their temp dirs. Called
-    lazily from submit/status — no background janitor thread needed."""
+    lazily from submit/status — no background janitor thread needed. The first
+    call per process also reclaims orphan dirs from before the last restart."""
+    global _ORPHANS_SWEPT
     now = now if now is not None else time.time()
+    if not _ORPHANS_SWEPT:
+        _ORPHANS_SWEPT = True
+        _sweep_orphan_dirs(now)
     with _JOBS_LOCK:
         for jid, job in list(_JOBS.items()):
             done_ts = job.get("done_ts")
@@ -135,8 +160,13 @@ async def videos_submit(meta: str = Form(...), t: UploadFile = File(...),
         import numpy as np
     except Exception as e:  # heavy render deps are optional at boot
         raise HTTPException(503, f"render deps unavailable: {e}")
-    info = json.loads(meta)
-    T, N, K = (int(x) for x in info["shape"])
+    # Client-supplied meta: malformed JSON / missing or non-3-int shape is a
+    # 400, not an unhandled 500.
+    try:
+        info = json.loads(meta)
+        T, N, K = (int(x) for x in info["shape"])
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(400, "malformed meta: expected JSON with a 3-int 'shape'")
     # The client-supplied shape dictates the allocation below — bound it
     # before touching the uploads (blobs are read to exactly the byte count
     # the shape implies, so a mismatched/oversized upload is rejected
@@ -151,9 +181,21 @@ async def videos_submit(meta: str = Form(...), t: UploadFile = File(...),
             raise HTTPException(400, f"upload '{name}' does not match meta shape")
         return raw
 
-    tb = np.frombuffer(await _read_exact(t, T * N * K, "t"), dtype="<f4").reshape(T, N, K).astype(np.float64)
-    lb = np.frombuffer(await _read_exact(l, T * N * K, "l"), dtype="<f4").reshape(T, N, K).astype(np.float64)
-    wb = np.frombuffer(await _read_exact(w, T * N, "w"), dtype="<f4").reshape(T, N).astype(np.float64)
+    raw_t = await _read_exact(t, T * N * K, "t")
+    raw_l = await _read_exact(l, T * N * K, "l")
+    raw_w = await _read_exact(w, T * N, "w")
+
+    def _parse_blobs():
+        # Up to two ~64 MB float64 copies per array — real CPU work, so it
+        # runs on the threadpool: this is the ONLY async route, and doing it
+        # inline stalled the event loop (and every concurrent request) on the
+        # single-worker box.
+        tb = np.frombuffer(raw_t, dtype="<f4").reshape(T, N, K).astype(np.float64)
+        lb = np.frombuffer(raw_l, dtype="<f4").reshape(T, N, K).astype(np.float64)
+        wb = np.frombuffer(raw_w, dtype="<f4").reshape(T, N).astype(np.float64)
+        return tb, lb, wb
+
+    tb, lb, wb = await run_in_threadpool(_parse_blobs)
 
     _sweep_jobs()
     if _active_job_count() >= _MAX_ACTIVE_JOBS:

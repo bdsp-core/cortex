@@ -133,6 +133,28 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
         return response
 
+    # Request-body caps, mirroring the Caddy edge limits (4 MB API / 64 MB
+    # videos) so the API self-protects when reached directly (health probe on
+    # :8000, a future split deploy). Declared-length check only — Caddy is the
+    # authoritative enforcement at the edge; this stops the honest-but-huge
+    # payload (an unbounded result/points blob) before it is buffered/parsed.
+    _MAX_BODY = 4 * 1024 * 1024
+    _MAX_BODY_VIDEOS = 64 * 1024 * 1024
+
+    @app.middleware("http")
+    async def _api_body_cap(request, call_next):
+        if request.url.path.startswith("/api"):
+            try:
+                declared = int(request.headers.get("content-length") or 0)
+            except ValueError:
+                declared = 0    # malformed header → uvicorn rejects it anyway
+            cap = (_MAX_BODY_VIDEOS if request.url.path.startswith("/api/videos")
+                   else _MAX_BODY)
+            if declared > cap:
+                return JSONResponse(status_code=413,
+                                    content={"error": "request body too large"})
+        return await call_next(request)
+
     @app.get("/api/health")
     def health(deep: int = 0):
         """Liveness (default) or readiness (?deep=1). The deep probe verifies

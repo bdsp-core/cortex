@@ -143,7 +143,14 @@ export function EegCanvas(props: EegCanvasProps) {
     ctx.textAlign = "center";
     ctx.fillText("1 s", (xL + xR) / 2, yA + 15);
     ctx.fillText(`${gainUv} µV`, xR, yA - gainPx - 5);
-  }, [props]);
+    // Explicit deps (NOT `[props]`): every parent render hands us a fresh props
+    // object, which re-ran this full canvas draw (montage/DSP loop over all
+    // channels × samples) on any unrelated re-render. `rows` is memoized in the
+    // Viewer, and labeledEpoch's fields are constants, so this only redraws when
+    // something it actually paints changes.
+  }, [props.rows, props.fsHz, props.gainUv, props.windowS, props.panStartS,
+      props.width, props.height, props.labeledEpoch?.startS,
+      props.labeledEpoch?.endS, props.clipTraces]);
 
   // display:block prevents the inline-baseline descender that lets the
   // canvas's height drift up by a few pixels per ResizeObserver cycle in a

@@ -80,16 +80,18 @@ def _member_entry(db, row: dict, requester_code: str,
 @router.get("/cohorts")
 def list_cohorts(req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
+    mine = db.cohorts_for(code)
+    # One grouped COUNT for all the caller's cohorts — the list view needs
+    # only counts, not full member rows fetched cohort-by-cohort.
+    counts = db.active_member_counts([r["cohort_id"] for r in mine])
     out = []
-    for r in db.cohorts_for(code):
-        active = sum(1 for m in db.cohort_member_rows(r["cohort_id"])
-                     if m["status"] == "active")
+    for r in mine:
         out.append({
             "cohortId": r["cohort_id"],
             "name": r["name"],
             "role": "manager" if r["manager_code"] == code else "member",
             "status": r["status"],
-            "memberCount": active,
+            "memberCount": counts.get(r["cohort_id"], 0),
             "createdUtc": r["created_utc"],
         })
     return {"cohorts": out}

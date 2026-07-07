@@ -106,8 +106,16 @@ def verify_resend(body: EmailIn, req: Request):
     # Only (re)issue for an existing, still-unverified account; respond 200
     # either way so the endpoint doesn't reveal which emails exist.
     if row is not None and not row.get("email_verified_utc"):
-        dev_code = helpers.issue_code(db, row["code"], email, "verify")
-        if helpers.expose_codes():
+        try:
+            dev_code = helpers.issue_code(db, row["code"], email, "verify")
+        except Exception as e:
+            # An SMTP outage must not 500: a 500-for-real-accounts vs
+            # 200-for-unknown-emails split would leak which emails exist,
+            # exactly what the 200-regardless contract above prevents.
+            print(f"[cortex.resend] verification email failed for {email}: {e}",
+                  file=sys.stderr, flush=True)
+            dev_code = None
+        if helpers.expose_codes() and dev_code is not None:
             resp["devCode"] = dev_code
     return resp
 
@@ -200,8 +208,16 @@ def forgot(body: EmailIn, req: Request):
     # Respond 200 regardless so the endpoint doesn't reveal which emails
     # have accounts; only actually issue a code for a real account.
     if row is not None and row["active"]:
-        dev_code = helpers.issue_code(db, row["code"], email, "reset")
-        if helpers.expose_codes():
+        try:
+            dev_code = helpers.issue_code(db, row["code"], email, "reset")
+        except Exception as e:
+            # Same anti-oracle contract as /verify/resend: an email-send
+            # failure logs and still 200s instead of leaking account
+            # existence through a 500.
+            print(f"[cortex.forgot] reset email failed for {email}: {e}",
+                  file=sys.stderr, flush=True)
+            dev_code = None
+        if helpers.expose_codes() and dev_code is not None:
             resp["devCode"] = dev_code
     return resp
 

@@ -24,6 +24,46 @@ CORTEX_USER="${CORTEX_USER:-cortex}"
 
 say() { printf "▸ %s\n" "$*"; }
 
+# Poll GET /api/health?deep=1 until it reports ok (DB round-trip included), or
+# fail the deploy. The DEEP probe is the one that would have caught the
+# 2026-06-24 "process up but DB unreachable" outage — a bare `curl … || true`
+# reports success on a boot that 500s. $1 = base origin (https://domain or
+# http://127.0.0.1:8000). Returns non-zero (aborting `set -e`) on failure.
+readiness_gate() {
+  local base="$1" i body
+  for i in $(seq 1 20); do
+    body=$(curl -fsS "$base/api/health?deep=1" 2>/dev/null || true)
+    if printf '%s' "$body" | grep -q '"ok": *true'; then
+      say "readiness OK — $body"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "✗ readiness gate FAILED: /api/health?deep=1 never reported ok." >&2
+  echo "  Last body: ${body:-<none>}" >&2
+  echo "  The new process is up but not healthy (DB? bundle?). Investigate;" >&2
+  echo "  roll back with: git revert <sha> && bash cortex_web/deploy/scripts/deploy_app.sh" >&2
+  return 1
+}
+
+# Warn (do NOT auto-overwrite) if the repo Caddyfile.template has drifted from
+# the live /etc/caddy/Caddyfile. The live file is hand-maintained on the box
+# (CSP/body-caps were applied manually), so silently clobbering it is unsafe —
+# but silent drift is how the template's security headers rot. Surfacing it is
+# the right middle ground. Runs over SSH in laptop mode; local in on-box mode.
+caddy_drift_warn() {
+  local runner="$1"   # "" for local, or an ssh prefix
+  local tmpl live
+  tmpl=$($runner cat "$2" 2>/dev/null || true)
+  live=$($runner sudo cat /etc/caddy/Caddyfile 2>/dev/null || true)
+  if [ -n "$tmpl" ] && [ -n "$live" ] && [ "$tmpl" != "$live" ]; then
+    say "NOTE: deploy/Caddyfile.template differs from the live /etc/caddy/Caddyfile."
+    echo "  deploy_app.sh does NOT touch Caddy config (it's hand-maintained on the" >&2
+    echo "  box). If the template carries intended header/CSP changes, apply them" >&2
+    echo "  manually and 'systemctl reload caddy'." >&2
+  fi
+}
+
 # ── on-box mode? ──────────────────────────────────────────────────
 if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d /opt/cortex/cortex_web ]; then
   BRANCH="${1:-main}"
@@ -53,14 +93,20 @@ if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d /opt/cortex/cortex_web ]; then
   say "building the SPA (workspace)…"
   sudo -u "$CORTEX_USER" bash -c "cd $WEB && npm ci && npm run build"
 
+  caddy_drift_warn "" "$WEB/deploy/Caddyfile.template"
+
   say "restarting cortex.service…"
   systemctl reload caddy || true
   systemctl restart cortex.service
   sleep 2
   systemctl --no-pager status cortex.service | head -8
 
+  # Readiness gate against the loopback API (before Caddy/TLS) so a bad boot
+  # aborts the deploy loudly instead of reporting a green checkmark.
+  say "readiness gate (deep health)…"
+  readiness_gate "http://127.0.0.1:8000"
   DOMAIN=$(grep '^CORTEX_DOMAIN=' /etc/cortex/cortex.env | cut -d= -f2-)
-  echo; say "health check:"; curl -sS "https://$DOMAIN/api/health" || true; echo
+  echo; say "public health:"; curl -sS "https://$DOMAIN/api/health" || true; echo
   exit 0
 fi
 
@@ -132,7 +178,10 @@ sleep 2
 systemctl --no-pager is-active cortex.service
 REMOTE"
 
-say "health check from your laptop"
+caddy_drift_warn "ssh $SSH_HOST" "/opt/cortex/cortex_web/deploy/Caddyfile.template"
+
+say "readiness gate from your laptop (deep health)"
 DOMAIN=$(ssh "$SSH_HOST" 'sudo grep ^CORTEX_DOMAIN /etc/cortex/cortex.env | cut -d= -f2-')
-curl -sS "https://$DOMAIN/api/health"; echo
+# Fails the deploy (non-zero exit) if the new process is up but unhealthy.
+readiness_gate "https://$DOMAIN"
 say "done."

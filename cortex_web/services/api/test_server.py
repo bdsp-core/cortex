@@ -1,7 +1,8 @@
 """Backend tests — security primitives + full API round-trip on a temp DB.
 
-Run from cortex_web/:
-    python -m pytest server/test_server.py -q
+Run from cortex_web/services/ (that dir must be on sys.path for the package-
+relative imports):
+    python -m pytest api/test_server.py -q
 """
 from __future__ import annotations
 
@@ -1984,3 +1985,255 @@ def test_training_monitor_empty(client):
     m = client.app.state.db.training_monitor()
     assert m["learners"] == 0 and m["trainingTrials"] == 0
     assert m["graduatedDomains"] == 0 and m["falseGraduationRate"] is None
+
+# ─────────────── G1 robustness hardening (2026-07-07) ───────────────
+
+def test_forgot_survives_email_send_failure_no_account_oracle(client, monkeypatch):
+    """An SMTP outage must not turn /forgot into an account-existence oracle:
+    a real account and an unknown email must BOTH still answer 200."""
+    from . import mailer as email_mod
+    email, pw = _make_participant(client)
+
+    def boom(*a, **k):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr(email_mod, "send_auth_code", boom)
+    r_real = client.post("/api/forgot", json={"email": email})
+    r_fake = client.post("/api/forgot", json={"email": "nobody@example.test"})
+    assert r_real.status_code == 200 and r_fake.status_code == 200
+    assert "devCode" not in r_real.json()      # send failed → no code echoed
+
+
+def test_resend_survives_email_send_failure(client, monkeypatch):
+    """Same anti-oracle contract for /verify/resend."""
+    from . import mailer as email_mod
+    email, _pw, _code = _register(client)      # unverified account
+
+    def boom(*a, **k):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr(email_mod, "send_auth_code", boom)
+    r = client.post("/api/verify/resend", json={"email": email})
+    assert r.status_code == 200
+    assert "devCode" not in r.json()
+
+
+def test_videos_malformed_meta_is_400(client):
+    """Bad meta (not JSON / missing shape / non-3-int shape) is a clean 400,
+    never an unhandled 500."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    files, _ = _viz_files()
+    for bad_meta in ("not-json{", json.dumps({"noShape": 1}),
+                     json.dumps({"shape": [2, 3]}),
+                     json.dumps({"shape": ["a", "b", "c"]}),
+                     json.dumps([1, 2, 3])):
+        r = client.post("/api/videos", headers=hdr,
+                        data={"meta": bad_meta}, files=files)
+        assert r.status_code == 400, (bad_meta, r.status_code, r.text)
+
+
+def test_trajectory_points_missing_taskK_is_422(client):
+    """A malformed point must 4xx up front, not KeyError mid-transaction."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    r = client.post("/api/trajectories", headers=hdr,
+                    json={"points": [{"ell": 0.5}]})
+    assert r.status_code == 422
+    r = client.post("/api/trajectories", headers=hdr,
+                    json={"points": [{"taskK": "not-an-int"}]})
+    assert r.status_code == 422
+    # A valid batch still lands.
+    r = client.post("/api/trajectories", headers=hdr,
+                    json={"points": [{"taskK": 1, "ell": 0.5, "isReal": False}]})
+    assert r.status_code == 200
+
+
+def test_training_progress_bad_points_rejected(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    tid = client.post("/api/training-sessions", json={}, headers=hdr).json()["trainingId"]
+    r = client.post("/api/training-progress", headers=hdr,
+                    json={"trainingId": tid, "points": [{"segId": 5}]})
+    assert r.status_code == 422                     # no taskK
+    r = client.post("/api/training-progress", headers=hdr,
+                    json={"trainingId": tid,
+                          "points": [{"taskK": 2, "segId": "abc"}]})
+    assert r.status_code == 422                     # non-int segId
+    r = client.post("/api/training-progress", headers=hdr,
+                    json={"trainingId": tid,
+                          "points": [{"taskK": 2, "segId": 5, "ell": 0.1}]})
+    assert r.status_code == 200, r.text             # valid batch still lands
+
+
+def test_points_batch_cap_is_413(client):
+    from .routers import dashboard as dash_router
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    too_many = [{"taskK": 0}] * (dash_router.MAX_POINTS_PER_POST + 1)
+    r = client.post("/api/trajectories", headers=hdr, json={"points": too_many})
+    assert r.status_code == 413
+
+
+def test_api_body_cap_413(client):
+    """A declared body over the 4 MB API cap is rejected before parsing —
+    the API-side mirror of the Caddy edge limit."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    big = "x" * (4 * 1024 * 1024 + 100)
+    r = client.post("/api/trajectories", headers=hdr,
+                    json={"points": [], "pad": big})
+    assert r.status_code == 413
+
+
+def test_orphan_viz_dirs_swept(tmp_path, monkeypatch):
+    """cortex_viz_* dirs from a dead process are reclaimed once per boot;
+    fresh dirs (a live job's) are left alone."""
+    import tempfile as _tempfile
+    from .routers import videos as videos_router
+    monkeypatch.setattr(_tempfile, "gettempdir", lambda: str(tmp_path))
+    old = tmp_path / "cortex_viz_dead"
+    old.mkdir()
+    import os as _os
+    stale = time.time() - videos_router._JOB_TTL_SECONDS - 60
+    _os.utime(old, (stale, stale))
+    fresh = tmp_path / "cortex_viz_live"
+    fresh.mkdir()
+    videos_router._sweep_orphan_dirs()
+    assert not old.exists()
+    assert fresh.exists()
+
+# ─────────────── G2 efficiency (2026-07-07) ───────────────
+
+def test_dashboard_uses_latest_of_multiple_attempts(client):
+    """With several completed attempts, /api/dashboard reflects the NEWEST one
+    via the LIMIT-1 fetch (latest_result_for_code) — and the helper's row
+    matches list_results_for_code[0]."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+
+    def _finish(verdict):
+        r = client.post("/api/session", json={"participant": {}}, headers=hdr)
+        sid = r.json()["sessionId"]
+        res = {"perTask": [{"taskK": 0, "code": "spike", "verdict": verdict,
+                            "ell": 0.5, "ellStar": 0.0, "theta": 0.0,
+                            "auroc": 0.9, "sd": 0.1}]}
+        r = client.post("/api/results", headers=hdr,
+                        json={"sessionId": sid, "result": res,
+                              "stopReason": "test", "nQuestions": 1})
+        assert r.status_code == 200, r.text
+        return sid
+
+    _finish("FAIL")
+    time.sleep(1.1)          # finished_utc has 1 s resolution; force ordering
+    sid2 = _finish("PASS")
+
+    latest = db.latest_result_for_code(_code_of(client, email))
+    assert latest["session_id"] == sid2
+    assert latest == db.list_results_for_code(_code_of(client, email))[0]
+
+    d = client.get("/api/dashboard", headers=hdr).json()
+    assert d["hasResult"] is True
+    verdicts = {t["taskK"]: t["verdict"] for t in d["tasks"]}
+    assert verdicts.get(0) == "PASS"
+
+
+def _code_of(client, email) -> str:
+    return client.app.state.db.get_participant_by_email(email)["code"]
+
+
+def test_pg_pool_max_size_env(monkeypatch):
+    """CORTEX_PG_POOL_MAX drives the pool ceiling (default 10). psycopg isn't
+    installed in CI, so fake the modules _make_pool lazily imports."""
+    import sys
+    import types
+    captured = {}
+
+    class _FakePool:
+        def __init__(self, conninfo, **kw):
+            captured.update(kw)
+
+        @staticmethod
+        def check_connection(conn):
+            return None
+
+        def connection(self):
+            raise RuntimeError("not needed")
+
+        def close(self):
+            pass
+
+    fake_rows = types.ModuleType("psycopg.rows")
+    fake_rows.dict_row = object()
+    fake_psycopg = types.ModuleType("psycopg")
+    fake_psycopg.rows = fake_rows
+    fake_pool_mod = types.ModuleType("psycopg_pool")
+    fake_pool_mod.ConnectionPool = _FakePool
+    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    monkeypatch.setitem(sys.modules, "psycopg.rows", fake_rows)
+    monkeypatch.setitem(sys.modules, "psycopg_pool", fake_pool_mod)
+    monkeypatch.setenv("CORTEX_PG_POOL_MAX", "7")
+    try:
+        Database("postgresql://u:pw@localhost/x")
+    except Exception:
+        pass    # boot migrations fail on the fake pool — sizing already captured
+    assert captured.get("max_size") == 7
+
+
+def test_cohort_list_counts_via_grouped_query(client):
+    """memberCount in the cohort list comes from active_member_counts (one
+    grouped query) and counts only ACTIVE members."""
+    email_m, pw_m = _make_participant(client)
+    hdr_m = _auth_header(client, email_m, pw_m)
+    r = client.post("/api/cohorts", json={"name": "Pod"}, headers=hdr_m)
+    cid = r.json()["cohortId"]
+    # Invite a second user; while the invite is pending only the manager counts.
+    email_b, pw_b = _make_participant(client)
+    hdr_b = _auth_header(client, email_b, pw_b)
+    pid_b = client.get("/api/profile", headers=hdr_b).json()["publicId"]
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=hdr_m,
+                       json={"publicId": pid_b}).status_code == 200
+    lst = client.get("/api/cohorts", headers=hdr_m).json()["cohorts"]
+    assert [c["memberCount"] for c in lst if c["cohortId"] == cid] == [1]
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=hdr_b).status_code == 200
+    lst = client.get("/api/cohorts", headers=hdr_m).json()["cohorts"]
+    assert [c["memberCount"] for c in lst if c["cohortId"] == cid] == [2]
+    # Direct helper: grouped counts + empty input.
+    db = client.app.state.db
+    assert db.active_member_counts([cid])[cid] == 2
+    assert db.active_member_counts([]) == {}
+
+
+# ─────────────── G3 transactional /results (2026-07-07) ───────────────
+
+def test_results_writes_are_atomic(client):
+    """A failure inside store_result_finalized rolls back ALL of it: no
+    results row, session still in_progress, no eval trajectory rows. (The old
+    three-separate-writes shape could leave a stored result on a session that
+    was never finalized — which then shadowed the real latest attempt on
+    Postgres, where NULL finished_utc sorts first under DESC.)"""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    r = client.post("/api/session", json={"participant": {}}, headers=hdr)
+    sid = r.json()["sessionId"]
+    code = _code_of(client, email)
+
+    with pytest.raises(Exception):
+        # A malformed eval point (no taskK) blows up on the LAST leg of the
+        # transaction, after result + finalize already executed.
+        db.store_result_finalized(sid, code, {"perTask": []}, "test", 1,
+                                  [{"ell": 0.5}])
+
+    assert db.get_result(sid) is None                       # rolled back
+    sess = db.get_session(sid)
+    assert sess["status"] == "in_progress" and sess["finished_utc"] is None
+    assert db.get_trajectories(code) == []
+
+    # The clean path still lands everything.
+    db.store_result_finalized(sid, code, {"perTask": []}, "test", 1,
+                              [{"taskK": 0, "ell": 0.5}])
+    assert db.get_result(sid) is not None
+    assert db.get_session(sid)["status"] == "complete"
+    assert len(db.get_trajectories(code)) == 1

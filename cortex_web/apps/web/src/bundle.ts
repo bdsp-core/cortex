@@ -30,6 +30,15 @@ export type SessionBank = Omit<BundleManifest, "nSegments"> & {
   nPool?: number;
 };
 
+// One engine-selected question: which task is being asked, on which segment,
+// at what position in the sitting. Shared by Viewer + SpikeViewer (was declared
+// identically in both).
+export interface Item {
+  trialIndex: number;
+  taskK: number;
+  segId: number;
+}
+
 export interface SegmentData {
   eeg: Float32Array; // (nCh × nSamp) row-major, µV
   nCh: number;
@@ -50,7 +59,9 @@ export class Bundle {
   }
 
   static async load(base: string): Promise<Bundle> {
-    const manifest = (await (await fetch(`${base}/manifest.json`)).json()) as BundleManifest;
+    const res = await fetch(`${base}/manifest.json`);
+    if (!res.ok) throw new Error(`manifest fetch failed (${res.status})`);
+    const manifest = (await res.json()) as BundleManifest;
     return new Bundle(base, manifest);
   }
 

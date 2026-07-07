@@ -45,6 +45,16 @@ export class EngineClient {
           break;
       }
     };
+    // An uncaught throw inside the worker that never posts an {type:"error"}
+    // message would otherwise hang the test on the current item with no
+    // signal. Route both to onError so the UI can surface it.
+    this.worker.onerror = (e: ErrorEvent) => {
+      e.preventDefault();
+      this.handlers.onError?.(e.message || "engine worker crashed");
+    };
+    this.worker.onmessageerror = () => {
+      this.handlers.onError?.("engine worker message error");
+    };
   }
 
   start(inputs: EngineInputs, sessionId: string, seed?: number): void {

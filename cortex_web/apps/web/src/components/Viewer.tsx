@@ -5,7 +5,7 @@
 // choice also advances.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bundle, SegmentData } from "../bundle";
+import { Bundle, SegmentData, Item } from "../bundle";
 import { applyMontage, MontageRow } from "../montage";
 import { buildCascade, filtfilt } from "../dsp";
 import { iiicTasks } from "../tasks";
@@ -19,11 +19,7 @@ import {
   SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
 
-export interface Item {
-  trialIndex: number;
-  taskK: number;
-  segId: number;
-}
+export type { Item };
 
 export function Viewer({
   bundle,
@@ -39,6 +35,7 @@ export function Viewer({
   tutorial?: { onFinish: () => void };
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
+  const [segError, setSegError] = useState(false);
   const [montage, setMontage] = useState<string>("bipolar");
   const [gain, setGain] = useState(100);
   const [bandpass, setBandpass] = useState(BANDPASS_OPTIONS[0]);
@@ -70,12 +67,17 @@ export function Viewer({
     if (!item) return;
     let alive = true;
     setSeg(null);
+    setSegError(false);
     setPick(null);
     // Open on the labeled epoch (clip-local 10–20 s), not 0 s — desktop
     // v1.3.8. Pan reveals the {0–10, 20–30}-s context windows.
     setPanStart(IIIC_LABEL_START_S);
     answered.current = false; // new question → allow a new answer
-    bundle.segment(item.segId).then((s) => alive && setSeg(s));
+    // A fetch/decode failure must surface as a retryable error, not an
+    // unhandled rejection that leaves the pane stuck on "loading EEG…".
+    bundle.segment(item.segId)
+      .then((s) => { if (alive) setSeg(s); })
+      .catch(() => { if (alive) setSegError(true); });
     return () => { alive = false; };
   }, [item, bundle]);
 
@@ -228,6 +230,11 @@ export function Viewer({
             <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={windowS}
               panStartS={panStart} width={eegSize.w} height={eegSize.h}
               labeledEpoch={{ startS: IIIC_LABEL_START_S, endS: IIIC_LABEL_END_S }} />
+          ) : segError ? (
+            <div style={{ color: "#ff5c5c", padding: 20 }}>
+              This recording failed to load. Check your connection and pick an
+              answer to continue, or reload the page.
+            </div>
           ) : (
             <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>
           )}

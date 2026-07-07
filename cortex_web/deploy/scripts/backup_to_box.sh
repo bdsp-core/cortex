@@ -13,6 +13,16 @@
 #   CORTEX_ADMIN_TOKEN         used by the admin exporter
 set -euo pipefail
 
+# Single-instance lock: the timer fires every 6h; a slow upload must not overlap
+# the next tick (double pg_dump + racing prunes). Re-exec under flock once.
+LOCK=/var/lock/cortex-backup.lock
+if [ "${_CORTEX_BACKUP_LOCKED:-}" != "1" ]; then
+  exec env _CORTEX_BACKUP_LOCKED=1 flock -n "$LOCK" "$0" "$@" || {
+    echo "another cortex backup is already running — skipping this tick" >&2
+    exit 0
+  }
+fi
+
 REMOTE="${CORTEX_RCLONE_REMOTE:-box}"
 BOX_PATH="${CORTEX_BOX_PATH:-CORTEX/backups}"
 RETAIN_DAYS="${CORTEX_BACKUP_RETENTION_DAYS:-30}"
@@ -71,8 +81,19 @@ N_SESS=$(( N_SESS > 0 ? N_SESS - 1 : 0 ))   # minus header
 echo "stamp=$STAMP sessions=$N_SESS host=$(hostname)" > "$WORK/HEARTBEAT.txt"
 
 # ── 4. upload ─────────────────────────────────────────────────────
+# Size sanity: a truncated-but-exit-0 dump must NOT then trigger the prune and
+# evict older good snapshots. A real dump is comfortably over this floor; abort
+# (leaving snapshots intact) if it isn't.
+DUMP=$(ls "$WORK"/db.sql.gz "$WORK"/db.sqlite.gz 2>/dev/null | head -1)
+DUMP_BYTES=$(stat -c %s "$DUMP" 2>/dev/null || echo 0)
+if [ "$DUMP_BYTES" -lt 1024 ]; then
+  echo "✗ DB dump is only ${DUMP_BYTES} bytes (< 1 KiB) — aborting BEFORE prune so" >&2
+  echo "  a bad dump can't evict good snapshots. Investigate pg_dump/sqlite." >&2
+  exit 1
+fi
+
 DEST="$REMOTE:$BOX_PATH/$YYMM/$STAMP"
-say "uploading → $DEST"
+say "uploading → $DEST (dump ${DUMP_BYTES} bytes)"
 rclone --quiet copy "$WORK" "$DEST"
 
 # ── 5. prune old snapshots (Box-side) ─────────────────────────────
