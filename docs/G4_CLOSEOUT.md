@@ -1,8 +1,9 @@
 # G4 CLOSE-OUT — web app wiring (staging)
 
-Status: **staging exit criterion MET** — backend loop + client bridge + the
-immersive UI runner all wired and code-verified; behavioral (visual/interaction)
-verification of the runner needs a live-SPA Playwright/manual pass (§4).
+Status: **DEPLOYED TO PROD 2026-07-07 (commit `656927c`) — see §7.** Backend loop +
+client bridge + the immersive UI runner + real-skill handoff all shipped; "Resume
+training" is live for all users on app.cortexeeg.org (35k bank). The staging exit
+criterion (below) was met first; the behavioral pass was done locally.
 Companion to `docs/TRAINER_INTEGRATION_PLAN.md` §G4.
 
 ## 1. What was already there (the scaffolding G4 fills)
@@ -107,8 +108,24 @@ manual browser session and cannot be exercised headlessly in this environment.
 Staging loop wired + the e2e staging test passes (DB rows correct, `is_real`
 quarantine holds, spacing verified across 3 retests) ✅; client bridge + data layer
 + API done and typecheck/test-clean ✅; the immersive UI runner built + wired into
-`App.tsx`, `tsc` clean, trainer/controller/bank suites green ✅. Remaining before
-G5: a behavioral (Playwright/manual) pass on the live SPA to verify the runner's
-visuals + interaction. Then **G5** — the K=1–3 prod pilot (PI sign-off + real
-users; not autonomously completable). **Nothing was deployed** — this is
-local/staging wiring.
+`App.tsx`, `tsc` clean, trainer/controller/bank suites green ✅.
+
+## 7. Deployed to prod 2026-07-07 (commit `656927c`) — supersedes the "staging only" scope
+
+The behavioral pass was done locally (two-terminal stack, `_smoke_big` bundle) and
+confirmed; the runner + crash/UX fixes + the **real-skill handoff** (belief clouds
+seeded from the cert posterior ℓ/θ+SD, not a generic prior) followed. On the owner's
+explicit call the whole integration was then **committed to `main` and deployed to
+app.cortexeeg.org** via `cortex_web/deploy/scripts/deploy_app.sh` — so **"Resume
+training" is now LIVE for all authenticated users** against the 35k `v1.6-k7-35k`
+bank. Pre-deploy: prod Postgres already had `training_trials` +
+`param_trajectories.{is_real,seq_in_session,training_id}` (no migration); local build
+clean; 46 FE + 102 BE tests green. Post-deploy verified: `/api/health` release stamp
+`656927c653f7`, deep `db:ok`, SPA 200, `POST /api/regimen`→401 (wired).
+
+**This waives — does not satisfy — the G5 gate.** No PI sign-off was obtained, and
+the plan's cohort-scoping / monitoring were not built; the owner accepted that
+training silently excludes a user's trained segments from their future cert draws
+(exposure ledger). Rollback if needed: `git revert 656927c` + rerun the deploy
+script (prior good commit `a1f9748`). The G0–G3 Python trainer package + tests were
+deliberately left uncommitted (not deployed; separate follow-up).

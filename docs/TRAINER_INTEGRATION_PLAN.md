@@ -1,6 +1,14 @@
 # TRAINER_INTEGRATION_PLAN.md — connecting the adaptive trainer to the examination test
 
-Status: **DRAFT for review** (planning only; no code written). Authored 2026-07-06.
+Status: **SHIPPED + LIVE ON PROD 2026-07-07** (commit `656927c`, release
+`656927c653f7`). Authored 2026-07-06 as a gated spec; G0–G4 all built and merged to
+`main`, then deployed to app.cortexeeg.org — "Resume training" is live for all users
+on the 35k `v1.6-k7-35k` bank. **The G5 prod-pilot gate was WAIVED by owner decision,
+not satisfied** (no PI sign-off; no cohort-scoping/monitoring built; the owner
+accepted that training excludes a user's trained segments from their future cert
+draws). Rollback = `git revert 656927c` + rerun `cortex_web/deploy/scripts/deploy_app.sh`
+(prior good commit `a1f9748`). See `docs/G4_CLOSEOUT.md` §7. The G0–G3 Python trainer
+package + tests remain uncommitted (not deployed; separate follow-up).
 
 Scope: wire the frozen `trainer_rd/` learning algorithm into the production
 **test → train → retest** loop so that a candidate is examined, enters adaptive
@@ -463,11 +471,20 @@ through cert → regimen → train → fresh retest ×3: regimen weak set correc
 (`is_real=1`) exposure + trajectories persisted, **every trained seg excluded from
 every retest draw**, quarantine holds. Full backend suite (102) + frontend src/
 + trainer (44) green; `tsc` = 0 errors. Behavioral (visual/interaction) verification
-of the runner needs a Playwright or manual pass on the live SPA — it cannot be
-exercised headlessly here. Nothing deployed.
+was done locally (two-terminal stack, `_smoke_big` bundle) and confirmed by the owner.
+
+**DEPLOYED TO PROD 2026-07-07 (commit `656927c`)** — see the status banner up top and
+`docs/G4_CLOSEOUT.md` §7. "Resume training" is live for all users on the 35k bank.
 
 ### G5 — Pilot on prod (K=1–3), monitored, reversible
 **Objective.** Ship a bounded, feature-flagged pilot.
+> **STATUS 2026-07-07:** a full-exposure prod deploy already happened (G4 §7) on
+> owner call, so the *code* is live — but the pilot's actual guardrails below were
+> **NOT** built. These are now outstanding follow-ups on a live surface, not
+> pre-deploy work: **(a)** the feature-flag / cohort-scoping (training is currently
+> visible to ALL users, not a pilot cohort); **(b)** the monitoring; **(c)** PI
+> sign-off + the pre-registered SAP. Until (a) exists, the "reversible" story is the
+> revert-and-redeploy rollback, not a flag toggle.
 - Feature-flagged, cohort-scoped, **K=1–3 pilot scope** (matches trainer_rd's
   honest "median learner graduates ~2 of 7 in 40 sessions").
 - **Monitoring:** per-trial delivered value, graduation-vs-confirmed rates,
