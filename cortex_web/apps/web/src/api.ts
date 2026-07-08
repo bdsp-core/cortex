@@ -327,6 +327,7 @@ export interface CohortPerformance {
   name: string;
   from: string;
   to: string;
+  ellStar?: number[] | null;   // per-task cut score (ℓ*); drives the skill goal line
   members: CohortMemberSeries[];
 }
 

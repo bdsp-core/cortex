@@ -280,10 +280,15 @@ def cohort_performance(cohort_id: str, req: Request,
         frm = earliest or _lookback_cutoff(30)
     else:
         frm = cutoff
+    # Per-task cut scores (ℓ*) so the client can draw the goal line on the skill
+    # chart. Sourced from the live bank manifest (the authoritative current cut).
+    bank = req.app.state.get_bank()
+    ell_star = bank.engine.get("ellStar") if bank else None
     return {
         "cohortId": cohort["cohort_id"],
         "name": cohort["name"],
         "from": frm,
         "to": now_ts,
+        "ellStar": ell_star,
         "members": members,
     }

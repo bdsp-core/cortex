@@ -35,7 +35,6 @@ type Param = "skill" | "bias";
 // Timeframe options for the evolution curve. `days` is sent to the API (0 =
 // all time). `window` is the human phrase used in the panel sub-copy.
 const TIMEFRAMES: Array<{ key: string; label: string; days: number; window: string }> = [
-  { key: "1w", label: "1 week", days: 7, window: "last week" },
   { key: "1m", label: "1 month", days: 30, window: "last month" },
   { key: "3m", label: "3 months", days: 90, window: "last 3 months" },
   { key: "1y", label: "1 year", days: 365, window: "last year" },
@@ -43,7 +42,8 @@ const TIMEFRAMES: Array<{ key: string; label: string; days: number; window: stri
 ];
 const DEFAULT_TF = "3m";
 function tfInfo(key: string) {
-  return TIMEFRAMES.find((t) => t.key === key) ?? TIMEFRAMES[2];
+  return TIMEFRAMES.find((t) => t.key === key)
+    ?? TIMEFRAMES.find((t) => t.key === DEFAULT_TF)!;
 }
 
 // Categorical series palettes — one per theme, validated (lightness band,
@@ -128,11 +128,12 @@ interface ChartProps {
   param: Param;
   from: string;
   to: string;
+  cut: number | null;                       // ℓ* goal line (skill only; null = none)
   emphasized: string | null;               // publicId from legend hover
   onEmphasize: (pid: string | null) => void;
 }
 
-function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize }: ChartProps) {
+function CohortChart({ members, taskK, param, from, to, cut, emphasized, onEmphasize }: ChartProps) {
   useTheme();   // re-render (re-read palette + tokens) when the theme flips
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState<FlatPoint | null>(null);
@@ -155,10 +156,13 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
 
   const allVals = lines.flatMap((l) => l.pts.map((p) => p.v));
   const hasData = allVals.length > 0;
-  // y-range: data extent padded 12%; bias always includes the neutral 0 line.
+  const showCut = param === "skill" && cut != null && Number.isFinite(cut);
+  // y-range: data extent padded 12%; bias always includes the neutral 0 line;
+  // skill always includes the ℓ* cut so the goal line is visible, not clipped.
   let yMin = hasData ? Math.min(...allVals) : (param === "skill" ? 0 : -1);
   let yMax = hasData ? Math.max(...allVals) : (param === "skill" ? 2 : 1);
   if (param === "bias") { yMin = Math.min(yMin, 0); yMax = Math.max(yMax, 0); }
+  if (showCut) { yMin = Math.min(yMin, cut as number); yMax = Math.max(yMax, cut as number); }
   const span = (yMax - yMin) || 1;
   yMin -= span * 0.12; yMax += span * 0.12;
   const Y = (v: number) => mT + (1 - (v - yMin) / (yMax - yMin)) * IH;
@@ -172,19 +176,6 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
   // grid + axis labels (theme ink via CSS vars directly in SVG attrs)
   const yTicks = [0, 1, 2, 3].map((k) => yMin + (k / 3) * (yMax - yMin));
   const xTicks = timeTicks(t0, t1);
-
-  // direct end-of-line labels when few members have data (collision-eased)
-  const withData = lines.filter((l) => l.pts.length > 0);
-  let endLabels: Array<{ x: number; y: number; text: string; color: string }> = [];
-  if (withData.length > 0 && withData.length <= 4) {
-    endLabels = withData.map((l) => {
-      const last = l.pts[l.pts.length - 1];
-      return { x: X(last.t) + 7, y: Y(last.v) + 3, text: l.m.publicId, color: seriesColor(l.idx) };
-    }).sort((a, b) => a.y - b.y);
-    for (let i = 1; i < endLabels.length; i++) {
-      if (endLabels[i].y - endLabels[i - 1].y < 12) endLabels[i].y = endLabels[i - 1].y + 12;
-    }
-  }
 
   function onMove(e: RMouseEvent<HTMLDivElement>) {
     const box = boxRef.current?.getBoundingClientRect();
@@ -241,6 +232,16 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
           <line x1={mL} y1={Y(0).toFixed(1)} x2={W - mR} y2={Y(0).toFixed(1)}
             stroke="var(--neutral-rule)" strokeWidth={1} />
         )}
+        {showCut && (
+          <g>
+            <line x1={mL} y1={Y(cut as number).toFixed(1)} x2={W - mR} y2={Y(cut as number).toFixed(1)}
+              stroke="var(--teal)" strokeWidth={1.25} strokeDasharray="5 4" />
+            <text x={W - mR - 2} y={(Y(cut as number) - 4).toFixed(1)} textAnchor="end"
+              fontFamily="ui-monospace,Menlo,monospace" fontSize={10} fill="var(--teal-deep)">
+              ℓ* = {(cut as number).toFixed(2)}
+            </text>
+          </g>
+        )}
         {lines.map((l) => {
           if (l.pts.length === 0) return null;
           const color = seriesColor(l.idx);
@@ -261,13 +262,6 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
             </g>
           );
         })}
-        {endLabels.map((el, i) => (
-          <text key={`el${i}`} x={Math.min(el.x, W - 4).toFixed(1)} y={el.y.toFixed(1)}
-            textAnchor="start" fontFamily="ui-monospace,Menlo,monospace" fontSize={10}
-            fill="var(--ink-subtle)">
-            {el.text}
-          </text>
-        ))}
         {!hasData && (
           <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={13} fill="var(--ink-subtle)">
             No results in this time range yet.
@@ -375,20 +369,24 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
             <ToggleBtn active={param === "bias"} onClick={() => setParam("bias")}>Bias</ToggleBtn>
           </div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 10px" }} role="group" aria-label="Domain">
-          {TASKS.map((t, k) => (
-            <ToggleBtn key={t.label} active={taskK === k} onClick={() => setTaskK(k)}>{t.label}</ToggleBtn>
-          ))}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "0 0 14px" }} role="group" aria-label="Timeframe">
-          <span className="sub" style={{ marginRight: 4 }}>Timeframe</span>
-          {TIMEFRAMES.map((t) => (
-            <ToggleBtn key={t.key} active={timeframe === t.key} onClick={() => onTimeframe?.(t.key)}>{t.label}</ToggleBtn>
-          ))}
+        {/* domain buttons (left) + timeframe buttons (right, flush so "All time"
+            sits under the Bias tab) share one row, under the Skill/Bias tabs. */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "10px 0 14px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} role="group" aria-label="Domain">
+            {TASKS.map((t, k) => (
+              <ToggleBtn key={t.label} active={taskK === k} onClick={() => setTaskK(k)}>{t.label}</ToggleBtn>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginLeft: "auto" }} role="group" aria-label="Timeframe">
+            {TIMEFRAMES.map((t) => (
+              <ToggleBtn key={t.key} active={timeframe === t.key} onClick={() => onTimeframe?.(t.key)}>{t.label}</ToggleBtn>
+            ))}
+          </div>
         </div>
         <CohortChart
           members={members} taskK={taskK} param={param}
           from={perf.from} to={perf.to}
+          cut={param === "skill" ? (perf.ellStar?.[taskK] ?? null) : null}
           emphasized={emphasized} onEmphasize={setEmphasized}
         />
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 10 }} aria-label="Members legend">
@@ -532,6 +530,7 @@ function demoPerf(): api.CohortPerformance {
     cohortId: "demo", name: "Example cohort", // never rendered as a real pod
     from: new Date(now - 183 * day).toISOString(),
     to: new Date(now).toISOString(),
+    ellStar: [0.3, 0.155, 0.36, 0.36, 0.36, 0.36, 0.36],   // example goal line
     members: [
       mk("204481375", 160, [[0, 0.52], [45, 0.78], [95, 1.05], [140, 1.22]]),
       mk("581236490", 150, [[0, 0.95], [60, 1.02], [120, 1.31]]),
