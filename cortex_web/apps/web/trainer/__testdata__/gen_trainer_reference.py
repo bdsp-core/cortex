@@ -198,9 +198,104 @@ def gen_policy():
     }
 
 
+def gen_schedule():
+    """Label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md): unlike
+    the xoshiro/PCG64 filter RNGs, the schedule stream IS byte-matched
+    cross-language (splitmix64 counter stream) — these vectors pin sm64 /
+    ScheduleRng / SideScheduler / pairedBinChoice and a randomized-flag
+    decision sequence bit-for-bit."""
+    from trainer.bank_adapter import TaskCandidates
+    from trainer.label_schedule import (FLIP_PARAMS, ScheduleParams,
+                                        ScheduleRng, SideScheduler,
+                                        paired_bin_choice, sm64)
+    from trainer.policy import (ModeThresholds, RetentionScheduler,
+                                TaskModePolicy)
+
+    # sm64: u64s exceed double precision → decimal strings
+    sm_in = [0, 0x9E3779B97F4A7C15, 42, 123456789, (1 << 64) - 1]
+    sm_vec = [[str(x), str(sm64(x))] for x in sm_in]
+
+    uni = {}
+    for seed, sid in [(42, 3), (7, 0), (7, 1), (0, 0)]:
+        r = ScheduleRng(seed, sid)
+        uni[f"{seed},{sid}"] = [r.uniform() for _ in range(8)]
+
+    # walk trace with forced deviations every 7th commit
+    sp = ScheduleParams()
+    sch = SideScheduler(sp, ScheduleRng(42, 0))
+    trace = []
+    for i in range(64):
+        side = sch.propose()
+        served = -side if i % 7 == 0 else side
+        sch.commit(served)
+        trace.append({"prop": side, "served": served, "d": sch.d,
+                      "run": sch.run})
+
+    # paired-bin masks on a fixed pool (as chosen-bin index lists)
+    crng = np.random.default_rng(31)
+    M = 60
+    s_mean = crng.uniform(-1.5, 1.5, M)
+    s_sd = crng.uniform(0.2, 0.9, M)
+    y = (s_mean > 0).astype(np.int64)
+    masks = {}
+    for tgt in (0.6, 1.077):
+        m1 = paired_bin_choice(s_mean, y, 1, tgt)
+        m2 = paired_bin_choice(s_mean, y, 1, tgt, s_sd=s_sd)
+        masks[str(tgt)] = {"noSd": np.where(m1)[0].tolist(),
+                           "withSd": np.where(m2)[0].tolist()}
+
+    # randomized-flag decision sequence on the gen_policy cloud/pool recipe
+    rng = np.random.default_rng(21)
+    N = 40
+    theta = rng.normal(0.1, 0.3, N)
+    ell = rng.normal(0.2, 0.3, N)
+    w = rng.random(N)
+    w = w / w.sum()
+    p = LearnerParams(alpha_t=0.10, alpha_sigma=0.10, sigma_inf=0.5,
+                      rule="soft")
+    filt = TaskFilter(theta, ell, p, w=w, seed=0)
+    crng2 = np.random.default_rng(22)
+    M2 = 30
+    seg = np.arange(M2)
+    sm2 = crng2.uniform(-1.5, 1.5, M2)
+    ss2 = crng2.uniform(0.2, 0.9, M2)
+    y2 = (sm2 > 0).astype(np.int64)
+    cands = TaskCandidates(0, seg, sm2, ss2, y2, np.ones(M2),
+                           (y2 == 1) == (sm2 > 0))
+    mp = TaskModePolicy(0, 0.30, float(np.exp(-0.30)), ModeThresholds())
+    mp._lsched = SideScheduler(sp, ScheduleRng(5, 0))
+    mp._flip = SideScheduler(FLIP_PARAMS, ScheduleRng(5, 1))
+    ret = RetentionScheduler()
+    seq = []
+    for i in range(8):
+        mode, est = mp.choose_mode(filt, ret, i)
+        idx, info = mp.select(mode, est, cands, ret, i,
+                              np.random.default_rng(9), filt=filt)
+        mp.note_served(mode, int(cands.y_star[idx]),
+                       s=float(cands.s_mean[idx]), info=info)
+        seq.append({"mode": mode, "idx": int(idx),
+                    "want": int(info["want_label"])})
+    return {
+        "sm64": sm_vec, "uniforms": uni,
+        "params": {"cap": sp.cap, "d0": sp.d0, "gammaD": sp.gamma_d,
+                   "r0": sp.r0, "gammaR": sp.gamma_r, "qMin": sp.q_min},
+        "flipParams": {"cap": FLIP_PARAMS.cap, "d0": FLIP_PARAMS.d0,
+                       "gammaD": FLIP_PARAMS.gamma_d, "r0": FLIP_PARAMS.r0,
+                       "gammaR": FLIP_PARAMS.gamma_r,
+                       "qMin": FLIP_PARAMS.q_min},
+        "walkTrace": trace,
+        "binPool": {"sMean": s_mean.tolist(), "sSd": s_sd.tolist(),
+                    "yStar": y.tolist()},
+        "binMasks": masks,
+        "decisionSeqRandomized": seq,
+        "finalWalk": {"d": mp._lsched.d, "run": mp._lsched.run},
+    }
+
+
 def main():
     ref = {"conventions": gen_conventions(), "filter": gen_filter(),
-           "trainability": gen_trainability(), "policy": gen_policy()}
+           "trainability": gen_trainability(), "policy": gen_policy(),
+           "schedule": gen_schedule()}
     with open(_OUT, "w") as fh:
         json.dump(ref, fh, indent=2)
     print("wrote", _OUT)

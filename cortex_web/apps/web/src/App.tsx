@@ -27,6 +27,7 @@ import { COLORS } from "../ui/theme";
 import { TrainingRunner } from "./components/TrainingRunner";
 import { buildTrainerBank, cutScores, seedClouds, seedCloudsFromPrior } from "./trainerBank";
 import { ArrayBank, TrainerSession, buildFilters } from "../trainer/session";
+import { seedFromString } from "../trainer/label_schedule";
 import type { FilterParams } from "../trainer/filter";
 
 type Phase =
@@ -345,9 +346,16 @@ export function App() {
         ? seedCloudsFromPrior(plan.prior, ellStars.length, 200, 1)
         : seedClouds(ellStars.map(() => 0.0), 200, 1);
       const filters = buildFilters(clouds, TRAINER_PARAMS, sigmaInf, ellStars, { seed: 7, useMixture: false });
+      // Label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md): kills the
+      // deterministic pos/neg question pattern. The schedule seed is derived
+      // from the server-issued trainingId (§6.4) — unique per session, and the
+      // served label sequence is reproducible from the session record. The
+      // filter seed (7) is unchanged: the belief engine is untouched.
       const session = new TrainerSession(
         filters, ellStars, sigmaStars,
-        new ArrayBank(buildTrainerBank({ segments: inputs.segments })), { seed: 7 });
+        new ArrayBank(buildTrainerBank({ segments: inputs.segments })),
+        { seed: 7, labelSchedule: 'randomized',
+          scheduleSeed: seedFromString(trainingId) });
       setTrainState({ session, trainingId, labels: inputs.taskLabels, bundle: b });
       setPhase("training");
     } catch (e) {

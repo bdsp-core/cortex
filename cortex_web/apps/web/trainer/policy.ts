@@ -15,6 +15,10 @@ import {
   LAPSE_RATE, SKILL_MODE_MULTIPLIER, normPdf,
 } from './conventions';
 import type { FilterParams } from './filter';
+import {
+  defaultScheduleParams, flipParams, pairedBinChoice, ScheduleRng,
+  SideScheduler, type ScheduleParams,
+} from './label_schedule';
 import { expectedReward, type CloudView } from './reward';
 
 export const BIAS = 'bias';
@@ -197,6 +201,17 @@ export class TaskModePolicy {
   private lastSkillS: number | null = null;
   private biasProbe = false;
   private mlHist: number[] = [];
+  // Label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md), attached by
+  // TrainerPolicy when opts.labelSchedule === 'randomized'; null (default) ⇒
+  // every legacy deterministic device runs identically. lsched = the
+  // per-task label walk (skill sides + bias wants — one label stream per
+  // task); flip = the cap-2 probe/corrective type walk; the mirror device is
+  // the STATIC pairedBinChoice (no per-trial state). All walk/flip state
+  // advances at record()/noteServed via info.sched — a step() whose choice
+  // is never record()ed must be abandoned, not resumed.
+  lsched: SideScheduler | null = null;
+  flip: SideScheduler | null = null;
+  binFallbacks = 0;
 
   constructor(public task: number, public ellStar: number,
     public sigmaStar: number, public th: ModeThresholds) {}
@@ -274,20 +289,61 @@ export class TaskModePolicy {
     if (cands.length === 0) return null;
     const [sigHat, tHat] = est;
     if (mode === BIAS) {
-      const want = this.biasLabelBalance > 0 ? 0 : 1;
+      let want: number;
+      let probeNow: boolean;
+      if (this.lsched !== null) {
+        // randomized schedule: want from the per-task label walk (its soft
+        // anti-imbalance tilt IS the F6b envelope, with a proven guessing
+        // bound); probe/corrective from the cap-2 type walk
+        want = this.lsched.propose() > 0 ? 1 : 0;
+        probeNow = (this.flip as SideScheduler).propose() > 0;
+      } else {
+        want = this.biasLabelBalance > 0 ? 0 : 1;
+        probeNow = this.biasProbe;
+      }
       let idx: number;
-      if (filt !== null && !this.biasProbe) {
+      if (filt !== null && !probeNow) {
         idx = this.argmaxScore(biasCorrectionScore(filt, cands), cands, want);
       } else {
         idx = this.argmaxScore(biasProbeScore(cands.sMean, cands.sSd, sigHat, tHat), cands, want);
       }
-      const wasProbe = this.biasProbe || filt === null;
-      this.biasProbe = !this.biasProbe;
-      return [idx, { target: tHat, wantLabel: want, probe: wasProbe }];
+      const wasProbe = probeNow || filt === null;
+      if (this.flip === null) this.biasProbe = !probeNow;
+      const info: Record<string, unknown> = { target: tHat, wantLabel: want, probe: wasProbe };
+      if (this.lsched !== null) info.sched = true;
+      return [idx, info];
     }
     if (mode === SKILL) {
-      const side = this.skillSide;
+      const side = this.lsched !== null ? this.lsched.propose() : this.skillSide;
       const sigPlace = sigHat;
+      if (this.lsched !== null) {
+        // STATIC paired-bin serving (PECR §5c): side-blind bin choice +
+        // within-bin want-side E[w] argmax (the F20 precision preference —
+        // dropping it was the round-3a FG defect) — served magnitudes
+        // side-matched by construction, no history-dependent channel
+        const want = side > 0 ? 1 : 0;
+        const bmask = pairedBinChoice(
+          cands.sMean, cands.yStar, want,
+          SKILL_MODE_MULTIPLIER * Math.max(sigPlace, 1e-6), cands.sSd);
+        let view = cands;
+        let pick: number[] | null = null;
+        if (bmask === null) {
+          this.binFallbacks += 1;
+        } else {
+          pick = [];
+          for (let i = 0; i < bmask.length; i++) if (bmask[i]) pick.push(i);
+          view = cands.subset(bmask);
+        }
+        const ew = expectedSkillWeight(view.sMean, view.sSd, sigPlace, 0.0,
+          side, SKILL_MODE_MULTIPLIER, this.th.rho);
+        const j = this.argmaxScore(ew, view, want);
+        const idx = pick !== null ? pick[j] : j;
+        this.lastSkillS = cands.sMean[idx];
+        return [idx, {
+          target: side * SKILL_MODE_MULTIPLIER * sigPlace,
+          wantLabel: want, sched: true,
+        }];
+      }
       let mEff = SKILL_MODE_MULTIPLIER;
       if (this.lastSkillS !== null && (this.lastSkillS > 0) !== (side > 0)) {
         mEff = Math.abs(this.lastSkillS) / Math.max(sigPlace, 1e-6);
@@ -308,8 +364,19 @@ export class TaskModePolicy {
     return [idx, { target, bin: binKey, eligible: retention.due(binKey, now) || due.length === 0 }];
   }
 
-  noteServed(mode: string, yStar: number): void {
+  // Randomized-schedule commits happen here (single site, at record time):
+  // only trials the schedule PROPOSED (info.sched) advance the walk/flip,
+  // so retention serving never feeds the state, while pool-exhaustion
+  // deviations self-correct because the SERVED label is what commits.
+  noteServed(mode: string, yStar: number,
+    info: Record<string, unknown> | null = null): void {
     if (mode === BIAS) this.biasLabelBalance += yStar === 1 ? 1 : -1;
+    if (this.lsched !== null && info && info.sched) {
+      this.lsched.commit(yStar === 1 ? 1 : -1);
+      if (this.flip !== null && mode === BIAS && 'probe' in info) {
+        this.flip.commit(info.probe ? 1 : -1);
+      }
+    }
   }
 }
 
@@ -371,7 +438,16 @@ export class TrainerPolicy {
     public sigmaStars: number[],
     public bank: Bank,
     opts: { thresholds?: ModeThresholds; seed?: number; maxConsec?: number;
-      excludeSegIds?: Set<number>; minMargin?: number; retention?: RetentionScheduler } = {},
+      excludeSegIds?: Set<number>; minMargin?: number;
+      retention?: RetentionScheduler;
+      // Label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md §3):
+      // undefined (default) ⇒ legacy deterministic devices, identical
+      // behavior. 'randomized' ⇒ per-task capped soft-tilted label walks +
+      // cap-2 type flips + static paired-bin serving. scheduleSeed MUST be
+      // session-derived in prod (PECR §6.4) — a fixed seed replays the
+      // label sequence across sessions.
+      labelSchedule?: 'randomized'; scheduleSeed?: number | bigint;
+      scheduleParams?: ScheduleParams } = {},
   ) {
     this.K = filters.length;
     const th = opts.thresholds ?? defaultThresholds();
@@ -383,6 +459,17 @@ export class TrainerPolicy {
     this.wasMastered = new Array(this.K).fill(false);
     this.rng = new Rng(opts.seed ?? 0);
     void this.rng;   // RNG reserved for the >4096 subsample (not on the browser path)
+    if (opts.labelSchedule !== undefined) {
+      if (opts.labelSchedule !== 'randomized') {
+        throw new Error(`unknown labelSchedule: ${opts.labelSchedule}`);
+      }
+      const sp = opts.scheduleParams ?? defaultScheduleParams();
+      const s0 = opts.scheduleSeed ?? opts.seed ?? 0;
+      this.modePolicies.forEach((mp, k) => {
+        mp.lsched = new SideScheduler(sp, new ScheduleRng(s0, 2 * k));
+        mp.flip = new SideScheduler(flipParams(), new ScheduleRng(s0, 2 * k + 1));
+      });
+    }
   }
 
   private exclude: Set<number>;
@@ -421,7 +508,7 @@ export class TrainerPolicy {
   record(choice: Choice, y: number, feedback = true): void {
     const { task, mode, s, sSd, yStar } = choice;
     this.filters[task].step(s, y, yStar, sSd, feedback);
-    this.modePolicies[task].noteServed(mode, yStar);
+    this.modePolicies[task].noteServed(mode, yStar, choice.info);
     this.modePolicies[task].notePosterior(this.filters[task]);
     if (mode === RETENTION && 'bin' in choice.info) {
       this.retention.updateOnRetrieval(choice.info.bin as string, y === yStar, choice.now);

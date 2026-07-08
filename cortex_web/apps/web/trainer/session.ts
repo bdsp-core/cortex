@@ -3,6 +3,7 @@
 // next()/submit() API for the UI (via worker.ts). Filters are built from the exam
 // posterior's per-task marginals (variance-inflated by the caller, D1).
 import { TaskFilter, type FilterParams } from './filter';
+import type { ScheduleParams } from './label_schedule';
 import { SigmaInfMixtureFilter } from './trainability';
 import {
   TaskCandidates, TrainerPolicy, type Bank, type Choice, type FilterLike,
@@ -73,7 +74,11 @@ export class TrainerSession {
 
   constructor(filters: FilterLike[], ellStars: number[], sigmaStars: number[],
     bank: Bank, opts: { thresholds?: ModeThresholds; seed?: number; maxConsec?: number;
-      excludeSegIds?: Set<number>; minMargin?: number } = {}) {
+      excludeSegIds?: Set<number>; minMargin?: number;
+      // label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md);
+      // scheduleSeed must be session-derived (§6.4)
+      labelSchedule?: 'randomized'; scheduleSeed?: number | bigint;
+      scheduleParams?: ScheduleParams } = {}) {
     this.policy = new TrainerPolicy(filters, ellStars, sigmaStars, bank, opts);
   }
 
