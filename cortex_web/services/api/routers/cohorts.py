@@ -31,14 +31,16 @@ router = APIRouter(prefix="/api")
 MAX_COHORT_NAME_LEN = 60
 MAX_COHORTS_MANAGED = 10     # pods one account can run
 MAX_COHORT_MEMBERS = 100     # rows (active + pending) per pod
-LOOKBACK_DAYS = 183          # the 6-month performance window
+LOOKBACK_DAYS = 183          # default performance window when none is requested
+MAX_LOOKBACK_DAYS = 4000      # ~11y clamp on any client-requested window
+EPOCH_CUTOFF = "1970-01-01T00:00:00Z"   # "all time" sentinel (no lower bound)
 
 _PUBLIC_ID_RE = re.compile(r"^[1-9]\d{8}$")
 
 
-def _lookback_cutoff() -> str:
+def _lookback_cutoff(days: int = LOOKBACK_DAYS) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                         time.gmtime(time.time() - LOOKBACK_DAYS * 86400))
+                         time.gmtime(time.time() - days * 86400))
 
 
 def _cohort_and_role(db, cohort_id: str, code: str, *,
@@ -220,41 +222,68 @@ def cohort_delete(cohort_id: str, req: Request,
 
 @router.get("/cohorts/{cohort_id}/performance")
 def cohort_performance(cohort_id: str, req: Request,
+                       days: int | None = None,
                        code: str = Depends(require_auth)):
     """The graph payload: per active member, per task (0..6), the REAL
-    trajectory points inside the 6-month window — skill (ℓ) + bias (t) with
+    trajectory points inside the requested window — skill (ℓ) + bias (t) with
     sd. Members with no points still appear (the legend shows the whole
-    pod). Stable member order = invite time, so client color slots hold."""
+    pod). Stable member order = invite time, so client color slots hold.
+
+    `days` selects the lookback window (7 / 30 / 90 / 365 …). Omitted →
+    the default LOOKBACK_DAYS window (the historical behavior). `days <= 0`
+    → "all time" (no lower bound; the returned `from` is the earliest point
+    so the client axis fits the data). Only the latest operating point per
+    member/task/calendar-day is returned, so a busy day (e.g. a training
+    session's many trials) contributes one point rather than a vertical
+    stack."""
     db = req.app.state.db
     cohort, _, is_manager = _cohort_and_role(db, cohort_id, code,
                                              need_active=True)
     rows = [m for m in db.cohort_member_rows(cohort_id)
             if m["status"] == "active"]
-    cutoff = _lookback_cutoff()
+    all_time = days is not None and days <= 0
+    if all_time:
+        cutoff = EPOCH_CUTOFF
+    else:
+        win = LOOKBACK_DAYS if days is None else min(days, MAX_LOOKBACK_DAYS)
+        cutoff = _lookback_cutoff(win)
     points = db.eval_trajectories_for_codes_since(
         [m["code"] for m in rows], cutoff)
-    by_code: dict[str, dict[int, list]] = {}
+    # Collapse to the latest point per (member, task, UTC day). The query
+    # returns rows ordered by ts ascending, so the last write for a day wins.
+    # (ts stored at second granularity as "YYYY-MM-DDT..Z", so ts[:10] = day.)
+    by_code: dict[str, dict[int, dict[str, dict]]] = {}
     for p in points:
         if p.get("task_k") is None:
             continue
-        by_code.setdefault(p["code"], {}).setdefault(int(p["task_k"]), []).append({
+        day = (p["ts"] or "")[:10]
+        by_code.setdefault(p["code"], {}).setdefault(int(p["task_k"]), {})[day] = {
             "ts": p["ts"],
             "skill": p["ell"],
             "bias": p["theta"],
             "sd": p["sd"],
             "phase": p.get("phase") or "eval",
-        })
+        }
     members = []
     for m in rows:
         entry = _member_entry(db, m, code, cohort["manager_code"], is_manager)
         tasks = by_code.get(m["code"], {})
-        entry["series"] = [{"taskK": k, "points": tasks[k]}
-                           for k in sorted(tasks)]
+        entry["series"] = [
+            {"taskK": k, "points": [tasks[k][day] for day in sorted(tasks[k])]}
+            for k in sorted(tasks)]
         members.append(entry)
+    now_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if all_time:
+        # start the axis at the earliest real point (fall back to a short
+        # window when the pod has no data yet, so the axis is never degenerate)
+        earliest = min((p["ts"] for p in points if p.get("ts")), default=None)
+        frm = earliest or _lookback_cutoff(30)
+    else:
+        frm = cutoff
     return {
         "cohortId": cohort["cohort_id"],
         "name": cohort["name"],
-        "from": cutoff,
-        "to": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "from": frm,
+        "to": now_ts,
         "members": members,
     }

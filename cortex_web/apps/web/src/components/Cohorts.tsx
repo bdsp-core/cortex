@@ -1,5 +1,5 @@
 // Cohorts surface: manager-run peer groups ("pods"). Members follow each
-// other's per-domain skill (ℓ) / bias (t) evolution over a 6-month window,
+// other's per-domain skill (ℓ) / bias (t) evolution over a selectable window,
 // identified by 9-digit public User IDs — display names are present only in
 // manager API responses (the server enforces this; the UI just renders what
 // it gets). Aesthetics mirror the dashboard (cx-* panels, theme tokens,
@@ -31,6 +31,20 @@ const TASKS = [
   { label: "Other", full: "Ictal-interictal continuum / other" },
 ];
 type Param = "skill" | "bias";
+
+// Timeframe options for the evolution curve. `days` is sent to the API (0 =
+// all time). `window` is the human phrase used in the panel sub-copy.
+const TIMEFRAMES: Array<{ key: string; label: string; days: number; window: string }> = [
+  { key: "1w", label: "1 week", days: 7, window: "last week" },
+  { key: "1m", label: "1 month", days: 30, window: "last month" },
+  { key: "3m", label: "3 months", days: 90, window: "last 3 months" },
+  { key: "1y", label: "1 year", days: 365, window: "last year" },
+  { key: "all", label: "All time", days: 0, window: "all time" },
+];
+const DEFAULT_TF = "3m";
+function tfInfo(key: string) {
+  return TIMEFRAMES.find((t) => t.key === key) ?? TIMEFRAMES[2];
+}
 
 // Categorical series palettes — one per theme, validated (lightness band,
 // chroma floor, adjacent-pair CVD, surface contrast) against --panel.
@@ -84,6 +98,30 @@ function monthTicks(t0: number, t1: number): Array<{ t: number; label: string }>
   return out;
 }
 
+// x-axis ticks whose granularity adapts to the visible span, so short windows
+// (1 week / 1 month) get day/week gridlines instead of the 0–1 month marks a
+// month-only tick generator would produce. Day/week labels include the day.
+function dayStepTicks(t0: number, t1: number, stepDays: number): Array<{ t: number; label: string }> {
+  const out: Array<{ t: number; label: string }> = [];
+  const d = new Date(t0);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + stepDays);
+  while (d.getTime() <= t1) {
+    out.push({ t: d.getTime(), label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) });
+    d.setDate(d.getDate() + stepDays);
+  }
+  return out;
+}
+
+function timeTicks(t0: number, t1: number): Array<{ t: number; label: string }> {
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return [];
+  const DAY = 86400_000;
+  const span = t1 - t0;
+  if (span <= 31 * DAY) return dayStepTicks(t0, t1, span <= 9 * DAY ? 1 : span <= 16 * DAY ? 2 : 4);
+  if (span <= 130 * DAY) return dayStepTicks(t0, t1, 7);
+  return monthTicks(t0, t1);
+}
+
 interface ChartProps {
   members: api.CohortMemberSeries[];
   taskK: number;
@@ -133,7 +171,7 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
 
   // grid + axis labels (theme ink via CSS vars directly in SVG attrs)
   const yTicks = [0, 1, 2, 3].map((k) => yMin + (k / 3) * (yMax - yMin));
-  const xTicks = Number.isFinite(t0) && Number.isFinite(t1) ? monthTicks(t0, t1) : [];
+  const xTicks = timeTicks(t0, t1);
 
   // direct end-of-line labels when few members have data (collision-eased)
   const withData = lines.filter((l) => l.pts.length > 0);
@@ -179,7 +217,7 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
     >
       <svg
         width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-        role="img" aria-label={`${paramLabel} over the last 6 months, ${TASKS[taskK]?.label ?? taskK}`}
+        role="img" aria-label={`${paramLabel} over time, ${TASKS[taskK]?.label ?? taskK}`}
       >
         {yTicks.map((v, k) => (
           <g key={`y${k}`}>
@@ -232,7 +270,7 @@ function CohortChart({ members, taskK, param, from, to, emphasized, onEmphasize 
         ))}
         {!hasData && (
           <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={13} fill="var(--ink-subtle)">
-            No evaluations in the last 6 months yet.
+            No results in this time range yet.
           </text>
         )}
       </svg>
@@ -285,13 +323,15 @@ function ToggleBtn({ active, onClick, children }: {
 interface ViewProps {
   detail: api.CohortDetail;
   perf: api.CohortPerformance;
+  timeframe?: string;                        // selected TIMEFRAMES key
+  onTimeframe?: (key: string) => void;
   onInvite?: (pid: string) => Promise<void>;
   onRemove?: (pid: string) => Promise<void>;
   onLeave?: () => Promise<void>;
   onDelete?: () => Promise<void>;
 }
 
-function CohortView({ detail, perf, onInvite, onRemove, onLeave, onDelete }: ViewProps) {
+function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvite, onRemove, onLeave, onDelete }: ViewProps) {
   const [param, setParam] = useState<Param>("skill");
   const [taskK, setTaskK] = useState(0);
   const [emphasized, setEmphasized] = useState<string | null>(null);
@@ -327,7 +367,7 @@ function CohortView({ detail, perf, onInvite, onRemove, onLeave, onDelete }: Vie
             <h2>{detail.name}</h2>
             <p className="sub" style={{ margin: 0 }}>
               {TASKS[taskK].full} · {param === "skill" ? "skill (ℓ) estimate" : "bias (t) estimate"} per
-              evaluation, last 6 months
+              evaluation · {tfInfo(timeframe).window}
             </p>
           </div>
           <div style={{ display: "flex", gap: 6 }} role="group" aria-label="Parameter">
@@ -335,9 +375,15 @@ function CohortView({ detail, perf, onInvite, onRemove, onLeave, onDelete }: Vie
             <ToggleBtn active={param === "bias"} onClick={() => setParam("bias")}>Bias</ToggleBtn>
           </div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 14px" }} role="group" aria-label="Domain">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 10px" }} role="group" aria-label="Domain">
           {TASKS.map((t, k) => (
             <ToggleBtn key={t.label} active={taskK === k} onClick={() => setTaskK(k)}>{t.label}</ToggleBtn>
+          ))}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "0 0 14px" }} role="group" aria-label="Timeframe">
+          <span className="sub" style={{ marginRight: 4 }}>Timeframe</span>
+          {TIMEFRAMES.map((t) => (
+            <ToggleBtn key={t.key} active={timeframe === t.key} onClick={() => onTimeframe?.(t.key)}>{t.label}</ToggleBtn>
           ))}
         </div>
         <CohortChart
@@ -438,15 +484,17 @@ function LiveCohort({ cohortId, onChanged }: { cohortId: string; onChanged: () =
   const [perf, setPerf] = useState<api.CohortPerformance | null>(null);
   const [err, setErr] = useState("");
   const [bump, setBump] = useState(0);
+  const [tf, setTf] = useState(DEFAULT_TF);
 
   useEffect(() => {
     let dead = false;
     setErr("");
-    Promise.all([api.getCohort(cohortId), api.getCohortPerformance(cohortId)])
+    // Prior perf stays rendered while a new window loads (no flip to "Loading…").
+    Promise.all([api.getCohort(cohortId), api.getCohortPerformance(cohortId, tfInfo(tf).days)])
       .then(([d, p]) => { if (!dead) { setDetail(d); setPerf(p); } })
       .catch(() => { if (!dead) setErr("Could not load this cohort. Please try again."); });
     return () => { dead = true; };
-  }, [cohortId, bump]);
+  }, [cohortId, bump, tf]);
 
   if (err) return <section className="cx-panel"><p className="cx-msg-err">{err}</p></section>;
   if (!detail || !perf) return <section className="cx-panel"><p className="sub">Loading…</p></section>;
@@ -455,6 +503,7 @@ function LiveCohort({ cohortId, onChanged }: { cohortId: string; onChanged: () =
   return (
     <CohortView
       detail={detail} perf={perf}
+      timeframe={tf} onTimeframe={setTf}
       onInvite={async (pid) => { await api.inviteToCohort(cohortId, pid); refreshLocal(); }}
       onRemove={async (pid) => { await api.removeCohortMember(cohortId, pid); refreshLocal(); }}
       onLeave={async () => { await api.leaveCohort(cohortId); onChanged(); }}
@@ -578,7 +627,7 @@ export function CohortSurface() {
         <div aria-hidden style={{ filter: "grayscale(1) opacity(0.45)", pointerEvents: "none", userSelect: "none" }}>
           <h2>Cohorts</h2>
           <p className="sub">Follow your team's skill and bias evolution.</p>
-          <CohortView detail={DEMO_DETAIL} perf={demoPerf()} />
+          <CohortView detail={DEMO_DETAIL} perf={demoPerf()} timeframe="all" />
         </div>
         <div style={{
           position: "absolute", inset: 0, display: "flex",

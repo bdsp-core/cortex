@@ -1491,6 +1491,40 @@ def test_cohort_performance_window_and_quarantine(client):
     assert perf["from"] < perf["to"]
 
 
+def test_cohort_performance_timeframe_and_daily_dedup(client):
+    """`days` selects the lookback window; only the LATEST point per task per
+    UTC day is returned (a busy day — e.g. a training session's many trials —
+    collapses to one point); days<=0 = all time (axis `from` = earliest point)."""
+    cid, mh = _make_cohort(client)
+    uh, upid = _join_cohort(client, cid, mh)
+    db = client.app.state.db
+    ucode = next(m["code"] for m in db.cohort_member_rows(cid)
+                 if m["public_id"] == upid)
+    # three real points on task 0 the SAME UTC day (latest ts must win) + one
+    # on the next day — all ~5 weeks old so a 1-week window excludes them.
+    db.append_trajectory_points(ucode, [
+        {"taskK": 0, "phase": "eval",  "ell": 1.0, "theta": 0.1, "sd": 0.3,
+         "ts": "2026-06-01T08:00:00Z", "isReal": 1},
+        {"taskK": 0, "phase": "train", "ell": 1.1, "theta": 0.2, "sd": 0.2,
+         "ts": "2026-06-01T09:00:00Z", "isReal": 1},
+        {"taskK": 0, "phase": "train", "ell": 1.4, "theta": 0.3, "sd": 0.1,
+         "ts": "2026-06-01T18:30:00Z", "isReal": 1},   # latest that day → wins
+        {"taskK": 0, "phase": "eval",  "ell": 0.7, "theta": 0.0, "sd": 0.3,
+         "ts": "2026-06-02T10:00:00Z", "isReal": 1},   # separate day
+    ])
+    # all time: one point per calendar day, latest-of-day survives
+    allp = client.get(f"/api/cohorts/{cid}/performance?days=0", headers=uh).json()
+    me = next(m for m in allp["members"] if m["isYou"])
+    pts = {s["taskK"]: s["points"] for s in me["series"]}[0]
+    assert len(pts) == 2
+    assert pts[0]["skill"] == 1.4 and pts[0]["phase"] == "train"   # 06-01 latest
+    assert pts[1]["skill"] == 0.7                                  # 06-02
+    assert allp["from"] <= "2026-06-01T08:00:00Z"                  # axis fits data
+    # a 1-week window excludes the ~5-week-old points entirely
+    wk = client.get(f"/api/cohorts/{cid}/performance?days=7", headers=uh).json()
+    assert next(m for m in wk["members"] if m["isYou"])["series"] == []
+
+
 # ─────────────── group-1 hardening (2026-07-01 audit) ───────────────
 
 def test_health_deep_checks_db_and_reports_bank(client, monkeypatch):

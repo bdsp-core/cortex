@@ -339,8 +339,11 @@ export function createCohort(name: string): Promise<{ cohortId: string; name: st
 export function getCohort(cohortId: string): Promise<CohortDetail> {
   return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}`, {}, { retries: 2 });
 }
-export function getCohortPerformance(cohortId: string): Promise<CohortPerformance> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/performance`, {}, { retries: 2 });
+// `days` selects the lookback window (7 / 30 / 90 / 365); days <= 0 = all time.
+// Omitted → the server's default window.
+export function getCohortPerformance(cohortId: string, days?: number): Promise<CohortPerformance> {
+  const q = days == null ? "" : `?days=${days}`;
+  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/performance${q}`, {}, { retries: 2 });
 }
 export function inviteToCohort(cohortId: string, publicId: string): Promise<{ ok: boolean }> {
   return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite`, {

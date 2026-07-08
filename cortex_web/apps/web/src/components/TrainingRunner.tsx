@@ -38,6 +38,12 @@ export function TrainingRunner({
   }
   const ctrl = ctrlRef.current;
 
+  // Spike questions have no spectrogram — mirror the exam's SpikeViewer: EEG
+  // full-width over the whole clip, no labeled-epoch box, no window/pan. IIIC
+  // keeps the spectrogram + windowed/panned view. Branch on the current item's
+  // task class (same carrier the exam routes on: bundle.inputs.taskClasses).
+  const isSpike = ctrl.item != null && bundle.inputs?.taskClasses?.[ctrl.item.task] === "spike";
+
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
   const [seg, setSeg] = useState<SegmentData | null>(null);
@@ -64,7 +70,8 @@ export function TrainingRunner({
     if (specBoxRef.current) obs.observe(specBoxRef.current);
     if (eegBoxRef.current) obs.observe(eegBoxRef.current);
     return () => obs.disconnect();
-  }, []);
+    // re-observe when the spike/IIIC layout flips (the spec box mounts/unmounts)
+  }, [isSpike]);
 
   // load the chosen segment's media whenever the question item changes
   useEffect(() => {
@@ -148,6 +155,7 @@ export function TrainingRunner({
 
   const { count } = ctrl.progress();
   const label = ctrl.item ? labels[ctrl.item.task] : (ctrl.lastResult?.patternLabel ?? "");
+  const dur = seg ? seg.nSamp / seg.fsHz : 0;   // spike view shows the whole clip
 
   const shell: React.CSSProperties = {
     background: COLORS.bg, color: COLORS.textBody, fontFamily: FONTS.sans,
@@ -207,17 +215,21 @@ export function TrainingRunner({
           <button className="cx-btn" onClick={finish}>End session</button>
         </div>
 
-        {/* media: spectrogram (left) + EEG (right) */}
+        {/* media: spectrogram (left, IIIC only) + EEG (right). For spike there is
+            no spectrogram — the EEG fills the row and shows the whole clip. */}
         <div style={{ display: "flex", gap: 8, flex: 1, minHeight: 0, marginTop: 8, overflow: "hidden" }}>
-          <div ref={specBoxRef} style={{ flex: "0 0 280px", minHeight: 0, background: "#fff", border: `1px solid ${COLORS.borderInactive}` }}>
-            <SpecCanvas spec={seg?.spec ?? null} width={specSize.w || 280} height={specSize.h || 720}
-              clipBoundsFrac={[SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC]} />
-          </div>
+          {!isSpike && (
+            <div ref={specBoxRef} style={{ flex: "0 0 280px", minHeight: 0, background: "#fff", border: `1px solid ${COLORS.borderInactive}` }}>
+              <SpecCanvas spec={seg?.spec ?? null} width={specSize.w || 280} height={specSize.h || 720}
+                clipBoundsFrac={[SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC]} />
+            </div>
+          )}
           <div ref={eegBoxRef} style={{ flex: 1, minHeight: 0, background: "#fff", border: `1px solid ${COLORS.borderInactive}` }}>
             {seg ? (
-              <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain} windowS={windowS} panStartS={panStart}
+              <EegCanvas rows={rows} fsHz={seg.fsHz} gainUv={gain}
+                windowS={isSpike ? (dur || 10) : windowS} panStartS={isSpike ? 0 : panStart}
                 width={eegSize.w} height={eegSize.h} clipTraces
-                labeledEpoch={{ startS: IIIC_LABEL_START_S, endS: IIIC_LABEL_END_S }} />
+                labeledEpoch={isSpike ? undefined : { startS: IIIC_LABEL_START_S, endS: IIIC_LABEL_END_S }} />
             ) : <div style={{ color: "#888", padding: 20 }}>loading EEG…</div>}
           </div>
         </div>
@@ -226,10 +238,16 @@ export function TrainingRunner({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
           <Ctl label="Montage" value={montage} opts={MONTAGES as unknown as string[]} onChange={setMontage} />
           <Ctl label="Gain" value={String(gain)} opts={GAIN_LADDER.map(String)} onChange={(v) => setGain(Number(v))} />
-          <Ctl label="Window" value={String(windowS)} opts={WINDOW_OPTIONS.map(String)} onChange={(v) => setWindowS(Number(v))} />
-          <button className="cx-btn" onClick={() => setPanStart((p) => Math.max(0, p - windowS))} title="Pan left (←)">◀</button>
-          <button className="cx-btn" onClick={() => setPanStart((p) => p + windowS)} title="Pan right (→)">▶</button>
-          <span style={{ fontSize: 11, color: COLORS.textBody, opacity: 0.75 }}>↑/↓ gain · ←/→ pan · Ctrl montage</span>
+          {!isSpike && (
+            <>
+              <Ctl label="Window" value={String(windowS)} opts={WINDOW_OPTIONS.map(String)} onChange={(v) => setWindowS(Number(v))} />
+              <button className="cx-btn" onClick={() => setPanStart((p) => Math.max(0, p - windowS))} title="Pan left (←)">◀</button>
+              <button className="cx-btn" onClick={() => setPanStart((p) => p + windowS)} title="Pan right (→)">▶</button>
+            </>
+          )}
+          <span style={{ fontSize: 11, color: COLORS.textBody, opacity: 0.75 }}>
+            {isSpike ? "↑/↓ gain · Ctrl montage" : "↑/↓ gain · ←/→ pan · Ctrl montage"}
+          </span>
           <div style={{ flex: 1 }} />
           <button disabled={!seg} onClick={() => answer(true)}
             style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
