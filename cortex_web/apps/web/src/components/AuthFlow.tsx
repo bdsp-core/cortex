@@ -813,6 +813,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           <Steps on={2} />
           <h1 style={h1Style}>{t("auth.verify.title")}</h1>
           <p style={ledeStyle}>{ledeWithEmail(t("auth.verify.lede", { email: verifyEmail }), verifyEmail)}</p>
+          <p style={{ ...hintStyle, margin: "-16px 0 24px" }}>{t("auth.verify.spamHint")}</p>
           <form onSubmit={doVerify}>
             <CodeInputs digits={verifyDigits} setDigits={setVerifyDigits} ariaPrefix={t("auth.verify.codeAria")} />
             <FormError>{err}</FormError>

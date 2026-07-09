@@ -42,6 +42,7 @@
 
   "auth.verify.title": "Verifica la tua email",
   "auth.verify.lede": "Inserisci il codice a 6 cifre che abbiamo inviato a {email}. Il codice scade tra 15 minuti.",
+  "auth.verify.spamHint": "L'e-mail può impiegare qualche minuto ad arrivare: se non la vedi, controlla la cartella spam.",
   "auth.verify.submit": "Verifica e continua",
   "auth.verify.submitting": "Verifica in corso…",
   "auth.verify.wrongAddress": "Indirizzo errato?",

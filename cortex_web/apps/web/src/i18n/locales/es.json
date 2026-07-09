@@ -42,6 +42,7 @@
 
   "auth.verify.title": "Verifique su correo electrónico",
   "auth.verify.lede": "Introduzca el código de 6 dígitos que enviamos a {email}. El código caduca en 15 minutos.",
+  "auth.verify.spamHint": "El correo puede tardar unos minutos en llegar; si no lo ve, revise su carpeta de spam.",
   "auth.verify.submit": "Verificar y continuar",
   "auth.verify.submitting": "Verificando…",
   "auth.verify.wrongAddress": "¿Dirección incorrecta?",

@@ -42,6 +42,7 @@
 
   "auth.verify.title": "验证您的电子邮箱",
   "auth.verify.lede": "请输入我们发送至 {email} 的 6 位验证码。该验证码将在 15 分钟后失效。",
+  "auth.verify.spamHint": "邮件可能需要几分钟送达。如果没有收到，请检查垃圾邮件文件夹。",
   "auth.verify.submit": "验证并继续",
   "auth.verify.submitting": "正在验证……",
   "auth.verify.wrongAddress": "邮箱地址有误？",
