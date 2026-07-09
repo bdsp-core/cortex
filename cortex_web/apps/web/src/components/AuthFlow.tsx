@@ -23,6 +23,7 @@ import { ThemeToggle } from "../theme/ThemeProvider";
 import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { PROFILE_SECTIONS } from "../profileFields";
+import { suggestEmail } from "../emailSuggest";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -719,7 +720,19 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           <form onSubmit={continueSignup}>
             <Field label={<>{t("common.email")} {reqMark}</>}
               type="email" value={suEmail} onChange={setSuEmail}
-              placeholder={t("auth.signup.emailPh")} autoComplete="email" required autoFocus />
+              placeholder={t("auth.signup.emailPh")} autoComplete="email" required autoFocus>
+              {(() => {
+                const sug = suggestEmail(suEmail.trim());
+                return sug && (
+                  <button type="button" onClick={() => setSuEmail(sug)}
+                    style={{ display: "block", background: "none", border: "none", padding: 0,
+                      marginTop: 6, fontFamily: FONTS.sans, fontSize: 13, textAlign: "left",
+                      color: "var(--teal-deep)", cursor: "pointer" }}>
+                    {t("auth.signup.didYouMean", { suggestion: sug })}
+                  </button>
+                );
+              })()}
+            </Field>
             <Field label={<>{t("common.password")} {reqMark}</>}
               type="password" value={suPw} onChange={setSuPw}
               autoComplete="new-password" required>

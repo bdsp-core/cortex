@@ -19,6 +19,7 @@
   "auth.signup.displayName": "Anzeigename",
   "auth.signup.displayNamePh": "z. B. J. Doe, MD",
   "auth.signup.emailPh": "sie@beispiel.org",
+  "auth.signup.didYouMean": "Meinten Sie {suggestion}?",
   "auth.signup.passwordHint": "Mindestens 8 Zeichen.",
   "auth.signup.role": "Hauptrolle / Fachgebiet",
   "auth.signup.select": "Auswählen…",

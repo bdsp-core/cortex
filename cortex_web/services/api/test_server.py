@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from . import security
+from . import helpers, security
 from .app import create_app
 from .db import Database
 
@@ -105,6 +106,20 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
+# The real deliverability check, captured before the autouse bypass below so
+# its own unit tests (test_domain_check_*) can still exercise it.
+_REAL_DOMAIN_CHECK = helpers.email_domain_deliverable
+
+
+@pytest.fixture(autouse=True)
+def _dns_check_open(monkeypatch):
+    """Bypass the register-time DNS deliverability check: tests sign up with
+    @example.test addresses (NXDOMAIN in real DNS), and the suite must stay
+    deterministic offline. The dedicated tests re-patch or call the captured
+    original."""
+    monkeypatch.setattr(helpers, "email_domain_deliverable", lambda domain: True)
+
+
 _REG_COUNTER = [0]
 
 
@@ -157,6 +172,95 @@ def test_register_rejects_bad_email(client):
                     json={"email": "not-an-email", "password": "test-pw-1234567890",
                           "displayName": "X"})
     assert r.status_code == 400
+
+
+def test_register_rejects_undeliverable_email_domain(client, monkeypatch):
+    monkeypatch.setattr(helpers, "email_domain_deliverable", lambda domain: False)
+    body = {"email": "x@stanfodhealthcare.org", "password": "test-pw-1234567890",
+            "displayName": "Typo"}
+    r = client.post("/api/register", json=body)
+    assert r.status_code == 400
+    assert "typo" in r.json()["error"]
+    # Rejected BEFORE the row was written — the same email registers cleanly
+    # (not 409) once the domain resolves.
+    monkeypatch.setattr(helpers, "email_domain_deliverable", lambda domain: True)
+    r2 = client.post("/api/register", json=body)
+    assert r2.status_code == 200, r2.text
+
+
+# ─────────────── email-domain deliverability (unit) ───────────────
+
+def _stub_dns(monkeypatch, mx="answer", a="answer", aaaa="answer"):
+    """Install a fake dnspython in sys.modules. Each of mx/a/aaaa is 'answer',
+    'null-mx' (RFC 7505 '0 .' exchange), or an error mode: 'nxdomain',
+    'noanswer', 'timeout'."""
+    import types
+    resolver = types.ModuleType("dns.resolver")
+
+    class NXDOMAIN(Exception):
+        pass
+
+    class NoAnswer(Exception):
+        pass
+
+    class Timeout(Exception):
+        pass
+
+    resolver.NXDOMAIN, resolver.NoAnswer = NXDOMAIN, NoAnswer
+    raises = {"nxdomain": NXDOMAIN, "noanswer": NoAnswer, "timeout": Timeout}
+    plan = {"MX": mx, "A": a, "AAAA": aaaa}
+
+    class Resolver:
+        timeout = lifetime = None
+
+        def resolve(self, domain, rtype):
+            v = plan[rtype]
+            if v in raises:
+                raise raises[v]()
+            exch = "." if v == "null-mx" else "mail.x.test."
+            return [types.SimpleNamespace(exchange=exch)]
+
+    resolver.Resolver = Resolver
+    dns_mod = types.ModuleType("dns")
+    dns_mod.resolver = resolver
+    monkeypatch.setitem(sys.modules, "dns", dns_mod)
+    monkeypatch.setitem(sys.modules, "dns.resolver", resolver)
+
+
+def test_domain_check_mx_present(monkeypatch):
+    _stub_dns(monkeypatch)
+    assert _REAL_DOMAIN_CHECK("ok.test") is True
+
+
+def test_domain_check_nxdomain(monkeypatch):
+    _stub_dns(monkeypatch, mx="nxdomain")
+    assert _REAL_DOMAIN_CHECK("stanfodhealthcare.org") is False
+
+
+def test_domain_check_a_record_fallback(monkeypatch):
+    _stub_dns(monkeypatch, mx="noanswer", a="answer")
+    assert _REAL_DOMAIN_CHECK("amx.test") is True
+
+
+def test_domain_check_no_mx_no_a(monkeypatch):
+    _stub_dns(monkeypatch, mx="noanswer", a="noanswer", aaaa="noanswer")
+    assert _REAL_DOMAIN_CHECK("dead.test") is False
+
+
+def test_domain_check_null_mx_refuses_mail(monkeypatch):
+    _stub_dns(monkeypatch, mx="null-mx")
+    assert _REAL_DOMAIN_CHECK("nullmx.test") is False
+
+
+def test_domain_check_fails_open_on_timeout(monkeypatch):
+    _stub_dns(monkeypatch, mx="timeout")
+    assert _REAL_DOMAIN_CHECK("slow.test") is True
+
+
+def test_domain_check_fails_open_without_dnspython(monkeypatch):
+    monkeypatch.setitem(sys.modules, "dns", None)          # import → ImportError
+    monkeypatch.setitem(sys.modules, "dns.resolver", None)
+    assert _REAL_DOMAIN_CHECK("whatever.test") is True
 
 
 def test_register_dup_email_is_409(client):

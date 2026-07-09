@@ -16,6 +16,9 @@ psycopg[binary,pool]>=3.1
 # "Sign in with Google": verifies Google ID tokens at POST /api/auth/google.
 # Imported lazily in app.py, so dev/test installs without it still load.
 google-auth>=2.28
+# Signup email-domain deliverability check (MX/A lookup in helpers.py).
+# Imported lazily there too — installs without it skip the check.
+dnspython>=2.6
 # /api/videos: multipart upload + the desktop MP4 renderers
 # (scripts/cortex_render_videos.py + render_engine_explainer.py). The repo venv
 # already provides numpy/matplotlib; install here if running the API standalone.

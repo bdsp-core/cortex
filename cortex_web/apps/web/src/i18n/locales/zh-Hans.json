@@ -19,6 +19,7 @@
   "auth.signup.displayName": "显示名称",
   "auth.signup.displayNamePh": "例如：J. Doe, MD",
   "auth.signup.emailPh": "you@example.org",
+  "auth.signup.didYouMean": "您是想输入 {suggestion} 吗？",
   "auth.signup.passwordHint": "至少 8 个字符。",
   "auth.signup.role": "主要职务／专业领域",
   "auth.signup.select": "请选择……",

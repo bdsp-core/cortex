@@ -178,6 +178,29 @@ curl -sS https://cortex.lab.example.org/api/health
 | Restart API | `sudo systemctl restart cortex.service` |
 | Reload Caddy (after Caddyfile edit) | `sudo systemctl reload caddy` |
 
+## Email delivery monitoring (SES events)
+
+Set up 2026-07-09 after a verification email went undelivered with zero
+visibility. All mail sent from the `cortexeeg.org` SES identity (us-west-2,
+account 394624473373) flows through the **`cortex-transactional`**
+configuration set — it is the identity's *default* configuration set, so it
+applies to SMTP + API sends alike with no app config. Its `errors-to-sns`
+event destination publishes BOUNCE / COMPLAINT / REJECT / RENDERING_FAILURE /
+DELIVERY_DELAY events (full per-message JSON: recipient, timestamp, SMTP
+diagnostic) to the SNS topic `cortex-ses-events`, which delivers to the
+operator's email subscription.
+
+  - No error email = SES accepted + delivered to the recipient's MX. A
+    report of "no email received" from there on means the recipient's
+    junk/quarantine (org mail gateways), not our pipeline.
+  - Aggregate counts: CloudWatch `AWS/SES` namespace (Send/Delivery/Bounce).
+  - To re-create or add a subscriber:
+    `aws sns subscribe --topic-arn arn:aws:sns:us-west-2:394624473373:cortex-ses-events --protocol email --notification-endpoint <addr> --region us-west-2`
+  - Signup-side guard: `/api/register` rejects email domains with no DNS
+    MX/A records (helpers.email_domain_deliverable, fails open), and the
+    signup form suggests corrections for near-miss domains
+    (apps/web/src/emailSuggest.ts).
+
 ## Restoring from a Box backup
 
 ```bash

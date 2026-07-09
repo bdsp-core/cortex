@@ -39,6 +39,11 @@ def register(body: RegisterIn, req: Request):
         raise HTTPException(400, "displayName required")
     if db.get_participant_by_email(email) is not None:
         raise HTTPException(409, "an account with this email already exists")
+    # Reject domains that can never receive the verification code (no DNS
+    # MX/A records — typically a typo'd domain). Fails open on DNS trouble.
+    if not helpers.email_domain_deliverable(email.rsplit("@", 1)[1]):
+        raise HTTPException(
+            400, "this email domain doesn't appear to accept mail — double-check it for typos")
     code = "u-" + secrets.token_urlsafe(12)
     prof = helpers.clean_profile(body.profile)
     expertise = (body.expertise.strip() or prof.get("expertise", "")).strip()[:helpers.MAX_FIELD_LEN] or None

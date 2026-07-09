@@ -19,6 +19,7 @@
   "auth.signup.displayName": "Display name",
   "auth.signup.displayNamePh": "e.g. J. Doe, MD",
   "auth.signup.emailPh": "you@example.org",
+  "auth.signup.didYouMean": "Did you mean {suggestion}?",
   "auth.signup.passwordHint": "At least 8 characters.",
   "auth.signup.role": "Primary role / expertise",
   "auth.signup.select": "Select…",

@@ -19,6 +19,7 @@
   "auth.signup.displayName": "表示名",
   "auth.signup.displayNamePh": "例: J. Doe, MD",
   "auth.signup.emailPh": "you@example.org",
+  "auth.signup.didYouMean": "もしかして {suggestion} ですか？",
   "auth.signup.passwordHint": "8文字以上で入力してください。",
   "auth.signup.role": "主な職種・専門分野",
   "auth.signup.select": "選択してください…",

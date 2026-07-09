@@ -17,9 +17,9 @@ from .db import Database, utc_now
 
 # ───────────────────────── validation ──────────────────────────
 # RFC 5322 is overkill; this matches what every real email service accepts
-# and rejects obvious garbage. We DON'T verify deliverability — the policy
-# is "anyone with the URL can sign up; we trust the email at face value."
-# Add MX-record / SES verification later if spam shows up.
+# and rejects obvious garbage. Deliverability of the DOMAIN is checked
+# separately at signup (email_domain_deliverable below, 2026-07-09); the
+# mailbox itself is still trusted at face value until the verify code.
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 MIN_PASSWORD_LEN = 8
 MAX_FIELD_LEN = 200       # tame oversized payloads (display_name etc.)
@@ -39,6 +39,43 @@ def norm_email(s: str) -> str:
 
 def is_email(s: str) -> bool:
     return bool(_EMAIL_RE.match(s)) and len(s) <= MAX_FIELD_LEN
+
+
+def email_domain_deliverable(domain: str) -> bool:
+    """Best-effort DNS check that an email domain can actually receive mail:
+    MX records, else A/AAAA (the RFC 5321 fallback). Catches typo'd domains
+    that can never deliver (e.g. stanfodhealthcare.org, 2026-07-09 incident)
+    BEFORE the account is created and stranded on the verify screen.
+
+    Fails OPEN: resolver trouble, timeouts, or a missing dnspython must never
+    block signups — only a definitive no-such-domain / no-mail-host answer
+    returns False. dnspython is imported lazily (same contract as google-auth
+    in app.py: dev installs without it skip the check)."""
+    try:
+        import dns.resolver
+    except Exception:
+        return True
+    res = dns.resolver.Resolver()
+    res.timeout = res.lifetime = 3.0
+    try:
+        answers = res.resolve(domain, "MX")
+        # RFC 7505 null MX ("0 .") = the domain explicitly refuses mail.
+        return not all(str(r.exchange) == "." for r in answers)
+    except dns.resolver.NXDOMAIN:
+        return False
+    except dns.resolver.NoAnswer:
+        pass  # domain exists but has no MX — fall through to A/AAAA
+    except Exception:
+        return True
+    for rtype in ("A", "AAAA"):
+        try:
+            res.resolve(domain, rtype)
+            return True
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            continue
+        except Exception:
+            return True
+    return False
 
 
 def clean_profile(d: dict[str, Any]) -> dict[str, str]:
