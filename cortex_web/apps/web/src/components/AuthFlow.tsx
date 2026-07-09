@@ -855,6 +855,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
         <div style={cardStyle}>
           <h1 style={h1Style}>{t("auth.reset.title")}</h1>
           <p style={ledeStyle}>{ledeWithEmail(t("auth.reset.lede", { email: resetEmail }), resetEmail)}</p>
+          <p style={{ ...hintStyle, margin: "-16px 0 24px" }}>{t("auth.verify.spamHint")}</p>
           <form onSubmit={doReset}>
             <div style={{ display: "block", marginBottom: 16 }}>
               <span style={labelStyle}>{t("auth.reset.codeLabel")}</span>
