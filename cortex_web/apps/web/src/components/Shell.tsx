@@ -373,7 +373,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
       )}
       <section className="cx-kpi-strip" aria-label="Certification summary">
         <div className="cx-kpi">
-          <span className="k">Tasks certified</span>
+          <span className="k">Domains certified</span>
           <span className="v">{kpis ? kpis.tasksCertified : "–"}
             <span className="u">/ {kpis ? kpis.tasksTotal : 7}</span></span>
         </div>
@@ -386,10 +386,6 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
           <span className="k">Strongest domain AUROC</span>
           <span className="v">{kpis?.bestDomain ? kpis.bestDomain.auroc.toFixed(2) : "–"}
             {kpis?.bestDomain && <span className="u"> {kpis.bestDomain.label}</span>}</span>
-        </div>
-        <div className="cx-kpi">
-          <span className="k">Last assessed</span>
-          <span className="v">{kpis && kpis.lastAssessed ? fmtDate(kpis.lastAssessed) : "–"}</span>
         </div>
       </section>
 
@@ -578,7 +574,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               <div className="cx-phead"><h2>Consistency</h2></div>
               <div className="cx-heat-wrap">
                 <Heatmap activity={activity} />
-                <HeatLegend />
+                <HeatLegend lastEval={kpis?.lastAssessed} />
               </div>
             </section>
 

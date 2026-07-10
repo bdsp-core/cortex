@@ -289,23 +289,32 @@ export function MiniChart(o: MiniChartProps) {
 // completed (darkest). The day's highest activity wins.
 const ACTIVITY_LABEL = ["", "Signed in", "Certification test", "Training completed"];
 
-// Discrete teal shade per activity level (shares the trajectory-chart hue).
+// Discrete shade per activity level. Sign-in/training share the trajectory-
+// chart teal; certification-test days are RED (the site's fail/attention
+// hue #d8806a) so an evaluation stands out from routine activity.
 function heatFillLevel(level: number): string {
   if (level <= 0) return cssVar("--zero-fill");
-  const teal = [47, 143, 131];
+  const hue = level === 2 ? [216, 128, 106] : [47, 143, 131];
   const dark = typeof document !== "undefined"
     && document.documentElement.getAttribute("data-theme") === "dark";
   const base = dark ? [20, 22, 28] : [255, 255, 255];
-  const a = level >= 3 ? 1.0 : level === 2 ? 0.6 : 0.3;
-  const r = Math.round(base[0] + (teal[0] - base[0]) * a);
-  const g = Math.round(base[1] + (teal[1] - base[1]) * a);
-  const b = Math.round(base[2] + (teal[2] - base[2]) * a);
+  const a = level >= 3 ? 1.0 : level === 2 ? 0.9 : 0.3;
+  const r = Math.round(base[0] + (hue[0] - base[0]) * a);
+  const g = Math.round(base[1] + (hue[1] - base[1]) * a);
+  const b = Math.round(base[2] + (hue[2] - base[2]) * a);
   return `rgb(${r},${g},${b})`;
 }
 
-export function HeatLegend() {
+export function HeatLegend({ lastEval }: { lastEval?: string | null } = {}) {
   useTheme();
-  const items: Array<[number, string]> = [[1, "Sign-in"], [2, "Certification"], [3, "Training"]];
+  // The red (certification) entry carries the date of the last evaluation
+  // test, replacing the old "Last assessed" KPI tile.
+  const d = lastEval ? new Date(lastEval) : null;
+  const certLabel = d && !isNaN(d.getTime())
+    ? `Certification (last: ${d.toLocaleDateString(undefined,
+        { month: "short", day: "numeric", year: "numeric" })})`
+    : "Certification";
+  const items: Array<[number, string]> = [[1, "Sign-in"], [2, certLabel], [3, "Training"]];
   return (
     <div className="cx-heat-legend">
       {items.map(([lvl, label]) => (
