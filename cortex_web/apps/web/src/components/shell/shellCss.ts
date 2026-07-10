@@ -36,6 +36,9 @@ export const SHELL_CSS = `
 .cx-btn:hover{background:var(--panel-hover);border-color:var(--bd-strong);}
 .cx-btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;}
 .cx-btn.primary:hover{background:var(--teal-hover);border-color:var(--teal-hover);}
+.cx-btn:disabled{opacity:.45;cursor:not-allowed;}
+.cx-btn:disabled:hover{background:var(--panel);border-color:var(--bd);}
+.cx-btn.primary:disabled:hover{background:var(--teal);border-color:var(--teal);}
 .cx-btn .arrow{font-family:var(--mono);}
 .cx-foot{padding:var(--s16) var(--s24) 0;border-top:1px solid var(--bd-subtle);margin:0 var(--s12);}
 .cx-who .name{font-weight:600;font-size:14px;color:var(--ink);}

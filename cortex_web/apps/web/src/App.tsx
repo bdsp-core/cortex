@@ -20,6 +20,7 @@ import { AuthFlow } from "./components/AuthFlow";
 import { consumeAuthDeepLink, consumeCohortDeepLink } from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
 import { reportClientError } from "./telemetry";
+import { reopenLabel } from "./washout";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
@@ -55,39 +56,49 @@ const TRAINER_PARAMS: FilterParams = {
 };
 
 // Post-training exam-washout notice (server-enforced 12h gate in
-// routers/testing.py). Same floating-card aesthetic as the invite banner,
-// with the attention-red rule: this one is a restriction, not an offer.
-function WashoutBanner({ reopensAtUtc, onDismiss }: {
+// routers/testing.py). A top sheet that descends over a dimmed dashboard and
+// requires explicit acknowledgment: the participant must recognize that
+// testing is closed, not glance past a corner card.
+function WashoutBanner({ reopensAtUtc, onAccept }: {
   reopensAtUtc: string;
-  onDismiss: () => void;
+  onAccept: () => void;
 }) {
-  const d = new Date(reopensAtUtc);
-  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const now = new Date();
-  const label = d.toDateString() === now.toDateString() ? time
-    : d.toDateString() === new Date(now.getTime() + 86_400_000).toDateString()
-      ? `${time} tomorrow`
-      : `${time} on ${d.toLocaleDateString()}`;
+  const label = reopenLabel(reopensAtUtc);
   return (
-    <div role="status" style={{
-      position: "fixed", zIndex: 60, right: 24, bottom: 24, width: 380,
-      maxWidth: "calc(100vw - 48px)", background: COLORS.card,
-      border: `1px solid ${COLORS.borderInactive}`,
-      borderLeft: `3px solid ${COLORS.fail}`,
-      boxShadow: "0 8px 28px rgba(15, 40, 36, 0.18)",
-      fontFamily: "inherit", color: COLORS.textPrimary,
-      padding: "14px 16px", fontSize: 14, lineHeight: 1.5,
-      display: "flex", gap: 10, alignItems: "flex-start",
-    }}>
-      <span>
-        You trained earlier today; to keep the exam a clean measure, testing
-        reopens at <b>{label}</b>.
-      </span>
-      <button aria-label="Dismiss" onClick={onDismiss}
-        style={{ background: "none", border: "none", cursor: "pointer",
-          color: COLORS.textFaint, fontSize: 16, lineHeight: 1, padding: 2 }}>
-        ×
-      </button>
+    <div role="alertdialog" aria-modal="true"
+      aria-label="Testing temporarily unavailable"
+      style={{
+        position: "fixed", inset: 0, zIndex: 80,
+        background: "rgba(20, 28, 26, 0.45)",
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        animation: "cx-washout-dim 260ms ease-out",
+      }}>
+      <style>{`
+        @keyframes cx-washout-dim { from { background: rgba(20,28,26,0); }
+                                    to { background: rgba(20,28,26,0.45); } }
+        @keyframes cx-washout-drop { from { transform: translateY(-110%); }
+                                     to { transform: none; } }
+      `}</style>
+      <div style={{
+        width: "100%", background: COLORS.card,
+        borderBottom: `3px solid ${COLORS.fail}`,
+        boxShadow: "0 12px 32px rgba(15, 40, 36, 0.28)",
+        animation: "cx-washout-drop 320ms ease-out",
+        padding: "22px 24px", boxSizing: "border-box",
+        display: "flex", justifyContent: "center",
+      }}>
+        <div style={{
+          maxWidth: 760, display: "flex", flexWrap: "wrap",
+          alignItems: "center", gap: 18,
+          fontSize: 15, lineHeight: 1.55, color: COLORS.textPrimary,
+        }}>
+          <span style={{ flex: "1 1 420px" }}>
+            You trained earlier today; to keep the exam a clean measure,
+            testing reopens at <b>{label}</b>.
+          </span>
+          <Button onClick={onAccept}>I understand</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -165,8 +176,27 @@ export function App() {
   const [pendingResume, setPendingResume] = useState<api.ActiveSession | null>(null);
   const startFreshRef = useRef<(() => Promise<void>) | null>(null);
   // Post-training exam washout (server-enforced): when set, the dashboard
-  // shows the "testing reopens at ..." banner instead of entering the test.
+  // greys the test button and a top-sheet modal demands acknowledgment.
   const [washoutUntil, setWashoutUntil] = useState<string | null>(null);
+  const [washoutAck, setWashoutAck] = useState(false);
+  const prevWashoutRef = useRef<string | null>(null);
+  // A NEW washout window (different reopen time) needs a fresh acknowledgment.
+  useEffect(() => {
+    if (washoutUntil !== prevWashoutRef.current) {
+      prevWashoutRef.current = washoutUntil;
+      setWashoutAck(false);
+    }
+  }, [washoutUntil]);
+  // Refresh on every dashboard (re)entry: finishing a training session lands
+  // back here, and the test button must grey out immediately.
+  useEffect(() => {
+    if (phase !== "dashboard") return;
+    let gone = false;
+    api.activeSession()
+      .then((r) => { if (!gone) setWashoutUntil(r.washout?.reopensAtUtc ?? null); })
+      .catch(() => { /* pre-flight + the server 409 still guard the path */ });
+    return () => { gone = true; };
+  }, [phase]);
 
   // ── flow transitions ──────────────────────────────────────────
   // Load the bundle and show the in-context tutorial over an IIIC example seg
@@ -396,6 +426,7 @@ export function App() {
       if (e instanceof api.ApiError && e.message === "training_washout") {
         const body = e.body as { reopensAtUtc?: string } | undefined;
         setWashoutUntil(body?.reopensAtUtc ?? new Date().toISOString());
+        setWashoutAck(false);
         setPhase("dashboard");
         return;
       }
@@ -429,14 +460,17 @@ export function App() {
   // normal consent → tutorial → test flow. Resume detection is best-effort —
   // any failure falls through to the normal flow.
   const onStartTestClick = useCallback(async () => {
-    setPhase("loading");
+    // No phase change during the pre-flight: switching to "loading" here
+    // flashed the test-pipeline spinner for a round-trip that usually ends
+    // back on the dashboard (washout) or on the consent screen (no data
+    // needed). The dashboard stays up until we know where we're going.
     let active: api.ActiveSession | null = null;
     try {
       const r = await api.activeSession();
       if (r.washout) {
         // Blocked before consent/tutorial: the server would 409 anyway.
         setWashoutUntil(r.washout.reopensAtUtc);
-        setPhase("dashboard");
+        setWashoutAck(false);
         return;
       }
       active = r.active;
@@ -524,10 +558,11 @@ export function App() {
             onStartTraining={startTraining}
             onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
             inviteHighlightId={cohortDeepLink}
+            testDisabledUntil={washoutUntil}
           />
-          {washoutUntil && (
+          {washoutUntil && !washoutAck && (
             <WashoutBanner reopensAtUtc={washoutUntil}
-              onDismiss={() => setWashoutUntil(null)} />
+              onAccept={() => setWashoutAck(true)} />
           )}
         </>
       );

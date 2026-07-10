@@ -35,6 +35,7 @@ type Surface = "dashboard" | "training" | "protocol" | "history" | "cohorts" | "
 type View = Surface | "drilldown";
 
 import { SHELL_CSS } from "./shell/shellCss";
+import { reopenLabel, washoutActive } from "../washout";
 import { CohortInviteBanner } from "./CohortInviteBanner";
 
 // Inline-SVG line icons for the four nav surfaces (ported verbatim from the
@@ -1412,7 +1413,7 @@ function SettingsSurface() {
 }
 
 export function Shell({
-  onStartTest, onStartTraining, onSignOut, inviteHighlightId,
+  onStartTest, onStartTraining, onSignOut, inviteHighlightId, testDisabledUntil,
 }: {
   onStartTest: () => void;
   onStartTraining: () => void;
@@ -1420,6 +1421,10 @@ export function Shell({
   // Cohort id from an invite email's /?cohort=... deep link: the floating
   // invite banner pulses the matching invitation.
   inviteHighlightId?: string | null;
+  // Post-training exam washout (server-enforced): while in force, the test
+  // CTAs grey out with a "reopens at" note. Refreshed by App on every
+  // dashboard entry; the server 409 is the actual enforcement.
+  testDisabledUntil?: string | null;
 }) {
   const [view, setView] = useState<View>("dashboard");
   const [drillTask, setDrillTask] = useState<number>(0);
@@ -1444,6 +1449,9 @@ export function Shell({
 
   // A nav surface is "active" when the current view matches it; the drilldown
   // sub-view keeps the dashboard tab highlighted (it's a routed sub-page of it).
+  // Post-training washout: grey the test CTAs while it is in force.
+  const testLocked = washoutActive(testDisabledUntil);
+
   const activeNav: Surface = view === "drilldown" ? "dashboard" : view;
 
   return (
@@ -1478,7 +1486,8 @@ export function Shell({
 
         <div className="cx-cta">
           {hasResult === false ? (
-            <button type="button" className="cx-btn primary" onClick={onStartTest}>
+            <button type="button" className="cx-btn primary" onClick={onStartTest}
+              disabled={testLocked}>
               Take the certification test
             </button>
           ) : (
@@ -1492,10 +1501,16 @@ export function Shell({
                   Resume training
                 </button>
               )}
-              <button type="button" className="cx-btn" onClick={onStartTest}>
+              <button type="button" className="cx-btn" onClick={onStartTest}
+                disabled={testLocked}>
                 Re-take certification test
               </button>
             </>
+          )}
+          {testLocked && testDisabledUntil && (
+            <div className="cx-cta-note">
+              Testing reopens at {reopenLabel(testDisabledUntil)}
+            </div>
           )}
         </div>
 
