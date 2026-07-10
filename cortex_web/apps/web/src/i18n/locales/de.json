@@ -42,8 +42,8 @@
 
   "auth.verify.title": "Bestätigen Sie Ihre E-Mail-Adresse",
   "auth.verify.lede": "Geben Sie den 6-stelligen Code ein, den wir an {email} gesendet haben. Der Code läuft in 15 Minuten ab.",
-  "auth.verify.spamHint": "Die E-Mail kann einige Minuten brauchen – sehen Sie ggf. auch im Spam-Ordner nach.",
-  "auth.verify.undeliverable": "Die E-Mail konnte nicht zugestellt werden – die Adresse existiert möglicherweise nicht. Prüfen Sie die Schreibweise oder verwenden Sie eine andere Adresse.",
+  "auth.verify.spamHint": "Die E-Mail kann einige Minuten brauchen. Sehen Sie ggf. auch im Spam-Ordner nach.",
+  "auth.verify.undeliverable": "Die E-Mail konnte nicht zugestellt werden; die Adresse existiert möglicherweise nicht. Prüfen Sie die Schreibweise oder verwenden Sie eine andere Adresse.",
   "auth.verify.submit": "Bestätigen & fortfahren",
   "auth.verify.submitting": "Bestätigung läuft…",
   "auth.verify.wrongAddress": "Falsche Adresse?",
@@ -194,7 +194,7 @@
   "terms.privacy.h": "Datenschutz",
   "terms.privacy.body": "Ihre Nutzung von CORTEX unterliegt zudem unserer [Datenschutzerklärung](/privacy), die erläutert, welche personenbezogenen Daten wir erheben und wie wir mit ihnen umgehen. Indem Sie CORTEX nutzen, bestätigen Sie, dass Sie die Datenschutzerklärung gelesen haben.",
   "terms.contact.h": "Kontakt",
-  "terms.contact.org": "Stanford University School of Medicine — Westover Lab (Projekt CORTEX), gefördert vom Clinical Data Animation Center (CDAC)",
+  "terms.contact.org": "Stanford University School of Medicine, Westover Lab (Projekt CORTEX), gefördert vom Clinical Data Animation Center (CDAC)",
   "terms.contact.addr": "453 Quarry Rd, Office 221B, Palo Alto, CA 94304",
   "terms.contact.emails": "[mbwest@stanford.edu](mailto:mbwest@stanford.edu) · [ewk23@stanford.edu](mailto:ewk23@stanford.edu)",
   "terms.back": "Zurück zu CORTEX"

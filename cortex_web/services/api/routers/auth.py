@@ -28,7 +28,7 @@ def register(body: RegisterIn, req: Request):
     if body.honeypot:
         return {"ok": True}
     if not limiter.hit("register", ip):
-        raise HTTPException(429, "too many signups from this IP — try again later")
+        raise HTTPException(429, "too many signups from this IP; try again later")
     email = helpers.norm_email(body.email)
     if not helpers.is_email(email):
         raise HTTPException(400, "invalid email")
@@ -45,7 +45,7 @@ def register(body: RegisterIn, req: Request):
     # MX/A records — typically a typo'd domain). Fails open on DNS trouble.
     if not helpers.email_domain_deliverable(email.rsplit("@", 1)[1]):
         raise HTTPException(
-            400, "this email domain doesn't appear to accept mail — double-check it for typos")
+            400, "this email domain doesn't appear to accept mail; double-check it for typos")
     prof = helpers.clean_profile(body.profile)
     expertise = (body.expertise.strip() or prof.get("expertise", "")).strip()[:helpers.MAX_FIELD_LEN] or None
     if existing is not None:
@@ -105,7 +105,7 @@ def register(body: RegisterIn, req: Request):
 def verify_confirm(body: VerifyIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("verify", client_ip(req)):
-        raise HTTPException(429, "too many attempts — try again later")
+        raise HTTPException(429, "too many attempts; try again later")
     email = helpers.norm_email(body.email)
     row = db.get_participant_by_email(email)
     if row is None:
@@ -129,7 +129,7 @@ def verify_status(body: EmailIn, req: Request):
     indistinguishable."""
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("verify_status", client_ip(req)):
-        raise HTTPException(429, "too many attempts — try again later")
+        raise HTTPException(429, "too many attempts; try again later")
     row = db.get_participant_by_email(helpers.norm_email(body.email))
     undeliverable = bool(
         row is not None
@@ -142,7 +142,7 @@ def verify_status(body: EmailIn, req: Request):
 def verify_resend(body: EmailIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("resend", client_ip(req)):
-        raise HTTPException(429, "too many requests — try again later")
+        raise HTTPException(429, "too many requests; try again later")
     email = helpers.norm_email(body.email)
     row = db.get_participant_by_email(email)
     resp: dict[str, Any] = {"ok": True}
@@ -167,7 +167,7 @@ def verify_resend(body: EmailIn, req: Request):
 def auth(body: AuthIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("auth", client_ip(req)):
-        raise HTTPException(429, "too many login attempts — try again later")
+        raise HTTPException(429, "too many login attempts; try again later")
     email = helpers.norm_email(body.email)
     if not helpers.is_email(email):
         raise HTTPException(401, "invalid credentials")
@@ -193,7 +193,7 @@ def auth_google(body: AuthGoogleIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     ip = client_ip(req)
     if not limiter.hit("auth_google", ip):
-        raise HTTPException(429, "too many sign-in attempts — try again later")
+        raise HTTPException(429, "too many sign-in attempts; try again later")
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
     if not client_id:
         raise HTTPException(503, "Google sign-in is not configured")
@@ -244,7 +244,7 @@ def auth_google(body: AuthGoogleIn, req: Request):
 def forgot(body: EmailIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("forgot", client_ip(req)):
-        raise HTTPException(429, "too many requests — try again later")
+        raise HTTPException(429, "too many requests; try again later")
     email = helpers.norm_email(body.email)
     row = db.get_participant_by_email(email)
     resp: dict[str, Any] = {"ok": True}
@@ -269,7 +269,7 @@ def forgot(body: EmailIn, req: Request):
 def reset(body: ResetIn, req: Request):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("reset", client_ip(req)):
-        raise HTTPException(429, "too many attempts — try again later")
+        raise HTTPException(429, "too many attempts; try again later")
     email = helpers.norm_email(body.email)
     if len(body.newPassword) < helpers.MIN_PASSWORD_LEN:
         raise HTTPException(400, f"password must be at least {helpers.MIN_PASSWORD_LEN} characters")

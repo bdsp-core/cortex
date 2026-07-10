@@ -199,7 +199,7 @@ async def videos_submit(meta: str = Form(...), t: UploadFile = File(...),
 
     _sweep_jobs()
     if _active_job_count() >= _MAX_ACTIVE_JOBS:
-        raise HTTPException(503, "the render queue is full — try again in a few minutes")
+        raise HTTPException(503, "the render queue is full; try again in a few minutes")
 
     job_id = uuid.uuid4().hex
     job: dict[str, Any] = {

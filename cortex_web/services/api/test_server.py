@@ -327,6 +327,22 @@ def test_register_honeypot_silently_drops_bot(client):
     assert r2.status_code == 200, r2.text
 
 
+def test_no_em_dash_in_user_facing_error_strings():
+    """House messaging style: no em dashes in anything a user reads.
+    HTTPException detail strings surface directly in the SPA's error UI, so
+    scan every router (+ shared modules with user-facing strings) at the
+    source level. Rephrase with a semicolon/period/comma instead."""
+    api_dir = Path(__file__).parent
+    py_files = list((api_dir / "routers").glob("*.py"))
+    py_files += [api_dir / "helpers.py", api_dir / "mailer.py"]
+    offenders = []
+    for f in py_files:
+        for i, line in enumerate(f.read_text().splitlines(), 1):
+            if "HTTPException" in line and "—" in line:
+                offenders.append(f"{f.name}:{i}")
+    assert offenders == [], f"em dash in user-facing error strings: {offenders}"
+
+
 def test_mailer_body_one_click_link(monkeypatch):
     from . import mailer
     monkeypatch.setenv("CORTEX_PUBLIC_ORIGIN", "https://app.example.test/")

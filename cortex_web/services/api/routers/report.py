@@ -17,7 +17,7 @@ def report(body: ReportIn, req: Request):
     limiter = req.app.state.limiter
     ip = client_ip(req)
     if not limiter.hit("report", ip):
-        raise HTTPException(429, "too many reports from this IP — try again later")
+        raise HTTPException(429, "too many reports from this IP; try again later")
     message = body.message.strip()
     if not message:
         raise HTTPException(400, "please describe the issue or suggestion")

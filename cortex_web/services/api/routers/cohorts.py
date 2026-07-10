@@ -104,7 +104,7 @@ def create_cohort(body: CohortCreateIn, req: Request,
                   code: str = Depends(require_auth)):
     db, limiter = req.app.state.db, req.app.state.limiter
     if not limiter.hit("cohort_create", client_ip(req)):
-        raise HTTPException(429, "too many cohorts created — try again later")
+        raise HTTPException(429, "too many cohorts created; try again later")
     name = body.name.strip()[:MAX_COHORT_NAME_LEN]
     if not name:
         raise HTTPException(400, "cohort name required")
@@ -146,7 +146,7 @@ def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
     db, limiter = req.app.state.db, req.app.state.limiter
     _cohort_and_role(db, cohort_id, code, need_manager=True)
     if not limiter.hit("cohort_invite", client_ip(req)):
-        raise HTTPException(429, "too many invites — try again later")
+        raise HTTPException(429, "too many invites; try again later")
     pid = body.publicId.strip().replace(" ", "")
     if not _PUBLIC_ID_RE.fullmatch(pid):
         raise HTTPException(400, "a user ID is 9 digits")
@@ -191,7 +191,7 @@ def cohort_leave(cohort_id: str, req: Request,
     db = req.app.state.db
     _, membership, is_manager = _cohort_and_role(db, cohort_id, code)
     if is_manager:
-        raise HTTPException(400, "the manager cannot leave — delete the cohort instead")
+        raise HTTPException(400, "the manager cannot leave; delete the cohort instead")
     db.remove_cohort_member(cohort_id, code)
     return {"ok": True}
 
@@ -206,7 +206,7 @@ def cohort_remove(cohort_id: str, body: CohortMemberIn, req: Request,
     if target is None or db.cohort_membership(cohort_id, target["code"]) is None:
         raise HTTPException(404, "that user is not in this cohort")
     if target["code"] == cohort["manager_code"]:
-        raise HTTPException(400, "the manager cannot be removed — delete the cohort instead")
+        raise HTTPException(400, "the manager cannot be removed; delete the cohort instead")
     db.remove_cohort_member(cohort_id, target["code"])
     return {"ok": True}
 

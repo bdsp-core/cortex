@@ -61,9 +61,14 @@ export function GoogleSignInButton({ onAuthed, onError }: {
             }
           },
         });
+        // GIS requires a pixel width at render time; match the surrounding
+        // card's inner width (376 on desktop, narrower on phones), capped at
+        // GIS's 400px maximum, so the button aligns with the form fields.
+        const width = Math.min(400, Math.round(
+          ref.current.parentElement?.clientWidth || 376));
         id.renderButton(ref.current, {
           type: "standard", theme: "outline", size: "large",
-          text: "continue_with", shape: "rectangular", width: 376,
+          text: "continue_with", shape: "rectangular", width,
         });
         setShown(true);
       })

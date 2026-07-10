@@ -55,8 +55,8 @@ export function MobileHome({ onSettings, onSignOut }: {
       <main style={S.main}>
         <section style={{ ...S.card, borderLeft: "3px solid var(--teal)" }}>
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            <strong>Tests run on a computer.</strong> EEG needs a big screen —
-            certification and training aren&apos;t available on phones. Sign in
+            <strong>Tests run on a computer.</strong> EEG needs a big screen,
+            so certification and training aren&apos;t available on phones. Sign in
             at <span style={{ whiteSpace: "nowrap", fontWeight: 600 }}>app.cortexeeg.org</span>{" "}
             on a desktop or laptop to take the test; your progress will show
             up here.

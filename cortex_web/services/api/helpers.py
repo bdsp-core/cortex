@@ -197,6 +197,6 @@ def build_report_email(username: str, email: str, message: str,
         f"User agent:       {g('userAgent')}",
         f"IP address:       {ip}  (approximate location can be looked up from this)",
         "",
-        "— Sent automatically by CORTEX. Reply to this email to reach the reporter.",
+        "Sent automatically by CORTEX. Reply to this email to reach the reporter.",
     ]
     return subject, "\n".join(lines)
