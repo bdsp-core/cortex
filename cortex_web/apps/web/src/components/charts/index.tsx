@@ -287,7 +287,7 @@ export function MiniChart(o: MiniChartProps) {
 // ── Heatmap: 16-week activity calendar, shaded by activity TYPE ─────────────
 // 1 = signed in (light teal), 2 = certification test (medium), 3 = training
 // completed (darkest). The day's highest activity wins.
-const ACTIVITY_LABEL = ["", "Signed in", "Certification test", "Training completed"];
+const ACTIVITY_LABEL = ["", "Signed in", "Exam", "Training completed"];
 
 // Discrete shade per activity level. Sign-in/training share the trajectory-
 // chart teal; certification-test days are RED (the site's fail/attention
@@ -311,9 +311,9 @@ export function HeatLegend({ lastEval }: { lastEval?: string | null } = {}) {
   // test, replacing the old "Last assessed" KPI tile.
   const d = lastEval ? new Date(lastEval) : null;
   const certLabel = d && !isNaN(d.getTime())
-    ? `Certification (last: ${d.toLocaleDateString(undefined,
+    ? `Exam (last: ${d.toLocaleDateString(undefined,
         { month: "short", day: "numeric", year: "numeric" })})`
-    : "Certification";
+    : "Exam";
   const items: Array<[number, string]> = [[1, "Sign-in"], [2, certLabel], [3, "Training"]];
   return (
     <div className="cx-heat-legend">

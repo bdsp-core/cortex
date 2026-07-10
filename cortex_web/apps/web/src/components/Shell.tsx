@@ -372,20 +372,30 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
         />
       )}
       <section className="cx-kpi-strip" aria-label="Certification summary">
+        {/* Bars, not big numerals. AUROC bars are anchored at chance:
+            fill = (AUROC - 0.5) / 0.5, so an empty bar means guessing and a
+            full bar means perfect discrimination; the exact value rides in
+            the caption. The certified bar is the plain fraction of domains. */}
         <div className="cx-kpi">
           <span className="k">Domains certified</span>
-          <span className="v">{kpis ? kpis.tasksCertified : "–"}
-            <span className="u">/ {kpis ? kpis.tasksTotal : 7}</span></span>
+          <div className="cx-kpi-bar" aria-hidden="true">
+            <i style={{ width: kpis ? `${Math.round(100 * kpis.tasksCertified / Math.max(1, kpis.tasksTotal))}%` : 0 }} />
+          </div>
+          <span className="note">{kpis ? `${kpis.tasksCertified} of ${kpis.tasksTotal} domains` : "no test yet"}</span>
         </div>
         <div className="cx-kpi">
           <span className="k">Weakest domain AUROC</span>
-          <span className="v">{kpis?.worstDomain ? kpis.worstDomain.auroc.toFixed(2) : "–"}
-            {kpis?.worstDomain && <span className="u"> {kpis.worstDomain.label}</span>}</span>
+          <div className="cx-kpi-bar" aria-hidden="true">
+            <i style={{ width: kpis?.worstDomain ? `${Math.round(100 * Math.max(0, Math.min(1, (kpis.worstDomain.auroc - 0.5) / 0.5)))}%` : 0 }} />
+          </div>
+          <span className="note">{kpis?.worstDomain ? `${kpis.worstDomain.auroc.toFixed(2)} · ${kpis.worstDomain.label}` : "no test yet"}</span>
         </div>
         <div className="cx-kpi">
           <span className="k">Strongest domain AUROC</span>
-          <span className="v">{kpis?.bestDomain ? kpis.bestDomain.auroc.toFixed(2) : "–"}
-            {kpis?.bestDomain && <span className="u"> {kpis.bestDomain.label}</span>}</span>
+          <div className="cx-kpi-bar" aria-hidden="true">
+            <i style={{ width: kpis?.bestDomain ? `${Math.round(100 * Math.max(0, Math.min(1, (kpis.bestDomain.auroc - 0.5) / 0.5)))}%` : 0 }} />
+          </div>
+          <span className="note">{kpis?.bestDomain ? `${kpis.bestDomain.auroc.toFixed(2)} · ${kpis.bestDomain.label}` : "no test yet"}</span>
         </div>
       </section>
 

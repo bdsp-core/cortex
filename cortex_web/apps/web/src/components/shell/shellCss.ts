@@ -66,6 +66,9 @@ export const SHELL_CSS = `
 .cx-kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-subtle);}
 .cx-kpi .note{font-size:11px;color:var(--ink-faint);font-family:var(--mono);}
 .cx-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s8);}
+.cx-kpi-bar{height:8px;background:var(--panel-hover);border:1px solid var(--bd-subtle);
+  margin:var(--s8) 0 6px;position:relative;overflow:hidden;}
+.cx-kpi-bar i{position:absolute;top:0;left:0;bottom:0;background:var(--teal);}
 @media (max-width:720px){ .cx-kpi-strip{grid-template-columns:1fr;} }
 
 .cx-panel{background:var(--panel);border:1px solid var(--bd-subtle);
