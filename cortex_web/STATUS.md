@@ -174,11 +174,27 @@ python cortex_web/scripts/prepare_web_bundle.py --version v1.1-local \
 - Deployment scaffolding (run scripts, Dockerfile, README).
 - Pulled the 300-seg bank, rebuilt the bundle → confident verdicts.
 
+## Mobile (phone companion surface)
+
+Phones get a SEPARATE module tree, `apps/web/src/mobile/` (2026-07-10):
+auth (shared `AuthFlow` — the email verify/reset deep links are usually
+opened on a phone) + dashboard status + past results. The certification
+test and training are **desktop-gated by design**: the EEG/spectrogram task
+was calibrated (ℓ*/σ*) at desktop scale, so phone-scale sittings would
+change task difficulty under the certification's claims. Selection happens
+once at boot (`src/device.ts`: coarse pointer AND screen short side <768px;
+`?desktop=1` / `?mobile=1` overrides), the mobile chunk is lazy-loaded, and
+the desktop↔mobile import boundary is ENFORCED by
+`src/mobile/boundary.test.ts` (mobile may import only its own tree + an
+explicit shared allowlist; nothing outside `main.tsx` may import mobile).
+Growing the phone surface = adding files under `src/mobile/` only.
+
 ## Open decisions
 - Result-delivery channel (backend stores in SQLite + admin export; PLAN
   mentioned S3 — mirror to S3 in prod if desired).
-- Session resume across a browser refresh mid-test (default: restart; the
-  per-trial server checkpoints already capture partial progress).
+- ~~Session resume across a browser refresh mid-test~~ — SHIPPED 2026-07-10
+  (Resume/Start-over prompt; deterministic engine replay of the per-trial
+  server checkpoints; `engine/resume_replay.test.ts`).
 - Whether `cortex_web/` splits into its own repo once it grows.
 
 ## Where this sits in the broader project
