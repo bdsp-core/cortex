@@ -327,6 +327,22 @@ def test_register_honeypot_silently_drops_bot(client):
     assert r2.status_code == 200, r2.text
 
 
+def test_client_error_telemetry_logged_and_rate_limited(client, capfd):
+    body = {"message": "TypeError: x is undefined", "stack": "at a\nat b",
+            "url": "/", "surface": "mobile", "ua": "test-agent"}
+    assert client.post("/api/client-error", json=body).status_code == 200
+    out = capfd.readouterr().err
+    assert "[cortex.clienterr]" in out and "TypeError: x is undefined" in out
+    assert "at a | at b" in out           # newlines collapse to one line
+    # over-limit posts 429 (bucket: 10/h/IP; one already spent above)
+    for _ in range(9):
+        assert client.post("/api/client-error", json=body).status_code == 200
+    assert client.post("/api/client-error", json=body).status_code == 429
+    # hostile payloads are rejected by the model's length caps
+    assert client.post("/api/client-error",
+                       json={"message": "x" * 501}).status_code == 422
+
+
 def test_no_em_dash_in_user_facing_error_strings():
     """House messaging style: no em dashes in anything a user reads.
     HTTPException detail strings surface directly in the SPA's error UI, so

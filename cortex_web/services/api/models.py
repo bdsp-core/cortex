@@ -136,3 +136,14 @@ class CohortMemberIn(BaseModel):
     """Manager-side member operations address users by their 9-digit public
     id only — the internal participant code never crosses the API."""
     publicId: str
+
+
+class ClientErrorIn(BaseModel):
+    """SPA crash report (src/telemetry.ts → POST /api/client-error). Length
+    caps tame hostile payloads; the endpoint is public (crashes can happen
+    pre-auth) and rate-limited."""
+    message: str = Field(max_length=500)
+    stack: str = Field("", max_length=4000)
+    url: str = Field("", max_length=300)       # pathname only (no query params)
+    surface: str = Field("", max_length=20)    # "desktop" | "mobile"
+    ua: str = Field("", max_length=300)

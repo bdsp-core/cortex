@@ -17,6 +17,7 @@ Layout (one module per concern; routers are thin over these):
 
 Endpoint surface (all JSON, prefix /api). Public: health, register,
 verify/{confirm,resend,status}, auth, auth/google, forgot, reset, report,
+client-error (SPA crash telemetry; rate-limited, log-only),
 ses/events (SNS webhook; capability-token-gated, 404 unless enabled). Bearer-
 gated: manifest, tutorial-example, session, progress, results, dashboard,
 activity, history (+ /{id}/questions), regimen, trajectories,

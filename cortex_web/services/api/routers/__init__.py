@@ -5,8 +5,8 @@ lives on `request.app.state`; stateless header deps live in api.deps; pure
 helpers in api.helpers / api.dashboard_logic. Helper calls go through the
 module attribute (`helpers.x(...)`) so test monkeypatching reaches them.
 """
-from . import (account, admin, auth, cohorts, dashboard, report,  # noqa: F401
-               ses_events, testing, videos)
+from . import (account, admin, auth, client_errors, cohorts, dashboard,  # noqa: F401
+               report, ses_events, testing, videos)
 
 ALL_ROUTERS = [
     auth.router,
@@ -18,4 +18,5 @@ ALL_ROUTERS = [
     videos.router,
     admin.router,
     ses_events.router,
+    client_errors.router,
 ]

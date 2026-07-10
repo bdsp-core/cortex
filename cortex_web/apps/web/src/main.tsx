@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { LanguageProvider } from "./i18n/LanguageProvider";
 import { detectPhone } from "./device";
+import { installErrorTelemetry } from "./telemetry";
 
 // The four standalone legal/info pages are their own URLs but are visited
 // rarely; lazy-load them so their markup + copy don't ride in the first-paint
@@ -30,6 +31,11 @@ const isTerms = path === "/terms";
 const isCitation = path === "/citation";
 const standalone = isPrivacy || isReport || isTerms || isCitation;
 const phone = detectPhone();
+
+// Field failures become journal signals (POST /api/client-error) instead of
+// waiting for a user report. Installed before first render so even boot
+// crashes are captured.
+installErrorTelemetry(phone ? "mobile" : "desktop");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

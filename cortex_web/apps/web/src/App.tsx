@@ -19,6 +19,7 @@ import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
 import { consumeAuthDeepLink } from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
+import { reportClientError } from "./telemetry";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
@@ -319,7 +320,12 @@ export function App() {
           setPhase("error");
          }
         },
-        onError: (m) => { disposeClient(); setMsg(m); setPhase("error"); },
+        onError: (m) => {
+          // Worker failures bypass window.onerror; report explicitly so a
+          // field crash mid-test reaches the journal, then surface it.
+          reportClientError(`engine: ${m}`, undefined, "desktop");
+          disposeClient(); setMsg(m); setPhase("error");
+        },
       });
       disposeClient();         // never leak a prior sitting's worker
       clientRef.current = client;
