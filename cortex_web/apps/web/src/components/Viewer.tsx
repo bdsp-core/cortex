@@ -26,6 +26,7 @@ export function Viewer({
   item,
   onAnswer,
   tutorial,
+  onExit,
 }: {
   bundle: Bundle;
   item: Item | null;
@@ -33,6 +34,9 @@ export function Viewer({
   // When set, the Viewer is the in-context tutorial backdrop: answering is
   // disabled and a coach-marks overlay walks the user through the UI regions.
   tutorial?: { onFinish: () => void };
+  // "Save & finish later": answers checkpoint server-side as they happen, so
+  // exiting is always safe; the dashboard offers resume for 24 h.
+  onExit?: () => void;
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
   const [segError, setSegError] = useState(false);
@@ -214,6 +218,15 @@ export function Viewer({
         <span style={{ color: "#ff5c5c", fontWeight: 600, marginLeft: 8 }}>
           Classify the pattern found within the red box. Pan left or right to gain context.
         </span>
+        {onExit && !tut && (
+          <button onClick={onExit}
+            style={{ marginLeft: "auto", background: "none", cursor: "pointer",
+              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
+              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
+              padding: "8px 12px", whiteSpace: "nowrap" }}>
+            Save &amp; finish later
+          </button>
+        )}
       </div>
 
       {/* middle: spectrogram (left) + EEG (right) — both sized to their panes */}

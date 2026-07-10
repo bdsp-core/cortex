@@ -20,7 +20,7 @@ import {
 export type { Item };
 
 export function SpikeViewer({
-  bundle, item, onAnswer, spikeTaskIdx, totalTasks,
+  bundle, item, onAnswer, spikeTaskIdx, totalTasks, onExit,
 }: {
   bundle: Bundle;
   item: Item | null;
@@ -28,6 +28,9 @@ export function SpikeViewer({
   onAnswer: (pick: number) => void;
   spikeTaskIdx: number;        // engine task index for spike (typically 0)
   totalTasks: number;          // K — used as the "No" sentinel pick (out of range)
+  // "Save & finish later": answers checkpoint server-side as they happen, so
+  // exiting is always safe; the dashboard offers resume for 24 h.
+  onExit?: () => void;
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
   const [segError, setSegError] = useState(false);
@@ -155,6 +158,15 @@ export function SpikeViewer({
           style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(noPick) }}>
           2 · No spike
         </button>
+        {onExit && (
+          <button onClick={onExit}
+            style={{ marginLeft: "auto", background: "none", cursor: "pointer",
+              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
+              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
+              padding: "8px 12px", whiteSpace: "nowrap" }}>
+            Save &amp; finish later
+          </button>
+        )}
       </div>
 
       <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>

@@ -40,6 +40,7 @@ type Phase =
   | "tutorial"
   | "loading"
   | "running"
+  | "saveExit"
   | "computing"
   | "training"
   | "done"
@@ -522,13 +523,38 @@ export function App() {
         return (
           <SpikeViewer bundle={bundle!} item={item} progress={progress}
             onAnswer={onAnswer} spikeTaskIdx={k!}
-            totalTasks={bundle!.inputs.taskCodes.length} />
+            totalTasks={bundle!.inputs.taskCodes.length}
+            onExit={() => setPhase("saveExit")} />
         );
       }
       return (
-        <Viewer bundle={bundle!} item={item} onAnswer={onAnswer} />
+        <Viewer bundle={bundle!} item={item} onAnswer={onAnswer}
+          onExit={() => setPhase("saveExit")} />
       );
     }
+    case "saveExit":
+      // The engine worker stays alive behind this card: "Keep testing"
+      // returns to the same question; "Save & exit" leans on the per-trial
+      // server checkpoints + the resume flow (answers already saved).
+      return (
+        <Stage maxW={520}>
+          <Card>
+            <Heading>Save and finish later?</Heading>
+            <div style={{ fontSize: 14, marginBottom: 20 }}>
+              Your answers save automatically as you go. You can pick up right
+              where you left off from Start test within 24 hours; after that,
+              a new test starts fresh.
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <Button onClick={() => setPhase("running")}>Keep testing</Button>
+              <Button kind="ghost"
+                onClick={() => { disposeClient(); setPhase("dashboard"); }}>
+                Save &amp; exit
+              </Button>
+            </div>
+          </Card>
+        </Stage>
+      );
     case "training":
       return trainState ? (
         <TrainingRunner
