@@ -450,6 +450,10 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
                 {m.publicId}
               </span>
               {m.displayName != null && <span>{m.displayName}</span>}
+              {/* a proper chip (not loose text) stays vertically centered
+                  with the monospace id; hidden on the manager's own row,
+                  where the Manager chip already identifies them */}
+              {m.isYou && !m.isManager && <span className="cx-chip none"><i />You</span>}
               {m.isManager && <span className="cx-chip train"><i />Manager</span>}
               {m.status === "invited" && <span className="cx-chip none"><i />Invited</span>}
               <span style={{ marginLeft: "auto" }} />
