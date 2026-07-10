@@ -153,7 +153,7 @@ def cohort_detail(cohort_id: str, req: Request,
 def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
                   code: str = Depends(require_auth)):
     db, limiter = req.app.state.db, req.app.state.limiter
-    _cohort_and_role(db, cohort_id, code, need_manager=True)
+    cohort, _, _ = _cohort_and_role(db, cohort_id, code, need_manager=True)
     if not limiter.hit("cohort_invite", client_ip(req)):
         raise HTTPException(429, "too many invites; try again later")
     pid = body.publicId.strip().replace(" ", "")
@@ -170,6 +170,14 @@ def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
         if helpers.is_unique_violation(e):
             raise HTTPException(409, "that user is already in this cohort or has a pending invitation")
         raise
+    # ID invites notify by email too (they used to be silent: the invitee
+    # only found out on their next visit). Legacy accounts without an email
+    # just skip the letter.
+    if target.get("email"):
+        manager = db.get_participant(code)
+        _send_cohort_invite_email(target["email"], cohort["name"],
+                                  (manager or {}).get("display_name"),
+                                  has_account=True)
     return {"ok": True, "publicId": pid}
 
 

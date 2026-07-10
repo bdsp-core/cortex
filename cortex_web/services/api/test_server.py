@@ -1728,6 +1728,22 @@ def test_cohort_invite_accept_flow(client):
     assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 409
 
 
+def test_cohort_id_invite_sends_notification(client, monkeypatch):
+    from . import mailer
+    sent = []
+    monkeypatch.setattr(mailer, "send_letter",
+                        lambda to, subject, title, paragraphs, button=None:
+                        sent.append((to, subject)))
+    cid, mh = _make_cohort(client)
+    email, pw = _make_participant(client)
+    uh = _auth_header(client, email, pw)
+    pid = _pid_of(client, uh)
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": pid}).status_code == 200
+    assert sent and sent[0][0] == email
+    assert "cohort invitation" in sent[0][1]
+
+
 def test_cohort_email_invite_existing_account(client):
     cid, mh = _make_cohort(client)
     invitee, pw = _make_participant(client)
