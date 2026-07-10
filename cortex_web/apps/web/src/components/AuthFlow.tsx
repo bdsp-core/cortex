@@ -563,8 +563,8 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
     }
   }
 
-  async function doVerify(e: React.FormEvent) {
-    e.preventDefault();
+  async function doVerify(e?: React.FormEvent) {
+    e?.preventDefault();
     setErr(null);
     const code = verifyDigits.join("");
     if (code.length !== 6) { setErr(t("auth.verify.errAllDigits")); return; }
@@ -579,6 +579,18 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       setBusy(false);
     }
   }
+
+  // Auto-submit the moment the 6th digit lands (typed or pasted) — saves the
+  // extra click. Deps are the digits only: a FAILED attempt leaves them
+  // unchanged (busy flips back with no re-fire), so no retry loop. The reset
+  // screen deliberately has no equivalent — its form also needs the new
+  // password before submitting.
+  useEffect(() => {
+    if (screen === "verify" && !busy && verifyDigits.every((d) => d !== "")) {
+      void doVerify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyDigits]);
 
   async function doResendVerify() {
     setErr(null);
