@@ -17,6 +17,7 @@ import { empiricalPoint, onCurvePoint } from "./roc";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
+import { consumeAuthDeepLink } from "./deepLink";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
@@ -50,6 +51,13 @@ const TRAINER_PARAMS: FilterParams = {
 };
 
 export function App() {
+  // One-click email link (verify/reset): parse + strip the URL params once at
+  // boot. Honored only for signed-out visitors — the pending-signup user is
+  // never authed, and an authed session shouldn't be yanked to auth screens.
+  const [authDeepLink] = useState(() => {
+    const link = consumeAuthDeepLink();
+    return api.isAuthed() ? null : link;
+  });
   const [phase, setPhase] = useState<Phase>(api.isAuthed() ? "dashboard" : "auth");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
@@ -366,7 +374,7 @@ export function App() {
 
   switch (phase) {
     case "auth":
-      return <AuthFlow onAuthed={() => setPhase("dashboard")} />;
+      return <AuthFlow onAuthed={() => setPhase("dashboard")} deepLink={authDeepLink} />;
     case "dashboard":
       return (
         <Shell

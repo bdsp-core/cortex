@@ -327,6 +327,20 @@ def test_register_honeypot_silently_drops_bot(client):
     assert r2.status_code == 200, r2.text
 
 
+def test_mailer_body_one_click_link(monkeypatch):
+    from . import mailer
+    monkeypatch.setenv("CORTEX_PUBLIC_ORIGIN", "https://app.example.test/")
+    body = mailer._body("123456", "verify", "user+tag@example.test")
+    assert ("https://app.example.test/?verifyEmail=user%2Btag%40example.test"
+            "&verifyCode=123456") in body
+    assert "123456" in body  # the typed-code fallback stays
+    body = mailer._body("654321", "reset", "u@example.test")
+    assert "resetEmail=u%40example.test&resetCode=654321" in body
+    # without a public origin (dev/CI), emails stay link-free
+    monkeypatch.delenv("CORTEX_PUBLIC_ORIGIN")
+    assert "verifyCode" not in mailer._body("123456", "verify", "u@example.test")
+
+
 # ───────────── SES bounce webhook + verify/status ─────────────
 
 _SES_TOKEN = "test-sns-token"

@@ -224,6 +224,11 @@ aws sns subscribe --region us-west-2 \
     --notification-endpoint "https://app.cortexeeg.org/api/ses/events?token=<TOKEN>"
 ```
 
+Related env: `CORTEX_PUBLIC_ORIGIN` (e.g. `https://app.cortexeeg.org`) makes
+verify/reset emails include a one-click link that lands in the SPA with the
+code pre-filled (`mailer._one_click_link` → `apps/web/src/deepLink.ts`);
+unset, emails carry only the typed code.
+
 The endpoint 404s when `CORTEX_SNS_WEBHOOK_TOKEN` is unset (dev/CI default).
 Auth is the capability token + a TopicArn allowlist — SNS message signatures
 are NOT verified; the only action is a low-stakes, self-healing UI flag

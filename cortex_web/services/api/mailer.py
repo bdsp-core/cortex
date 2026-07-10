@@ -36,11 +36,38 @@ _INTROS = {
 }
 
 
-def _body(code: str, purpose: str) -> str:
+def _one_click_link(code: str, purpose: str, to_email: str) -> str | None:
+    """One-click deep link into the SPA (root-path query params; parsed and
+    stripped by apps/web/src/deepLink.ts). Only when CORTEX_PUBLIC_ORIGIN is
+    set (e.g. https://app.cortexeeg.org) — dev/CI emails stay link-free. The
+    link carries the same short-lived code as the email body, so it grants
+    nothing the email itself doesn't."""
+    origin = os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    if not origin:
+        return None
+    from urllib.parse import quote
+    q = quote(to_email, safe="")
+    if purpose == "verify":
+        return f"{origin}/?verifyEmail={q}&verifyCode={code}"
+    if purpose == "reset":
+        return f"{origin}/?resetEmail={q}&resetCode={code}"
+    return None
+
+
+_LINK_INTROS = {
+    "verify": "Or verify with one click:",
+    "reset": "Or open the reset form with the code pre-filled:",
+}
+
+
+def _body(code: str, purpose: str, to_email: str) -> str:
     intro = _INTROS.get(purpose, "Your CORTEX code:")
+    link = _one_click_link(code, purpose, to_email)
+    link_block = f"{_LINK_INTROS[purpose]}\n\n    {link}\n\n" if link else ""
     return (
         f"{intro}\n\n"
         f"    {code}\n\n"
+        f"{link_block}"
         f"This code expires in 15 minutes. If you did not request it, ignore this email.\n"
     )
 
@@ -119,7 +146,7 @@ def send_auth_code(to_email: str, code: str, purpose: str) -> None:
     """Send a verification/reset code. SMTP/SES errors propagate so the endpoint
     can surface a 5xx; the dev stub never raises."""
     subject = _SUBJECTS.get(purpose, "Your CORTEX code")
-    body = _body(code, purpose)
+    body = _body(code, purpose, to_email)
     backend = _backend()
     if backend == "smtp":
         _send_smtp(to_email, subject, body)

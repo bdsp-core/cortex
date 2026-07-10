@@ -24,6 +24,7 @@ import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { PROFILE_SECTIONS } from "../profileFields";
 import { suggestEmail } from "../emailSuggest";
+import type { AuthDeepLink } from "../deepLink";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -413,9 +414,16 @@ function AuthFooter() {
   );
 }
 
-export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
+export function AuthFlow({ onAuthed, deepLink }: {
+  onAuthed: () => void;
+  // One-click email link (src/deepLink.ts): land directly on the verify
+  // screen (code pre-filled, auto-submits) or the reset screen (code
+  // pre-filled, user types the new password).
+  deepLink?: AuthDeepLink | null;
+}) {
   const { t } = useI18n();
-  const [screen, setScreen] = useState<Screen>("signin");
+  const [screen, setScreen] = useState<Screen>(
+    deepLink ? (deepLink.kind === "verify" ? "verify" : "reset") : "signin");
 
   // sign in
   const [siEmail, setSiEmail] = useState("");
@@ -439,8 +447,10 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   const [honeypot, setHoneypot] = useState("");
 
   // verify
-  const [verifyEmail, setVerifyEmail] = useState("");
-  const [verifyDigits, setVerifyDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [verifyEmail, setVerifyEmail] = useState(
+    deepLink?.kind === "verify" ? deepLink.email : "");
+  const [verifyDigits, setVerifyDigits] = useState<string[]>(
+    deepLink?.kind === "verify" ? deepLink.code.split("") : ["", "", "", "", "", ""]);
   // True when the server learned (via the SES bounce webhook) that the
   // verification email hard-bounced — the address likely doesn't exist.
   const [emailUndeliverable, setEmailUndeliverable] = useState(false);
@@ -466,8 +476,10 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
 
   // forgot / reset
   const [fpEmail, setFpEmail] = useState("");
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetDigits, setResetDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [resetEmail, setResetEmail] = useState(
+    deepLink?.kind === "reset" ? deepLink.email : "");
+  const [resetDigits, setResetDigits] = useState<string[]>(
+    deepLink?.kind === "reset" ? deepLink.code.split("") : ["", "", "", "", "", ""]);
   const [rsPw, setRsPw] = useState("");
   const [rsPw2, setRsPw2] = useState("");
 
