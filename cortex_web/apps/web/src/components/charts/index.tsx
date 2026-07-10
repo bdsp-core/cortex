@@ -310,8 +310,9 @@ export function HeatLegend({ lastEval }: { lastEval?: string | null } = {}) {
   // The red (certification) entry carries the date of the last evaluation
   // test, replacing the old "Last assessed" KPI tile.
   const d = lastEval ? new Date(lastEval) : null;
+  // Compact (no "last:" prefix) so all three legend labels fit one row.
   const certLabel = d && !isNaN(d.getTime())
-    ? `Exam (last: ${d.toLocaleDateString(undefined,
+    ? `Exam (${d.toLocaleDateString(undefined,
         { month: "short", day: "numeric", year: "numeric" })})`
     : "Exam";
   const items: Array<[number, string]> = [[1, "Sign-in"], [2, certLabel], [3, "Training"]];
