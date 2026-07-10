@@ -536,6 +536,21 @@ class Database:
              signup_expertise, profile, pid, utc_now()),
         ))
 
+    def update_pending_registration(self, *, code: str, password_hash: str,
+                                    display_name: str,
+                                    signup_ip: Optional[str] = None,
+                                    signup_expertise: Optional[str] = None,
+                                    profile: Optional[str] = None) -> None:
+        """Overwrite the mutable signup fields of an UNVERIFIED account when
+        the same email registers again (see routers/auth.py). The internal
+        code and public_id stay stable; created_utc refreshes to the retake."""
+        self._write(
+            "UPDATE participants SET password_hash=?, display_name=?, "
+            "signup_ip=?, signup_expertise=?, profile=?, created_utc=? "
+            "WHERE code=?",
+            (password_hash, display_name, signup_ip, signup_expertise,
+             profile, utc_now(), code))
+
     def update_profile(self, code: str, *, display_name: Optional[str],
                        profile: Optional[str], signup_expertise: Optional[str]) -> None:
         """Update the editable account fields (Settings page). display_name and

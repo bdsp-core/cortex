@@ -37,32 +37,51 @@ def register(body: RegisterIn, req: Request):
     display = body.displayName.strip()[:helpers.MAX_FIELD_LEN]
     if not display:
         raise HTTPException(400, "displayName required")
-    if db.get_participant_by_email(email) is not None:
+    existing = db.get_participant_by_email(email)
+    if existing is not None and (existing.get("email_verified_utc")
+                                 or existing.get("google_sub")):
         raise HTTPException(409, "an account with this email already exists")
     # Reject domains that can never receive the verification code (no DNS
     # MX/A records — typically a typo'd domain). Fails open on DNS trouble.
     if not helpers.email_domain_deliverable(email.rsplit("@", 1)[1]):
         raise HTTPException(
             400, "this email domain doesn't appear to accept mail — double-check it for typos")
-    code = "u-" + secrets.token_urlsafe(12)
     prof = helpers.clean_profile(body.profile)
     expertise = (body.expertise.strip() or prof.get("expertise", "")).strip()[:helpers.MAX_FIELD_LEN] or None
-    try:
-        db.register_participant(
+    if existing is not None:
+        # Unverified pending signup: mailbox ownership was never proven, so
+        # the new claimant may retake it — refresh credentials/profile in
+        # place (stable code + public_id) and reissue the code below. Turns
+        # the old 409 dead-end (typo'd password, abandoned flow) into a
+        # clean retry; the true mailbox owner still wins, since verifying
+        # requires reading the freshly-mailed code.
+        code = existing["code"]
+        db.update_pending_registration(
             code=code,
             password_hash=security.hash_password(body.password),
-            email=email,
             display_name=display,
             signup_ip=ip,
             signup_expertise=expertise,
             profile=(json.dumps(prof) if prof else None),
         )
-    except Exception as e:
-        # UNIQUE-index violation race (two concurrent signups, same email).
-        # Translate to 409 instead of a 500.
-        if helpers.is_unique_violation(e):
-            raise HTTPException(409, "an account with this email already exists")
-        raise
+    else:
+        code = "u-" + secrets.token_urlsafe(12)
+        try:
+            db.register_participant(
+                code=code,
+                password_hash=security.hash_password(body.password),
+                email=email,
+                display_name=display,
+                signup_ip=ip,
+                signup_expertise=expertise,
+                profile=(json.dumps(prof) if prof else None),
+            )
+        except Exception as e:
+            # UNIQUE-index violation race (two concurrent signups, same email).
+            # Translate to 409 instead of a 500.
+            if helpers.is_unique_violation(e):
+                raise HTTPException(409, "an account with this email already exists")
+            raise
     # No session is issued at signup: the account must verify its email
     # before it can sign in. Email a 6-digit code; the SPA advances to the
     # verify screen.

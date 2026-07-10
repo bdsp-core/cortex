@@ -272,6 +272,43 @@ def test_register_dup_email_is_409(client):
     assert r.status_code == 409
 
 
+def test_register_retakes_unverified_account(client):
+    email = "retake@example.test"
+    r1 = client.post("/api/register",
+                     json={"email": email, "password": "first-pw-123456789",
+                           "displayName": "First Try"})
+    assert r1.status_code == 200
+    old_code = r1.json()["devCode"]
+    # Same email again before verifying: retake in place, not a 409 dead-end.
+    r2 = client.post("/api/register",
+                     json={"email": email, "password": "second-pw-12345678",
+                           "displayName": "Second Try"})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["needsVerification"] is True
+    new_code = r2.json()["devCode"]
+    # the retake replaced the pending code (skip on the 1e-6 code collision)
+    if old_code != new_code:
+        r = client.post("/api/verify/confirm", json={"email": email, "code": old_code})
+        assert r.status_code == 400
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": new_code}).status_code == 200
+    # the SECOND registration's credentials are the live ones
+    assert client.post("/api/auth", json={
+        "email": email, "password": "second-pw-12345678"}).status_code == 200
+    assert client.post("/api/auth", json={
+        "email": email, "password": "first-pw-123456789"}).status_code == 401
+
+
+def test_register_never_retakes_google_account(client):
+    client.app.state.db.register_oauth_participant(
+        code="u-goog-retake-test", email="goog-retake@example.test",
+        display_name="Goog", google_sub="sub-retake-123")
+    r = client.post("/api/register",
+                    json={"email": "goog-retake@example.test",
+                          "password": "test-pw-1234567890", "displayName": "X"})
+    assert r.status_code == 409
+
+
 def test_register_honeypot_silently_drops_bot(client):
     r = client.post("/api/register",
                     json={"email": "bot@example.test",
@@ -279,8 +316,10 @@ def test_register_honeypot_silently_drops_bot(client):
                           "displayName": "Bot",
                           "honeypot": "https://spam.example.com"})
     assert r.status_code == 200
-    # but the bot's "account" was NOT actually created — proves it by
-    # registering with the same email succeeding normally.
+    # but the bot's "account" was NOT actually created. (Checked directly:
+    # a same-email re-register succeeding no longer proves absence now that
+    # unverified accounts can be retaken in place.)
+    assert client.app.state.db.get_participant_by_email("bot@example.test") is None
     r2 = client.post("/api/register",
                      json={"email": "bot@example.test",
                            "password": "test-pw-1234567890",
