@@ -182,7 +182,7 @@ def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
         manager = db.get_participant(code)
         _send_cohort_invite_email(target["email"], cohort["name"],
                                   (manager or {}).get("display_name"),
-                                  has_account=True)
+                                  has_account=True, cohort_id=cohort_id)
     return {"ok": True, "publicId": pid}
 
 
@@ -193,7 +193,8 @@ def _clean_line(s: str | None, cap: int = 80) -> str:
 
 
 def _send_cohort_invite_email(to_email: str, cohort_name: str,
-                              manager_name: str | None, has_account: bool) -> None:
+                              manager_name: str | None, has_account: bool,
+                              cohort_id: str = "") -> None:
     """Invitation via the standard transactional sender (no-reply@cortexeeg.org,
     same SES identity + bounce pipeline as verify/reset codes). Send failures
     log and never surface: the endpoint's response must stay identical either
@@ -216,7 +217,8 @@ def _send_cohort_invite_email(to_email: str, cohort_name: str,
              "EEG skill certification platform.",
              action,
              "If you weren't expecting this, you can safely ignore this email."],
-            button=("Open CORTEX", origin))
+            button=("Open CORTEX",
+                    f"{origin}/?cohort={cohort_id}" if cohort_id else origin))
     except Exception as e:
         print(f"[cortex.cohort] invite email failed for {to_email}: {e}",
               file=sys.stderr, flush=True)
@@ -266,7 +268,8 @@ def cohort_invite_email(cohort_id: str, body: EmailIn, req: Request,
         db.put_cohort_email_invite(cohort_id, email)
     _send_cohort_invite_email(
         email, cohort["name"],
-        (manager or {}).get("display_name"), has_account=target is not None)
+        (manager or {}).get("display_name"), has_account=target is not None,
+        cohort_id=cohort_id)
     return {"ok": True}
 
 

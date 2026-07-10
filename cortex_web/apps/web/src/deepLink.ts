@@ -32,3 +32,20 @@ export function consumeAuthDeepLink(): AuthDeepLink | null {
   if (link) window.history.replaceState(null, "", window.location.pathname);
   return link;
 }
+
+// Cohort-invitation emails link to /?cohort=<id> so the recipient lands on
+// the pending invite (the dashboard banner highlights it) instead of the
+// front door. The id grants nothing: invites are only visible to the
+// signed-in account they belong to.
+const COHORT_ID_RE = /^ch-[A-Za-z0-9_-]{6,}$/;
+
+export function parseCohortDeepLink(search: string): string | null {
+  const v = (new URLSearchParams(search).get("cohort") || "").trim();
+  return COHORT_ID_RE.test(v) ? v : null;
+}
+
+export function consumeCohortDeepLink(): string | null {
+  const id = parseCohortDeepLink(window.location.search);
+  if (id) window.history.replaceState(null, "", window.location.pathname);
+  return id;
+}

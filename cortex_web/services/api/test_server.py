@@ -1733,7 +1733,7 @@ def test_cohort_id_invite_sends_notification(client, monkeypatch):
     sent = []
     monkeypatch.setattr(mailer, "send_letter",
                         lambda to, subject, title, paragraphs, button=None:
-                        sent.append((to, subject)))
+                        sent.append((to, subject, button)))
     cid, mh = _make_cohort(client)
     email, pw = _make_participant(client)
     uh = _auth_header(client, email, pw)
@@ -1742,6 +1742,8 @@ def test_cohort_id_invite_sends_notification(client, monkeypatch):
                        json={"publicId": pid}).status_code == 200
     assert sent and sent[0][0] == email
     assert "cohort invitation" in sent[0][1]
+    # the button deep-links to the invite, not the front door
+    assert sent[0][2] is not None and f"/?cohort={cid}" in sent[0][2][1]
 
 
 def test_cohort_invites_expire_after_30_days(client):

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthDeepLink } from "./deepLink";
+import { parseAuthDeepLink, parseCohortDeepLink } from "./deepLink";
+
+describe("parseCohortDeepLink", () => {
+  it("parses a cohort-invite link", () => {
+    expect(parseCohortDeepLink("?cohort=ch-AbC123_xy-9")).toBe("ch-AbC123_xy-9");
+  });
+  it("rejects malformed ids and unrelated queries", () => {
+    expect(parseCohortDeepLink("?cohort=nope")).toBeNull();
+    expect(parseCohortDeepLink("?cohort=ch-a")).toBeNull();
+    expect(parseCohortDeepLink("")).toBeNull();
+  });
+});
 
 describe("parseAuthDeepLink", () => {
   it("parses a verify link", () => {
