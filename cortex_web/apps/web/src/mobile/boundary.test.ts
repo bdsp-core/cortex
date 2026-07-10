@@ -26,6 +26,7 @@ const SHARED_ALLOW = new Set([
   "../theme/ThemeProvider",
   "../../ui/theme",
   "../components/AuthFlow",
+  "../profileFields",
 ]);
 
 function importsOf(path: string): string[] {

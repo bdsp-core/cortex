@@ -17,6 +17,7 @@ import * as api from "../api";
 import { AuthFlow } from "../components/AuthFlow";
 import { consumeAuthDeepLink } from "../deepLink";
 import { MobileHome } from "./MobileHome";
+import { MobileSettings } from "./MobileSettings";
 
 export function MobileApp() {
   // Same one-shot email deep-link consumption as the desktop App: parse +
@@ -26,9 +27,18 @@ export function MobileApp() {
     return api.isAuthed() ? null : link;
   });
   const [authed, setAuthed] = useState(api.isAuthed());
+  const [screen, setScreen] = useState<"home" | "settings">("home");
 
   if (!authed) {
-    return <AuthFlow onAuthed={() => setAuthed(true)} deepLink={authDeepLink} />;
+    return <AuthFlow onAuthed={() => { setScreen("home"); setAuthed(true); }} deepLink={authDeepLink} />;
   }
-  return <MobileHome onSignOut={() => { api.logout(); setAuthed(false); }} />;
+  if (screen === "settings") {
+    return <MobileSettings onBack={() => setScreen("home")} />;
+  }
+  return (
+    <MobileHome
+      onSettings={() => setScreen("settings")}
+      onSignOut={() => { api.logout(); setAuthed(false); }}
+    />
+  );
 }

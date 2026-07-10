@@ -72,3 +72,31 @@ export const ghostBtn: CSSProperties = {
   padding: "10px 14px",     // ≥44px touch target with line height
   cursor: "pointer",
 };
+
+export const primaryBtn: CSSProperties = {
+  ...ghostBtn,
+  background: "var(--teal)",
+  border: "1px solid var(--teal)",
+  color: "#fff",
+  fontWeight: 600,
+};
+
+export const label: CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  color: COLORS.textFaint,
+  margin: "12px 0 4px",
+};
+
+export const input: CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  fontSize: 16,             // <16px makes iOS Safari zoom the page on focus
+  fontFamily: FONTS.sans,
+  color: COLORS.textPrimary,
+  background: COLORS.cardAlt,
+  border: `1px solid ${COLORS.borderInactive2}`,
+  borderRadius: 8,
+  padding: "10px 12px",
+};

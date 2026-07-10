@@ -30,7 +30,7 @@ type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
 // Self-reported expertise dropdown shown at signup. [catalogKey, submittedValue]:
 // the visible label is translated; the submitted value stays canonical English.
-const EXPERTISE: [string, string][] = [
+export const EXPERTISE: [string, string][] = [
   ["auth.expertise.epileptologist", "Attending epileptologist"],
   ["auth.expertise.neurologist", "Attending neurologist (non-epilepsy)"],
   ["auth.expertise.fellow", "Clinical neurophysiology fellow"],
@@ -364,10 +364,13 @@ function AuthFooter() {
   const group: CSSProperties = { display: "flex", alignItems: "center", gap: 16 };
   return (
     <footer style={{
-      flex: "0 0 auto", width: "100%", height: 48,
+      // minHeight (not height) + wrap: on phone widths the three groups
+      // stack instead of overflowing; desktop still renders one 48px line.
+      flex: "0 0 auto", width: "100%", minHeight: 48,
       borderTop: `1px solid ${COLORS.borderInactive2}`,
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "0 24px", boxSizing: "border-box", fontFamily: FONTS.sans,
+      flexWrap: "wrap", rowGap: 4,
+      padding: "6px 24px", boxSizing: "border-box", fontFamily: FONTS.sans,
     }}>
       <div style={group}>
         <a href="/privacy" style={link}>{t("footer.privacy")}</a>
@@ -678,7 +681,7 @@ export function AuthFlow({ onAuthed, deepLink }: {
     }}>
       {/* content region — holds the collage/divider + the auth column; the
           footer bar sits below it, full width. */}
-      <div style={{
+      <div className="auth-hero-region" style={{
         flex: 1, minHeight: 0, display: "flex",
         justifyContent: hero ? "flex-end" : "center",
         paddingRight: hero ? 36 : 0, position: "relative",
@@ -688,7 +691,14 @@ export function AuthFlow({ onAuthed, deepLink }: {
 
       {hero && (
         <>
-          <style>{`@media (max-width: 900px){ .auth-collage{ display: none !important; } }`}</style>
+          {/* Below 900px the collage hides — and the hero split must fall
+              back to the plain centered column, or the fixed 360px min-width
+              + right padding overflow a phone screen. */}
+          <style>{`@media (max-width: 900px){
+            .auth-collage{ display: none !important; }
+            .auth-hero-region{ justify-content: center !important; padding-right: 0 !important; }
+            .auth-hero-col{ width: 100% !important; min-width: 0 !important; max-width: 488px !important; }
+          }`}</style>
           <img className="auth-collage auth-collage-img"
             src="/web_collage_prod@2x.png"
             srcSet="/web_collage_prod@2x.png 2x, /web_collage_prod@3x.png 3x"
@@ -708,7 +718,7 @@ export function AuthFlow({ onAuthed, deepLink }: {
         </>
       )}
 
-      <div style={{
+      <div className="auth-hero-col" style={{
         width: hero ? "33.333vw" : "100%",
         maxWidth: hero ? undefined : 488, minWidth: hero ? 360 : undefined,
         display: "flex", flexDirection: "column",

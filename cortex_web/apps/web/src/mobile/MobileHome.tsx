@@ -23,7 +23,10 @@ function Verdict({ v }: { v: string }) {
   );
 }
 
-export function MobileHome({ onSignOut }: { onSignOut: () => void }) {
+export function MobileHome({ onSettings, onSignOut }: {
+  onSettings: () => void;
+  onSignOut: () => void;
+}) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [history, setHistory] = useState<api.HistorySession[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -43,7 +46,10 @@ export function MobileHome({ onSignOut }: { onSignOut: () => void }) {
           src="/cortex_logo_word_horizontal@3x.png"
           srcSet="/cortex_logo_word_horizontal@2x.png 2x, /cortex_logo_word_horizontal@3x.png 3x"
           alt="CORTEX" style={{ height: 22 }} />
-        <button style={S.ghostBtn} onClick={onSignOut}>Sign out</button>
+        <span style={{ display: "flex", gap: 8 }}>
+          <button style={S.ghostBtn} onClick={onSettings}>Settings</button>
+          <button style={S.ghostBtn} onClick={onSignOut}>Sign out</button>
+        </span>
       </header>
 
       <main style={S.main}>
