@@ -159,8 +159,8 @@ def _render_html(title: str, blocks: list[tuple]) -> str:
         f'font-weight:bold;color:{_TEAL_DEEP};">CORTEX</div>')
     font = "font-family:Arial,Helvetica,sans-serif;"
     return f"""<!doctype html>
-<html><body style="margin:0;padding:0;background:#eef1f1;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f1;">
+<html><body style="margin:0;padding:0;background:#ffffff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
 <tr><td align="center" style="padding:28px 12px;">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0"
     style="width:560px;max-width:100%;background:#ffffff;border:1px solid #d7dedd;border-top:3px solid {_TEAL};">
