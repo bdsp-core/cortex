@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import * as api from "../api";
 import { COLORS, VERDICT_STYLE } from "../../ui/theme";
 import { Heatmap } from "../components/charts";
+import { CohortInviteBanner } from "../components/CohortInviteBanner";
 import * as S from "./styles";
 
 function fmtDay(iso: string | null | undefined): string {
@@ -24,9 +25,10 @@ function Verdict({ v }: { v: string }) {
   );
 }
 
-export function MobileHome({ onSettings, onSignOut }: {
+export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
   onSettings: () => void;
   onSignOut: () => void;
+  inviteHighlightId?: string | null;
 }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [history, setHistory] = useState<api.HistorySession[] | null>(null);
@@ -45,6 +47,7 @@ export function MobileHome({ onSettings, onSignOut }: {
 
   return (
     <div style={S.page}>
+      <CohortInviteBanner variant="mobile" highlightCohortId={inviteHighlightId} />
       <header style={S.header}>
         <img
           src="/cortex_logo_word_horizontal@3x.png"

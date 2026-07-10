@@ -27,6 +27,7 @@ const SHARED_ALLOW = new Set([
   "../../ui/theme",
   "../components/AuthFlow",
   "../components/charts",   // self-contained data-viz (Heatmap on the home)
+  "../components/CohortInviteBanner",  // shared floating invite banner
   "../profileFields",
 ]);
 

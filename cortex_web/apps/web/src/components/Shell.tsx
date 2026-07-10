@@ -35,6 +35,7 @@ type Surface = "dashboard" | "training" | "protocol" | "history" | "cohorts" | "
 type View = Surface | "drilldown";
 
 import { SHELL_CSS } from "./shell/shellCss";
+import { CohortInviteBanner } from "./CohortInviteBanner";
 
 // Inline-SVG line icons for the four nav surfaces (ported verbatim from the
 // mockup's nav, NOT emoji).
@@ -1386,11 +1387,14 @@ function SettingsSurface() {
 }
 
 export function Shell({
-  onStartTest, onStartTraining, onSignOut,
+  onStartTest, onStartTraining, onSignOut, inviteHighlightId,
 }: {
   onStartTest: () => void;
   onStartTraining: () => void;
   onSignOut: () => void;
+  // Cohort id from an invite email's /?cohort=... deep link: the floating
+  // invite banner pulses the matching invitation.
+  inviteHighlightId?: string | null;
 }) {
   const [view, setView] = useState<View>("dashboard");
   const [drillTask, setDrillTask] = useState<number>(0);
@@ -1420,6 +1424,7 @@ export function Shell({
   return (
     <div className="cx-app">
       <style>{SHELL_CSS}</style>
+      <CohortInviteBanner variant="desktop" highlightCohortId={inviteHighlightId} />
 
       <aside className="cx-rail">
         <div className="cx-brand">

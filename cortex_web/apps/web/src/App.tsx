@@ -17,7 +17,7 @@ import { empiricalPoint, onCurvePoint } from "./roc";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
-import { consumeAuthDeepLink } from "./deepLink";
+import { consumeAuthDeepLink, consumeCohortDeepLink } from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
 import { reportClientError } from "./telemetry";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
@@ -62,6 +62,9 @@ export function App() {
     const link = consumeAuthDeepLink();
     return api.isAuthed() ? null : link;
   });
+  // Cohort-invite email deep link (/?cohort=...): kept through the auth flow
+  // so the dashboard banner can pulse the matching invitation after sign-in.
+  const [cohortDeepLink] = useState(() => consumeCohortDeepLink());
   const [phase, setPhase] = useState<Phase>(api.isAuthed() ? "dashboard" : "auth");
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [item, setItem] = useState<Item | null>(null);
@@ -465,6 +468,7 @@ export function App() {
           onStartTest={() => { void onStartTestClick(); }}
           onStartTraining={startTraining}
           onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
+          inviteHighlightId={cohortDeepLink}
         />
       );
     case "resume":
