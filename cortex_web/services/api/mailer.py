@@ -137,7 +137,7 @@ def _render_html(title: str, blocks: list[tuple]) -> str:
         elif b[0] == "code":
             body_bits.append(
                 f'<div style="margin:18px 0;padding:14px 0;text-align:center;'
-                f'background:#f0f6f5;border:1px solid #cfe3e0;border-radius:6px;'
+                f'background:#f0f6f5;border:1px solid #cfe3e0;'
                 f"font-family:'Courier New',monospace;font-size:26px;"
                 f'letter-spacing:8px;font-weight:bold;color:{_TEAL_DEEP};">'
                 f"{html_mod.escape(b[1])}</div>")
@@ -146,7 +146,7 @@ def _render_html(title: str, blocks: list[tuple]) -> str:
             body_bits.append(
                 '<table role="presentation" cellpadding="0" cellspacing="0" '
                 'style="margin:6px 0 18px;"><tr>'
-                f'<td style="background:{_TEAL};border-radius:6px;">'
+                f'<td style="background:{_TEAL};">'
                 f'<a href="{url}" style="display:inline-block;padding:11px 22px;'
                 'font-family:Arial,Helvetica,sans-serif;font-size:14px;'
                 'color:#ffffff;text-decoration:none;font-weight:bold;">'
@@ -163,7 +163,7 @@ def _render_html(title: str, blocks: list[tuple]) -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f1;">
 <tr><td align="center" style="padding:28px 12px;">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0"
-    style="width:560px;max-width:100%;background:#ffffff;border:1px solid #d7dedd;border-top:3px solid {_TEAL};border-radius:6px;">
+    style="width:560px;max-width:100%;background:#ffffff;border:1px solid #d7dedd;border-top:3px solid {_TEAL};">
     <tr><td align="left" style="padding:26px 36px 20px;border-bottom:1px solid #e6ecea;">{header}</td></tr>
     <tr><td align="left" style="padding:26px 36px 4px;{font}color:{_INK};font-size:15px;line-height:1.6;">
       <h1 style="margin:0 0 16px;font-size:18px;color:{_TEAL_DEEP};">{html_mod.escape(title)}</h1>
@@ -171,7 +171,7 @@ def _render_html(title: str, blocks: list[tuple]) -> str:
       <p style="margin:18px 0 24px;">Thank you,<br>
         <b style="color:{_TEAL_DEEP};">The CORTEX Team</b></p>
     </td></tr>
-    <tr><td align="left" style="padding:14px 36px;background:#f6f8f8;border-top:1px solid #e6ecea;border-radius:0 0 6px 6px;{font}font-size:12px;line-height:1.5;color:#7d8a86;">
+    <tr><td align="left" style="padding:14px 36px;background:#f6f8f8;border-top:1px solid #e6ecea;{font}font-size:12px;line-height:1.5;color:#7d8a86;">
       CORTEX, the EEG skill certification platform · app.cortexeeg.org<br>
       This is an automated message; replies to this address are not monitored.
     </td></tr>
