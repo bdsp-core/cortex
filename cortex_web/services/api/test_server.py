@@ -823,7 +823,7 @@ def test_dashboard_reflects_real_per_task(client):
     sid = client.post("/api/session", headers=hdr,
                       json={"participant": {}}).json()["sessionId"]
     per = [{"taskK": k, "code": c, "label": lab, "ell": 1.0 + k, "theta": 0.1,
-            "ellStar": 0.3, "auroc": 0.8, "aurocHw": 0.05,
+            "ellStar": 0.3, "auroc": 0.8 + 0.02 * k, "aurocHw": 0.05,
             "verdict": "PASS" if k < 5 else "FAIL"} for k, c, lab in _SEVEN]
     client.post("/api/results", headers=hdr,
                 json={"sessionId": sid,
@@ -838,12 +838,15 @@ def test_dashboard_reflects_real_per_task(client):
     assert t0["theta"] == 0.1 and t0["verdict"] == "PASS"
     k = d["kpis"]
     assert k["tasksCertified"] == 5 and k["tasksTotal"] == 7
-    assert k["meanAuroc"] == 0.8 and k["lastAssessed"]
+    # extremes (not a mean): the domains are disjoint tasks
+    assert k["worstDomain"] == {"label": "Spike", "auroc": 0.8}
+    assert k["bestDomain"] == {"label": "Other", "auroc": 0.92}
+    assert k["lastAssessed"]
 
 
 def test_dashboard_legacy_result_verdicts_only(client):
     # A pre-Step-1 result has only `verdicts` (no perTask) → verdict shows, but
-    # ℓ/ℓ*/AUROC come back None and meanAuroc is None (nothing fabricated).
+    # ℓ/ℓ*/AUROC come back None and worst/best are None (nothing fabricated).
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     sid = client.post("/api/session", headers=hdr,
@@ -856,7 +859,8 @@ def test_dashboard_legacy_result_verdicts_only(client):
     assert all(t["verdict"] == "PASS" for t in d["tasks"])
     assert all(t["ell"] is None and t["theta"] is None and t["auroc"] is None
                for t in d["tasks"])
-    assert d["kpis"]["tasksCertified"] == 7 and d["kpis"]["meanAuroc"] is None
+    assert d["kpis"]["tasksCertified"] == 7
+    assert d["kpis"]["worstDomain"] is None and d["kpis"]["bestDomain"] is None
 
 
 def test_dashboard_ring_uses_latest_trajectory(client):

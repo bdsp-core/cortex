@@ -94,8 +94,13 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
                   <div style={{ display: "flex", gap: 16, marginBottom: 6, fontSize: 13,
                     color: COLORS.textBody, flexWrap: "wrap" }}>
                     <span><strong>{dash.kpis.tasksCertified}/{dash.kpis.tasksTotal}</strong> tasks certified</span>
-                    {dash.kpis.meanAuroc != null && (
-                      <span>mean AUROC <strong>{dash.kpis.meanAuroc.toFixed(2)}</strong></span>
+                    {dash.kpis.worstDomain && (
+                      <span>weakest {dash.kpis.worstDomain.label} AUROC{" "}
+                        <strong>{dash.kpis.worstDomain.auroc.toFixed(2)}</strong></span>
+                    )}
+                    {dash.kpis.bestDomain && (
+                      <span>strongest {dash.kpis.bestDomain.label} AUROC{" "}
+                        <strong>{dash.kpis.bestDomain.auroc.toFixed(2)}</strong></span>
                     )}
                     <span>last test {fmtDay(dash.kpis.lastAssessed)}</span>
                   </div>

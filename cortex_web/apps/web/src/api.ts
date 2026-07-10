@@ -412,7 +412,12 @@ export interface DashboardKpis {
   tasksCertified: number;
   tasksTotal: number;
   lastAssessed: string | null;   // finished_utc of the latest attempt
-  meanAuroc: number | null;      // mean per-task AUROC, or null if none stored
+  // Extremes, not a mean: the seven domains are disjoint discrimination
+  // tasks, so a cross-domain average estimates nothing; worst/best identify
+  // the range (and the next training target) instead. Null until a result
+  // with per-task AUROCs exists.
+  worstDomain: { label: string; auroc: number } | null;
+  bestDomain: { label: string; auroc: number } | null;
 }
 // Per-task mastery-grid summary derived from the latest real result. ℓ/ℓ*/AUROC
 // are null for a legacy (verdicts-only) result; verdict is always present.

@@ -349,7 +349,8 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
   const trajByK = useMemo(() => buildTraj(trajPts), [trajPts]);
 
   const hasData = !!dash?.hasResult;
-  // Real cert-summary KPIs (tasks certified / mean AUROC / last assessed).
+  // Real cert-summary KPIs (tasks certified / worst + best domain AUROC /
+  // last assessed).
   const kpis = dash?.kpis ?? null;
 
   const sel = tasks.find((t) => t.code === selected) ?? tasks[0];
@@ -377,8 +378,14 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             <span className="u">/ {kpis ? kpis.tasksTotal : 7}</span></span>
         </div>
         <div className="cx-kpi">
-          <span className="k">Mean AUROC</span>
-          <span className="v">{kpis && kpis.meanAuroc != null ? kpis.meanAuroc.toFixed(2) : "–"}</span>
+          <span className="k">Weakest domain AUROC</span>
+          <span className="v">{kpis?.worstDomain ? kpis.worstDomain.auroc.toFixed(2) : "–"}
+            {kpis?.worstDomain && <span className="u"> {kpis.worstDomain.label}</span>}</span>
+        </div>
+        <div className="cx-kpi">
+          <span className="k">Strongest domain AUROC</span>
+          <span className="v">{kpis?.bestDomain ? kpis.bestDomain.auroc.toFixed(2) : "–"}
+            {kpis?.bestDomain && <span className="u"> {kpis.bestDomain.label}</span>}</span>
         </div>
         <div className="cx-kpi">
           <span className="k">Last assessed</span>

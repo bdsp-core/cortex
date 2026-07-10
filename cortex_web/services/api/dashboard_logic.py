@@ -145,14 +145,25 @@ def eval_points_from_result(result: dict, trials: list[dict]) -> list[dict]:
 def dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
     """Real certification-summary KPIs (no learning-protocol data, which doesn't
     exist until the trainer ships): tasks certified, date last assessed, and the
-    mean per-task AUROC over the tasks that have one."""
-    aurocs = [t["auroc"] for t in tasks if isinstance(t.get("auroc"), (int, float))]
+    worst/best per-domain AUROC. Extremes, deliberately not a mean: the seven
+    domains are disjoint discrimination tasks, so a cross-domain average
+    estimates nothing, hides bimodal skill profiles, and re-introduces the
+    single roll-up the per-task certificate policy rejects (OPEN_DECISIONS).
+    The worst domain is the binding constraint of the (conjunctive)
+    certification and the natural next training target."""
+    scored = [(float(t["auroc"]), str(t.get("label") or t.get("code") or ""))
+              for t in tasks if isinstance(t.get("auroc"), (int, float))]
     certified = sum(1 for t in tasks if str(t.get("verdict") or "").upper() == "PASS")
+
+    def _domain(pair: tuple[float, str]) -> dict:
+        return {"label": pair[1], "auroc": round(pair[0], 3)}
+
     return {
         "tasksCertified": certified,
         "tasksTotal": len(tasks),
         "lastAssessed": last_assessed,
-        "meanAuroc": round(sum(aurocs) / len(aurocs), 3) if aurocs else None,
+        "worstDomain": _domain(min(scored)) if scored else None,
+        "bestDomain": _domain(max(scored)) if scored else None,
     }
 
 
