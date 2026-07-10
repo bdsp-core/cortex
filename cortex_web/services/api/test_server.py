@@ -373,6 +373,31 @@ def test_mailer_body_one_click_link(monkeypatch):
     assert "verifyCode" not in mailer._body("123456", "verify", "u@example.test")
 
 
+def test_mailer_letter_mime(monkeypatch):
+    """The letter is multipart: plain text (code + sign-off) + HTML (branded
+    card, escaped content, CID logo inside the html alternative so text-only
+    clients never see an attachment)."""
+    from . import mailer
+    monkeypatch.setenv("CORTEX_PUBLIC_ORIGIN", "https://app.example.test")
+    msg = mailer._compose(
+        "u@example.test", "Your CORTEX verification code",
+        mailer._body("123456", "verify", "u@example.test"),
+        mailer._html_body("123456", "verify", "u@example.test"), None)
+    text = msg.get_body(("plain",)).get_content()
+    assert "123456" in text and "The CORTEX Team" in text
+    html_part = msg.get_body(("html",))
+    html = html_part.get_content()
+    assert "Verify your email" in html and "The CORTEX Team" in html
+    assert 'src="cid:cortex-logo"' in html and "verifyCode=123456" in html
+    # the logo rides inside the html alternative (multipart/related)
+    related = msg.get_payload()[-1]
+    assert related.get_content_type() == "multipart/related"
+    assert any(p.get_content_type() == "image/png" for p in related.iter_parts())
+    # user-controlled text is escaped in the HTML part
+    evil = mailer._render_html("T", [("p", 'x <script>alert("y")</script>')])
+    assert "<script>" not in evil and "&lt;script&gt;" in evil
+
+
 # ───────────── SES bounce webhook + verify/status ─────────────
 
 _SES_TOKEN = "test-sns-token"
@@ -1241,7 +1266,10 @@ def test_smtp_backend_sends_code(monkeypatch):
             sent["to"] = msg["To"]
             sent["from"] = msg["From"]
             sent["subject"] = msg["Subject"]
-            sent["body"] = msg.get_content()
+            # letters are multipart (text + branded html); the code must be
+            # in the PLAIN part for text-only clients
+            sent["body"] = msg.get_body(("plain",)).get_content()
+            sent["html"] = (msg.get_body(("html",)) or msg).get_content()
 
     monkeypatch.setenv("CORTEX_EMAIL_BACKEND", "smtp")
     monkeypatch.setenv("CORTEX_SMTP_HOST", "smtp.example.test")
@@ -1254,6 +1282,7 @@ def test_smtp_backend_sends_code(monkeypatch):
     assert sent["to"] == "alice@example.test"
     assert sent["from"] == "CORTEX <no-reply@example.test>"
     assert "123456" in sent["body"]
+    assert "123456" in sent["html"] and "The CORTEX Team" in sent["html"]
     assert sent["login"] == ("apikey", "secret")
     assert sent.get("starttls") is True
 

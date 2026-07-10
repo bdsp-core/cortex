@@ -190,19 +190,20 @@ def _send_cohort_invite_email(to_email: str, cohort_name: str,
     who = _clean_line(manager_name) or "A CORTEX user"
     name = _clean_line(cohort_name)
     action = (
-        f"Sign in at {origin} and open Cohorts to accept or decline."
+        "Sign in and open Cohorts to accept or decline."
         if has_account else
-        f"Create a free account at {origin} using this email address; the "
-        "invitation will be waiting under Cohorts once you verify your email."
-    )
-    body = (
-        f'{who} invited you to join the cohort "{name}" on CORTEX, the EEG '
-        "skill certification platform.\n\n"
-        f"{action}\n\n"
-        "If you weren't expecting this, you can ignore this email.\n"
+        "Create a free account using this email address; the invitation will "
+        "be waiting under Cohorts once you verify your email."
     )
     try:
-        mailer.send_email(to_email, f'CORTEX cohort invitation: "{name}"', body)
+        mailer.send_letter(
+            to_email, f'CORTEX cohort invitation: "{name}"',
+            "You're invited to join a cohort",
+            [f'{who} invited you to join the cohort "{name}" on CORTEX, the '
+             "EEG skill certification platform.",
+             action,
+             "If you weren't expecting this, you can safely ignore this email."],
+            button=("Open CORTEX", origin))
     except Exception as e:
         print(f"[cortex.cohort] invite email failed for {to_email}: {e}",
               file=sys.stderr, flush=True)
