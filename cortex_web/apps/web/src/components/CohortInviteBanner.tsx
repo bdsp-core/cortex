@@ -71,11 +71,20 @@ export function CohortInviteBanner({ variant, highlightCohortId }: {
       borderLeft: "3px solid var(--teal)",
       boxShadow: "0 8px 28px rgba(15, 40, 36, 0.18)",
       fontFamily: FONTS.sans, color: COLORS.textPrimary,
-      animation: "cx-invite-in 240ms ease-out",
+      // slide in once, then a slow teal breathing glow to draw the eye
+      animation: "cx-invite-in 240ms ease-out, cx-invite-glow 2.6s ease-in-out 300ms infinite",
     }}>
       <style>{`
         @keyframes cx-invite-in { from { opacity: 0; transform: translateY(14px); }
                                   to { opacity: 1; transform: none; } }
+        @keyframes cx-invite-glow {
+          0%, 100% { box-shadow: 0 8px 28px rgba(15, 40, 36, 0.18);
+                     border-left-color: var(--teal); }
+          50% { box-shadow: 0 8px 28px rgba(15, 40, 36, 0.18),
+                            0 0 0 3px var(--teal-weak),
+                            0 0 18px 2px rgba(47, 143, 131, 0.55);
+                border-left-color: var(--teal-deep); }
+        }
         @keyframes cx-invite-pulse { 0%, 100% { background: transparent; }
                                      50% { background: var(--teal-weak); } }
       `}</style>

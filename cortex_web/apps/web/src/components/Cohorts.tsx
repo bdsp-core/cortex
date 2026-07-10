@@ -65,8 +65,7 @@ function seriesColor(slot: number): string {
 // Member label. The server includes displayName only for managers; everyone
 // else identifies peers by public User ID alone.
 function memberLabel(m: { publicId: string; displayName?: string; isYou?: boolean }): string {
-  const base = m.displayName ? `${m.displayName} · ${m.publicId}` : m.publicId;
-  return m.isYou ? `${base} (you)` : base;
+  return m.displayName ? `${m.displayName} · ${m.publicId}` : m.publicId;
 }
 
 // ── chart geometry ───────────────────────────────────────────────
@@ -438,8 +437,8 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
         <div className="cx-phead"><h2>Members</h2></div>
         <p className="sub">
           {isManager
-            ? "You manage this cohort. Add teammates by their 9-digit User ID (they will be asked to accept)."
-            : "Members are shown by User ID. Your line is marked (you)."}
+            ? "You manage this cohort. Add teammates by email address or 9-digit User ID (they will be asked to accept)."
+            : "Members are shown by User ID."}
         </p>
         <div>
           {(detail.members ?? []).map((m) => (
@@ -451,7 +450,6 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
                 {m.publicId}
               </span>
               {m.displayName != null && <span>{m.displayName}</span>}
-              {m.isYou && <span className="sub">(you)</span>}
               {m.isManager && <span className="cx-chip train"><i />Manager</span>}
               {m.status === "invited" && <span className="cx-chip none"><i />Invited</span>}
               <span style={{ marginLeft: "auto" }} />
