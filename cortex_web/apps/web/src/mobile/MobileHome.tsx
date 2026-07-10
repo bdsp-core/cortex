@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import { COLORS, VERDICT_STYLE } from "../../ui/theme";
+import { Heatmap } from "../components/charts";
 import * as S from "./styles";
 
 function fmtDay(iso: string | null | undefined): string {
@@ -29,12 +30,15 @@ export function MobileHome({ onSettings, onSignOut }: {
 }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [history, setHistory] = useState<api.HistorySession[] | null>(null);
+  const [activity, setActivity] = useState<Record<string, number> | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let gone = false;
-    Promise.all([api.getDashboard(), api.getHistory()])
-      .then(([d, h]) => { if (!gone) { setDash(d); setHistory(h.sessions); } })
+    Promise.all([api.getDashboard(), api.getHistory(), api.getActivity()])
+      .then(([d, h, a]) => {
+        if (!gone) { setDash(d); setHistory(h.sessions); setActivity(a.days); }
+      })
       .catch((e) => { if (!gone) setErr(e instanceof Error ? e.message : String(e)); });
     return () => { gone = true; };
   }, []);
@@ -108,6 +112,18 @@ export function MobileHome({ onSettings, onSignOut }: {
                 ))}
               </>
             )}
+          </section>
+        )}
+
+        {activity !== null && (
+          <section style={S.card}>
+            <h2 style={S.sectionTitle}>Activity</h2>
+            {/* Shared 16-week calendar (same component as desktop): sign-in,
+                test, and training days in deepening teal. 286px natural width
+                fits the card; centered on wider phones. */}
+            <div style={{ display: "flex", justifyContent: "center", overflowX: "auto" }}>
+              <Heatmap activity={activity} />
+            </div>
           </section>
         )}
 

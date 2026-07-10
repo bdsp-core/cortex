@@ -26,6 +26,7 @@ const SHARED_ALLOW = new Set([
   "../theme/ThemeProvider",
   "../../ui/theme",
   "../components/AuthFlow",
+  "../components/charts",   // self-contained data-viz (Heatmap on the home)
   "../profileFields",
 ]);
 
