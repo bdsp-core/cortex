@@ -329,6 +329,8 @@ export interface CohortDetail {
   status: "invited" | "active";
   createdUtc: string;
   members?: CohortMemberInfo[];   // absent while the invite is pending
+  // Outstanding invites to addresses with no account yet (manager only).
+  emailInvites?: { email: string; invitedUtc: string }[];
 }
 export interface CohortPoint {
   ts: string;
@@ -369,6 +371,18 @@ export function getCohortPerformance(cohortId: string, days?: number): Promise<C
 export function inviteToCohort(cohortId: string, publicId: string): Promise<{ ok: boolean }> {
   return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite`, {
     method: "POST", body: JSON.stringify({ publicId }),
+  });
+}
+// Invite by email (anti-oracle: ok regardless of whether the address has an
+// account; unknown addresses get a signup-link email + attach at signup).
+export function inviteToCohortByEmail(cohortId: string, email: string): Promise<{ ok: boolean }> {
+  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite-email`, {
+    method: "POST", body: JSON.stringify({ email }),
+  });
+}
+export function cancelCohortEmailInvite(cohortId: string, email: string): Promise<{ ok: boolean }> {
+  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite-email/cancel`, {
+    method: "POST", body: JSON.stringify({ email }),
   });
 }
 export function acceptCohortInvite(cohortId: string): Promise<{ ok: boolean }> {

@@ -16,15 +16,17 @@ the day the trainer ships — synthetic rows can never reach a cohort peer.
 """
 from __future__ import annotations
 
+import os
 import re
 import secrets
+import sys
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import helpers
+from .. import helpers, mailer
 from ..deps import client_ip, require_auth
-from ..models import CohortCreateIn, CohortMemberIn
+from ..models import CohortCreateIn, CohortMemberIn, EmailIn
 
 router = APIRouter(prefix="/api")
 
@@ -137,6 +139,13 @@ def cohort_detail(cohort_id: str, req: Request,
             # pending invites are the manager's bookkeeping, not peers' info
             if m["status"] == "active" or is_manager
         ]
+    # Outstanding email invites (addresses with no account yet) are the
+    # manager's bookkeeping alone.
+    if is_manager:
+        resp["emailInvites"] = [
+            {"email": e["email"], "invitedUtc": e["invited_utc"]}
+            for e in db.list_cohort_email_invites(cohort_id)
+        ]
     return resp
 
 
@@ -162,6 +171,97 @@ def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
             raise HTTPException(409, "that user is already in this cohort or has a pending invitation")
         raise
     return {"ok": True, "publicId": pid}
+
+
+def _clean_line(s: str | None, cap: int = 80) -> str:
+    """Collapse whitespace/newlines in user-controlled text (cohort + display
+    names) before it goes into an email body."""
+    return " ".join((s or "").split())[:cap]
+
+
+def _send_cohort_invite_email(to_email: str, cohort_name: str,
+                              manager_name: str | None, has_account: bool) -> None:
+    """Invitation via the standard transactional sender (no-reply@cortexeeg.org,
+    same SES identity + bounce pipeline as verify/reset codes). Send failures
+    log and never surface: the endpoint's response must stay identical either
+    way (anti-oracle), and the pending invite row is already stored."""
+    origin = (os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
+              or "https://app.cortexeeg.org")
+    who = _clean_line(manager_name) or "A CORTEX user"
+    name = _clean_line(cohort_name)
+    action = (
+        f"Sign in at {origin} and open Cohorts to accept or decline."
+        if has_account else
+        f"Create a free account at {origin} using this email address; the "
+        "invitation will be waiting under Cohorts once you verify your email."
+    )
+    body = (
+        f'{who} invited you to join the cohort "{name}" on CORTEX, the EEG '
+        "skill certification platform.\n\n"
+        f"{action}\n\n"
+        "If you weren't expecting this, you can ignore this email.\n"
+    )
+    try:
+        mailer.send_email(to_email, f'CORTEX cohort invitation: "{name}"', body)
+    except Exception as e:
+        print(f"[cortex.cohort] invite email failed for {to_email}: {e}",
+              file=sys.stderr, flush=True)
+
+
+@router.post("/cohorts/{cohort_id}/invite-email")
+def cohort_invite_email(cohort_id: str, body: EmailIn, req: Request,
+                        code: str = Depends(require_auth)):
+    """Invite by EMAIL — the friction-free alternative to exchanging 9-digit
+    ids. Anti-oracle: a deliverable address always gets {"ok": true}; the
+    response never reveals whether it has a CORTEX account. An existing
+    account gets a normal 'invited' membership (same in-app consent gate as
+    the id flow) + a notification email; an unknown address gets a stored
+    email invite that attaches at signup (db.attach_email_invites, called
+    from the verify/Google paths in routers/auth.py) + a signup-link email."""
+    db, limiter = req.app.state.db, req.app.state.limiter
+    cohort, _, _ = _cohort_and_role(db, cohort_id, code, need_manager=True)
+    if not limiter.hit("cohort_invite", client_ip(req)):
+        raise HTTPException(429, "too many invites; try again later")
+    email = helpers.norm_email(body.email)
+    if not helpers.is_email(email):
+        raise HTTPException(400, "invalid email")
+    if not helpers.email_domain_deliverable(email.rsplit("@", 1)[1]):
+        raise HTTPException(
+            400, "this email domain doesn't appear to accept mail; double-check it for typos")
+    if (db.count_cohort_members(cohort_id)
+            + db.count_cohort_email_invites(cohort_id)) >= MAX_COHORT_MEMBERS:
+        raise HTTPException(409, f"cohort is at its {MAX_COHORT_MEMBERS}-member limit")
+    manager = db.get_participant(code)
+    target = db.get_participant_by_email(email)
+    if target is not None and target["code"] == code:
+        # Inviting yourself: nothing to do (you already see the cohort).
+        return {"ok": True}
+    if target is not None and target.get("active"):
+        try:
+            db.invite_cohort_member(cohort_id, target["code"])
+        except Exception as e:
+            # Already a member/invitee. Swallow: a 409 here would reveal that
+            # the address has an account, which the id flow never does for
+            # emails. The (re-sent) email is harmless.
+            if not helpers.is_unique_violation(e):
+                raise
+    else:
+        db.put_cohort_email_invite(cohort_id, email)
+    _send_cohort_invite_email(
+        email, cohort["name"],
+        (manager or {}).get("display_name"), has_account=target is not None)
+    return {"ok": True}
+
+
+@router.post("/cohorts/{cohort_id}/invite-email/cancel")
+def cohort_invite_email_cancel(cohort_id: str, body: EmailIn, req: Request,
+                               code: str = Depends(require_auth)):
+    """Withdraw a not-yet-attached email invite (manager bookkeeping).
+    Idempotent; attached/accepted memberships are removed via /remove."""
+    db = req.app.state.db
+    _cohort_and_role(db, cohort_id, code, need_manager=True)
+    db.delete_cohort_email_invite(cohort_id, helpers.norm_email(body.email))
+    return {"ok": True}
 
 
 @router.post("/cohorts/{cohort_id}/accept")

@@ -208,6 +208,18 @@ _SCHEMA_STATEMENTS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_cohort_members_code ON cohort_members(code)",
     "CREATE INDEX IF NOT EXISTS idx_cohorts_manager ON cohorts(manager_code)",
+    # Email invites to addresses with no account yet: attached (converted to a
+    # normal 'invited' cohort_members row) when that email finishes signup
+    # (attach_email_invites). The invitee still accepts in-app — the consent
+    # gate is identical to the public-id invite flow.
+    """CREATE TABLE IF NOT EXISTS cohort_email_invites (
+        cohort_id     TEXT NOT NULL,
+        email         TEXT NOT NULL,
+        invited_utc   TEXT NOT NULL,
+        PRIMARY KEY (cohort_id, email)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cohort_email_invites_email "
+    "ON cohort_email_invites(email)",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -1233,6 +1245,57 @@ class Database:
                 (utc_now(), cohort_id, code))
             return cur.rowcount > 0
 
+    # ── email invites (addresses without an account yet) ─────────
+    def put_cohort_email_invite(self, cohort_id: str, email: str) -> None:
+        """Store (or refresh) a pending email invite. Upsert: re-inviting the
+        same address just updates the timestamp."""
+        if self._pg:
+            sql = ("INSERT INTO cohort_email_invites(cohort_id, email, invited_utc) "
+                   "VALUES (?,?,?) ON CONFLICT (cohort_id, email) "
+                   "DO UPDATE SET invited_utc=EXCLUDED.invited_utc")
+        else:
+            sql = ("INSERT OR REPLACE INTO cohort_email_invites"
+                   "(cohort_id, email, invited_utc) VALUES (?,?,?)")
+        self._write(sql, (cohort_id, email, utc_now()))
+
+    def delete_cohort_email_invite(self, cohort_id: str, email: str) -> None:
+        self._write(
+            "DELETE FROM cohort_email_invites WHERE cohort_id=? AND email=?",
+            (cohort_id, email))
+
+    def list_cohort_email_invites(self, cohort_id: str) -> list[dict]:
+        return self._fetchall(
+            "SELECT * FROM cohort_email_invites WHERE cohort_id=? "
+            "ORDER BY invited_utc", (cohort_id,))
+
+    def count_cohort_email_invites(self, cohort_id: str) -> int:
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM cohort_email_invites WHERE cohort_id=?",
+            (cohort_id,))
+        return int(row["n"]) if row else 0
+
+    def attach_email_invites(self, email: str, code: str) -> int:
+        """Convert any pending email invites for `email` into normal 'invited'
+        cohort memberships for the (freshly verified) account `code`, then
+        drop the email rows. Called when an address finishes signup
+        (routers/auth.py). Returns how many cohorts were attached."""
+        attached = 0
+        for row in self._fetchall(
+                "SELECT cohort_id FROM cohort_email_invites WHERE email=?",
+                (email,)):
+            try:
+                self.invite_cohort_member(row["cohort_id"], code)
+                attached += 1
+            except Exception as e:
+                # Already a member/invitee of that cohort: nothing to attach.
+                if "UNIQUE" not in str(e) and "unique" not in str(e) \
+                        and "duplicate" not in str(e):
+                    raise
+            self._write(
+                "DELETE FROM cohort_email_invites WHERE cohort_id=? AND email=?",
+                (row["cohort_id"], email))
+        return attached
+
     def remove_cohort_member(self, cohort_id: str, code: str) -> None:
         """Decline / leave / manager-remove are all the same row delete."""
         self._write(
@@ -1243,6 +1306,8 @@ class Database:
         with self._connection() as conn:
             conn.execute(self._q(
                 "DELETE FROM cohort_members WHERE cohort_id=?"), (cohort_id,))
+            conn.execute(self._q(
+                "DELETE FROM cohort_email_invites WHERE cohort_id=?"), (cohort_id,))
             conn.execute(self._q(
                 "DELETE FROM cohorts WHERE cohort_id=?"), (cohort_id,))
 

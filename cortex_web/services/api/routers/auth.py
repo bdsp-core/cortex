@@ -117,6 +117,9 @@ def verify_confirm(body: VerifyIn, req: Request):
     db.consume_auth_code(row["code"], "verify")
     db.mark_email_verified(row["code"])
     db.clear_email_undeliverable(row["code"])  # code arrived → mailbox works
+    # Cohort invites emailed to this address before it had an account become
+    # normal pending invites now (the user still accepts in-app).
+    db.attach_email_invites(email, row["code"])
     return {"ok": True}
 
 
@@ -233,6 +236,9 @@ def auth_google(body: AuthGoogleIn, req: Request):
             row = row or db.get_participant_by_email(email)
     if row is None or not row.get("active"):
         raise HTTPException(403, "account is disabled")
+    # Google accounts are born verified: attach any cohort invites emailed to
+    # this address before it had an account (no-op on later sign-ins).
+    db.attach_email_invites(email, row["code"])
     db.record_login_day(row["code"], body.tzOffset or 0)
     token = security.issue_token(row["code"], ttl_seconds=TOKEN_TTL,
                                  extra={"email": email})

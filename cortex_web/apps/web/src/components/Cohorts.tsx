@@ -320,12 +320,15 @@ interface ViewProps {
   timeframe?: string;                        // selected TIMEFRAMES key
   onTimeframe?: (key: string) => void;
   onInvite?: (pid: string) => Promise<void>;
+  onInviteEmail?: (email: string) => Promise<void>;
+  onCancelEmailInvite?: (email: string) => Promise<void>;
   onRemove?: (pid: string) => Promise<void>;
   onLeave?: () => Promise<void>;
   onDelete?: () => Promise<void>;
 }
 
-function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvite, onRemove, onLeave, onDelete }: ViewProps) {
+function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvite,
+  onInviteEmail, onCancelEmailInvite, onRemove, onLeave, onDelete }: ViewProps) {
   const [param, setParam] = useState<Param>("skill");
   const [taskK, setTaskK] = useState(0);
   const [emphasized, setEmphasized] = useState<string | null>(null);
@@ -335,10 +338,30 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
   const isManager = detail.role === "manager";
   const members = perf.members;
 
+  // One field, two invite paths: an "@" means email (the friction-free
+  // default); otherwise the legacy 9-digit User ID exchange.
   async function doInvite() {
     setInviteMsg({});
-    const pid = invitePid.replace(/\s+/g, "");
-    if (!/^[1-9]\d{8}$/.test(pid)) { setInviteMsg({ err: "A User ID is 9 digits." }); return; }
+    const raw = invitePid.trim();
+    if (raw.includes("@")) {
+      try {
+        await onInviteEmail?.(raw);
+        setInvitePid(""); setInviteMsg({ ok: "Invitation emailed." });
+      } catch (e) {
+        const err = e as api.ApiError;
+        setInviteMsg({
+          err: err?.status === 429 ? "Too many invitations right now. Try again later." :
+            err?.status === 409 ? "This cohort is at its member limit." :
+            err?.message || "Could not send the invitation.",
+        });
+      }
+      return;
+    }
+    const pid = raw.replace(/\s+/g, "");
+    if (!/^[1-9]\d{8}$/.test(pid)) {
+      setInviteMsg({ err: "Enter an email address or a 9-digit User ID." });
+      return;
+    }
     try {
       await onInvite?.(pid);
       setInvitePid(""); setInviteMsg({ ok: "Invitation sent." });
@@ -444,12 +467,31 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
           ))}
         </div>
 
+        {/* Outstanding email invites (addresses with no account yet) — the
+            manager's bookkeeping; they convert to normal pending invites the
+            moment that address finishes signup. */}
+        {isManager && (detail.emailInvites ?? []).map((e) => (
+          <div key={e.email} style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 0",
+            borderTop: "1px solid var(--bd-subtle)",
+          }}>
+            <span>{e.email}</span>
+            <span className="cx-chip none"><i />Invited by email</span>
+            <span style={{ marginLeft: "auto" }} />
+            <button type="button" className="cx-btn"
+              onClick={() => onCancelEmailInvite?.(e.email)}>
+              Revoke invite
+            </button>
+          </div>
+        ))}
+
         {isManager && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 14 }}>
             <input
-              className="cx-input" style={{ maxWidth: 220 }}
-              placeholder="9-digit User ID" inputMode="numeric"
+              className="cx-input" style={{ maxWidth: 300 }}
+              placeholder="Email address or 9-digit User ID"
               value={invitePid} onChange={(e) => setInvitePid(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void doInvite(); }}
             />
             <button type="button" className="cx-btn primary" onClick={doInvite}>Add member</button>
             {inviteMsg.ok && <span className="cx-msg-ok">{inviteMsg.ok}</span>}
@@ -503,6 +545,8 @@ function LiveCohort({ cohortId, onChanged }: { cohortId: string; onChanged: () =
       detail={detail} perf={perf}
       timeframe={tf} onTimeframe={setTf}
       onInvite={async (pid) => { await api.inviteToCohort(cohortId, pid); refreshLocal(); }}
+      onInviteEmail={async (email) => { await api.inviteToCohortByEmail(cohortId, email); refreshLocal(); }}
+      onCancelEmailInvite={async (email) => { await api.cancelCohortEmailInvite(cohortId, email); refreshLocal(); }}
       onRemove={async (pid) => { await api.removeCohortMember(cohortId, pid); refreshLocal(); }}
       onLeave={async () => { await api.leaveCohort(cohortId); onChanged(); }}
       onDelete={async () => { await api.deleteCohort(cohortId); onChanged(); }}

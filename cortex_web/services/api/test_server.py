@@ -1699,6 +1699,62 @@ def test_cohort_invite_accept_flow(client):
     assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 409
 
 
+def test_cohort_email_invite_existing_account(client):
+    cid, mh = _make_cohort(client)
+    invitee, pw = _make_participant(client)
+    assert client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                       json={"email": invitee}).json() == {"ok": True}
+    # the invitee got a NORMAL pending invite: same consent gate as the id flow
+    uh = _auth_header(client, invitee, pw)
+    mine = client.get("/api/cohorts", headers=uh).json()["cohorts"]
+    assert mine[0]["status"] == "invited"
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 200
+    # re-inviting a member reveals nothing (anti-oracle: identical response)
+    assert client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                       json={"email": invitee}).json() == {"ok": True}
+
+
+def test_cohort_email_invite_unknown_address_attaches_at_signup(client):
+    cid, mh = _make_cohort(client)
+    email = "future-member@example.test"
+    # identical ok for an address with no account (anti-oracle)…
+    assert client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                       json={"email": email}).json() == {"ok": True}
+    # …tracked as the manager's email-invite bookkeeping
+    det = client.get(f"/api/cohorts/{cid}", headers=mh).json()
+    assert [e["email"] for e in det["emailInvites"]] == [email]
+    # the address signs up + verifies → converts to a pending membership
+    r = client.post("/api/register", json={
+        "email": email, "password": "future-pw-123456789", "displayName": "F"})
+    assert client.post("/api/verify/confirm", json={
+        "email": email, "code": r.json()["devCode"]}).status_code == 200
+    det = client.get(f"/api/cohorts/{cid}", headers=mh).json()
+    assert det["emailInvites"] == []
+    uh = _auth_header(client, email, "future-pw-123456789")
+    mine = client.get("/api/cohorts", headers=uh).json()["cohorts"]
+    assert mine and mine[0]["status"] == "invited"   # accept still required
+    assert client.post(f"/api/cohorts/{cid}/accept", headers=uh).status_code == 200
+
+
+def test_cohort_email_invite_cancel_and_manager_gate(client):
+    cid, mh = _make_cohort(client)
+    email = "withdrawn@example.test"
+    client.post(f"/api/cohorts/{cid}/invite-email", headers=mh, json={"email": email})
+    assert client.post(f"/api/cohorts/{cid}/invite-email/cancel", headers=mh,
+                       json={"email": email}).json() == {"ok": True}
+    assert client.get(f"/api/cohorts/{cid}", headers=mh).json()["emailInvites"] == []
+    # a canceled invite must NOT attach at signup
+    r = client.post("/api/register", json={
+        "email": email, "password": "withdrawn-pw-1234567", "displayName": "W"})
+    client.post("/api/verify/confirm", json={"email": email, "code": r.json()["devCode"]})
+    uh = _auth_header(client, email, "withdrawn-pw-1234567")
+    assert client.get("/api/cohorts", headers=uh).json()["cohorts"] == []
+    # non-managers can't reach the email-invite surface (404, not 403:
+    # cohort existence stays unconfirmed for outsiders)
+    assert client.post(f"/api/cohorts/{cid}/invite-email", headers=uh,
+                       json={"email": "x@example.test"}).status_code == 404
+
+
 def test_cohort_names_manager_only_and_no_internal_ids(client):
     cid, mh = _make_cohort(client)
     uh, _pid = _join_cohort(client, cid, mh)
