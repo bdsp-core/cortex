@@ -2,11 +2,14 @@
 server-side per-session draw, per-question progress, and final results."""
 from __future__ import annotations
 
+import calendar
 import json
 import random
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from .. import dashboard_logic
 from ..deps import require_auth
@@ -39,6 +42,35 @@ def tutorial_example(req: Request, _code: str = Depends(require_auth)):
     return bank.example()
 
 
+# One-directional test/train washout: STARTING an exam is blocked for
+# WASHOUT_HOURS after a completed training sitting, so a certificate measures
+# stable skill rather than a same-day practice boost. The other direction
+# (training after an exam) stays open: a finished exam cannot be biased
+# retroactively, and the product loop (test -> regimen -> train) depends on
+# it. Item-level leakage is separately handled by the exposure exclusion in
+# new_session. A rolling window (not a calendar day) closes the
+# train-at-23:59, test-at-00:05 hole.
+WASHOUT_HOURS = 12
+
+
+def _iso_plus_hours(iso: str, hours: int) -> str:
+    t = calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ"))
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t + hours * 3600))
+
+
+def _washout_reopens(db, code: str) -> str | None:
+    """When the caller may start an exam again (ISO), or None if unblocked."""
+    last = db.latest_training_finished(code)
+    if not last:
+        return None
+    try:
+        reopens = _iso_plus_hours(last, WASHOUT_HOURS)
+    except ValueError:
+        return None   # malformed legacy timestamp: never block on it
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return reopens if now < reopens else None
+
+
 @router.post("/session")
 def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)):
     # Server-side balanced draw (goal 3): pick this sitting's ~session_sample
@@ -49,6 +81,11 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
     bank = req.app.state.get_bank()
     if bank is None:
         raise HTTPException(503, "question bank unavailable")
+    reopens = _washout_reopens(db, code)
+    if reopens is not None:
+        # Machine-readable: the SPA turns this into the washout banner.
+        return JSONResponse(status_code=409, content={
+            "error": "training_washout", "reopensAtUtc": reopens})
     seed = (body.sampleSeed if body.sampleSeed is not None
             else random.randint(0, 2**31 - 1))
     exclude = db.get_exposure_exclusion(code, cfg["spacing_days"], cfg["spacing_sessions"])
@@ -86,14 +123,16 @@ def active_session(req: Request, code: str = Depends(require_auth)):
     or a hole in the trial log."""
     db = req.app.state.db
     bank = req.app.state.get_bank()
+    reopens = _washout_reopens(db, code)
+    washout = {"reopensAtUtc": reopens} if reopens else None
     row = db.get_active_session(code, max_age_hours=RESUME_WINDOW_HOURS)
     if row is None or bank is None:
-        return {"active": None}
+        return {"active": None, "washout": washout}
     if row.get("bundle_version") != bank.version or not row.get("drawn_seg_ids"):
-        return {"active": None}
+        return {"active": None, "washout": washout}
     payload = bank.subset(json.loads(row["drawn_seg_ids"]))
     if payload is None:
-        return {"active": None}
+        return {"active": None, "washout": washout}
     replay = []
     for t in db.session_trials(row["session_id"]):
         # Replay needs a contiguous, fully-picked prefix; a gap or a pick-less
@@ -103,14 +142,15 @@ def active_session(req: Request, code: str = Depends(require_auth)):
         replay.append({"trialIndex": t["trial_index"], "segId": t["seg_id"],
                        "pick": t["pick"]})
     if not replay:
-        return {"active": None}   # nothing checkpointed — a fresh start is equal
+        # nothing checkpointed: a fresh start is equal
+        return {"active": None, "washout": washout}
     payload["sampleSeed"] = row.get("sample_seed")
     return {"active": {
         "sessionId": row["session_id"],
         "startedUtc": row["started_utc"],
         "bank": payload,
         "trials": replay,
-    }}
+    }, "washout": washout}
 
 
 @router.post("/progress")

@@ -770,6 +770,16 @@ class Database:
         with self._connection() as conn:
             self._finalize_session_stmt(conn, session_id, stop_reason, n_questions)
 
+    def latest_training_finished(self, code: str) -> Optional[str]:
+        """finished_utc of the participant's most recent COMPLETED training
+        sitting, or None. Powers the exam washout gate (routers/testing.py):
+        an exam started too soon after training measures a practice boost,
+        not stable skill."""
+        row = self._fetchone(
+            "SELECT MAX(finished_utc) AS f FROM training_sessions "
+            "WHERE code=? AND status='complete'", (code,))
+        return row["f"] if row and row["f"] else None
+
     # ── trials ────────────────────────────────────────────────────
     def upsert_trial(self, session_id: str, trial: dict) -> None:
         # Upsert syntax differs: SQLite's INSERT OR REPLACE vs Postgres's

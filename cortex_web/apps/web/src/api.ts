@@ -38,7 +38,9 @@ export interface TrialCheckpoint {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  // `body` is the parsed error payload: machine-readable 4xx responses can
+  // carry fields beyond `error` (e.g. training_washout's reopensAtUtc).
+  constructor(public status: number, message: string, public body?: unknown) {
     super(message);
   }
 }
@@ -98,7 +100,7 @@ async function parse(res: Response): Promise<any> {
     body = { error: text };
   }
   if (!res.ok) {
-    throw new ApiError(res.status, body?.error || res.statusText);
+    throw new ApiError(res.status, body?.error || res.statusText, body);
   }
   return body;
 }
@@ -608,7 +610,12 @@ export function tutorialExample(): Promise<SessionBank> {
 
 // The most recent resumable sitting (unfinished, recent, same bundle), with
 // its original drawn pool + the checkpointed trials to replay — or null.
-export function activeSession(): Promise<{ active: ActiveSession | null }> {
+export function activeSession(): Promise<{
+  active: ActiveSession | null;
+  // Set while the post-training exam washout is in force (testing.py):
+  // starting an exam will 409 until reopensAtUtc.
+  washout: { reopensAtUtc: string } | null;
+}> {
   return authedFetch("/api/session/active", {}, { retries: 2 });
 }
 

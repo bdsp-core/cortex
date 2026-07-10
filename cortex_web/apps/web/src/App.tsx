@@ -54,6 +54,44 @@ const TRAINER_PARAMS: FilterParams = {
   qT: 0.05, qSigma: 0.02, rho: 0.5, rule: "soft",
 };
 
+// Post-training exam-washout notice (server-enforced 12h gate in
+// routers/testing.py). Same floating-card aesthetic as the invite banner,
+// with the attention-red rule: this one is a restriction, not an offer.
+function WashoutBanner({ reopensAtUtc, onDismiss }: {
+  reopensAtUtc: string;
+  onDismiss: () => void;
+}) {
+  const d = new Date(reopensAtUtc);
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const now = new Date();
+  const label = d.toDateString() === now.toDateString() ? time
+    : d.toDateString() === new Date(now.getTime() + 86_400_000).toDateString()
+      ? `${time} tomorrow`
+      : `${time} on ${d.toLocaleDateString()}`;
+  return (
+    <div role="status" style={{
+      position: "fixed", zIndex: 60, right: 24, bottom: 24, width: 380,
+      maxWidth: "calc(100vw - 48px)", background: COLORS.card,
+      border: `1px solid ${COLORS.borderInactive}`,
+      borderLeft: `3px solid ${COLORS.fail}`,
+      boxShadow: "0 8px 28px rgba(15, 40, 36, 0.18)",
+      fontFamily: "inherit", color: COLORS.textPrimary,
+      padding: "14px 16px", fontSize: 14, lineHeight: 1.5,
+      display: "flex", gap: 10, alignItems: "flex-start",
+    }}>
+      <span>
+        You trained earlier today; to keep the exam a clean measure, testing
+        reopens at <b>{label}</b>.
+      </span>
+      <button aria-label="Dismiss" onClick={onDismiss}
+        style={{ background: "none", border: "none", cursor: "pointer",
+          color: COLORS.textFaint, fontSize: 16, lineHeight: 1, padding: 2 }}>
+        ×
+      </button>
+    </div>
+  );
+}
+
 export function App() {
   // One-click email link (verify/reset): parse + strip the URL params once at
   // boot. Honored only for signed-out visitors — the pending-signup user is
@@ -126,6 +164,9 @@ export function App() {
   // fresh-start fallback runSession uses when a replay diverges.
   const [pendingResume, setPendingResume] = useState<api.ActiveSession | null>(null);
   const startFreshRef = useRef<(() => Promise<void>) | null>(null);
+  // Post-training exam washout (server-enforced): when set, the dashboard
+  // shows the "testing reopens at ..." banner instead of entering the test.
+  const [washoutUntil, setWashoutUntil] = useState<string | null>(null);
 
   // ── flow transitions ──────────────────────────────────────────
   // Load the bundle and show the in-context tutorial over an IIIC example seg
@@ -352,6 +393,12 @@ export function App() {
       );
       await runSession(sessionId, sampleSeed, bank, []);
     } catch (e) {
+      if (e instanceof api.ApiError && e.message === "training_washout") {
+        const body = e.body as { reopensAtUtc?: string } | undefined;
+        setWashoutUntil(body?.reopensAtUtc ?? new Date().toISOString());
+        setPhase("dashboard");
+        return;
+      }
       setMsg(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
@@ -385,7 +432,14 @@ export function App() {
     setPhase("loading");
     let active: api.ActiveSession | null = null;
     try {
-      active = (await api.activeSession()).active;
+      const r = await api.activeSession();
+      if (r.washout) {
+        // Blocked before consent/tutorial: the server would 409 anyway.
+        setWashoutUntil(r.washout.reopensAtUtc);
+        setPhase("dashboard");
+        return;
+      }
+      active = r.active;
     } catch { /* best-effort */ }
     if (active && active.trials.length > 0) {
       setPendingResume(active);
@@ -464,12 +518,18 @@ export function App() {
       return <AuthFlow onAuthed={() => setPhase("dashboard")} deepLink={authDeepLink} />;
     case "dashboard":
       return (
-        <Shell
-          onStartTest={() => { void onStartTestClick(); }}
-          onStartTraining={startTraining}
-          onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
-          inviteHighlightId={cohortDeepLink}
-        />
+        <>
+          <Shell
+            onStartTest={() => { void onStartTestClick(); }}
+            onStartTraining={startTraining}
+            onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
+            inviteHighlightId={cohortDeepLink}
+          />
+          {washoutUntil && (
+            <WashoutBanner reopensAtUtc={washoutUntil}
+              onDismiss={() => setWashoutUntil(null)} />
+          )}
+        </>
       );
     case "resume":
       return pendingResume ? (

@@ -555,17 +555,48 @@ def test_progress_rejects_foreign_session(client):
     assert r.status_code == 404
 
 
+def test_exam_washout_blocks_after_training(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    # training completed 1h ago → exam start blocked, with the reopen time
+    fin = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+    db._write("INSERT INTO training_sessions(training_id, code, started_utc, "
+              "finished_utc, status) VALUES (?,?,?,?,'complete')",
+              ("tr-washout-1", code, fin, fin))
+    r = client.post("/api/session", headers=hdr, json={"participant": {}})
+    assert r.status_code == 409
+    body = r.json()
+    assert body["error"] == "training_washout"
+    assert body["reopensAtUtc"] > fin
+    # the pre-flight surface (start-test click) reports the same washout
+    act = client.get("/api/session/active", headers=hdr).json()
+    assert act["washout"] == {"reopensAtUtc": body["reopensAtUtc"]}
+    # a 13h-old sitting no longer blocks; an IN-PROGRESS one never does
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 13 * 3600))
+    db._write("UPDATE training_sessions SET finished_utc=? "
+              "WHERE training_id='tr-washout-1'", (old,))
+    db._write("INSERT INTO training_sessions(training_id, code, started_utc, "
+              "status) VALUES (?,?,?,'in_progress')",
+              ("tr-washout-2", code,
+               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+    assert client.post("/api/session", headers=hdr,
+                       json={"participant": {}}).status_code == 200
+    assert client.get("/api/session/active", headers=hdr).json()["washout"] is None
+
+
 def test_session_resume_roundtrip(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     # nothing to resume yet
-    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None, "washout": None}
     start = client.post("/api/session", headers=hdr,
                         json={"participant": {}, "sampleSeed": 99}).json()
     sid = start["sessionId"]
     drawn_ids = [s["segId"] for s in start["bank"]["segments"]]
     # a sitting with no checkpointed trials is not worth resuming
-    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None, "washout": None}
     for i in range(3):
         client.post("/api/progress", headers=hdr,
                     json={"sessionId": sid,
@@ -583,7 +614,7 @@ def test_session_resume_roundtrip(client):
     client.post("/api/results", headers=hdr,
                 json={"sessionId": sid, "result": {"verdicts": ["PASS"] * 6},
                       "stopReason": "all_resolved", "nQuestions": 3})
-    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None, "washout": None}
 
 
 def test_session_resume_replay_stops_at_log_gap(client):
@@ -2359,7 +2390,17 @@ def test_g4_train_retest_loop_staging(client):
     email, pw = _make_participant(client)
     h = _auth_header(client, email, pw)
 
+    def age_out_washout():
+        # A real participant waits out the 12h post-training washout before a
+        # retest; the loop test ages the training rows past it instead.
+        db = client.app.state.db
+        aged = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                             time.gmtime(time.time() - 13 * 3600))
+        db._write("UPDATE training_sessions SET finished_utc=? "
+                  "WHERE status='complete'", (aged,))
+
     def exam_draw():
+        age_out_washout()
         r = client.post("/api/session", json={}, headers=h)
         assert r.status_code == 200, r.text
         d = r.json()
