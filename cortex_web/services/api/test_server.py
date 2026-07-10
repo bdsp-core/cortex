@@ -1756,9 +1756,11 @@ def test_cohort_invites_expire_after_30_days(client):
     db._write("UPDATE cohort_members SET invited_utc='2026-05-01T00:00:00Z' "
               "WHERE status='invited'", ())
     db._write("UPDATE cohort_email_invites SET invited_utc='2026-05-01T00:00:00Z'", ())
-    # stale invites vanish from every view (active memberships are untouched)
+    # stale invites vanish from every view; ACTIVE memberships (here the
+    # manager's own row) are untouched
     det = client.get(f"/api/cohorts/{cid}", headers=mh).json()
-    assert det["emailInvites"] == [] and det.get("members", []) == []
+    assert det["emailInvites"] == []
+    assert [m["status"] for m in det.get("members", [])] == ["active"]
     assert client.get("/api/cohorts", headers=uh).json()["cohorts"] == []
     # and an expired email invite never attaches at signup
     r = client.post("/api/register", json={"email": "old@example.test",
