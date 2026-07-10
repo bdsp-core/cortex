@@ -16,7 +16,8 @@ Layout (one module per concern; routers are thin over these):
     db.py               Database (SQLite dev / pooled Postgres prod)
 
 Endpoint surface (all JSON, prefix /api). Public: health, register,
-verify/{confirm,resend}, auth, auth/google, forgot, reset, report. Bearer-
+verify/{confirm,resend,status}, auth, auth/google, forgot, reset, report,
+ses/events (SNS webhook; capability-token-gated, 404 unless enabled). Bearer-
 gated: manifest, tutorial-example, session, progress, results, dashboard,
 activity, history (+ /{id}/questions), regimen, trajectories,
 training-sessions (+ /finalize), consent (+ /withdraw), profile,

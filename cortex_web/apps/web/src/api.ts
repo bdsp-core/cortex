@@ -191,6 +191,19 @@ export async function verifyCode(email: string, code: string): Promise<void> {
   await parse(res);
 }
 
+// Polled by the verify screen: did the verification email we just sent
+// hard-bounce (mailbox doesn't exist)? Server-side flag comes from the SES
+// bounce webhook. Anti-oracle: false for unknown/verified emails.
+export async function verifyStatus(email: string): Promise<{ undeliverable: boolean }> {
+  const res = await transportFetch(`${API_BASE}/api/verify/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parse(res);
+  return { undeliverable: !!body?.undeliverable };
+}
+
 // Resend the email-verification code. `devCode` only present in dev/CI.
 export async function resendCode(email: string): Promise<{ devCode?: string }> {
   const res = await transportFetch(`${API_BASE}/api/verify/resend`, {

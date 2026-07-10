@@ -59,6 +59,7 @@ RATE_LIMITS = {
     "auth":     (20, 3600),
     "auth_google": (20, 3600),  # Sign in with Google
     "verify":   (20, 3600),   # confirm a verification code
+    "verify_status": (120, 3600),  # verify-screen bounce poll (~5s cadence for 2 min)
     "resend":   (5,  3600),   # re-send a verification code
     "forgot":   (5,  3600),   # request a password-reset code
     "reset":    (20, 3600),   # submit a reset code + new password

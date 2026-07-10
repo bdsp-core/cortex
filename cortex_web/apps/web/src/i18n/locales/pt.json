@@ -43,6 +43,7 @@
   "auth.verify.title": "Verifique o seu correio eletrónico",
   "auth.verify.lede": "Introduza o código de 6 dígitos que enviámos para {email}. O código expira dentro de 15 minutos.",
   "auth.verify.spamHint": "O e-mail pode levar alguns minutos para chegar — se não o encontrar, verifique sua pasta de spam.",
+  "auth.verify.undeliverable": "Não foi possível entregar o e-mail a este endereço — talvez ele não exista. Verifique a grafia ou use outro endereço.",
   "auth.verify.submit": "Verificar e continuar",
   "auth.verify.submitting": "A verificar…",
   "auth.verify.wrongAddress": "Endereço errado?",

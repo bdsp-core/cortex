@@ -12,11 +12,11 @@
 // "CORTEX" stays literal. Visuals match cortex_web_design/mockups/locked-v1-auth.
 
 import {
-  CSSProperties, KeyboardEvent, ClipboardEvent, ReactNode, useRef, useState,
+  CSSProperties, KeyboardEvent, ClipboardEvent, ReactNode, useEffect, useRef, useState,
 } from "react";
 import {
   ApiError, EmailNotVerifiedError, login, register, verifyCode, resendCode,
-  requestReset, resetPassword,
+  requestReset, resetPassword, verifyStatus,
 } from "../api";
 import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
@@ -441,6 +441,28 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
   // verify
   const [verifyEmail, setVerifyEmail] = useState("");
   const [verifyDigits, setVerifyDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  // True when the server learned (via the SES bounce webhook) that the
+  // verification email hard-bounced — the address likely doesn't exist.
+  const [emailUndeliverable, setEmailUndeliverable] = useState(false);
+  // Bumped on "resend code" so the poll window below restarts.
+  const [bouncePollEpoch, setBouncePollEpoch] = useState(0);
+
+  // While the user waits on the verify screen, poll whether their email
+  // bounced (~5s cadence, gives up after 2 min — bounces arrive in seconds).
+  // A transient poll failure is ignored: the next tick retries.
+  useEffect(() => {
+    if (screen !== "verify" || !verifyEmail) return;
+    setEmailUndeliverable(false);
+    let polls = 0;
+    const id = setInterval(async () => {
+      if (++polls > 24) { clearInterval(id); return; }
+      try {
+        const s = await verifyStatus(verifyEmail);
+        if (s.undeliverable) { setEmailUndeliverable(true); clearInterval(id); }
+      } catch { /* transient — retry on the next tick */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [screen, verifyEmail, bouncePollEpoch]);
 
   // forgot / reset
   const [fpEmail, setFpEmail] = useState("");
@@ -564,6 +586,7 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
       await resendCode(verifyEmail);
       setVerifyDigits(["", "", "", "", "", ""]);
       startCooldown("verify");
+      setBouncePollEpoch((n) => n + 1);  // restart the bounce poll window
     } catch (ex) {
       setErr(apiMessage(t, ex, t("auth.verify.errResend")));
     }
@@ -814,6 +837,14 @@ export function AuthFlow({ onAuthed }: { onAuthed: () => void }) {
           <h1 style={h1Style}>{t("auth.verify.title")}</h1>
           <p style={ledeStyle}>{ledeWithEmail(t("auth.verify.lede", { email: verifyEmail }), verifyEmail)}</p>
           <p style={{ ...hintStyle, margin: "-16px 0 24px" }}>{t("auth.verify.spamHint")}</p>
+          {emailUndeliverable && (
+            <div role="alert" style={{
+              fontSize: 13, color: COLORS.fail, margin: "0 0 20px",
+              padding: "10px 12px", border: `1px solid ${COLORS.fail}`,
+            }}>
+              {t("auth.verify.undeliverable")}
+            </div>
+          )}
           <form onSubmit={doVerify}>
             <CodeInputs digits={verifyDigits} setDigits={setVerifyDigits} ariaPrefix={t("auth.verify.codeAria")} />
             <FormError>{err}</FormError>

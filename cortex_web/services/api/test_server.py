@@ -288,6 +288,103 @@ def test_register_honeypot_silently_drops_bot(client):
     assert r2.status_code == 200, r2.text
 
 
+# ───────────── SES bounce webhook + verify/status ─────────────
+
+_SES_TOKEN = "test-sns-token"
+_SES_TOPIC = "arn:aws:sns:us-west-2:000000000000:cortex-ses-events"
+
+
+def _sns_env(monkeypatch):
+    monkeypatch.setenv("CORTEX_SNS_WEBHOOK_TOKEN", _SES_TOKEN)
+    monkeypatch.setenv("CORTEX_SNS_TOPIC_ARN", _SES_TOPIC)
+
+
+def _bounce_envelope(email, bounce_type="Permanent", topic=_SES_TOPIC):
+    return {
+        "Type": "Notification",
+        "TopicArn": topic,
+        "Message": json.dumps({
+            "eventType": "Bounce",
+            "bounce": {
+                "bounceType": bounce_type,
+                "bounceSubType": "General",
+                "bouncedRecipients": [{"emailAddress": email}],
+            },
+        }),
+    }
+
+
+def _post_sns(client, envelope, token=_SES_TOKEN):
+    # SNS posts text/plain — send raw content, not FastAPI-parsed JSON.
+    return client.post(f"/api/ses/events?token={token}",
+                       content=json.dumps(envelope),
+                       headers={"Content-Type": "text/plain"})
+
+
+def test_ses_webhook_404_when_disabled(client):
+    r = _post_sns(client, _bounce_envelope("x@example.test"))
+    assert r.status_code == 404
+
+
+def test_ses_webhook_403_on_bad_token(client, monkeypatch):
+    _sns_env(monkeypatch)
+    r = _post_sns(client, _bounce_envelope("x@example.test"), token="wrong")
+    assert r.status_code == 403
+
+
+def test_ses_webhook_confirms_subscription(client, monkeypatch):
+    _sns_env(monkeypatch)
+    from .routers import ses_events
+    fetched = []
+    monkeypatch.setattr(ses_events, "_http_get", lambda url: fetched.append(url))
+    url = "https://sns.us-west-2.amazonaws.com/?Action=ConfirmSubscription&Token=abc"
+    r = _post_sns(client, {"Type": "SubscriptionConfirmation",
+                           "TopicArn": _SES_TOPIC, "SubscribeURL": url})
+    assert r.status_code == 200 and fetched == [url]
+    # ...but never a non-SNS callback URL
+    r = _post_sns(client, {"Type": "SubscriptionConfirmation",
+                           "TopicArn": _SES_TOPIC,
+                           "SubscribeURL": "https://evil.example.com/x"})
+    assert r.status_code == 400 and len(fetched) == 1
+
+
+def test_ses_bounce_flags_pending_signup(client, monkeypatch):
+    _sns_env(monkeypatch)
+    email, _pw, code = _register(client)
+    # before the bounce: nothing to report
+    r = client.post("/api/verify/status", json={"email": email})
+    assert r.json() == {"undeliverable": False}
+    assert _post_sns(client, _bounce_envelope(email)).json()["flagged"] == 1
+    r = client.post("/api/verify/status", json={"email": email})
+    assert r.json() == {"undeliverable": True}
+    # confirming the code proves delivery → flag clears, status goes quiet
+    assert client.post("/api/verify/confirm",
+                       json={"email": email, "code": code}).status_code == 200
+    r = client.post("/api/verify/status", json={"email": email})
+    assert r.json() == {"undeliverable": False}
+
+
+def test_ses_bounce_ignores_transient_and_foreign_topic(client, monkeypatch):
+    _sns_env(monkeypatch)
+    email, _pw, _code = _register(client)
+    assert _post_sns(client, _bounce_envelope(email, bounce_type="Transient")
+                     ).json() == {"ok": True}
+    assert _post_sns(client, _bounce_envelope(
+        email, topic="arn:aws:sns:us-west-2:000000000000:other")
+                     ).json() == {"ok": True}
+    r = client.post("/api/verify/status", json={"email": email})
+    assert r.json() == {"undeliverable": False}
+
+
+def test_verify_status_anti_oracle_on_unknown_email(client, monkeypatch):
+    _sns_env(monkeypatch)
+    r = client.post("/api/verify/status", json={"email": "ghost@example.test"})
+    assert r.status_code == 200 and r.json() == {"undeliverable": False}
+    # a bounce for an email with no account is a no-op, not an error
+    assert _post_sns(client, _bounce_envelope("ghost@example.test")
+                     ).json()["flagged"] == 0
+
+
 def test_gated_requires_token(client):
     assert client.get("/api/manifest").status_code == 401
     assert client.post("/api/session", json={"participant": {}}).status_code == 401

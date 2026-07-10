@@ -43,6 +43,7 @@
   "auth.verify.title": "Verify your email",
   "auth.verify.lede": "Enter the 6-digit code we sent to {email}. The code expires in 15 minutes.",
   "auth.verify.spamHint": "The email can take a few minutes to arrive — if you don't see it, check your junk/spam folder.",
+  "auth.verify.undeliverable": "We couldn't deliver the email to this address — it may not exist. Double-check the spelling or use a different address.",
   "auth.verify.submit": "Verify & continue",
   "auth.verify.submitting": "Verifying…",
   "auth.verify.wrongAddress": "Wrong address?",

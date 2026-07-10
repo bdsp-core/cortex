@@ -97,7 +97,26 @@ def verify_confirm(body: VerifyIn, req: Request):
         raise HTTPException(400, "invalid or expired code")
     db.consume_auth_code(row["code"], "verify")
     db.mark_email_verified(row["code"])
+    db.clear_email_undeliverable(row["code"])  # code arrived → mailbox works
     return {"ok": True}
+
+
+@router.post("/verify/status")
+def verify_status(body: EmailIn, req: Request):
+    """Polled by the verify screen while the user waits for their code: did
+    the email we just sent hard-bounce (routers/ses_events.py)? Anti-oracle:
+    always 200, and `undeliverable` is only ever true for an account that is
+    still pending verification — unknown emails and verified accounts are
+    indistinguishable."""
+    db, limiter = req.app.state.db, req.app.state.limiter
+    if not limiter.hit("verify_status", client_ip(req)):
+        raise HTTPException(429, "too many attempts — try again later")
+    row = db.get_participant_by_email(helpers.norm_email(body.email))
+    undeliverable = bool(
+        row is not None
+        and not row.get("email_verified_utc")
+        and row.get("email_undeliverable_utc"))
+    return {"undeliverable": undeliverable}
 
 
 @router.post("/verify/resend")
@@ -243,4 +262,5 @@ def reset(body: ResetIn, req: Request):
     # A successful reset also confirms control of the email address.
     if not row.get("email_verified_utc"):
         db.mark_email_verified(row["code"])
+    db.clear_email_undeliverable(row["code"])  # code arrived → mailbox works
     return {"ok": True}

@@ -201,6 +201,35 @@ operator's email subscription.
     signup form suggests corrections for near-miss domains
     (apps/web/src/emailSuggest.ts).
 
+### Bounce webhook (verify-screen feedback)
+
+The app itself is also a subscriber of `cortex-ses-events`: an HTTPS
+subscription posts every event to `POST /api/ses/events?token=…`
+(`routers/ses_events.py`). On a **permanent** bounce the participant row is
+flagged `email_undeliverable_utc`, and the verify screen — which polls
+`POST /api/verify/status` while the user waits for their code — switches to
+"we couldn't deliver, fix your address". The flag clears automatically when
+any verify/reset code is confirmed.
+
+Setup (already live; repeat only on a rebuild):
+
+```bash
+# 1. mint a webhook token into /etc/cortex/cortex.env and restart:
+#      CORTEX_SNS_WEBHOOK_TOKEN=$(openssl rand -hex 24)
+#      CORTEX_SNS_TOPIC_ARN=arn:aws:sns:us-west-2:394624473373:cortex-ses-events
+# 2. subscribe (the endpoint auto-confirms):
+aws sns subscribe --region us-west-2 \
+    --topic-arn arn:aws:sns:us-west-2:394624473373:cortex-ses-events \
+    --protocol https \
+    --notification-endpoint "https://app.cortexeeg.org/api/ses/events?token=<TOKEN>"
+```
+
+The endpoint 404s when `CORTEX_SNS_WEBHOOK_TOKEN` is unset (dev/CI default).
+Auth is the capability token + a TopicArn allowlist — SNS message signatures
+are NOT verified; the only action is a low-stakes, self-healing UI flag
+(rationale in the module docstring). Add signature verification before ever
+letting this endpoint do anything more consequential.
+
 ## Restoring from a Box backup
 
 ```bash

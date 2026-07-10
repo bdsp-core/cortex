@@ -43,6 +43,7 @@
   "auth.verify.title": "メールアドレスの確認",
   "auth.verify.lede": "{email} 宛にお送りした6桁のコードを入力してください。コードは15分で有効期限が切れます。",
   "auth.verify.spamHint": "メールの到着まで数分かかることがあります。届かない場合は迷惑メールフォルダをご確認ください。",
+  "auth.verify.undeliverable": "このアドレスにメールを配信できませんでした。アドレスが存在しない可能性があります。綴りを確認するか、別のアドレスをお使いください。",
   "auth.verify.submit": "確認して続行",
   "auth.verify.submitting": "確認しています…",
   "auth.verify.wrongAddress": "アドレスが間違っていますか？",

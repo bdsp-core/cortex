@@ -226,6 +226,7 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
     ("profile",           "TEXT"),   # JSON demographic/clinical profile collected at signup, editable in Settings
     ("public_id",         "TEXT"),   # user-facing 9-digit account id; unique when set (index in _migrate_participants)
+    ("email_undeliverable_utc", "TEXT"),  # set by the SES bounce webhook (routers/ses_events.py); cleared when a code is confirmed
 ]
 
 # Columns added to the learning tables after their original schema (Phase O2),
@@ -566,6 +567,19 @@ class Database:
         self._write(
             "UPDATE participants SET email_verified_utc=? WHERE code=?",
             (utc_now(), code))
+
+    def mark_email_undeliverable(self, code: str) -> None:
+        """Record that mail to this account's address hard-bounced (SES bounce
+        event). Surfaced to pending signups via POST /api/verify/status."""
+        self._write(
+            "UPDATE participants SET email_undeliverable_utc=? WHERE code=?",
+            (utc_now(), code))
+
+    def clear_email_undeliverable(self, code: str) -> None:
+        """A confirmed verify/reset code proves the mailbox receives our mail."""
+        self._write(
+            "UPDATE participants SET email_undeliverable_utc=NULL WHERE code=?",
+            (code,))
 
     def set_password_hash(self, code: str, password_hash: str) -> None:
         self._write(
