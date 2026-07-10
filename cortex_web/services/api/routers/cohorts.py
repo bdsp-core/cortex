@@ -156,6 +156,9 @@ def cohort_invite(cohort_id: str, body: CohortMemberIn, req: Request,
     cohort, _, _ = _cohort_and_role(db, cohort_id, code, need_manager=True)
     if not limiter.hit("cohort_invite", client_ip(req)):
         raise HTTPException(429, "too many invites; try again later")
+    # per-account daily ceiling, shared across the id + email invite paths
+    if not limiter.hit("cohort_invite_account", code):
+        raise HTTPException(429, "daily invitation limit reached; try again tomorrow")
     pid = body.publicId.strip().replace(" ", "")
     if not _PUBLIC_ID_RE.fullmatch(pid):
         raise HTTPException(400, "a user ID is 9 digits")
@@ -231,6 +234,9 @@ def cohort_invite_email(cohort_id: str, body: EmailIn, req: Request,
     cohort, _, _ = _cohort_and_role(db, cohort_id, code, need_manager=True)
     if not limiter.hit("cohort_invite", client_ip(req)):
         raise HTTPException(429, "too many invites; try again later")
+    # per-account daily ceiling, shared across the id + email invite paths
+    if not limiter.hit("cohort_invite_account", code):
+        raise HTTPException(429, "daily invitation limit reached; try again tomorrow")
     email = helpers.norm_email(body.email)
     if not helpers.is_email(email):
         raise HTTPException(400, "invalid email")

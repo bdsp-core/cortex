@@ -67,6 +67,11 @@ RATE_LIMITS = {
     "client_error": (10, 3600),   # SPA crash telemetry (also client-deduped)
     "cohort_create": (10, 3600),   # create a cohort
     "cohort_invite": (60, 3600),   # invite by 9-digit id (also bounds id probing)
+    # Per-ACCOUNT daily invite ceiling (keyed by participant code, not IP):
+    # invites are outbound mail from no-reply@, so the per-IP bucket alone is
+    # weak against a patient spammer behind rotating addresses. Generous for
+    # real educators, hostile to abuse.
+    "cohort_invite_account": (50, 86400),
 }
 
 

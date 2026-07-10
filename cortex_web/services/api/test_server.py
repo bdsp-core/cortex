@@ -1744,6 +1744,23 @@ def test_cohort_id_invite_sends_notification(client, monkeypatch):
     assert "cohort invitation" in sent[0][1]
 
 
+def test_cohort_invite_daily_account_quota(client, monkeypatch):
+    from . import deps
+    monkeypatch.setitem(deps.RATE_LIMITS, "cohort_invite_account", (2, 86400))
+    cid, mh = _make_cohort(client)
+    member, mpw = _make_participant(client)
+    pid = _pid_of(client, _auth_header(client, member, mpw))
+    # the id and email paths share ONE per-account daily bucket
+    assert client.post(f"/api/cohorts/{cid}/invite", headers=mh,
+                       json={"publicId": pid}).status_code == 200
+    assert client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                       json={"email": "a@example.test"}).status_code == 200
+    r = client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                    json={"email": "b@example.test"})
+    assert r.status_code == 429
+    assert "daily invitation limit" in r.json()["error"]
+
+
 def test_cohort_email_invite_existing_account(client):
     cid, mh = _make_cohort(client)
     invitee, pw = _make_participant(client)
