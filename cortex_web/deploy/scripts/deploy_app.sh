@@ -184,4 +184,21 @@ say "readiness gate from your laptop (deep health)"
 DOMAIN=$(ssh "$SSH_HOST" 'sudo grep ^CORTEX_DOMAIN /etc/cortex/cortex.env | cut -d= -f2-')
 # Fails the deploy (non-zero exit) if the new process is up but unhealthy.
 readiness_gate "https://$DOMAIN"
+
+# Phone-viewport smoke against the live domain (non-destructive: renders the
+# public auth screens under iPhone emulation; fails on JS errors or
+# horizontal overflow, the class of regression behind the 2026-07-10 sign-in
+# overflow). Needs Playwright + Chrome/Chromium locally; a machine without a
+# browser warns loudly and skips instead of blocking the deploy.
+say "phone-viewport smoke (390px, live domain)"
+if ( cd "$WEB_LOCAL/apps/web" && node scripts/phone_smoke.mjs "https://$DOMAIN" ); then
+  say "phone smoke OK"
+elif ! ( cd "$WEB_LOCAL/apps/web" && node -e "import('playwright')" >/dev/null 2>&1 ); then
+  say "WARNING: Playwright unavailable on this machine — phone smoke SKIPPED."
+else
+  echo "✗ phone smoke FAILED against https://$DOMAIN — the deploy is live but" >&2
+  echo "  the phone surface regressed. Investigate or roll back (git revert" >&2
+  echo "  <sha>, then redeploy)." >&2
+  exit 1
+fi
 say "done."
