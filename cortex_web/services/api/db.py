@@ -275,6 +275,11 @@ def utc_now() -> str:
 # as TEXT: it is an identifier, never arithmetic.
 _PUBLIC_ID_MAX_TRIES = 20
 
+# Never-accepted cohort invites (pending member invites + email invites)
+# expire after this many days — hygiene for typo'd addresses and forgotten
+# invitations. Enforced lazily by purge_expired_invites().
+INVITE_TTL_DAYS = 30
+
 
 def _random_public_id() -> str:
     return str(100_000_000 + secrets.randbelow(900_000_000))
@@ -1245,6 +1250,25 @@ class Database:
                 (utc_now(), cohort_id, code))
             return cur.rowcount > 0
 
+    # ── invite lifecycle ──────────────────────────────────────────
+    def purge_expired_invites(self) -> None:
+        """Drop never-accepted invites older than INVITE_TTL_DAYS: pending
+        member invites (status='invited'; ACTIVE memberships are never
+        touched) and email invites. Called lazily from the cohort read paths
+        and from attach_email_invites, so no cron is needed: an invite that
+        nobody ever looks at again simply stops existing the next time
+        anything cohort-shaped is read."""
+        cutoff = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ",
+            time.gmtime(time.time() - INVITE_TTL_DAYS * 86400))
+        with self._connection() as conn:
+            conn.execute(self._q(
+                "DELETE FROM cohort_members WHERE status='invited' "
+                "AND invited_utc < ?"), (cutoff,))
+            conn.execute(self._q(
+                "DELETE FROM cohort_email_invites WHERE invited_utc < ?"),
+                (cutoff,))
+
     # ── email invites (addresses without an account yet) ─────────
     def put_cohort_email_invite(self, cohort_id: str, email: str) -> None:
         """Store (or refresh) a pending email invite. Upsert: re-inviting the
@@ -1279,6 +1303,7 @@ class Database:
         cohort memberships for the (freshly verified) account `code`, then
         drop the email rows. Called when an address finishes signup
         (routers/auth.py). Returns how many cohorts were attached."""
+        self.purge_expired_invites()   # a stale invite must never attach
         attached = 0
         for row in self._fetchall(
                 "SELECT cohort_id FROM cohort_email_invites WHERE email=?",

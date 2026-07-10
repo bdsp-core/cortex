@@ -1744,6 +1744,31 @@ def test_cohort_id_invite_sends_notification(client, monkeypatch):
     assert "cohort invitation" in sent[0][1]
 
 
+def test_cohort_invites_expire_after_30_days(client):
+    cid, mh = _make_cohort(client)
+    member, mpw = _make_participant(client)
+    uh = _auth_header(client, member, mpw)
+    pid = _pid_of(client, uh)
+    client.post(f"/api/cohorts/{cid}/invite", headers=mh, json={"publicId": pid})
+    client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                json={"email": "old@example.test"})
+    db = client.app.state.db
+    db._write("UPDATE cohort_members SET invited_utc='2026-05-01T00:00:00Z' "
+              "WHERE status='invited'", ())
+    db._write("UPDATE cohort_email_invites SET invited_utc='2026-05-01T00:00:00Z'", ())
+    # stale invites vanish from every view (active memberships are untouched)
+    det = client.get(f"/api/cohorts/{cid}", headers=mh).json()
+    assert det["emailInvites"] == [] and det.get("members", []) == []
+    assert client.get("/api/cohorts", headers=uh).json()["cohorts"] == []
+    # and an expired email invite never attaches at signup
+    r = client.post("/api/register", json={"email": "old@example.test",
+                    "password": "old-pw-123456789012", "displayName": "O"})
+    client.post("/api/verify/confirm",
+                json={"email": "old@example.test", "code": r.json()["devCode"]})
+    oh = _auth_header(client, "old@example.test", "old-pw-123456789012")
+    assert client.get("/api/cohorts", headers=oh).json()["cohorts"] == []
+
+
 def test_cohort_invite_daily_account_quota(client, monkeypatch):
     from . import deps
     monkeypatch.setitem(deps.RATE_LIMITS, "cohort_invite_account", (2, 86400))

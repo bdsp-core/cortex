@@ -84,6 +84,7 @@ def _member_entry(db, row: dict, requester_code: str,
 @router.get("/cohorts")
 def list_cohorts(req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
+    db.purge_expired_invites()
     mine = db.cohorts_for(code)
     # One grouped COUNT for all the caller's cohorts — the list view needs
     # only counts, not full member rows fetched cohort-by-cohort.
@@ -121,6 +122,7 @@ def create_cohort(body: CohortCreateIn, req: Request,
 def cohort_detail(cohort_id: str, req: Request,
                   code: str = Depends(require_auth)):
     db = req.app.state.db
+    db.purge_expired_invites()
     cohort, membership, is_manager = _cohort_and_role(db, cohort_id, code)
     resp = {
         "cohortId": cohort["cohort_id"],
