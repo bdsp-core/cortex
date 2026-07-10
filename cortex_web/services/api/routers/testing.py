@@ -54,6 +54,9 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
     exclude = db.get_exposure_exclusion(code, cfg["spacing_days"], cfg["spacing_sessions"])
     drawn = bank.draw(seed, cfg["session_sample"], exclude)
     session_id = uuid.uuid4().hex
+    # A fresh sitting retires any still-open one (at most one resumable
+    # session per account; see GET /api/session/active).
+    db.supersede_open_sessions(code)
     # Persist the drawn candidate pool itself (a few KB of seg_ids): the
     # seed alone does NOT reproduce it later, because the exposure
     # exclusion is temporal — replaying the same seed after more sittings
@@ -63,6 +66,51 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                       drawn_seg_ids=json.dumps(
                           [s["segId"] for s in drawn["segments"]]))
     return {"sessionId": session_id, "sampleSeed": seed, "bank": drawn}
+
+
+# Sessions older than this aren't offered for resume — the participant's
+# context is gone, and a fresh spacing-aware draw serves them better.
+RESUME_WINDOW_HOURS = 24
+
+
+@router.get("/session/active")
+def active_session(req: Request, code: str = Depends(require_auth)):
+    """The participant's most recent resumable sitting: its exact drawn pool
+    plus the logged trials — powers mid-test resume after a refresh/crash.
+    Replay contract: the pool is returned verbatim in original draw order
+    (sessions.drawn_seg_ids), the engine seed re-derives from the stored
+    sample_seed (client uses `web-${sampleSeed}`), so feeding the logged
+    picks back through the engine reconstructs its exact state. Returns
+    {"active": null} when there is nothing (or nothing safe) to resume:
+    no open sitting, sitting too old, bundle version changed, no trials yet,
+    or a hole in the trial log."""
+    db = req.app.state.db
+    bank = req.app.state.get_bank()
+    row = db.get_active_session(code, max_age_hours=RESUME_WINDOW_HOURS)
+    if row is None or bank is None:
+        return {"active": None}
+    if row.get("bundle_version") != bank.version or not row.get("drawn_seg_ids"):
+        return {"active": None}
+    payload = bank.subset(json.loads(row["drawn_seg_ids"]))
+    if payload is None:
+        return {"active": None}
+    replay = []
+    for t in db.session_trials(row["session_id"]):
+        # Replay needs a contiguous, fully-picked prefix; a gap or a pick-less
+        # row (pre-answer crash artifact) ends what can be reconstructed.
+        if t.get("pick") is None or t["trial_index"] != len(replay):
+            break
+        replay.append({"trialIndex": t["trial_index"], "segId": t["seg_id"],
+                       "pick": t["pick"]})
+    if not replay:
+        return {"active": None}   # nothing checkpointed — a fresh start is equal
+    payload["sampleSeed"] = row.get("sample_seed")
+    return {"active": {
+        "sessionId": row["session_id"],
+        "startedUtc": row["started_utc"],
+        "bank": payload,
+        "trials": replay,
+    }}
 
 
 @router.post("/progress")

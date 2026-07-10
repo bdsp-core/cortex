@@ -20,6 +20,13 @@ export interface StartSessionResult {
   bank: SessionBank;        // the server-drawn per-session question subset
 }
 
+export interface ActiveSession {
+  sessionId: string;
+  startedUtc: string;
+  bank: SessionBank;        // the sitting's ORIGINAL drawn pool, verbatim order
+  trials: { trialIndex: number; segId: number; pick: number }[];
+}
+
 export interface TrialCheckpoint {
   trialIndex: number;
   segId?: number;
@@ -578,6 +585,12 @@ export async function startSession(
 // fetch) — returned as a 1-segment bank the client wraps in a Bundle.
 export function tutorialExample(): Promise<SessionBank> {
   return authedFetch("/api/tutorial-example", {}, { retries: 2 });
+}
+
+// The most recent resumable sitting (unfinished, recent, same bundle), with
+// its original drawn pool + the checkpointed trials to replay — or null.
+export function activeSession(): Promise<{ active: ActiveSession | null }> {
+  return authedFetch("/api/session/active", {}, { retries: 2 });
 }
 
 // Fire-and-forget per-trial checkpoint (crash-safety). Never throws into the

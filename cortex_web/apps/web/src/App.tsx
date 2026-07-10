@@ -8,7 +8,7 @@
 // plus fire-and-forget per-trial checkpoints for crash-safety (PLAN §8).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bundle } from "./bundle";
+import { Bundle, SessionBank } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
 import { SpikeViewer } from "./components/SpikeViewer";
@@ -18,6 +18,7 @@ import { TrialDiag } from "../engine/types";
 import * as api from "./api";
 import { AuthFlow } from "./components/AuthFlow";
 import { consumeAuthDeepLink } from "./deepLink";
+import { ReplayDriver, ReplayTrial } from "./resume";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
@@ -35,6 +36,7 @@ type Phase =
   | "auth"
   | "dashboard"
   | "consent"
+  | "resume"
   | "tutorial"
   | "loading"
   | "running"
@@ -115,6 +117,10 @@ export function App() {
   }, [phase, disposeClient]);
 
   const bundleRef = useRef<Bundle | null>(null);
+  // Mid-test resume: the unfinished sitting offered on "Start test", and the
+  // fresh-start fallback runSession uses when a replay diverges.
+  const [pendingResume, setPendingResume] = useState<api.ActiveSession | null>(null);
+  const startFreshRef = useRef<(() => Promise<void>) | null>(null);
 
   // ── flow transitions ──────────────────────────────────────────
   // Load the bundle and show the in-context tutorial over an IIIC example seg
@@ -143,33 +149,43 @@ export function App() {
     }
   }, []);
 
-  // Launch the assessment: manifest → bundle → fresh sample → session → engine.
-  const startTest = useCallback(async () => {
-    setPhase("loading");
-    try {
-      // Server-side draw (goal 3): the backend picks this sitting's balanced,
-      // spacing-aware question subset from the full 35k bank and returns it —
-      // the browser never downloads the full manifest.
-      const { sessionId, sampleSeed, bank } = await api.startSession(
-        { ...(participantRef.current ?? {}) },
-      );
+  // Run one engine sitting over a drawn bank — shared by a fresh start and a
+  // resume. On resume, `replayTrials` (the server's checkpointed prefix) is
+  // fed back through the engine first: the engine seed derives from
+  // `web-${sampleSeed}` and the pool replays verbatim (original draw order),
+  // so the recorded picks deterministically reconstruct the pre-crash state
+  // before the user sees their next live question.
+  const runSession = useCallback(async (
+    sessionId: string, sampleSeed: number, bank: SessionBank,
+    replayTrials: ReplayTrial[],
+  ) => {
       const b = Bundle.fromSessionBank(bank);
       bundleRef.current = b;
       setBundle(b);
       const inputs = b.inputs;
-      console.info(
-        `[cortex] session bank: ${inputs.segments.length} of ${bank.nPool} pool ` +
-        `(seed ${sampleSeed})`,
-      );
       sessionIdRef.current = sessionId;
 
       // Adaptive test: the engine ends on per-task resolution (AD6 + per-domain
       // cap), bounded by the drawn pool — use the pool as the progress max.
       const maxQ = inputs.segments.length;
-      setProgress({ answered: 0, maxQ, resolveConf: null });
+      setProgress({ answered: replayTrials.length, maxQ, resolveConf: null });
+
+      const replay = new ReplayDriver(replayTrials);
+      let checkpointsToSkip = replayTrials.length;   // already server-logged
 
       const client = new EngineClient({
         onItem: (it) => {
+          const step = replay.next(it.segId);
+          if (step.kind === "answer") { client.answer(step.pick); return; }
+          if (step.kind === "mismatch") {
+            // The replay no longer reproduces the recorded sequence (bank or
+            // engine drift since the sitting started) — abandon the resume;
+            // a fresh sitting is always safe.
+            console.warn("[cortex] resume replay diverged; starting a fresh session");
+            disposeClient();
+            void startFreshRef.current?.();
+            return;
+          }
           shownAtRef.current = performance.now();
           setItem(it);
         },
@@ -177,6 +193,12 @@ export function App() {
           lastDiagRef.current = diag;
           const answered = diag.nPerTask.reduce((a, n) => a + n, 0);
           setProgress({ answered, maxQ, resolveConf: resolutionConfidence(diag) });
+          if (checkpointsToSkip > 0) {
+            // Replayed trial: its checkpoint (with the real pick/RT) is already
+            // on the server — re-posting would overwrite it with stale refs.
+            checkpointsToSkip -= 1;
+            return;
+          }
           // crash-safe per-trial checkpoint (fire-and-forget)
           api.postProgress(sessionId, {
             trialIndex: diag.trialIndex,
@@ -302,11 +324,66 @@ export function App() {
       clientRef.current = client;
       client.start(inputs, `web-${sampleSeed}`);
       setPhase("running");
+  }, [disposeClient]);
+
+  // Launch a fresh assessment: server draw → session → engine.
+  const startTest = useCallback(async () => {
+    setPhase("loading");
+    try {
+      // Server-side draw (goal 3): the backend picks this sitting's balanced,
+      // spacing-aware question subset from the full 35k bank and returns it —
+      // the browser never downloads the full manifest.
+      const { sessionId, sampleSeed, bank } = await api.startSession(
+        { ...(participantRef.current ?? {}) },
+      );
+      console.info(
+        `[cortex] session bank: ${bank.segments.length} of ${bank.nPool} pool ` +
+        `(seed ${sampleSeed})`,
+      );
+      await runSession(sessionId, sampleSeed, bank, []);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [disposeClient]);
+  }, [runSession]);
+
+  // The replay-mismatch fallback inside runSession needs startTest before it
+  // is defined — bridge with a ref.
+  useEffect(() => { startFreshRef.current = startTest; }, [startTest]);
+
+  // Resume the checkpointed sitting the server offered: same engine path,
+  // with the logged trials replayed first.
+  const resumeTest = useCallback(async (active: api.ActiveSession) => {
+    setPendingResume(null);
+    setPhase("loading");
+    try {
+      console.info(
+        `[cortex] resuming session ${active.sessionId} at trial ${active.trials.length}`);
+      await runSession(active.sessionId, active.bank.sampleSeed ?? 0,
+        active.bank, active.trials);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+      setPhase("error");
+    }
+  }, [runSession]);
+
+  // "Start test" from the dashboard: offer resume when an unfinished recent
+  // sitting exists (its consent + tutorial were already done); otherwise the
+  // normal consent → tutorial → test flow. Resume detection is best-effort —
+  // any failure falls through to the normal flow.
+  const onStartTestClick = useCallback(async () => {
+    setPhase("loading");
+    let active: api.ActiveSession | null = null;
+    try {
+      active = (await api.activeSession()).active;
+    } catch { /* best-effort */ }
+    if (active && active.trials.length > 0) {
+      setPendingResume(active);
+      setPhase("resume");
+    } else {
+      setPhase("consent");
+    }
+  }, []);
 
   const onAnswer = useCallback((pick: number) => {
     lastPickRef.current = pick;
@@ -378,11 +455,35 @@ export function App() {
     case "dashboard":
       return (
         <Shell
-          onStartTest={() => setPhase("consent")}
+          onStartTest={() => { void onStartTestClick(); }}
           onStartTraining={startTraining}
           onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
         />
       );
+    case "resume":
+      return pendingResume ? (
+        <Stage maxW={520}>
+          <Card>
+            <Heading>Resume your test?</Heading>
+            <div style={{ fontSize: 14, marginBottom: 20 }}>
+              You have an unfinished test from{" "}
+              {new Date(pendingResume.startedUtc).toLocaleString()} with{" "}
+              {pendingResume.trials.length} answer
+              {pendingResume.trials.length === 1 ? "" : "s"} saved. You can pick
+              up where you left off, or start a new test from scratch.
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <Button onClick={() => { void resumeTest(pendingResume); }}>
+                Resume test
+              </Button>
+              <Button kind="ghost"
+                onClick={() => { setPendingResume(null); setPhase("consent"); }}>
+                Start over
+              </Button>
+            </div>
+          </Card>
+        </Stage>
+      ) : <Computing />;
     case "consent":
       return (
         <Consent

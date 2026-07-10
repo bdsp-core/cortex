@@ -717,6 +717,29 @@ class Database:
         return self._fetchone(
             "SELECT * FROM sessions WHERE session_id=?", (session_id,))
 
+    def get_active_session(self, code: str,
+                           max_age_hours: int = 24) -> Optional[dict]:
+        """The participant's most recent still-open sitting, for resume.
+        Age-gated: past the window a fresh draw serves them better than a
+        test they've lost the context of."""
+        row = self._fetchone(
+            "SELECT * FROM sessions WHERE code=? AND status='in_progress' "
+            "ORDER BY started_utc DESC LIMIT 1", (code,))
+        if row is None:
+            return None
+        cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                               time.gmtime(time.time() - max_age_hours * 3600))
+        return row if row["started_utc"] >= cutoff else None
+
+    def supersede_open_sessions(self, code: str) -> None:
+        """Starting a new sitting retires any still-open one, so at most one
+        session per account is ever offered for resume. A superseded session
+        keeps accepting trail-end progress/results posts (ownership is the
+        only gate there) — it just stops being resumable."""
+        self._write(
+            "UPDATE sessions SET status='superseded' "
+            "WHERE code=? AND status='in_progress'", (code,))
+
     def _finalize_session_stmt(self, conn, session_id: str,
                                stop_reason: Optional[str],
                                n_questions: Optional[int]) -> None:

@@ -498,6 +498,68 @@ def test_progress_rejects_foreign_session(client):
     assert r.status_code == 404
 
 
+def test_session_resume_roundtrip(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    # nothing to resume yet
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+    start = client.post("/api/session", headers=hdr,
+                        json={"participant": {}, "sampleSeed": 99}).json()
+    sid = start["sessionId"]
+    drawn_ids = [s["segId"] for s in start["bank"]["segments"]]
+    # a sitting with no checkpointed trials is not worth resuming
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+    for i in range(3):
+        client.post("/api/progress", headers=hdr,
+                    json={"sessionId": sid,
+                          "trial": {"trialIndex": i, "segId": drawn_ids[i],
+                                    "taskK": 1, "pick": i % 2,
+                                    "isCorrect": True, "reactionMs": 900.0}})
+    active = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert active["sessionId"] == sid
+    assert active["bank"]["sampleSeed"] == 99
+    # the pool replays verbatim, in the original draw order
+    assert [s["segId"] for s in active["bank"]["segments"]] == drawn_ids
+    assert active["trials"] == [
+        {"trialIndex": i, "segId": drawn_ids[i], "pick": i % 2} for i in range(3)]
+    # finalizing ends resumability
+    client.post("/api/results", headers=hdr,
+                json={"sessionId": sid, "result": {"verdicts": ["PASS"] * 6},
+                      "stopReason": "all_resolved", "nQuestions": 3})
+    assert client.get("/api/session/active", headers=hdr).json() == {"active": None}
+
+
+def test_session_resume_replay_stops_at_log_gap(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    start = client.post("/api/session", headers=hdr, json={"participant": {}}).json()
+    sid = start["sessionId"]
+    ids = [s["segId"] for s in start["bank"]["segments"]]
+    for i in (0, 2):   # hole at index 1
+        client.post("/api/progress", headers=hdr,
+                    json={"sessionId": sid,
+                          "trial": {"trialIndex": i, "segId": ids[i], "pick": 0}})
+    active = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert [t["trialIndex"] for t in active["trials"]] == [0]
+
+
+def test_new_session_supersedes_open_one(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    first = client.post("/api/session", headers=hdr, json={"participant": {}}).json()
+    client.post("/api/progress", headers=hdr,
+                json={"sessionId": first["sessionId"],
+                      "trial": {"trialIndex": 0, "pick": 1,
+                                "segId": first["bank"]["segments"][0]["segId"]}})
+    second = client.post("/api/session", headers=hdr, json={"participant": {}}).json()
+    client.post("/api/progress", headers=hdr,
+                json={"sessionId": second["sessionId"],
+                      "trial": {"trialIndex": 0, "pick": 1,
+                                "segId": second["bank"]["segments"][0]["segId"]}})
+    active = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert active["sessionId"] == second["sessionId"]
+
+
 def test_session_returns_balanced_server_drawn_bank(client):
     code, pw = _make_participant(client)
     hdr = _auth_header(client, code, pw)

@@ -49,6 +49,7 @@ class SessionBank:
         self._by_class: dict[str, list[int]] = {}
         for i, seg in enumerate(self.segments):
             self._by_class.setdefault(seg["patternClass"], []).append(i)
+        self._by_id = {seg["segId"]: seg for seg in self.segments}
 
     @property
     def n_segments(self) -> int:
@@ -108,6 +109,24 @@ class SessionBank:
             "bundleUrl": self.bundle_url,
             "sampleSeed": seed,
             "nPool": n_pool,
+            "segments": segs,
+        }
+
+    def subset(self, seg_ids: list[int]) -> Optional[dict]:
+        """The draw()-shaped payload for an EXACT stored seg_id list, in the
+        stored order — powers session resume (GET /api/session/active). The
+        ORDER is load-bearing: the browser engine's item selection is
+        deterministic over the segment array, so replaying the original draw
+        verbatim reproduces the original item sequence. Returns None when any
+        seg_id is missing from this bank (the bundle changed since the
+        sitting started — not resumable)."""
+        segs = [self._by_id.get(sid) for sid in seg_ids]
+        if any(s is None for s in segs):
+            return None
+        return {
+            **self.engine,
+            "bundleUrl": self.bundle_url,
+            "nPool": len(segs),
             "segments": segs,
         }
 
