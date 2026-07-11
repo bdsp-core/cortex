@@ -477,14 +477,11 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                         <Chip verdict={t.verdict} />
                       </div>
                       <div className="foot">
-                        <button
-                          type="button"
-                          className="viewdet"
-                          aria-label={`View details for ${t.label}`}
-                          onClick={(e) => { e.stopPropagation(); onDrilldown(t.taskK); }}
-                        >
-                          View details
-                        </button>
+                        <span className="auroc">
+                          {t.auroc != null
+                            ? <>AUROC <b>{t.auroc.toFixed(2)}</b></>
+                            : "not yet assessed"}
+                        </span>
                         {tr && tr.ell.length >= 2 && <Sparkline series={tr.ell} />}
                       </div>
                     </div>
@@ -504,6 +501,10 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       <span className="meta">
                         {FULL_NAMES[sel.code] ?? sel.label} · eval → daily training → re-cert
                       </span>
+                      <button type="button" className="cx-linkbtn"
+                        onClick={() => onDrilldown(sel.taskK)}>
+                        Open full view
+                      </button>
                     </div>
                     <div className="cx-detail-meta-row">
                       <div className="cx-metric"><span className="v">{sel.ell != null ? sel.ell.toFixed(2) : "–"}</span><span className="k">current ℓ</span></div>

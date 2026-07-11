@@ -333,10 +333,12 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-back:hover{color:var(--ink);}
 .cx-back .ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round;}
-.cx-tile .viewdet{font-size:11px;font-weight:600;color:var(--teal-deep);
+.cx-tile .auroc{font-family:var(--mono);font-size:11px;color:var(--ink-subtle);}
+.cx-tile .auroc b{color:var(--ink);font-weight:700;}
+.cx-linkbtn{font-size:12px;font-weight:600;color:var(--teal-deep);
   background:none;border:none;font-family:inherit;cursor:pointer;padding:0;
-  text-decoration:underline;text-underline-offset:2px;}
-.cx-tile .viewdet:hover{color:var(--teal);}
+  text-decoration:underline;text-underline-offset:2px;margin-left:auto;}
+.cx-linkbtn:hover{color:var(--teal);}
 
 /* Resize smoothness: confine each card's reflow to itself (layout
    containment only, so the tile selection ring + card shadows are NOT
