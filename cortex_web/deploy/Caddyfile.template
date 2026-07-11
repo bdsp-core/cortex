@@ -7,7 +7,8 @@
 # is fixed for this deploy).
 #
 # Caching: versioned bundle blobs are immutable (1y); the bundle manifest gets a
-# short cache; the SPA shell + hashed assets are served fresh / by content hash.
+# short cache; hashed SPA assets (/assets/*) are immutable (1y); the SPA shell
+# (index.html, theme-init.js) is served fresh so releases roll out instantly.
 
 app.cortexeeg.org {
     encode gzip zstd
@@ -15,25 +16,12 @@ app.cortexeeg.org {
     # API → uvicorn (pure API service; no static served by uvicorn).
     # Request-body caps reject oversized uploads at the EDGE (413) before
     # uvicorn allocates — Starlette has no default body limit, so this is the
-    # DoS floor. The video render is the one large upload (multipart Float32
-    # trajectory, tens of MB); everything else /api is small JSON. `handle`
-    # blocks are first-match in source order, so the videos matcher MUST come
-    # first. header_up: overwrite (don't append) X-Forwarded-For with the real
-    # TCP peer so a client can't spoof it — the API's per-IP rate limiter keys
-    # on the leftmost XFF value, so without this an attacker rotates a fake
-    # header for a fresh bucket per request and bypasses the brute-force /
-    # signup-spam caps.
-    handle /api/videos* {
-        request_body {
-            max_size 64MB
-        }
-        reverse_proxy 127.0.0.1:8000 {
-            transport http {
-                keepalive 60s
-            }
-            header_up X-Forwarded-For {remote_host}
-        }
-    }
+    # DoS floor. Everything /api is small JSON (4 MB is generous; the largest
+    # honest payload is a full result/points blob). header_up: overwrite
+    # (don't append) X-Forwarded-For with the real TCP peer so a client can't
+    # spoof it — the API's per-IP rate limiter keys on the leftmost XFF value,
+    # so without this an attacker rotates a fake header for a fresh bucket per
+    # request and bypasses the brute-force / signup-spam caps.
     handle /api/* {
         request_body {
             max_size 4MB
@@ -60,8 +48,18 @@ app.cortexeeg.org {
     }
 
     # SPA (everything else) — single-page app, fall back to index.html.
+    # Vite's /assets/* output is content-hashed (index-CBRFzSfR.js), so
+    # existing files there are immutable — same contract as the bundle blobs.
+    # The `file` guard keeps the header off the index.html fallback (a stale
+    # hashed URL must not cache HTML forever). index.html, theme-init.js and
+    # the logo PNGs are NOT hashed and stay on default revalidation.
     handle {
         root * /opt/cortex/cortex_web/apps/web/dist
+        @hashed_assets {
+            path /assets/*
+            file
+        }
+        header @hashed_assets Cache-Control "public, max-age=31536000, immutable"
         try_files {path} /index.html
         file_server
     }
