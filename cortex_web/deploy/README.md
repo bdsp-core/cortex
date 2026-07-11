@@ -98,13 +98,17 @@ the operator's call which version to ship). From your local workstation:
 cortex_app/build_venv/bin/python cortex_web/scripts/prepare_web_bundle.py \
     --bank /path/to/eeg_bank.h5 --version v1.5-k7 --include-spike
 
-# rsync it onto the deploy box
+# rsync it onto the deploy box. Bundles live at /opt/cortex/bundle: OUTSIDE
+# the app tree, so vite's public/->dist/ copy can never duplicate 11GB of
+# blobs on disk (2026-07-11 disk-pressure fix). Caddy serves /bundle/* from
+# root /opt/cortex; the API reads CORTEX_BUNDLE_DIR=/opt/cortex/bundle
+# (set in cortex.env).
 rsync -avz --delete cortex_web/public/bundle/v1.5-k7/ \
     ubuntu@cortex.lab.example.org:/tmp/v1.5-k7/
-ssh ubuntu@cortex.lab.example.org \
-    "sudo install -d -o cortex -g cortex /opt/cortex/cortex_web/public/bundle/v1.5-k7 \
-     && sudo rsync -a --delete /tmp/v1.5-k7/ /opt/cortex/cortex_web/public/bundle/v1.5-k7/ \
-     && sudo chown -R cortex:cortex /opt/cortex/cortex_web/public/bundle"
+ssh cortex.lab.example.org \
+    "sudo install -d -o cortex -g cortex /opt/cortex/bundle/v1.5-k7 \
+     && sudo rsync -a --delete /tmp/v1.5-k7/ /opt/cortex/bundle/v1.5-k7/ \
+     && sudo chown -R cortex:cortex /opt/cortex/bundle"
 ```
 
 (Or scp the h5 bank up and run `prepare_web_bundle.py` on the deploy box.)

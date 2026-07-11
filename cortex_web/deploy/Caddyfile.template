@@ -52,7 +52,10 @@ app.cortexeeg.org {
         header @bundle_blobs Cache-Control "public, max-age=31536000, immutable"
         @manifest path_regexp manifest ^/bundle/[^/]+/manifest\.json$
         header @manifest Cache-Control "public, max-age=300"
-        root * /opt/cortex/cortex_web/apps/web/public
+        # The bank lives OUTSIDE the app tree (/opt/cortex/bundle) so vite's
+        # public/->dist/ copy can never duplicate 11GB of blobs on disk
+        # (2026-07-11 disk-pressure fix). /bundle/x maps to /opt/cortex/bundle/x.
+        root * /opt/cortex
         file_server
     }
 
