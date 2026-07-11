@@ -70,32 +70,30 @@ function WashoutBanner({ reopensAtUtc, onAccept }: {
       style={{
         position: "fixed", inset: 0, zIndex: 80,
         background: "rgba(20, 28, 26, 0.45)",
-        display: "flex", alignItems: "flex-start", justifyContent: "center",
-        animation: "cx-washout-dim 260ms ease-out",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "cx-washout-dim 300ms ease-out",
       }}>
       <style>{`
         @keyframes cx-washout-dim { from { background: rgba(20,28,26,0); }
                                     to { background: rgba(20,28,26,0.45); } }
-        @keyframes cx-washout-drop { from { transform: translateY(-110%); }
-                                     to { transform: none; } }
+        @keyframes cx-washout-descend { from { transform: translateY(-60vh); opacity: 0.4; }
+                                        to { transform: none; opacity: 1; } }
       `}</style>
       <div style={{
-        width: "100%", background: COLORS.card,
-        borderBottom: `3px solid ${COLORS.fail}`,
-        boxShadow: "0 12px 32px rgba(15, 40, 36, 0.28)",
-        animation: "cx-washout-drop 320ms ease-out",
-        padding: "22px 24px", boxSizing: "border-box",
-        display: "flex", justifyContent: "center",
+        width: 560, maxWidth: "92vw", background: COLORS.card,
+        border: `1px solid ${COLORS.borderInactive}`,
+        borderTop: `3px solid ${COLORS.fail}`,
+        boxShadow: "0 16px 44px rgba(15, 40, 36, 0.32)",
+        animation: "cx-washout-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1)",
+        padding: "26px 28px", boxSizing: "border-box",
       }}>
         <div style={{
-          maxWidth: 760, display: "flex", flexWrap: "wrap",
-          alignItems: "center", gap: 18,
-          fontSize: 15, lineHeight: 1.55, color: COLORS.textPrimary,
+          fontSize: 15, lineHeight: 1.6, color: COLORS.textPrimary,
         }}>
-          <span style={{ flex: "1 1 420px" }}>
-            You trained earlier today; to keep the exam a clean measure,
-            testing reopens at <b>{label}</b>.
-          </span>
+          You trained earlier today; to keep the exam a clean measure,
+          testing reopens at <b>{label}</b>.
+        </div>
+        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
           <Button onClick={onAccept}>I understand</Button>
         </div>
       </div>
@@ -187,13 +185,19 @@ export function App() {
       setWashoutAck(false);
     }
   }, [washoutUntil]);
+  // A resumable exam sitting exists (drives the CTA label: Resume vs Start).
+  const [examResumable, setExamResumable] = useState(false);
   // Refresh on every dashboard (re)entry: finishing a training session lands
   // back here, and the test button must grey out immediately.
   useEffect(() => {
     if (phase !== "dashboard") return;
     let gone = false;
     api.activeSession()
-      .then((r) => { if (!gone) setWashoutUntil(r.washout?.reopensAtUtc ?? null); })
+      .then((r) => {
+        if (gone) return;
+        setWashoutUntil(r.washout?.reopensAtUtc ?? null);
+        setExamResumable(!!(r.active && r.active.trials.length > 0));
+      })
       .catch(() => { /* pre-flight + the server 409 still guard the path */ });
     return () => { gone = true; };
   }, [phase]);
@@ -559,6 +563,7 @@ export function App() {
             onSignOut={() => { disposeClient(); api.logout(); setPhase("auth"); }}
             inviteHighlightId={cohortDeepLink}
             testDisabledUntil={washoutUntil}
+            examResumable={examResumable}
           />
           {washoutUntil && !washoutAck && (
             <WashoutBanner reopensAtUtc={washoutUntil}

@@ -58,10 +58,12 @@ def dashboard(req: Request, code: str = Depends(require_auth)):
     # not pull + JSON-parse every historical ~370 KB result blob.
     latest = db.latest_result_for_code(code)
     training_enabled = _training_enabled(req, code)
+    training_in_progress = db.has_unfinished_training(code)
     if latest is None:
         return {"result": None, "hasResult": False, "tasks": [],
                 "kpis": None, "sample": False,
-                "trainingEnabled": training_enabled}
+                "trainingEnabled": training_enabled,
+                "trainingInProgress": training_in_progress}
     result = latest["result"]
     # Latest real measurement per domain (rows come ordered by task_k, ts
     # ascending, so the last one seen per task is the most recent).
@@ -78,6 +80,7 @@ def dashboard(req: Request, code: str = Depends(require_auth)):
         "kpis": dashboard_logic.dashboard_kpis(tasks, latest.get("finished_utc")),
         "sample": False,
         "trainingEnabled": training_enabled,
+        "trainingInProgress": training_in_progress,
     }
 
 

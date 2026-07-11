@@ -770,6 +770,20 @@ class Database:
         with self._connection() as conn:
             self._finalize_session_stmt(conn, session_id, stop_reason, n_questions)
 
+    def has_unfinished_training(self, code: str,
+                                max_age_hours: int = 24) -> bool:
+        """A recent in-progress training sitting exists (drives the dashboard
+        CTA label: Resume vs Start training). Age-gated like exam resume:
+        an abandoned sitting from days ago reads as a fresh start."""
+        row = self._fetchone(
+            "SELECT MAX(started_utc) AS s FROM training_sessions "
+            "WHERE code=? AND status='in_progress'", (code,))
+        if not row or not row["s"]:
+            return False
+        cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                               time.gmtime(time.time() - max_age_hours * 3600))
+        return row["s"] >= cutoff
+
     def latest_training_finished(self, code: str) -> Optional[str]:
         """finished_utc of the participant's most recent COMPLETED training
         sitting, or None. Powers the exam washout gate (routers/testing.py):

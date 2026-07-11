@@ -1414,6 +1414,7 @@ function SettingsSurface() {
 
 export function Shell({
   onStartTest, onStartTraining, onSignOut, inviteHighlightId, testDisabledUntil,
+  examResumable,
 }: {
   onStartTest: () => void;
   onStartTraining: () => void;
@@ -1425,6 +1426,8 @@ export function Shell({
   // CTAs grey out with a "reopens at" note. Refreshed by App on every
   // dashboard entry; the server 409 is the actual enforcement.
   testDisabledUntil?: string | null;
+  // A resumable exam sitting exists (CTA label: Resume vs Start).
+  examResumable?: boolean;
 }) {
   const [view, setView] = useState<View>("dashboard");
   const [drillTask, setDrillTask] = useState<number>(0);
@@ -1437,19 +1440,31 @@ export function Shell({
   // Training-exposure flag (server-driven: all/cohort/off). Default hidden until
   // the dashboard confirms it, so a gated build never flashes the entry.
   const [trainingEnabled, setTrainingEnabled] = useState(false);
+  const [trainingInProgress, setTrainingInProgress] = useState(false);
   useEffect(() => {
     let live = true;
     api.getDashboard().then((d) => {
       if (!live) return;
       setHasResult(d.hasResult);
       setTrainingEnabled(d.trainingEnabled ?? false);
+      setTrainingInProgress(d.trainingInProgress ?? false);
     }).catch(() => {});
     return () => { live = false; };
   }, []);
 
   // A nav surface is "active" when the current view matches it; the drilldown
   // sub-view keeps the dashboard tab highlighted (it's a routed sub-page of it).
-  // Post-training washout: grey the test CTAs while it is in force.
+  // Post-training washout: grey the test CTAs while it is in force, and
+  // schedule a re-render for the exact expiry moment so the button flips
+  // the second the window ends (no interaction needed).
+  const [, setWashoutTick] = useState(0);
+  useEffect(() => {
+    if (!testDisabledUntil) return;
+    const ms = new Date(testDisabledUntil).getTime() - Date.now();
+    if (isNaN(ms) || ms <= 0) return;
+    const id = window.setTimeout(() => setWashoutTick((n) => n + 1), ms + 250);
+    return () => window.clearTimeout(id);
+  }, [testDisabledUntil]);
   const testLocked = washoutActive(testDisabledUntil);
 
   const activeNav: Surface = view === "drilldown" ? "dashboard" : view;
@@ -1498,12 +1513,12 @@ export function Shell({
                   className="cx-btn primary"
                   onClick={() => { setView("training"); onStartTraining(); }}
                 >
-                  Resume training
+                  {trainingInProgress ? "Resume training" : "Start training"}
                 </button>
               )}
               <button type="button" className="cx-btn" onClick={onStartTest}
                 disabled={testLocked}>
-                Re-take certification test
+                {examResumable ? "Resume certification test" : "Start certification test"}
               </button>
             </>
           )}
