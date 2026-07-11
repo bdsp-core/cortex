@@ -591,7 +591,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
           {/* ── consistency sidebar: real activity heatmap (sign-in / cert /
                 training), shown for everyone from day one ── */}
           <aside>
-            <section className="cx-panel" aria-label="Recent activity">
+            <section className="cx-panel plain" aria-label="Recent activity">
               <div className="cx-phead"><h2>Consistency</h2></div>
               <div className="cx-heat-wrap">
                 <Heatmap activity={activity} />
@@ -599,7 +599,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               </div>
             </section>
 
-            <section className="cx-panel" aria-label="Today's deck">
+            <section className="cx-panel plain" aria-label="Today's deck">
               <div className="cx-phead"><h2>Today's deck</h2><span className="sub">due now</span></div>
               {hasData && regimen ? (
                 <div className="cx-deck-mini">

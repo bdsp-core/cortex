@@ -58,11 +58,14 @@ export const SHELL_CSS = `
 .cx-wrap{display:flex;flex-direction:column;min-height:100vh;min-width:0;}
 .cx-content{flex:1 0 auto;width:100%;box-sizing:border-box;padding:var(--s24) var(--s32) var(--s48);}
 
-.cx-kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s16);
-  margin-bottom:var(--s24);}
-.cx-kpi{background:var(--panel);border:1px solid var(--bd-subtle);
-  border-radius:var(--radius-panel);padding:var(--s16) var(--s24);
+/* One stat strip, not three sibling cards: a single bordered container with
+   hairline dividers between the cells. */
+.cx-kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);
+  background:var(--panel);border:1px solid var(--bd-subtle);
+  border-radius:var(--radius-panel);margin-bottom:var(--s24);}
+.cx-kpi{padding:var(--s16) var(--s24);
   display:flex;flex-direction:column;gap:var(--s4);}
+.cx-kpi+.cx-kpi{border-left:1px solid var(--bd-subtle);}
 .cx-kpi .v{font-family:var(--mono);font-variant-numeric:tabular-nums;
   font-size:30px;font-weight:700;line-height:1;color:var(--ink);}
 .cx-kpi .v .u{font-size:15px;font-weight:600;color:var(--ink-subtle);margin-left:4px;}
@@ -72,10 +75,14 @@ export const SHELL_CSS = `
 .cx-kpi-bar{height:8px;background:var(--panel-hover);border:1px solid var(--bd-subtle);
   margin:var(--s8) 0 6px;position:relative;overflow:hidden;}
 .cx-kpi-bar i{position:absolute;top:0;left:0;bottom:0;background:var(--teal);}
-@media (max-width:720px){ .cx-kpi-strip{grid-template-columns:1fr;} }
+@media (max-width:720px){ .cx-kpi-strip{grid-template-columns:1fr;}
+  .cx-kpi+.cx-kpi{border-left:none;border-top:1px solid var(--bd-subtle);} }
 
 .cx-panel{background:var(--panel);border:1px solid var(--bd-subtle);
   border-radius:var(--radius-panel);padding:var(--s24);}
+/* Sidebar variant: heading + content directly on the page, no card chrome,
+   so the main Mastery panel is the visually dominant surface. */
+.cx-panel.plain{background:transparent;border:none;padding:0;}
 .cx-panel + .cx-panel{margin-top:var(--s24);}
 .cx-phead{display:flex;align-items:baseline;justify-content:space-between;
   margin-bottom:var(--s16);gap:var(--s12);}
