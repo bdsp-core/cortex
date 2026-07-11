@@ -7,7 +7,7 @@
 // exactly twice per sitting — create-session at start, post-results at end —
 // plus fire-and-forget per-trial checkpoints for crash-safety (PLAN §8).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Bundle, SessionBank } from "./bundle";
 import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
@@ -28,11 +28,16 @@ import { Results, ResultSummary } from "./components/Results";
 import { Shell } from "./components/Shell";
 import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
-import { TrainingRunner } from "./components/TrainingRunner";
-import { buildTrainerBank, cutScores, seedClouds, seedCloudsFromPrior } from "./trainerBank";
-import { ArrayBank, TrainerSession, buildFilters } from "../trainer/session";
-import { seedFromString } from "../trainer/label_schedule";
-import type { FilterParams } from "../trainer/filter";
+import type { TrainingState } from "./trainingSetup";
+
+// The training surface is trainer-only weight (belief-filter engine, candidate
+// bank, feedback runner) that most visitors — signup, exam — never reach, so
+// it loads on demand: the runner via lazy() (same pattern as Cohorts /
+// MobileApp), the session construction via the dynamic import in
+// startTraining. Only type imports from trainer modules may appear above
+// (values would pull the engine back into the main chunk).
+const TrainingRunner = lazy(() =>
+  import("./components/TrainingRunner").then((m) => ({ default: m.TrainingRunner })));
 
 type Phase =
   | "auth"
@@ -47,13 +52,6 @@ type Phase =
   | "training"
   | "done"
   | "error";
-
-// The trainer's assumed learner dynamics (anchored EXTSET rates; matches the
-// Python production defaults). sigmaInf is per-task, set in startTraining.
-const TRAINER_PARAMS: FilterParams = {
-  alphaT: 0.097, alphaSigma: 0.047, sigmaInf: 0.4,
-  qT: 0.05, qSigma: 0.02, rho: 0.5, rule: "soft",
-};
 
 // Post-training exam-washout notice (server-enforced 12h gate in
 // routers/testing.py). A top sheet that descends over a dimmed dashboard and
@@ -119,9 +117,7 @@ export function App() {
   const [progress, setProgress] = useState<Progress>({ answered: 0, maxQ: 0, resolveConf: null });
   const [summary, setSummary] = useState<ResultSummary | null>(null);
   const [msg, setMsg] = useState("");
-  const [trainState, setTrainState] = useState<
-    { session: TrainerSession; trainingId: string; labels: string[]; bundle: Bundle } | null
-  >(null);
+  const [trainState, setTrainState] = useState<TrainingState | null>(null);
 
   const clientRef = useRef<EngineClient | null>(null);
   // Terminate + forget the engine worker. Idempotent; called before a new
@@ -483,37 +479,18 @@ export function App() {
     setPhase("loading");
     try {
       // createRegimen and startSession are independent server calls; run them
-      // in parallel (was a 3-call sequential waterfall). startTrainingSession is
+      // in parallel (was a 3-call sequential waterfall), and pull the lazy
+      // trainer-engine chunk down alongside them. startTrainingSession is
       // sequenced after the regimen since it links the sitting to it.
-      const [{ regimen: plan }, { bank }] = await Promise.all([
+      const [{ regimen: plan }, { bank }, { buildTrainingState }] = await Promise.all([
         api.createRegimen(),                                  // weak-set + measured prior
         // Candidate pool (spacing-aware + media) — reuse the balanced draw; the
         // trainer picks adaptively from it and each seg is renderable.
         api.startSession({ ...(participantRef.current ?? {}) }),
+        import("./trainingSetup"),
       ]);
       const { trainingId } = await api.startTrainingSession();
-      const b = Bundle.fromSessionBank(bank);
-      const inputs = b.inputs;
-      const ellStar = inputs.ellStar ?? inputs.taskCodes.map(() => 0.3);
-      const { ellStars, sigmaStars, sigmaInf } = cutScores(ellStar);
-      // Real-skill handoff: seed each task's belief from the learner's measured
-      // cert posterior (variance-inflated); fall back to a generic prior only if
-      // the regimen carries no posterior (legacy result).
-      const clouds = plan?.prior && plan.prior.length
-        ? seedCloudsFromPrior(plan.prior, ellStars.length, 200, 1)
-        : seedClouds(ellStars.map(() => 0.0), 200, 1);
-      const filters = buildFilters(clouds, TRAINER_PARAMS, sigmaInf, ellStars, { seed: 7, useMixture: false });
-      // Label-schedule randomization (docs/LABEL_SCHEDULE_PECR.md): kills the
-      // deterministic pos/neg question pattern. The schedule seed is derived
-      // from the server-issued trainingId (§6.4) — unique per session, and the
-      // served label sequence is reproducible from the session record. The
-      // filter seed (7) is unchanged: the belief engine is untouched.
-      const session = new TrainerSession(
-        filters, ellStars, sigmaStars,
-        new ArrayBank(buildTrainerBank({ segments: inputs.segments })),
-        { seed: 7, labelSchedule: 'randomized',
-          scheduleSeed: seedFromString(trainingId) });
-      setTrainState({ session, trainingId, labels: inputs.taskLabels, bundle: b });
+      setTrainState(buildTrainingState(plan, bank, trainingId));
       setPhase("training");
     } catch (e) {
       setMsg(String((e as Error)?.message ?? e));
@@ -636,14 +613,19 @@ export function App() {
         </Stage>
       );
     case "training":
+      // The Suspense fallback should never paint in practice — startTraining
+      // pulls the chunk down in parallel with the server calls — but covers a
+      // cold cache racing a fast API.
       return trainState ? (
-        <TrainingRunner
-          bundle={trainState.bundle}
-          session={trainState.session}
-          trainingId={trainState.trainingId}
-          labels={trainState.labels}
-          onExit={() => { setTrainState(null); setPhase("dashboard"); }}
-        />
+        <Suspense fallback={<Computing note="Preparing your training session…" />}>
+          <TrainingRunner
+            bundle={trainState.bundle}
+            session={trainState.session}
+            trainingId={trainState.trainingId}
+            labels={trainState.labels}
+            onExit={() => { setTrainState(null); setPhase("dashboard"); }}
+          />
+        </Suspense>
       ) : <Computing note="Preparing your training session…" />;
     case "done":
       return summary
