@@ -317,6 +317,9 @@ class Database:
         raw = str(path_or_url or os.environ.get("CORTEX_DB", _DEFAULT_DB))
         self._raw = raw
         self._pg = _is_pg_url(raw)
+        # Lazy invite-purge throttle (see purge_expired_invites): 0.0 means
+        # "never ran", so the first cohort read after boot always purges.
+        self._last_invite_purge = 0.0
 
         if self._pg:
             self._pool = self._make_pool()
@@ -1289,7 +1292,16 @@ class Database:
         touched) and email invites. Called lazily from the cohort read paths
         and from attach_email_invites, so no cron is needed: an invite that
         nobody ever looks at again simply stops existing the next time
-        anything cohort-shaped is read."""
+        anything cohort-shaped is read.
+
+        Throttled to once per minute per process (single-worker deploy, same
+        assumption as the rate limiter): expiry has day granularity, and a
+        dashboard entry shouldn't pay two DELETE statements per read. Benign
+        race under the threadpool — two concurrent first-reads both purge."""
+        now = time.monotonic()
+        if now - self._last_invite_purge < 60.0:
+            return
+        self._last_invite_purge = now
         cutoff = time.strftime(
             "%Y-%m-%dT%H:%M:%SZ",
             time.gmtime(time.time() - INVITE_TTL_DAYS * 86400))

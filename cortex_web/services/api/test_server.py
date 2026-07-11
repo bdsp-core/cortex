@@ -1822,6 +1822,7 @@ def test_cohort_invites_expire_after_30_days(client):
     db._write("UPDATE cohort_members SET invited_utc='2026-05-01T00:00:00Z' "
               "WHERE status='invited'", ())
     db._write("UPDATE cohort_email_invites SET invited_utc='2026-05-01T00:00:00Z'", ())
+    db._last_invite_purge = 0.0   # step past the once-per-minute throttle
     # stale invites vanish from every view; ACTIVE memberships (here the
     # manager's own row) are untouched
     det = client.get(f"/api/cohorts/{cid}", headers=mh).json()
@@ -1835,6 +1836,21 @@ def test_cohort_invites_expire_after_30_days(client):
                 json={"email": "old@example.test", "code": r.json()["devCode"]})
     oh = _auth_header(client, "old@example.test", "old-pw-123456789012")
     assert client.get("/api/cohorts", headers=oh).json()["cohorts"] == []
+
+
+def test_invite_purge_throttled_once_per_minute(client):
+    cid, mh = _make_cohort(client)
+    r = client.post(f"/api/cohorts/{cid}/invite-email", headers=mh,
+                    json={"email": "stale@example.test"})
+    assert r.status_code == 200, r.text
+    db = client.app.state.db
+    db._write("UPDATE cohort_email_invites SET invited_utc='2026-05-01T00:00:00Z'", ())
+    db._last_invite_purge = time.monotonic()   # a purge just ran
+    db.purge_expired_invites()                  # inside the window → no-op
+    assert db.list_cohort_email_invites(cid) != []
+    db._last_invite_purge = 0.0                 # window elapsed
+    db.purge_expired_invites()
+    assert db.list_cohort_email_invites(cid) == []
 
 
 def test_cohort_invite_daily_account_quota(client, monkeypatch):

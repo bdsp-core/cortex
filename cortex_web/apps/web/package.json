@@ -6,7 +6,7 @@
   "description": "Browser-based CORTEX adaptive EEG certification test — client-side SMC particle filter in a Web Worker, pixel-identical to the desktop app.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/precompress.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

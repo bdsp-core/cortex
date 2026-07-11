@@ -61,7 +61,12 @@ app.cortexeeg.org {
         }
         header @hashed_assets Cache-Control "public, max-age=31536000, immutable"
         try_files {path} /index.html
-        file_server
+        # .br/.gz siblings are written at build time (scripts/precompress.mjs,
+        # brotli q11) — served straight off disk, no per-request encode CPU.
+        # The site-wide `encode` still covers anything without a sibling.
+        file_server {
+            precompressed br gzip
+        }
     }
 
     header {
