@@ -1440,14 +1440,14 @@ export function Shell({
   // Training-exposure flag (server-driven: all/cohort/off). Default hidden until
   // the dashboard confirms it, so a gated build never flashes the entry.
   const [trainingEnabled, setTrainingEnabled] = useState(false);
-  const [trainingInProgress, setTrainingInProgress] = useState(false);
+  const [trainingResumable, setTrainingResumable] = useState(false);
   useEffect(() => {
     let live = true;
     api.getDashboard().then((d) => {
       if (!live) return;
       setHasResult(d.hasResult);
       setTrainingEnabled(d.trainingEnabled ?? false);
-      setTrainingInProgress(d.trainingInProgress ?? false);
+      setTrainingResumable(d.trainingResumable ?? false);
     }).catch(() => {});
     return () => { live = false; };
   }, []);
@@ -1513,7 +1513,7 @@ export function Shell({
                   className="cx-btn primary"
                   onClick={() => { setView("training"); onStartTraining(); }}
                 >
-                  {trainingInProgress ? "Resume training" : "Start training"}
+                  {trainingResumable ? "Resume training" : "Start training"}
                 </button>
               )}
               <button type="button" className="cx-btn" onClick={onStartTest}

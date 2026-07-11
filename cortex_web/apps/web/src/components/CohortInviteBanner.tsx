@@ -1,14 +1,16 @@
-// Floating "pending cohort invitation" banner, mounted on the dashboard
-// surfaces (desktop Shell + mobile home; shared component, allowlisted in
-// the mobile boundary). Shows the caller's status='invited' cohorts and
-// lets them Accept / Decline inline: the same consent gate as the Cohorts
-// screen, just a faster path to it. Self-contained styling (no shellCss
-// dependency) so it renders identically on both surfaces.
+// "Pending cohort invitation" notice, mounted on the dashboard surfaces
+// (desktop Shell + mobile home; shared component, allowlisted in the mobile
+// boundary). Shows the caller's status='invited' cohorts and lets them
+// Accept / Decline inline: the same consent gate as the Cohorts screen,
+// just a faster path to it. Self-contained styling (no shellCss dependency)
+// so it renders identically on both surfaces.
 //
-// Behavior: slides in when invites exist, slow-polls (60s) while mounted so
-// a new invite appears without a reload, session-dismissable via the ✕
-// (sessionStorage; it returns next visit), and the cohort a /?cohort=...
-// invite email deep-linked to gets a brief highlight pulse.
+// Presentation matches the exam-washout notice: a box descends smoothly to
+// the center of a dimmed screen so the invitation is recognized rather than
+// glanced past. "Maybe later" defers for the session (sessionStorage; it
+// returns next visit); slow-poll (60s) while mounted picks up new invites
+// without a reload; the cohort a /?cohort=... email deep-linked to gets a
+// brief highlight pulse.
 
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../api";
@@ -23,7 +25,9 @@ const btnBase = {
   padding: "8px 14px",
 };
 
-export function CohortInviteBanner({ variant, highlightCohortId }: {
+export function CohortInviteBanner({ highlightCohortId }: {
+  // variant is accepted for caller compatibility; the centered modal renders
+  // identically on both surfaces.
   variant: "desktop" | "mobile";
   highlightCohortId?: string | null;
 }) {
@@ -60,50 +64,52 @@ export function CohortInviteBanner({ variant, highlightCohortId }: {
 
   if (dismissed || invites.length === 0) return null;
 
-  const place = variant === "desktop"
-    ? { right: 24, bottom: 24, width: 380, maxWidth: "calc(100vw - 48px)" }
-    : { left: 12, right: 12, bottom: 12 };
-
+  // Same treatment as the exam-washout notice: a box that descends smoothly
+  // from the top to the CENTER of a dimmed screen, so a pending invitation
+  // is recognized rather than glanced past. Teal rule (an offer, not a
+  // restriction); "Maybe later" defers for the session.
   return (
-    <div role="status" style={{
-      position: "fixed", zIndex: 60, ...place,
-      background: COLORS.card, border: `1px solid ${COLORS.borderInactive2}`,
-      borderLeft: "3px solid var(--teal)",
-      boxShadow: "0 8px 28px rgba(15, 40, 36, 0.18)",
-      fontFamily: FONTS.sans, color: COLORS.textPrimary,
-      // slide in once, then a slow teal breathing glow to draw the eye
-      animation: "cx-invite-in 240ms ease-out, cx-invite-glow 2.6s ease-in-out 300ms infinite",
-    }}>
+    <div role="dialog" aria-modal="true" aria-label="Cohort invitation"
+      style={{
+        position: "fixed", inset: 0, zIndex: 70,
+        background: "rgba(20, 28, 26, 0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: FONTS.sans, color: COLORS.textPrimary,
+        animation: "cx-invite-dim 300ms ease-out",
+      }}>
       <style>{`
-        @keyframes cx-invite-in { from { opacity: 0; transform: translateY(14px); }
-                                  to { opacity: 1; transform: none; } }
-        @keyframes cx-invite-glow {
-          0%, 100% { box-shadow: 0 8px 28px rgba(15, 40, 36, 0.18);
-                     border-left-color: var(--teal); }
-          50% { box-shadow: 0 8px 28px rgba(15, 40, 36, 0.18),
-                            0 0 0 3px var(--teal-weak),
-                            0 0 18px 2px rgba(47, 143, 131, 0.55);
-                border-left-color: var(--teal-deep); }
-        }
+        @keyframes cx-invite-dim { from { background: rgba(20,28,26,0); }
+                                   to { background: rgba(20,28,26,0.45); } }
+        @keyframes cx-invite-descend { from { transform: translateY(-60vh); opacity: 0.4; }
+                                       to { transform: none; opacity: 1; } }
         @keyframes cx-invite-pulse { 0%, 100% { background: transparent; }
                                      50% { background: var(--teal-weak); } }
       `}</style>
+      <div style={{
+        width: 560, maxWidth: "92vw", background: COLORS.card,
+        border: `1px solid ${COLORS.borderInactive}`,
+        borderTop: "3px solid var(--teal)",
+        boxShadow: "0 16px 44px rgba(15, 40, 36, 0.32)",
+        animation: "cx-invite-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1)",
+      }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8,
-        padding: "10px 14px", borderBottom: `1px solid ${COLORS.borderInactive}` }}>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>
+        padding: "12px 16px", borderBottom: `1px solid ${COLORS.borderInactive}` }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>
           Cohort invitation{invites.length > 1 ? `s (${invites.length})` : ""}
         </span>
         <span style={{ marginLeft: "auto" }} />
-        <button aria-label="Dismiss" onClick={dismiss}
-          style={{ background: "none", border: "none", cursor: "pointer",
-            color: COLORS.textFaint, fontSize: 16, lineHeight: 1, padding: 4 }}>
-          ×
+        <button className="cx-invite-later" onClick={dismiss}
+          style={{ background: "none", cursor: "pointer",
+            border: `1px solid ${COLORS.borderInactive2}`, borderRadius: 4,
+            color: COLORS.textBody, fontFamily: FONTS.sans, fontSize: 12,
+            padding: "6px 10px" }}>
+          Maybe later
         </button>
       </div>
       {invites.map((c) => (
         <div key={c.cohortId} style={{
           display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10,
-          padding: "12px 14px",
+          padding: "14px 16px",
           animation: c.cohortId === highlightCohortId
             ? "cx-invite-pulse 1.2s ease-in-out 2" : undefined,
         }}>
@@ -126,6 +132,7 @@ export function CohortInviteBanner({ variant, highlightCohortId }: {
           </span>
         </div>
       ))}
+      </div>
     </div>
   );
 }

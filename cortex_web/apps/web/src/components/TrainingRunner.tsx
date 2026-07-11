@@ -212,7 +212,9 @@ export function TrainingRunner({
           <span className="cx-chip train"><i />In training</span>
           <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>Is this <span style={{ color: "var(--teal-deep)" }}>{label}</span>?</span>
           <div style={{ flex: 1, minWidth: 120 }}><ProgressBar count={count} total={total} inline /></div>
-          <button className="cx-btn" onClick={finish}>End session</button>
+          {/* graceful mid-sitting exit: trajectories flush + the sitting
+              finalizes, so the regimen picks up exactly here next time */}
+          <button className="cx-btn" onClick={finish}>Save &amp; finish later</button>
         </div>
 
         {/* media: spectrogram (left, IIIC only) + EEG (right). For spike there is
