@@ -1070,7 +1070,19 @@ class Database:
             excl = ("INSERT OR IGNORE INTO training_trials(training_id, code, "
                     "seg_id, task_k, shown_utc) VALUES (?,?,?,?,?)")
         with self._connection() as conn:
+            # Idempotency for the per-answer checkpoint outbox: a point whose
+            # (training_id, seq_in_session) already landed is skipped, so a
+            # retry after an ambiguous network failure can never duplicate
+            # trajectory rows. (Exposure rows were already ON CONFLICT-safe.)
+            seen = {r["seq_in_session"] for r in conn.execute(self._q(
+                "SELECT seq_in_session FROM param_trajectories "
+                "WHERE training_id=?"), (training_id,)).fetchall()}
             for p in points:
+                seq = p.get("seqInSession")
+                if seq is not None and seq in seen:
+                    continue
+                if seq is not None:
+                    seen.add(seq)   # in-batch duplicates too
                 seg = p.get("segId")
                 tk = int(p["taskK"])
                 if seg is not None:
@@ -1081,7 +1093,7 @@ class Database:
                     "theta, sd, rt, ts, training_id, seq_in_session, is_real) "
                     "VALUES (?,?,'train',?,?,?,?,?,?,?,1)"),
                     (code, tk, p.get("ell"), p.get("theta"), p.get("sd"),
-                     p.get("rt"), utc_now(), training_id, p.get("seqInSession")))
+                     p.get("rt"), utc_now(), training_id, seq))
 
     # ── training pilot monitor (admin) ────────────────────────────
     def training_monitor(self) -> dict:

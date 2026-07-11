@@ -1242,6 +1242,34 @@ def test_regimen_empty_then_real(client):
     assert r["sample"] is False and r["regimen"]["weeks"] == 6
 
 
+def test_training_progress_idempotent_per_answer(client):
+    """The per-answer checkpoint outbox may retry after an ambiguous network
+    failure; (trainingId, seqInSession) dedupes server-side so trajectory
+    rows can never duplicate. New seqs still land."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    tid = client.post("/api/training-sessions", headers=hdr,
+                      json={"taskFocus": "gpd"}).json()["trainingId"]
+    pt = {"taskK": 1, "ell": 0.2, "theta": 0.0, "sd": 0.1, "rt": 900,
+          "segId": 42, "seqInSession": 0}
+    for _ in range(2):   # the retry
+        assert client.post("/api/training-progress", headers=hdr,
+                           json={"trainingId": tid, "points": [pt]}).status_code == 200
+    db = client.app.state.db
+    rows = db._fetchall(
+        "SELECT * FROM param_trajectories WHERE training_id=?", (tid,))
+    assert len(rows) == 1
+    # in-batch duplicates collapse too; distinct seqs land
+    pts = [dict(pt, seqInSession=1, segId=43), dict(pt, seqInSession=1, segId=43),
+           dict(pt, seqInSession=2, segId=44)]
+    assert client.post("/api/training-progress", headers=hdr,
+                       json={"trainingId": tid, "points": pts}).status_code == 200
+    rows = db._fetchall(
+        "SELECT seq_in_session FROM param_trajectories WHERE training_id=? "
+        "ORDER BY seq_in_session", (tid,))
+    assert [r["seq_in_session"] for r in rows] == [0, 1, 2]
+
+
 def test_training_session_lifecycle(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)

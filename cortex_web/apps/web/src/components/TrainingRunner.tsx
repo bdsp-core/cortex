@@ -20,7 +20,6 @@ import * as api from "../api";
 import type { TrainerSession } from "../../trainer/session";
 import { TrainingController, DEFAULT_SESSION_ITEMS } from "../trainingController";
 
-const FLUSH_EVERY = 15;   // batch trajectory posts
 
 export function TrainingRunner({
   bundle, session, trainingId, labels, total = DEFAULT_SESSION_ITEMS, onExit,
@@ -100,7 +99,7 @@ export function TrainingRunner({
 
   const flush = useCallback(() => {
     const pts = ctrl.drainTrajectory();
-    if (pts.length) api.postTrainingProgress(trainingId, pts).catch(() => {});
+    if (pts.length) api.postTrainingProgress(trainingId, pts);
   }, [ctrl, trainingId]);
 
   const finish = useCallback(() => {
@@ -114,7 +113,9 @@ export function TrainingRunner({
     if (ctrl.phase !== "question" || !seg) return;
     ctrl.answer(yes, performance.now());
     if (ctrl.lastResult?.correct) setCorrectCount((n) => n + 1);
-    if (ctrl.progress().count % FLUSH_EVERY === 0) flush();
+    // per-answer checkpoint (crash-safety): every answer lands server-side
+    // immediately via the api-level outbox; a blip re-flushes on the next one
+    flush();
     // keep the trace on screen (dimmed) behind the result reveal; it clears when
     // the next question's media loads (proceed → setCurrentSegId).
     rerender();

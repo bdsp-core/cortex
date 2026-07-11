@@ -569,15 +569,28 @@ export interface api_TrainingPointIn {
   rt?: number;
   seqInSession?: number;
 }
-// Persist REAL per-trial trainer output for an owned training session (exposure
-// rows + is_real trajectory points; the server sets is_real/phase, anti-tamper).
+// Fire-and-forget per-answer training checkpoint (crash-safety; the same
+// contract as the exam's postProgress): unsent points queue in the outbox
+// and re-flush on each later answer, and the server dedupes on
+// (trainingId, seqInSession), so a retry after an ambiguous failure can
+// never duplicate trajectory rows. In-memory by design: a tab crash loses
+// the outbox exactly like it loses the sitting.
+const trainingOutbox = new Outbox<{ trainingId: string; points: api_TrainingPointIn[] }>({
+  send: (item) => authedFetch("/api/training-progress", {
+    method: "POST",
+    body: JSON.stringify(item),
+  }, { timeoutMs: 15_000 }),
+  // Permanent rejections (bad payload / unknown sitting; not an expired-token
+  // 401, which heals on re-login) must not wedge the queue.
+  shouldDrop: (e) => e instanceof ApiError && e.status !== 401 && e.status < 500,
+});
+
 export function postTrainingProgress(
   trainingId: string, points: api_TrainingPointIn[],
-): Promise<{ ok: boolean; n: number }> {
-  return authedFetch("/api/training-progress", {
-    method: "POST",
-    body: JSON.stringify({ trainingId, points }),
-  });
+): void {
+  if (!points.length) return;
+  trainingOutbox.push({ trainingId, points });
+  void trainingOutbox.flush();
 }
 // Record the participant's consent acceptance (Phase O1). Authenticated; the
 // server stamps the accept time + IP. Best-effort at the call site.
