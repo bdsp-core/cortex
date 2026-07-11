@@ -82,8 +82,9 @@ export function GoogleSignInButton({ onAuthed, onError }: {
       {/* neutral "or" divider between Create-account and the Google button */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "16px 0 4px" }}>
         <span style={{ flex: 1, height: 1, background: COLORS.borderInactive }} />
-        <span style={{ fontSize: 12, color: COLORS.textFaint, fontFamily: FONTS.sans,
-          textTransform: "uppercase", letterSpacing: "0.06em" }}>{t("common.or")}</span>
+        <span style={{ fontSize: 12, color: COLORS.textFaint, fontFamily: FONTS.sans }}>
+          {t("common.or")}
+        </span>
         <span style={{ flex: 1, height: 1, background: COLORS.borderInactive }} />
       </div>
       <div style={{ marginTop: 20, display: "flex", justifyContent: "center",

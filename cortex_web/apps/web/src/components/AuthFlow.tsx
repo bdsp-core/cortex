@@ -706,11 +706,21 @@ export function AuthFlow({ onAuthed, deepLink }: {
             alt="" aria-hidden="true"
             style={{
               position: "absolute", left: 36, top: 36, width: "calc(64vw - 72px)",
-              height: "calc(100% - 84px)",
+              height: "calc(100% - 124px)",
               objectFit: "contain", objectPosition: "center",
               userSelect: "none",
             }}
           />
+          {/* Caption anchors the collage as intentional product imagery
+              (brand serif, same face as the card titles). */}
+          <div className="auth-collage" style={{
+            position: "absolute", left: 36, bottom: 30, width: "calc(64vw - 72px)",
+            textAlign: "center", fontFamily: FONTS.serif, fontStyle: "italic",
+            fontSize: 14, color: COLORS.textBody,
+          }}>
+            The CORTEX engine at work: adaptive EEG reads drive live per-domain
+            estimates of reader skill and bias.
+          </div>
           <div className="auth-collage" aria-hidden="true" style={{
             position: "absolute", top: 0, bottom: 0,
             left: "calc(65.333vw - 36px)", width: 1,
