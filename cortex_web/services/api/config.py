@@ -23,16 +23,6 @@ SERVE_STATIC = os.environ.get("CORTEX_SERVE_STATIC", "") not in ("", "0", "false
 DIST_DIR = Path(os.environ.get("CORTEX_DIST_DIR", str(CORTEX_WEB / "apps" / "web" / "dist")))
 BUNDLE_DIR = Path(os.environ.get("CORTEX_BUNDLE_DIR", str(CORTEX_WEB / "apps" / "web" / "public" / "bundle")))
 
-# Renderers for POST /api/videos. Prefer the repo-root scripts/ (dev/desktop);
-# fall back to the vendored copies under services/api/render_assets/ when the
-# repo root isn't present (the prod web box deploys only cortex_web/).
-_REPO_SCRIPTS = REPO_ROOT / "scripts"
-_VENDORED_SCRIPTS = HERE / "render_assets"
-SCRIPTS_DIR = os.environ.get(
-    "CORTEX_SCRIPTS_DIR",
-    str(_REPO_SCRIPTS if _REPO_SCRIPTS.exists() else _VENDORED_SCRIPTS),
-)
-
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
 # Per-session candidate-pool size (the server-drawn subset the client engine

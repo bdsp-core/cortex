@@ -19,13 +19,6 @@ google-auth>=2.28
 # Signup email-domain deliverability check (MX/A lookup in helpers.py).
 # Imported lazily there too — installs without it skip the check.
 dnspython>=2.6
-# /api/videos: multipart upload + the desktop MP4 renderers
-# (scripts/cortex_render_videos.py + render_engine_explainer.py). The repo venv
-# already provides numpy/matplotlib; install here if running the API standalone.
-python-multipart>=0.0.9
-numpy>=1.26
-matplotlib>=3.8
-imageio-ffmpeg>=0.5       # bundles the ffmpeg binary
 # Tests:
 httpx>=0.27          # FastAPI TestClient transport
 pytest>=8.0

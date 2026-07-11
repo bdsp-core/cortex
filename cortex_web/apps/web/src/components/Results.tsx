@@ -63,16 +63,13 @@ const STOP_REASON_LABEL: Record<string, string> = {
   REFER_UNINFORMATIVE: "Referred — uninformative",
 };
 
-export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
+export function Results({ summary, onFinish, onReturn }: {
   summary: ResultSummary;
   onFinish?: () => void;
-  onDownloadVideos?: () => Promise<void>;
   onReturn?: () => void;
 }) {
   const [showTech, setShowTech] = useState(false);
   const [openRoc, setOpenRoc] = useState<number | null>(null);
-  const [vidState, setVidState] = useState<"idle" | "rendering" | "error">("idle");
-  const [vidErr, setVidErr] = useState("");
   const rows = rowPlan(summary);
   return (
     <Stage maxW={820}>
@@ -158,35 +155,6 @@ export function Results({ summary, onFinish, onDownloadVideos, onReturn }: {
                      pi={summary.pi?.[o.idx]} R={summary.R?.[o.idx]} n={summary.nPerTask?.[o.idx]} />
               ))}
             </div>
-          </div>
-        )}
-
-        {onDownloadVideos && (
-          <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${COLORS.borderInactive}` }}>
-            <button
-              disabled={vidState === "rendering"}
-              onClick={async () => {
-                setVidState("rendering"); setVidErr("");
-                try { await onDownloadVideos(); setVidState("idle"); }
-                catch (e) { setVidErr(e instanceof Error ? e.message : String(e)); setVidState("error"); }
-              }}
-              style={{
-                background: vidState === "rendering" ? COLORS.cardAlt : COLORS.accent,
-                color: vidState === "rendering" ? COLORS.textTertiary : "#fff",
-                border: "none", borderRadius: 4, padding: "10px 16px", fontWeight: 700, fontSize: 13,
-                cursor: vidState === "rendering" ? "default" : "pointer", fontFamily: FONTS.sans,
-              }}
-            >
-              {vidState === "rendering" ? "Rendering videos…" : "Download visualization videos (.zip)"}
-            </button>
-            <div style={{ color: COLORS.textTertiary, fontSize: 12, marginTop: 8 }}>
-              Per-session MP4s: engine explainer, particle collapse, and pass/fail.
-              Video creation may take up to ~10 minutes.
-              {vidState === "rendering" && " Rendering now — please keep this tab open."}
-            </div>
-            {vidState === "error" && (
-              <div style={{ color: COLORS.fail, fontSize: 12, marginTop: 6 }}>{vidErr}</div>
-            )}
           </div>
         )}
 

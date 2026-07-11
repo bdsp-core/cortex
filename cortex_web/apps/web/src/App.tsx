@@ -137,7 +137,6 @@ export function App() {
   const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
-  const vizRef = useRef<api.VizPayload | null>(null); // trajectory for the video zip (#8)
 
   // Retry any results that failed to upload in a previous sitting, as soon as
   // we have a token (crash-safety reconnect, PLAN §8).
@@ -320,21 +319,6 @@ export function App() {
             roc,
           };
           setSummary(sum);
-          // Build the visualization-video payload (trajectory + the trial fields
-          // the desktop renderers read) for the optional download (#8).
-          vizRef.current = {
-            shape: r.traj.shape,
-            taskCodes: inputs.taskCodes,
-            segIds: r.servedSegIds,
-            trials: r.trials.map((dd) => ({
-              trial_index: dd.trialIndex, task_k: dd.taskK, task_code: inputs.taskCodes[dd.taskK],
-              response_y: dd.y, s_mean: dd.s, is_correct: null,
-              auroc_hw: dd.aurocHw, policy_diag: { pi: dd.pi, mcse: dd.mcse }, verdicts: dd.verdicts,
-            })),
-            certificate: { stop_reason: r.stopReason, per_task: r.verdicts.map((v) => ({ verdict: v })) },
-            participantName: (participantRef.current as { name?: string } | null)?.name ?? "Anonymous",
-            t: r.traj.t, l: r.traj.l, w: r.traj.w,
-          };
           // Per-task posterior SD of ℓ (σ) from the FINAL particle-cloud step —
           // the ± band on the ℓ evolution chart. l is [T,N,K] row-major, w is
           // [T,N]; weighted std over the N particles at t = T-1.
@@ -493,20 +477,6 @@ export function App() {
     clientRef.current?.answer(pick);
   }, []);
 
-  // Render + download the visualization MP4 zip (#8). Throws on failure so the
-  // Results button can surface it.
-  const downloadVideos = useCallback(async () => {
-    if (!vizRef.current) throw new Error("no session data");
-    const blob = await api.requestVideos(vizRef.current);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "cortex_visualizations.zip";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, []);
 
   // ── render ────────────────────────────────────────────────────
   const startTraining = useCallback(async () => {
@@ -677,8 +647,7 @@ export function App() {
       ) : <Computing note="Preparing your training session…" />;
     case "done":
       return summary
-        ? <Results summary={summary} onDownloadVideos={downloadVideos}
-            onReturn={() => setPhase("dashboard")} />
+        ? <Results summary={summary} onReturn={() => setPhase("dashboard")} />
         : <Computing />;
     case "error":
       return (
