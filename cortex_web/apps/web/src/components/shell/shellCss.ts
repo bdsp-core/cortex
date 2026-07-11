@@ -103,7 +103,7 @@ export const SHELL_CSS = `
 .cx-tile.sel{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal);}
 .cx-tile .ringcell{grid-row:1 / span 2;align-self:center;}
 .cx-tile .head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s8);}
-.cx-tile .task{font-weight:600;font-size:15px;line-height:1.2;}
+.cx-tile .task{font-weight:600;font-size:18px;line-height:1.2;}
 .cx-tile .foot{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s8);
   grid-column:2;}
 
