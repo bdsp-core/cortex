@@ -538,7 +538,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                   }
                   return (
                     <div className="cx-placeholder">
-                      Your ℓ / θ / response-time trajectory will appear here once you complete a certification test.
+                      Complete a certification test to chart your skill (ℓ), decision bias (θ), and response time for this domain.
                     </div>
                   );
                 })()}
@@ -553,7 +553,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               </div>
               {!regimen && (
                 <div className="cx-placeholder">
-                  Your training protocol will appear here once daily training begins.
+                  No protocol yet. Your first training session builds a spaced-repetition plan from your certification result, weighted toward the domains still below their ℓ* bar.
                 </div>
               )}
               {regimen && (
@@ -625,7 +625,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                   </table>
                 </div>
               ) : (
-                <div className="cx-placeholder">Your daily deck will appear here once training begins.</div>
+                <div className="cx-placeholder">No deck yet. Your first training session builds it.</div>
               )}
               <div className="cx-deckhint">
                 <span className="k"><i style={{ background: "var(--c-new)" }} />New</span>
@@ -684,7 +684,7 @@ function ProtocolSurface() {
       )}
       {loaded && !regimen && (
         <div className="cx-placeholder">
-          Your training protocol will appear here once daily training begins.
+          No protocol yet. Your first training session builds a spaced-repetition plan from your certification result, weighted toward the domains still below their ℓ* bar.
         </div>
       )}
       {regimen && (
@@ -967,7 +967,7 @@ function TrainingSurface() {
       </div>
       {loaded && !regimen && (
         <div className="cx-placeholder">
-          Your daily training deck will appear here once your training protocol begins.
+          No deck yet. A session gives you focused one-vs-rest reads on your weakest domains, with the true label revealed after every answer. Your first session builds the deck.
         </div>
       )}
       {regimen && (
@@ -1003,7 +1003,9 @@ function TrainingSurface() {
           Start today's session <span className="arrow">→</span>
         </button>
         <span className="cx-cta-note">
-          {totalItems} items due. Practice mode is not scored.
+          {regimen
+            ? `${totalItems} ${totalItems === 1 ? "item" : "items"} due. Practice mode is not scored.`
+            : "Available after your first training session."}
         </span>
       </div>
       {doneNote && <div className="cx-cta-note" style={{ marginTop: "var(--s12)" }}>{doneNote}</div>}
@@ -1155,7 +1157,7 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
               </>
             ) : (
               <div className="cx-placeholder">
-                Your ℓ / θ / response-time trajectory will appear here once you complete a certification test.
+                Complete a certification test to chart your skill (ℓ), decision bias (θ), and response time for this domain.
               </div>
             )}
           </section>

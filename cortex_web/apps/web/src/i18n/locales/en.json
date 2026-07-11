@@ -5,10 +5,10 @@
   "common.back": "Back",
   "common.or": "or",
 
-  "auth.signin.title": "Login into CORTEX",
+  "auth.signin.title": "Sign in to CORTEX",
   "auth.signin.forgot": "Forgot password?",
-  "auth.signin.submit": "Log in",
-  "auth.signin.submitting": "Logging in…",
+  "auth.signin.submit": "Sign in",
+  "auth.signin.submitting": "Signing in…",
   "auth.signin.create": "Create new account",
   "auth.signin.errInvalid": "Email or password is incorrect.",
   "auth.signin.errGeneric": "Something went wrong.",
