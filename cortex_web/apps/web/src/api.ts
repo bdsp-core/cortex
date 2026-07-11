@@ -633,6 +633,34 @@ export function activeSession(): Promise<{
   return authedFetch("/api/session/active", {}, { retries: 2 });
 }
 
+// Light resume/washout status: what the dashboard CTA labels need, without
+// the drawn-pool payload of /api/session/active (the pre-flight click still
+// fetches the full thing).
+export interface SessionStatus {
+  examResumable: boolean;
+  washout: { reopensAtUtc: string } | null;
+}
+
+// GET /api/bootstrap — the dashboard-entry sections in one round-trip. Each
+// section carries EXACTLY its standalone endpoint's payload (same server-side
+// builder); a section is null when it failed server-side (failure-isolated),
+// and the consumer renders its empty state exactly as if the standalone call
+// had failed. Fetch through bootstrapStore.bootstrapOnce() so the surfaces
+// mounted on one dashboard entry share a single request.
+export interface BootstrapData {
+  dashboard: DashboardData | null;
+  trajectories: { trajectories: TrajectoryPoint[]; sample: boolean } | null;
+  regimen: { regimen: RegimenPlan | null; sample: boolean } | null;
+  activity: { days: Record<string, number> } | null;
+  session: SessionStatus | null;
+  cohorts: { cohorts: CohortSummary[] } | null;
+  errors?: Record<string, string>;
+}
+export function bootstrap(): Promise<BootstrapData> {
+  return authedFetch(`/api/bootstrap?tz=${new Date().getTimezoneOffset()}`,
+                     {}, { retries: 2 });
+}
+
 // Fire-and-forget per-trial checkpoint (crash-safety). Never throws into the
 // UI — and no longer silently DROPS on failure: /api/progress is an
 // idempotent upsert on (sessionId, trialIndex), so unsent checkpoints queue

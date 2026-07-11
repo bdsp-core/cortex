@@ -16,6 +16,7 @@ import { resolutionConfidence, Progress } from "./progress";
 import { empiricalPoint, onCurvePoint } from "./roc";
 import { TrialDiag } from "../engine/types";
 import * as api from "./api";
+import { bootstrapOnce, invalidateBootstrap } from "./bootstrapStore";
 import { AuthFlow } from "./components/AuthFlow";
 import { consumeAuthDeepLink, consumeCohortDeepLink } from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
@@ -183,18 +184,21 @@ export function App() {
   // A resumable exam sitting exists (drives the CTA label: Resume vs Start).
   const [examResumable, setExamResumable] = useState(false);
   // Refresh on every dashboard (re)entry: finishing a training session lands
-  // back here, and the test button must grey out immediately.
+  // back here, and the test button must grey out immediately. One shared
+  // /api/bootstrap round-trip feeds this, the DashboardSurface, and the
+  // invite banner; the cleanup invalidates the cache when the phase leaves
+  // the dashboard so the next entry re-fetches fresh state.
   useEffect(() => {
     if (phase !== "dashboard") return;
     let gone = false;
-    api.activeSession()
-      .then((r) => {
-        if (gone) return;
-        setWashoutUntil(r.washout?.reopensAtUtc ?? null);
-        setExamResumable(!!(r.active && r.active.trials.length > 0));
+    bootstrapOnce()
+      .then((b) => {
+        if (gone || !b.session) return;
+        setWashoutUntil(b.session.washout?.reopensAtUtc ?? null);
+        setExamResumable(b.session.examResumable);
       })
       .catch(() => { /* pre-flight + the server 409 still guard the path */ });
-    return () => { gone = true; };
+    return () => { gone = true; invalidateBootstrap(); };
   }, [phase]);
 
   // ── flow transitions ──────────────────────────────────────────

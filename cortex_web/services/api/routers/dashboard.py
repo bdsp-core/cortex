@@ -51,8 +51,12 @@ def _training_enabled(req: Request, code: str) -> bool:
     return dashboard_logic.training_enabled(cfg, code, participant)
 
 
-@router.get("/dashboard")
-def dashboard(req: Request, code: str = Depends(require_auth)):
+# ── payload builders ──
+# Module-level so GET /api/bootstrap composes the SAME payloads the standalone
+# endpoints return (one implementation, two routes). Referenced through the
+# module attribute in bootstrap.py so test monkeypatching reaches them.
+
+def dashboard_payload(req: Request, code: str) -> dict:
     db = req.app.state.db
     # LIMIT-1 fetch: the dashboard reads only the newest attempt, so it must
     # not pull + JSON-parse every historical ~370 KB result blob.
@@ -84,11 +88,33 @@ def dashboard(req: Request, code: str = Depends(require_auth)):
     }
 
 
-@router.get("/activity")
-def activity(req: Request, tz: int = 0, code: str = Depends(require_auth)):
+def activity_payload(db, code: str, tz: int) -> dict:
     # Per-day activity levels for the consistency heatmap (sign-in / cert /
     # training), keyed by the user's LOCAL date. `tz` = getTimezoneOffset().
-    return {"days": req.app.state.db.activity_levels(code, tz)}
+    return {"days": db.activity_levels(code, tz)}
+
+
+def regimen_payload(db, code: str) -> dict:
+    reg = db.get_active_regimen(code)
+    return {"regimen": reg["plan"] if reg is not None else None, "sample": False}
+
+
+def trajectories_payload(db, code: str) -> dict:
+    rows = db.get_trajectories(code)
+    pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
+            "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
+           for r in rows]
+    return {"trajectories": pts, "sample": False}
+
+
+@router.get("/dashboard")
+def dashboard(req: Request, code: str = Depends(require_auth)):
+    return dashboard_payload(req, code)
+
+
+@router.get("/activity")
+def activity(req: Request, tz: int = 0, code: str = Depends(require_auth)):
+    return activity_payload(req.app.state.db, code, tz)
 
 
 @router.get("/history")
@@ -126,17 +152,12 @@ def history_questions(session_id: str, req: Request, code: str = Depends(require
 
 @router.get("/regimen")
 def regimen(req: Request, code: str = Depends(require_auth)):
-    reg = req.app.state.db.get_active_regimen(code)
-    return {"regimen": reg["plan"] if reg is not None else None, "sample": False}
+    return regimen_payload(req.app.state.db, code)
 
 
 @router.get("/trajectories")
 def trajectories(req: Request, code: str = Depends(require_auth)):
-    rows = req.app.state.db.get_trajectories(code)
-    pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
-            "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
-           for r in rows]
-    return {"trajectories": pts, "sample": False}
+    return trajectories_payload(req.app.state.db, code)
 
 
 @router.post("/trajectories")

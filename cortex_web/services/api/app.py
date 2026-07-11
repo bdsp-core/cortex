@@ -20,6 +20,7 @@ verify/{confirm,resend,status}, auth, auth/google, forgot, reset, report,
 client-error (SPA crash telemetry; rate-limited, log-only),
 ses/events (SNS webhook; capability-token-gated, 404 unless enabled). Bearer-
 gated: manifest, tutorial-example, session, progress, results, dashboard,
+bootstrap (the dashboard-entry sections in one round-trip),
 activity, history (+ /{id}/questions), regimen, trajectories,
 training-sessions (+ /finalize), consent (+ /withdraw), profile,
 account/{password,email}. X-Admin-Token-gated: admin/participants,

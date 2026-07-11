@@ -81,9 +81,9 @@ def _member_entry(db, row: dict, requester_code: str,
     return entry
 
 
-@router.get("/cohorts")
-def list_cohorts(req: Request, code: str = Depends(require_auth)):
-    db = req.app.state.db
+def cohorts_payload(db, code: str) -> dict:
+    """The caller's cohort list — module-level so GET /api/bootstrap serves
+    the exact /api/cohorts payload (the invite banner reads it)."""
     db.purge_expired_invites()
     mine = db.cohorts_for(code)
     # One grouped COUNT for all the caller's cohorts — the list view needs
@@ -100,6 +100,11 @@ def list_cohorts(req: Request, code: str = Depends(require_auth)):
             "createdUtc": r["created_utc"],
         })
     return {"cohorts": out}
+
+
+@router.get("/cohorts")
+def list_cohorts(req: Request, code: str = Depends(require_auth)):
+    return cohorts_payload(req.app.state.db, code)
 
 
 @router.post("/cohorts")

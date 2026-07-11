@@ -19,6 +19,7 @@
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
+import { bootstrapOnce } from "../bootstrapStore";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
@@ -318,19 +319,20 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
 
   useEffect(() => {
     let live = true;
-    // Each call is independent; a 401/failure on one must not blank the others.
-    api.getDashboard()
-      .then((d) => { if (live) setDash(d); })
+    // One shared /api/bootstrap round-trip for the whole dashboard entry
+    // (App's washout status and the invite banner join the same promise).
+    // Sections stay failure-isolated server-side: a null section leaves that
+    // surface in its empty state — same behavior as when these were four
+    // independent calls and one failed.
+    bootstrapOnce()
+      .then((b) => {
+        if (!live) return;
+        if (b.dashboard) setDash(b.dashboard); else setErr(true);
+        if (b.trajectories) setTrajPts(b.trajectories.trajectories);
+        if (b.regimen) setRegimen(b.regimen.regimen);
+        if (b.activity) setActivity(b.activity.days || {});
+      })
       .catch(() => { if (live) setErr(true); });
-    api.getTrajectories()
-      .then((t) => { if (live) setTrajPts(t.trajectories); })
-      .catch(() => { /* leave detail charts empty */ });
-    api.getRegimen()
-      .then((r) => { if (live) setRegimen(r.regimen); })
-      .catch(() => { /* leave protocol table empty */ });
-    api.getActivity()
-      .then((a) => { if (live) setActivity(a.days || {}); })
-      .catch(() => { /* leave heatmap empty */ });
     return () => { live = false; };
   }, []);
 

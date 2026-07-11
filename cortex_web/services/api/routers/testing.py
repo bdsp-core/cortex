@@ -110,6 +110,36 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
 RESUME_WINDOW_HOURS = 24
 
 
+def _replay_prefix(trials: list[dict]) -> list[dict]:
+    """The contiguous, fully-picked prefix of a sitting's trial log — the part
+    the engine can deterministically replay. A gap or a pick-less row (a
+    pre-answer crash artifact) ends what can be reconstructed."""
+    replay: list[dict] = []
+    for t in trials:
+        if t.get("pick") is None or t["trial_index"] != len(replay):
+            break
+        replay.append({"trialIndex": t["trial_index"], "segId": t["seg_id"],
+                       "pick": t["pick"]})
+    return replay
+
+
+def session_status(db, bank, code: str) -> dict:
+    """Light resume/washout status for the dashboard bootstrap: the CTA labels
+    need two facts, not the drawn-pool payload GET /api/session/active carries
+    (hundreds of KB). Mirrors that endpoint's checks EXCEPT the bank-subset
+    rebuild — deliberately optimistic there: the pre-flight click still fetches
+    the full payload and falls back to a fresh start if the subset fails."""
+    reopens = _washout_reopens(db, code)
+    washout = {"reopensAtUtc": reopens} if reopens else None
+    resumable = False
+    row = db.get_active_session(code, max_age_hours=RESUME_WINDOW_HOURS)
+    if (row is not None and bank is not None
+            and row.get("bundle_version") == bank.version
+            and row.get("drawn_seg_ids")):
+        resumable = bool(_replay_prefix(db.session_trials(row["session_id"])))
+    return {"examResumable": resumable, "washout": washout}
+
+
 @router.get("/session/active")
 def active_session(req: Request, code: str = Depends(require_auth)):
     """The participant's most recent resumable sitting: its exact drawn pool
@@ -133,14 +163,7 @@ def active_session(req: Request, code: str = Depends(require_auth)):
     payload = bank.subset(json.loads(row["drawn_seg_ids"]))
     if payload is None:
         return {"active": None, "washout": washout}
-    replay = []
-    for t in db.session_trials(row["session_id"]):
-        # Replay needs a contiguous, fully-picked prefix; a gap or a pick-less
-        # row (pre-answer crash artifact) ends what can be reconstructed.
-        if t.get("pick") is None or t["trial_index"] != len(replay):
-            break
-        replay.append({"trialIndex": t["trial_index"], "segId": t["seg_id"],
-                       "pick": t["pick"]})
+    replay = _replay_prefix(db.session_trials(row["session_id"]))
     if not replay:
         # nothing checkpointed: a fresh start is equal
         return {"active": None, "washout": washout}

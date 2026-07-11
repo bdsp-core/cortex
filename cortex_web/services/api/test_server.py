@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from . import helpers, security
 from .app import create_app
 from .db import Database
+from .routers import dashboard as dashboard_router
 
 
 # ───────────────────────── security unit ─────────────────────────
@@ -2678,3 +2679,78 @@ def test_results_writes_are_atomic(client):
     assert db.get_result(sid) is not None
     assert db.get_session(sid)["status"] == "complete"
     assert len(db.get_trajectories(code)) == 1
+
+
+# ─────────────── bootstrap (dashboard entry in one round-trip) ───────────────
+
+def test_bootstrap_requires_auth(client):
+    assert client.get("/api/bootstrap").status_code == 401
+
+
+def test_bootstrap_matches_standalone_endpoints(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    # Give the account real state: an open sitting with one checkpointed trial
+    # (→ resumable) so the sections aren't all trivially empty.
+    start = client.post("/api/session", headers=hdr, json={"participant": {}}).json()
+    client.post("/api/progress", headers=hdr,
+                json={"sessionId": start["sessionId"],
+                      "trial": {"trialIndex": 0, "pick": 1,
+                                "segId": start["bank"]["segments"][0]["segId"]}})
+    body = client.get("/api/bootstrap?tz=0", headers=hdr).json()
+    # no `errors` key on the happy path
+    assert set(body) == {"dashboard", "trajectories", "regimen", "activity",
+                         "session", "cohorts"}
+    # each section IS the standalone endpoint's payload (same builder)
+    assert body["dashboard"] == client.get("/api/dashboard", headers=hdr).json()
+    assert body["trajectories"] == client.get("/api/trajectories", headers=hdr).json()
+    assert body["regimen"] == client.get("/api/regimen", headers=hdr).json()
+    assert body["activity"] == client.get("/api/activity?tz=0", headers=hdr).json()
+    assert body["cohorts"] == client.get("/api/cohorts", headers=hdr).json()
+    # the session section is the LIGHT status: it agrees with the heavy
+    # endpoint's verdict but never carries the drawn pool
+    act = client.get("/api/session/active", headers=hdr).json()
+    assert body["session"] == {"examResumable": act["active"] is not None,
+                               "washout": None}
+    assert body["session"]["examResumable"] is True
+
+
+def test_bootstrap_session_status_reflects_washout(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    fin = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+    db._write("INSERT INTO training_sessions(training_id, code, started_utc, "
+              "finished_utc, status) VALUES (?,?,?,?,'complete')",
+              ("tr-boot-1", code, fin, fin))
+    body = client.get("/api/bootstrap?include=session", headers=hdr).json()
+    assert set(body) == {"session"}
+    assert body["session"]["examResumable"] is False
+    assert body["session"]["washout"]["reopensAtUtc"] > fin
+
+
+def test_bootstrap_include_filters_and_rejects_unknown(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    body = client.get("/api/bootstrap?include=dashboard,activity", headers=hdr).json()
+    assert set(body) == {"dashboard", "activity"}
+    assert client.get("/api/bootstrap?include=nope", headers=hdr).status_code == 400
+
+
+def test_bootstrap_section_failure_is_isolated(client, monkeypatch):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+
+    def boom(req, code):
+        raise RuntimeError("section exploded")
+
+    monkeypatch.setattr(dashboard_router, "dashboard_payload", boom)
+    body = client.get("/api/bootstrap?tz=0", headers=hdr).json()
+    assert body["dashboard"] is None
+    assert body["errors"] == {"dashboard": "internal"}
+    # every other section still landed
+    assert "days" in body["activity"]
+    assert body["cohorts"] == {"cohorts": []}
+    assert body["session"] == {"examResumable": False, "washout": None}
+    assert body["trajectories"]["trajectories"] == []

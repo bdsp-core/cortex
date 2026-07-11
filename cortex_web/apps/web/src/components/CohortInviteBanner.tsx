@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../api";
+import { bootstrapOnce } from "../bootstrapStore";
 import { COLORS, FONTS } from "../../ui/theme";
 
 const DISMISS_KEY = "cortex.inviteBannerDismissed";
@@ -45,9 +46,19 @@ export function CohortInviteBanner({ highlightCohortId }: {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    let live = true;
+    // Initial paint rides the shared dashboard bootstrap (no extra request);
+    // the standalone-list poll keeps invites fresh while mounted. A null
+    // cohorts section just waits for the first poll tick.
+    bootstrapOnce()
+      .then((b) => {
+        if (!live || !b.cohorts) return;
+        setInvites(b.cohorts.cohorts.filter(
+          (c) => c.status === "invited" && c.role === "member"));
+      })
+      .catch(() => { /* the poll below retries */ });
     const id = window.setInterval(() => void refresh(), POLL_MS);
-    return () => window.clearInterval(id);
+    return () => { live = false; window.clearInterval(id); };
   }, [refresh]);
 
   async function act(cohortId: string, fn: (id: string) => Promise<unknown>) {
