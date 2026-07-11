@@ -133,6 +133,9 @@
       html, body, #root { height: 100%; margin: 0; }
       body {
         font-family: var(--sans);
+        /* Lining, equal-width digits everywhere: KPI strips, deck counts and
+           chart ticks align instead of wobbling per-digit. */
+        font-variant-numeric: tabular-nums;
         color: var(--ink);
         background: var(--page);
       }

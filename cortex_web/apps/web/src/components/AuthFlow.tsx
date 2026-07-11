@@ -52,11 +52,12 @@ const cardStyle: CSSProperties = {
   padding: 32,
   boxSizing: "border-box",
 };
+// Card titles carry the brand serif (same face as the landing/consent
+// surfaces and the dashboard panel headings).
 const h1Style: CSSProperties = {
-  fontFamily: FONTS.sans,
-  fontSize: 22,
+  fontFamily: FONTS.serif,
+  fontSize: 23,
   fontWeight: 600,
-  letterSpacing: "-0.01em",
   color: COLORS.textPrimary,
   margin: "0 0 4px",
 };

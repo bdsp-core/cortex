@@ -79,7 +79,7 @@ export const SHELL_CSS = `
 .cx-panel + .cx-panel{margin-top:var(--s24);}
 .cx-phead{display:flex;align-items:baseline;justify-content:space-between;
   margin-bottom:var(--s16);gap:var(--s12);}
-.cx-phead h2{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em;}
+.cx-phead h2{font-family:var(--serif);font-size:21px;font-weight:600;margin:0;letter-spacing:0;}
 .cx-phead .sub{font-size:12px;color:var(--ink-subtle);}
 .cx-placeholder{color:var(--ink-subtle);font-size:14px;}
 
@@ -134,7 +134,7 @@ export const SHELL_CSS = `
   display:flex;align-items:center;justify-content:center;padding:var(--s24);z-index:50;}
 .cx-welcome-card{background:var(--panel);border:1px solid var(--bd-subtle);border-radius:14px;
   max-width:520px;width:100%;padding:28px 28px var(--s24);box-shadow:0 20px 60px rgba(0,0,0,.3);}
-.cx-welcome-card h2{margin:0 0 var(--s12);font-size:22px;color:var(--ink);}
+.cx-welcome-card h2{font-family:var(--serif);margin:0 0 var(--s12);font-size:22px;color:var(--ink);}
 .cx-welcome-card p{margin:0 0 var(--s12);font-size:14px;line-height:1.55;color:var(--ink-subtle);}
 .cx-welcome-card p strong{color:var(--ink);font-weight:600;}
 .cx-welcome-logo{display:block;width:95%;height:auto;margin:0 auto var(--s24);}
@@ -225,7 +225,7 @@ td.ellcell .of{color:var(--ink-faint);}
 /* Cohorts reuses the settings typography but fills the whole content area
    (centered by the symmetric .cx-content padding). */
 .cx-cohorts{max-width:none;width:100%;margin:0 auto;}
-.cx-settings>h2{font-size:20px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
+.cx-settings>h2{font-family:var(--serif);font-size:21px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
 .cx-settings>.sub{color:var(--ink-subtle);font-size:13px;margin:0 0 var(--s24);}
 .cx-settings section{margin-bottom:var(--s24);}
 .cx-settings section h2{font-size:16px;font-weight:700;margin:0 0 var(--s4);color:var(--ink);}
