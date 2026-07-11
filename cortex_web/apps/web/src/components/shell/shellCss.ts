@@ -104,8 +104,6 @@ export const SHELL_CSS = `
 .cx-tile .ringcell{grid-row:1 / span 2;align-self:center;}
 .cx-tile .head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s8);}
 .cx-tile .task{font-weight:600;font-size:15px;line-height:1.2;}
-.cx-tile .task .code{display:block;font-size:11px;color:var(--ink-subtle);
-  font-weight:400;text-transform:uppercase;letter-spacing:.05em;margin-top:1px;}
 .cx-tile .foot{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s8);
   grid-column:2;}
 
@@ -182,7 +180,6 @@ td.cnt.due{color:var(--c-due);}
 td.cnt.zero{color:var(--ink-faint);}
 td.ellcell{font-family:var(--mono);font-variant-numeric:tabular-nums;}
 td.ellcell .of{color:var(--ink-faint);}
-.cx-task-sub{color:var(--ink-faint);font-size:11px;margin-left:4px;}
 
 /* ---------- sidebar ---------- */
 .cx-side-streak{display:flex;align-items:center;gap:var(--s16);margin-bottom:var(--s16);}

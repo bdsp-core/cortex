@@ -473,10 +473,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                         <Ring ell={t.ell} ellStar={t.ellStar} />
                       </div>
                       <div className="head">
-                        <div className="task">
-                          {t.label}
-                          <span className="code">{t.code}</span>
-                        </div>
+                        <div className="task">{t.label}</div>
                         <Chip verdict={t.verdict} />
                       </div>
                       <div className="foot">
@@ -574,10 +571,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                   <tbody>
                     {(regimen.deck ?? []).map((row) => (
                       <tr key={row.code}>
-                        <td className="task">
-                          {row.label}
-                          <span className="cx-task-sub">{row.code}</span>
-                        </td>
+                        <td className="task">{row.label}</td>
                         <td className="ellcell r">
                           {row.ell.toFixed(2)} <span className="of">→ {row.ellStar.toFixed(2)}</span>
                         </td>
@@ -722,10 +716,7 @@ function ProtocolSurface() {
                 const reached = row.ell >= row.ellStar;
                 return (
                   <tr key={row.code}>
-                    <td className="task">
-                      {row.label}
-                      <span className="cx-task-sub">{row.code}</span>
-                    </td>
+                    <td className="task">{row.label}</td>
                     <td className="ellcell r">
                       {row.ell.toFixed(2)} <span className="of">→ {row.ellStar.toFixed(2)}</span>
                     </td>
@@ -992,9 +983,7 @@ function TrainingSurface() {
           <tbody>
             {(regimen.deck ?? []).map((row) => (
               <tr key={row.code}>
-                <td className="task">
-                  {row.label}<span className="cx-task-sub">{row.code}</span>
-                </td>
+                <td className="task">{row.label}</td>
                 <td className={`cnt new${row.new ? "" : " zero"}`}>{row.new}</td>
                 <td className={`cnt learn${row.learning ? "" : " zero"}`}>{row.learning}</td>
                 <td className={`cnt due${row.due ? "" : " zero"}`}>{row.due}</td>
