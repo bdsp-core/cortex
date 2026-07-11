@@ -222,7 +222,9 @@ function DetailCharts({ task, traj }: { task: TaskVM; traj?: TrajVM }) {
   let rMin = Math.min(...rtS);
   let rMax = Math.max(...rtS);
   const rPad = (rMax - rMin) * 0.18 || 0.3;
-  rMin -= rPad; rMax += rPad;
+  // Clamp the padded floor at 0: a reaction time can't be negative, so the
+  // axis must never show sub-zero seconds (flat/low series used to).
+  rMin = Math.max(0, rMin - rPad); rMax += rPad;
 
   const thNow = traj.theta[n - 1];
   const fmtTheta = (v: number) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
