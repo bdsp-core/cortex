@@ -27,7 +27,8 @@ export const SHELL_CSS = `
 .cx-nav-aux button{padding-top:4px;padding-bottom:4px;}
 .cx-spacer{flex:1;}
 .cx-cta{display:flex;flex-direction:column;gap:var(--s8);padding:var(--s16) var(--s12) 0;}
-.cx-cta .cx-btn{width:100%;justify-content:center;text-align:center;line-height:1.25;}
+.cx-cta .cx-btn{width:100%;justify-content:center;text-align:center;line-height:1.25;
+  font-size:13px;padding-left:var(--s8);padding-right:var(--s8);white-space:nowrap;}
 .cx-btn{font-family:inherit;font-size:14px;font-weight:600;
   padding:var(--s12) var(--s16);border-radius:var(--radius-ctl);
   border:1px solid var(--bd);background:var(--panel);color:var(--ink);
@@ -69,7 +70,7 @@ export const SHELL_CSS = `
 .cx-kpi .v{font-family:var(--mono);font-variant-numeric:tabular-nums;
   font-size:30px;font-weight:700;line-height:1;color:var(--ink);}
 .cx-kpi .v .u{font-size:15px;font-weight:600;color:var(--ink-subtle);margin-left:4px;}
-.cx-kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-subtle);}
+.cx-kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-subtle);}
 .cx-kpi .note{font-size:11px;color:var(--ink-faint);font-family:var(--mono);}
 .cx-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s8);}
 .cx-kpi-bar{height:8px;background:var(--panel-hover);border:1px solid var(--bd-subtle);
@@ -116,7 +117,7 @@ export const SHELL_CSS = `
 
 /* ---------- verdict chip (ALWAYS carries a text label) ---------- */
 .cx-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
-  letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;
+  letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
   border-radius:var(--radius-ctl);border:1px solid transparent;white-space:nowrap;}
 .cx-chip i{width:7px;height:7px;border-radius:0;flex:none;}
 .cx-chip.pass{color:var(--chip-pass-fg);background:var(--chip-pass-bg);border-color:var(--chip-pass-bd);}
@@ -172,7 +173,7 @@ export const SHELL_CSS = `
 /* ---------- protocol / deck tables ---------- */
 table.cx-deck{width:100%;border-collapse:collapse;font-size:13px;margin-top:var(--s8);}
 table.cx-deck th{text-align:left;font-size:11px;font-weight:600;color:var(--ink-subtle);
-  text-transform:uppercase;letter-spacing:.04em;padding:var(--s8) var(--s12);
+  text-transform:uppercase;letter-spacing:.05em;padding:var(--s8) var(--s12);
   border-bottom:1px solid var(--bd-subtle);}
 table.cx-deck th.r,table.cx-deck td.r{text-align:right;}
 table.cx-deck td{padding:var(--s2) var(--s12);border-bottom:1px solid var(--bd-subtle);}
@@ -299,7 +300,7 @@ td.ellcell .of{color:var(--ink-faint);}
 /* per-question breakdown table (scrolls; adapts to width without page overflow) */
 .cx-q-section{margin-top:var(--s16);}
 .cx-q-title{font-size:11px;font-weight:600;color:var(--ink-subtle);
-  text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--s8);}
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--s8);}
 .cx-q-scroll{max-height:min(60vh,520px);overflow:auto;
   border:1px solid var(--bd-subtle);border-radius:var(--radius-ctl);background:var(--panel);
   -webkit-overflow-scrolling:touch;}
@@ -307,7 +308,7 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-q-table th,.cx-q-table td{padding:6px 10px;text-align:left;white-space:nowrap;
   border-bottom:1px solid var(--bd-subtle);}
 .cx-q-table th{position:sticky;top:0;z-index:1;background:var(--panel);font-weight:600;
-  font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-subtle);}
+  font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-subtle);}
 .cx-q-table th.r,.cx-q-table td.r{text-align:right;}
 .cx-q-table td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
 .cx-q-table td.ok{color:var(--pass);font-weight:600;}

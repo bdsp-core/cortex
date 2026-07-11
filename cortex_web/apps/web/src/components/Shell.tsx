@@ -1324,7 +1324,7 @@ function SettingsSurface() {
           <div className="cx-field">
             <label>Primary role / expertise</label>
             <select className="cx-select" value={expertise} onChange={(e) => setExpertise(e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">Not specified</option>
               {EXPERTISE.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
@@ -1337,7 +1337,7 @@ function SettingsSurface() {
               ) : (
                 <select className="cx-select" value={profile[f.key] ?? ""}
                   onChange={(e) => setField(f.key)(e.target.value)}>
-                  <option value="">Select…</option>
+                  <option value="">Not specified</option>
                   {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               )}

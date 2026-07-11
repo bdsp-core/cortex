@@ -855,7 +855,7 @@ export function AuthFlow({ onAuthed, deepLink }: {
                     <span style={labelStyle}>{f.label}</span>
                     <select value={suProfile[f.key] ?? ""}
                       onChange={(e) => setSuProfileField(f.key)(e.target.value)} style={inputStyle}>
-                      <option value="">Select…</option>
+                      <option value="">{t("auth.signup.select")}</option>
                       {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </label>

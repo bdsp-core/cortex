@@ -126,7 +126,7 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
                 <label style={S.label}>Role
                   <select style={S.input} value={expertise}
                     onChange={(e) => setExpertise(e.target.value)}>
-                    <option value="">Select…</option>
+                    <option value="">Not specified</option>
                     {EXPERTISE.map(([, v]) => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </label>
@@ -139,7 +139,7 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
                     ) : (
                       <select style={S.input} value={profile[f.key] ?? ""}
                         onChange={(e) => setProfile((p) => ({ ...p, [f.key]: e.target.value }))}>
-                        <option value="">Select…</option>
+                        <option value="">Not specified</option>
                         {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     )}
