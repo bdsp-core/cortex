@@ -139,27 +139,50 @@ sudo cat /tmp/codes.csv      # distribute these — passwords shown ONCE
 sudo rm /tmp/codes.csv       # they're stored hashed in the DB
 ```
 
-### 6. (Optional) CloudFront in front
+### 6. CloudFront in front of the EEG bundle (LIVE since 2026-07-10)
 
-Cuts first-byte latency for participants outside us-east. **Free** within the
-1 TB/mo always-free tier (you're at ~0.3 TB/mo at 1k sessions).
+The bundle blobs are ~200-300 MB per first full sitting and are the box's
+dominant egress; they are also perfectly cacheable (path-versioned,
+`Cache-Control: immutable`). A dedicated CDN hostname fronts ONLY them —
+the SPA and /api stay direct on the Caddy host, so auth, rate limiting and
+the in-memory session state are untouched.
 
-In the AWS console → **CloudFront** → Create distribution:
+Live setup (all in the account that owns the cortexeeg.org Route53 zone):
 
-  - **Origin domain**: `cortex.lab.example.org` (your Caddy host)
-  - **Origin protocol**: HTTPS only (Caddy already has a cert)
-  - **Viewer protocol policy**: Redirect HTTP → HTTPS
-  - **Allowed methods**: GET, HEAD, POST, OPTIONS, PUT, PATCH, DELETE
-    (POST is needed for `/api/auth`, `/api/session`, `/api/results`)
-  - **Cache policy** (default): `CachingDisabled` for `/api/*` and the
-    catch-all; `CachingOptimized` for `/bundle/*` (the path-versioned blobs
-    are safe to cache aggressively).
-  - **Origin request policy**: `AllViewer` (forwards Authorization).
-  - **Alternate domain name (CNAME)**: e.g. `cortex.lab.example.org`.
-  - **SSL certificate**: ACM in `us-east-1`.
+  - **ACM cert** (us-east-1, DNS-validated): `bundle.cortexeeg.org`
+    (`arn:aws:acm:us-east-1:394624473373:certificate/865c81af-d167-4a85-8f44-9ad0232996db`)
+  - **CloudFront distribution** `E87M6EKAC1WUZ` (`d1c985pg598sx8.cloudfront.net`):
+      * Origin: `app.cortexeeg.org`, HTTPS-only (Caddy is the origin; the
+        bundle files never leave the box's disk — no S3 copy to keep in sync).
+      * Behavior `/bundle/*`: GET/HEAD, `Managed-CachingOptimized`
+        (honors the origin's immutable/max-age headers),
+        `Managed-SimpleCORS` (the SPA on app.cortexeeg.org fetch()es
+        cross-origin, so blobs need `Access-Control-Allow-Origin: *`).
+      * Default behavior: `Managed-CachingDisabled` passthrough. Nothing
+        should use the CDN host for the SPA or /api (authed API calls fail
+        there by design: Authorization is not forwarded).
+  - **Route53**: `bundle.cortexeeg.org` A/AAAA alias → the distribution.
 
-Add `https://<your-cloudfront-domain>` to `CORTEX_CORS_ORIGINS` in
-`/etc/cortex/cortex.env` and restart `cortex.service`.
+The cutover is one env var — the SPA fetches blobs from whatever base URL
+the API hands out (`bundleUrl` in the session/manifest payloads):
+
+```bash
+# /etc/cortex/cortex.env
+CORTEX_BUNDLE_URL=https://bundle.cortexeeg.org/bundle/<version>
+```
+
+then `sudo systemctl restart cortex`. Rollback = set it back to the
+same-origin `/bundle/<version>` and restart; Caddy still serves the path
+directly. Two coupling points to keep in mind:
+
+  - The site CSP's `connect-src` (Caddyfile) must list
+    `https://bundle.cortexeeg.org` or the browser blocks the fetches.
+  - Ship new bundle versions to `/opt/cortex/bundle/<version>/` as before;
+    the CDN needs no per-release action (new version = new paths = cold
+    cache that warms on first fetch).
+
+Cost: $0 within the CloudFront always-free tier (1 TB/mo egress; the pilot
+is at ~0.3 TB/mo at 1k sessions).
 
 ### 7. Done
 
