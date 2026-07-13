@@ -19,6 +19,7 @@ import {
 import * as api from "../api";
 import type { TrainerSession } from "../../trainer/session";
 import { TrainingController, DEFAULT_SESSION_ITEMS } from "../trainingController";
+import { buildRevealRows, type RevealRow } from "../trainingReveal";
 
 
 export function TrainingRunner({
@@ -102,12 +103,21 @@ export function TrainingRunner({
     if (pts.length) api.postTrainingProgress(trainingId, pts);
   }, [ctrl, trainingId]);
 
-  const finish = useCallback(() => {
+  // Flush + finalize exactly once (the reveal screen and the exit button can
+  // both reach it); the server call is fire-and-forget, as before.
+  const finalizedRef = useRef(false);
+  const persistFinal = useCallback(() => {
+    if (finalizedRef.current) return;
+    finalizedRef.current = true;
     flush();
-    const allMastered = ctrl.allMastered();
     api.finalizeTrainingSession(trainingId, ctrl.progress().count, { mode: "training", scored: true }).catch(() => {});
-    onExit({ allMastered, nItems: ctrl.progress().count });
-  }, [ctrl, flush, trainingId, onExit]);
+  }, [ctrl, flush, trainingId]);
+
+  // "Save & finish later" — persists and exits immediately (no reveal).
+  const finish = useCallback(() => {
+    persistFinal();
+    onExit({ allMastered: ctrl.allMastered(), nItems: ctrl.progress().count });
+  }, [ctrl, persistFinal, onExit]);
 
   const answer = useCallback((yes: boolean) => {
     if (ctrl.phase !== "question" || !seg) return;
@@ -123,10 +133,16 @@ export function TrainingRunner({
 
   const proceed = useCallback(() => {
     ctrl.continue();                       // no-op unless on the result step (controller guards)
-    if (ctrl.phase === "done") { finish(); return; }
+    if (ctrl.phase === "done") {
+      // Completing the session lands on the reveal screen (today's movement),
+      // not straight back on the dashboard; the state is persisted right away.
+      persistFinal();
+      rerender();
+      return;
+    }
     setCurrentSegId(ctrl.item?.segId ?? null);
     rerender();
-  }, [ctrl, finish, rerender]);
+  }, [ctrl, persistFinal, rerender]);
 
   // live refs so the global key handler reads current window/duration without
   // re-binding the listener on every gain/pan change.
@@ -163,14 +179,22 @@ export function TrainingRunner({
     height: "100vh", display: "flex", flexDirection: "column", padding: 12, boxSizing: "border-box",
   };
 
-  // ── DONE ──────────────────────────────────────────────────────────────
+  // ── DONE — the session-end reveal ─────────────────────────────────────
+  // Belief stays under the hood during the sitting; this screen is where the
+  // day's real posterior movement lands, staged row by row. Numbers come
+  // straight from the trainer filters (trainingReveal.ts), nothing invented.
   if (ctrl.phase === "done") {
     const acc = count ? Math.round((100 * correctCount) / count) : 0;
     const allMastered = ctrl.allMastered();
     const empty = count === 0;   // the weak-domain pools were fully spaced-out
+    const rows = empty ? [] : buildRevealRows(
+      ctrl.startSnapshot, ctrl.snapshot(), labels, ctrl.itemsPerTask(),
+      session.policy.ellStars);
+    const footDelay = 0.4 + rows.length * 0.45;
     return (
-      <div className="cx-test" style={{ ...shell, alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", maxWidth: 460 }}>
+      <div className="cx-test" style={{ ...shell, alignItems: "center", justifyContent: "center", overflowY: "auto" }}>
+        <style>{REVEAL_CSS}</style>
+        <div style={{ textAlign: "center", maxWidth: 580, width: "100%" }}>
           <div style={{ fontFamily: FONTS.serif, fontSize: 26, color: COLORS.textPrimary, marginBottom: 8 }}>
             {empty ? "No new segments right now" : "Session complete"}
           </div>
@@ -179,18 +203,34 @@ export function TrainingRunner({
               ? "You've recently seen the available segments for your training domains. Come back later, or take a fresh test to refresh the pool."
               : `${count} items · ${acc}% correct`}
           </div>
-          {allMastered && (
-            <div style={{
-              background: "var(--teal-weak)", border: "1px solid var(--teal)", color: "var(--teal-deep)",
-              padding: "12px 16px", marginBottom: 24, fontSize: 14,
-            }}>
-              You're ready to re-certify — take a fresh test from the dashboard whenever you like.
+          {rows.length > 0 && (
+            <div style={{ textAlign: "left", marginBottom: 24 }}>
+              <div style={{ fontFamily: FONTS.serif, fontSize: 18, color: COLORS.textPrimary, marginBottom: 2 }}>
+                Today's movement
+              </div>
+              <div style={{ fontSize: 12, color: COLORS.textBody, opacity: 0.8, marginBottom: 10 }}>
+                Readiness is the probability that your estimated skill clears the domain's ℓ* certification bar.
+              </div>
+              {rows.map((r, i) => (
+                <RevealRowView key={r.taskK} r={r} delayS={0.4 + i * 0.45} />
+              ))}
             </div>
           )}
-          <button className="cx-btn primary" onClick={() => onExit({ allMastered, nItems: count })}
-            style={{ fontSize: 15, padding: "12px 24px" }}>
-            Return to dashboard <span className="arrow">→</span>
-          </button>
+          <div className="cx-reveal-in" style={{ animationDelay: `${empty ? 0 : footDelay}s` }}>
+            {allMastered && (
+              <div style={{
+                background: "var(--teal-weak)", border: "1px solid var(--teal)", color: "var(--teal-deep)",
+                padding: "12px 16px", marginBottom: 24, fontSize: 14,
+              }}>
+                You're ready to re-certify — take a fresh test from the dashboard whenever you like.
+              </div>
+            )}
+            <button className="cx-btn primary"
+              onClick={() => { if (count > 0) persistFinal(); onExit({ allMastered, nItems: count }); }}
+              style={{ fontSize: 15, padding: "12px 24px" }}>
+              Return to dashboard <span className="arrow">→</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -288,6 +328,53 @@ export function TrainingRunner({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Staged fade-in for the reveal rows; static under prefers-reduced-motion.
+const REVEAL_CSS = `
+@keyframes cxRevealIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cx-reveal-in { opacity: 0; animation: cxRevealIn .55s ease forwards; }
+@media (prefers-reduced-motion: reduce) { .cx-reveal-in { animation: none; opacity: 1; transform: none; } }
+`;
+
+function RevealRowView({ r, delayS }: { r: RevealRow; delayS: number }) {
+  const dSkill = r.after.skill - r.before.skill;
+  const passB = Math.round(100 * r.before.pass);
+  const passA = Math.round(100 * r.after.pass);
+  const up = dSkill >= 0.005;
+  const num: React.CSSProperties = {
+    fontFamily: "var(--mono)", fontSize: 12.5, color: COLORS.textBody,
+    whiteSpace: "nowrap",
+  };
+  const chip: React.CSSProperties = {
+    fontSize: 11.5, padding: "2px 8px", whiteSpace: "nowrap",
+    border: "1px solid var(--teal)", color: "var(--teal-deep)",
+  };
+  return (
+    <div className="cx-reveal-in" style={{
+      animationDelay: `${delayS}s`,
+      display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap",
+      padding: "9px 12px", borderTop: `1px solid ${COLORS.borderInactive}`,
+      background: r.newlyMastered ? "var(--teal-weak)" : "transparent",
+    }}>
+      <span style={{ fontWeight: 600, color: COLORS.textPrimary, flex: "0 0 88px" }}>{r.label}</span>
+      <span style={num}>
+        ℓ̂ {r.before.skill.toFixed(2)} ±{r.before.sd.toFixed(2)} → {r.after.skill.toFixed(2)} ±{r.after.sd.toFixed(2)}{" "}
+        <b style={{ color: up ? "var(--teal-deep)" : COLORS.textBody, fontWeight: up ? 700 : 400 }}>
+          ({dSkill >= 0 ? "+" : ""}{dSkill.toFixed(2)})
+        </b>
+      </span>
+      <span style={num}>readiness {passB}% → {passA}%</span>
+      <span style={{ flex: 1 }} />
+      {r.newlyMastered
+        ? <span style={chip}>✓ mastered today</span>
+        : r.mastered
+          ? <span style={{ ...chip, border: `1px solid ${COLORS.borderInactive}`, color: COLORS.textBody }}>✓ mastered</span>
+          : r.nearBar
+            ? <span style={chip}>● near the ℓ* bar</span>
+            : null}
     </div>
   );
 }

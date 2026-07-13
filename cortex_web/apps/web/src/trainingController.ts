@@ -36,9 +36,13 @@ export class TrainingController {
   lastResult: TrialResult | null = null;
   count = 0;
   readonly total: number;
+  // Belief state at session start, for the end-of-session reveal (today's
+  // movement = end snapshot minus this). Captured before any answer lands.
+  readonly startSnapshot: TaskSnapshot[];
   private shownAt = 0;
   private pending: TrajPoint[] = [];
   private seq = 0;
+  private perTaskCounts = new Map<number, number>();
 
   constructor(
     private session: TrainerSession,
@@ -46,6 +50,7 @@ export class TrainingController {
     opts: { total?: number } = {},
   ) {
     this.total = opts.total ?? DEFAULT_SESSION_ITEMS;
+    this.startSnapshot = session.snapshot();
     this.item = session.next();
     if (this.item === null) this.phase = "done";
   }
@@ -62,6 +67,7 @@ export class TrainingController {
     const y = yes ? 1 : 0;
     const correct = y === it.yStar;
     const rt = now - this.shownAt;
+    this.perTaskCounts.set(it.task, (this.perTaskCounts.get(it.task) ?? 0) + 1);
     this.session.submit(it, y);
     const snap = this.session.snapshot()[it.task];
     this.pending.push({
@@ -106,5 +112,10 @@ export class TrainingController {
 
   snapshot(): TaskSnapshot[] {
     return this.session.snapshot();
+  }
+
+  // Items answered per task this session (only touched tasks appear).
+  itemsPerTask(): ReadonlyMap<number, number> {
+    return this.perTaskCounts;
   }
 }
