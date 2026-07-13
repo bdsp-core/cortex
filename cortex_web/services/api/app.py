@@ -37,9 +37,10 @@ boot migrations all assume a single process.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, Optional
 
@@ -48,7 +49,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config
+from . import config, digest
 from .db import Database
 from .routers import ALL_ROUTERS
 from .session_bank import SessionBank
@@ -59,7 +60,18 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
 
     @asynccontextmanager
     async def _lifespan(_app: FastAPI):
+        # Ripeness-digest scheduler (digest.py): in-process, single-worker,
+        # same assumption as the rate limiter. The initial delay means
+        # short-lived test clients never run a pass; CORTEX_DIGEST_DISABLED=1
+        # is the ops kill switch.
+        digest_task = None
+        if not os.environ.get("CORTEX_DIGEST_DISABLED"):
+            digest_task = asyncio.create_task(digest.scheduler_loop(db))
         yield
+        if digest_task is not None:
+            digest_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await digest_task
         db.close()   # release the DB pool/connection on clean shutdown
 
     app = FastAPI(title="CORTEX Web API", version="1.0", lifespan=_lifespan)

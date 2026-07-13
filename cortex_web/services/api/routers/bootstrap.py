@@ -65,6 +65,14 @@ def bootstrap(req: Request, tz: int = 0, include: str = "",
             raise HTTPException(400, f"unknown bootstrap section: {unknown[0]}")
     else:
         wanted = list(_SECTION_BUILDERS)
+    # Opportunistically refresh the device's tz offset: the digest scheduler
+    # (digest.py) uses it to aim letters at the learner's local morning.
+    # Best-effort; a failure must never break the dashboard payload.
+    if -900 <= tz <= 900:
+        try:
+            req.app.state.db.set_tz_offset(code, tz)
+        except Exception:
+            log.exception("[cortex.bootstrap] tz persist failed for %s", code)
     out: dict = {}
     errors: dict[str, str] = {}
     for name in wanted:

@@ -220,6 +220,15 @@ _SCHEMA_STATEMENTS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_cohort_email_invites_email "
     "ON cohort_email_invites(email)",
+    # Ripeness-digest ledger: one row per (participant, LOCAL day) a training
+    # digest letter was sent. The INSERT is the atomic once-per-day claim
+    # (claim_digest_day), taken BEFORE the send so a crash can never double-mail.
+    """CREATE TABLE IF NOT EXISTS digest_log (
+        code      TEXT NOT NULL,
+        day       TEXT NOT NULL,
+        sent_utc  TEXT NOT NULL,
+        PRIMARY KEY (code, day)
+    )""",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -239,6 +248,8 @@ _PARTICIPANTS_MIGRATION_COLUMNS = [
     ("profile",           "TEXT"),   # JSON demographic/clinical profile collected at signup, editable in Settings
     ("public_id",         "TEXT"),   # user-facing 9-digit account id; unique when set (index in _migrate_participants)
     ("email_undeliverable_utc", "TEXT"),  # set by the SES bounce webhook (routers/ses_events.py); cleared when a code is confirmed
+    ("tz_offset_min",     "INTEGER"),  # device getTimezoneOffset, refreshed at bootstrap; aims the digest at local morning
+    ("digest_opt_out",    "INTEGER"),  # 1 = training-reminder emails off (Settings toggle); NULL/0 = on
 ]
 
 # Columns added to the learning tables after their original schema (Phase O2),
@@ -1411,6 +1422,44 @@ class Database:
         else:
             sql = "INSERT OR IGNORE INTO login_days(code, day) VALUES (?,?)"
         self._write(sql, (code, day))
+
+    # ── ripeness digest (see digest.py) ───────────────────────────
+    def set_tz_offset(self, code: str, tz_offset_min: int) -> None:
+        """Remember the device's getTimezoneOffset (refreshed at bootstrap) so
+        the digest scheduler can aim letters at the learner's local morning."""
+        self._write("UPDATE participants SET tz_offset_min=? WHERE code=?",
+                    (int(tz_offset_min), code))
+
+    def set_digest_opt_out(self, code: str, opt_out: bool) -> None:
+        self._write("UPDATE participants SET digest_opt_out=? WHERE code=?",
+                    (1 if opt_out else 0, code))
+
+    def digest_recipients(self) -> list[dict]:
+        """Participants eligible for the training digest: active account,
+        verified + deliverable email, reminders not turned off, and an active
+        regimen to train against. Cheap enough to run every scheduler tick."""
+        return self._fetchall(
+            "SELECT p.code AS code, p.email AS email, "
+            "p.tz_offset_min AS tz_offset_min FROM participants p "
+            "WHERE p.active=1 AND p.email IS NOT NULL "
+            "AND p.email_verified_utc IS NOT NULL "
+            "AND p.email_undeliverable_utc IS NULL "
+            "AND COALESCE(p.digest_opt_out, 0)=0 "
+            "AND EXISTS (SELECT 1 FROM regimens r "
+            "            WHERE r.code=p.code AND r.active=1)")
+
+    def claim_digest_day(self, code: str, day: str) -> bool:
+        """Atomically claim (code, local day) in the digest ledger; True for
+        exactly one caller per day. Claimed BEFORE the send: a failed send
+        costs one day's letter instead of ever risking a double-send."""
+        if self._pg:
+            sql = ("INSERT INTO digest_log(code, day, sent_utc) VALUES (?,?,?) "
+                   "ON CONFLICT (code, day) DO NOTHING")
+        else:
+            sql = "INSERT OR IGNORE INTO digest_log(code, day, sent_utc) VALUES (?,?,?)"
+        with self._connection() as conn:
+            cur = conn.execute(self._q(sql), (code, day, utc_now()))
+            return cur.rowcount > 0
 
     def activity_levels(self, code: str, tz_offset_min: int = 0) -> dict[str, int]:
         """Per-day activity level (LOCAL YYYY-MM-DD → level) for the heatmap:

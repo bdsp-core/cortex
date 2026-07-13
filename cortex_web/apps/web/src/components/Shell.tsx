@@ -1238,6 +1238,8 @@ function SettingsSurface() {
   const [newEmail, setNewEmail] = useState("");
   const [emailPw, setEmailPw] = useState("");
   const [emailMsg, setEmailMsg] = useState<{ ok?: string; err?: string }>({});
+  const [reminders, setReminders] = useState(true);
+  const [remindersMsg, setRemindersMsg] = useState<{ ok?: string; err?: string }>({});
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
@@ -1250,6 +1252,7 @@ function SettingsSurface() {
         setPublicId(a.publicId || "");
         setDisplayName(a.displayName); setExpertise(a.expertise);
         setProfile(a.profile || {});
+        setReminders(a.trainingReminders !== false);
       })
       .catch(() => { /* show empty form */ })
       .finally(() => setLoaded(true));
@@ -1278,6 +1281,16 @@ function SettingsSurface() {
       const s = (e as api.ApiError)?.status;
       setEmailMsg({ err: s === 409 ? "That email is already in use." : s === 403 ? "Password is incorrect." : "Could not update email." });
     } finally { setSavingE(false); }
+  }
+  async function toggleReminders(on: boolean) {
+    setReminders(on); setRemindersMsg({});   // optimistic; rolled back on error
+    try {
+      await api.setTrainingReminders(on);
+      setRemindersMsg({ ok: on ? "Reminders on." : "Reminders off." });
+    } catch {
+      setReminders(!on);
+      setRemindersMsg({ err: "Could not save. Try again." });
+    }
   }
   async function savePassword() {
     if (savingPw) return;             // guard against a double-click double-post
@@ -1375,6 +1388,17 @@ function SettingsSurface() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="cx-panel">
+        <h2>Email reminders</h2>
+        <p className="sub">A short note when your training deck is due, sent at most once a day on a spaced schedule. Exam invitations are never sent.</p>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, color: "var(--ink)" }}>
+          <input type="checkbox" checked={reminders} onChange={(e) => toggleReminders(e.target.checked)} />
+          Training reminders
+        </label>
+        {remindersMsg.ok && <span className="cx-msg-ok" style={{ marginLeft: 12 }}>{remindersMsg.ok}</span>}
+        {remindersMsg.err && <span className="cx-msg-err" style={{ marginLeft: 12 }}>{remindersMsg.err}</span>}
       </section>
 
       <section className="cx-panel">

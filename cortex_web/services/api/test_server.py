@@ -6,6 +6,7 @@ relative imports):
 """
 from __future__ import annotations
 
+import calendar
 import json
 import re
 import sys
@@ -15,7 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from . import helpers, security
+from . import digest, helpers, security
 from .app import create_app
 from .db import Database
 from .routers import dashboard as dashboard_router
@@ -2770,3 +2771,145 @@ def test_bootstrap_section_failure_is_isolated(client, monkeypatch):
     assert body["cohorts"] == {"cohorts": []}
     assert body["session"] == {"examResumable": False, "washout": None}
     assert body["trajectories"]["trajectories"] == []
+
+
+# ─────────────────── ripeness digest (digest.py) ───────────────────
+# run_digest_pass is called directly with a frozen `now` (the scheduler loop
+# is a thin timer over it); letters are captured by patching mailer.send_letter.
+
+_DIGEST_NOW = calendar.timegm(time.strptime("2026-07-13T09:00:00",
+                                            "%Y-%m-%dT%H:%M:%S"))  # 09:00 UTC
+
+
+def _digest_iso(s: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(s))
+
+
+_DIGEST_PLAN = {"weeks": 8, "weekOf": 1, "deck": [
+    {"taskK": 0, "code": "seizure", "label": "Seizure", "ell": 0.20,
+     "ellStar": 0.50, "new": 0, "learning": 0, "due": 0},
+    {"taskK": 2, "code": "gpd", "label": "GPD", "ell": 0.30,
+     "ellStar": 0.50, "new": 0, "learning": 0, "due": 0},
+]}
+
+
+def _digest_setup(client, age_s: float = 90000) -> tuple:
+    """Verified participant with an active regimen created `age_s` ago
+    (default 25 h → whole-day backoff distance 1). Returns (db, code, email)."""
+    email, pw = _make_participant(client)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.create_regimen(f"rg-{code}", code, None, _DIGEST_PLAN)
+    db._write("UPDATE regimens SET created_utc=? WHERE regimen_id=?",
+              (_digest_iso(_DIGEST_NOW - age_s), f"rg-{code}"))
+    return db, code, email
+
+
+def _capture_letters(monkeypatch) -> list:
+    sent: list = []
+    monkeypatch.setattr(
+        digest.mailer, "send_letter",
+        lambda to, subject, title, paragraphs, button=None:
+            sent.append((to, subject, title, paragraphs, button)))
+    return sent
+
+
+def test_digest_sends_on_backoff_day_and_only_once(client, monkeypatch):
+    db, code, email = _digest_setup(client)
+    sent = _capture_letters(monkeypatch)
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 1
+    to, subject, _title, paragraphs, _button = sent[0]
+    joined = " ".join(paragraphs)
+    assert to == email
+    assert "training" in subject.lower()
+    assert "Seizure" in joined and "GPD" in joined
+    assert "2 domains" in joined
+    assert "turn these reminders off" in joined
+    # never trained yet → the first-session wording, not a stale day count
+    assert "first session" in joined
+    # the per-local-day ledger makes a second pass silent
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW + 600) == 0
+    assert len(sent) == 1
+
+
+def test_digest_honors_heavy_tailed_backoff(client, monkeypatch):
+    db, code, _email = _digest_setup(client, age_s=4 * 86400 + 3600)  # day 4
+    sent = _capture_letters(monkeypatch)
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 0   # 4 ∉ {1,2,3,5,8,13,21}
+    db._write("UPDATE regimens SET created_utc=? WHERE regimen_id=?",
+              (_digest_iso(_DIGEST_NOW - (5 * 86400 + 3600)), f"rg-{code}"))
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 1   # day 5 sends
+    assert len(sent) == 1
+
+
+def test_digest_skips_optout_offhours_and_trained_today(client, monkeypatch):
+    db, code, _email = _digest_setup(client)
+    sent = _capture_letters(monkeypatch)
+    # opt-out (the Settings toggle) removes the account from the recipient set
+    db.set_digest_opt_out(code, True)
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 0
+    db.set_digest_opt_out(code, False)
+    # outside the local-morning window (20:00 local) → silent
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW + 11 * 3600) == 0
+    # a training sitting completed now resets the backoff anchor → silent
+    db.create_training_session("tr-dig", code, None)
+    db.finalize_training_session("tr-dig", code, 10, {"mode": "training"})
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 0
+    assert sent == []
+
+
+def test_digest_uses_live_trajectory_and_near_bar_line(client, monkeypatch):
+    db, code, _email = _digest_setup(client)
+    sent = _capture_letters(monkeypatch)
+    # Latest REAL trajectory wins over the deck's frozen estimates: task 0 now
+    # clears its bar (drops out), task 2 sits within one SD below it (near-bar).
+    for task_k, ell, sd in ((0, 0.55, 0.05), (2, 0.45, 0.10)):
+        db._write(
+            "INSERT INTO param_trajectories(code, task_k, phase, ell, theta, "
+            "sd, rt, ts, is_real) VALUES (?,?,?,?,?,?,?,?,1)",
+            (code, task_k, "training", ell, 0.0, sd, 800.0,
+             _digest_iso(_DIGEST_NOW - 90000)))
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 1
+    joined = " ".join(sent[0][3])
+    assert "1 domain in your protocol" in joined
+    assert "Seizure" not in joined
+    assert "You are close on GPD" in joined
+
+
+def test_digest_excludes_unverified_email(client, monkeypatch):
+    email, _pw, _dev = _register(client)                # never verified
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.create_regimen(f"rg-{code}", code, None, _DIGEST_PLAN)
+    db._write("UPDATE regimens SET created_utc=? WHERE regimen_id=?",
+              (_digest_iso(_DIGEST_NOW - 90000), f"rg-{code}"))
+    sent = _capture_letters(monkeypatch)
+    assert digest.run_digest_pass(db, now_s=_DIGEST_NOW) == 0
+    assert sent == []
+
+
+def test_profile_training_reminders_toggle(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.create_regimen(f"rg-{code}", code, None, _DIGEST_PLAN)
+    assert client.get("/api/profile", headers=hdr).json()["trainingReminders"] is True
+    assert code in {r["code"] for r in db.digest_recipients()}
+    r = client.put("/api/profile", json={"trainingReminders": False}, headers=hdr)
+    assert r.status_code == 200
+    assert client.get("/api/profile", headers=hdr).json()["trainingReminders"] is False
+    assert code not in {r["code"] for r in db.digest_recipients()}
+    # partial PUT must not clobber other profile fields
+    assert client.get("/api/profile", headers=hdr).json()["displayName"] != ""
+    client.put("/api/profile", json={"trainingReminders": True}, headers=hdr)
+    assert client.get("/api/profile", headers=hdr).json()["trainingReminders"] is True
+
+
+def test_bootstrap_persists_tz_offset(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    client.get("/api/bootstrap?tz=300", headers=hdr)
+    assert db.get_participant(code)["tz_offset_min"] == 300

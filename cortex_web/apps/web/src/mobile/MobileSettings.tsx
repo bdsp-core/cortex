@@ -43,6 +43,9 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [reminders, setReminders] = useState(true);
+  const [remindersMsg, setRemindersMsg] = useState<string | null>(null);
+
   useEffect(() => {
     let gone = false;
     api.getProfile().then((a) => {
@@ -51,9 +54,18 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
       setName(a.displayName);
       setExpertise(a.expertise);
       setProfile(a.profile ?? {});
+      setReminders(a.trainingReminders !== false);
     }).catch((e) => { if (!gone) setLoadErr(errText(e)); });
     return () => { gone = true; };
   }, []);
+
+  async function toggleReminders(on: boolean) {
+    setReminders(on); setRemindersMsg(null);   // optimistic; rolled back on error
+    try {
+      await api.setTrainingReminders(on);
+      setRemindersMsg("Saved");
+    } catch (ex) { setReminders(!on); setRemindersMsg(errText(ex)); }
+  }
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -150,6 +162,19 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
                 </div>
                 <Status msg={profileMsg} />
               </form>
+            </section>
+
+            <section style={S.card}>
+              <h2 style={S.sectionTitle}>Email reminders</h2>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+                <input type="checkbox" checked={reminders}
+                  onChange={(e) => toggleReminders(e.target.checked)} />
+                Training reminders
+              </label>
+              <div style={{ ...S.faint, marginTop: 6 }}>
+                A short note when your training deck is due, at most once a day.
+              </div>
+              <Status msg={remindersMsg} />
             </section>
 
             {acct.authProvider !== "google" && (

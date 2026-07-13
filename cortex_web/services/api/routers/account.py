@@ -37,6 +37,8 @@ def get_profile(req: Request, code: str = Depends(require_auth)):
         "authProvider": row.get("auth_provider") or "local",
         "publicId": str(public_id),
         "profile": prof,
+        # Training-reminder digest (digest.py). NULL/0 = on (the default).
+        "trainingReminders": not (row.get("digest_opt_out") or 0),
     }
 
 
@@ -53,6 +55,8 @@ def put_profile(body: ProfileIn, req: Request, code: str = Depends(require_auth)
     db.update_profile(code, display_name=dn,
                       profile=(json.dumps(prof) if prof is not None else None),
                       signup_expertise=exp)
+    if body.trainingReminders is not None:
+        db.set_digest_opt_out(code, not body.trainingReminders)
     return {"ok": True}
 
 

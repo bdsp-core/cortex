@@ -275,6 +275,8 @@ export interface AccountProfile {
   /** Unique 9-digit account id, shown in Settings (assigned server-side). */
   publicId?: string;
   profile: Record<string, string>;
+  /** Training-reminder email digest on/off (defaults on server-side). */
+  trainingReminders?: boolean;
 }
 
 export function getProfile(): Promise<AccountProfile> {
@@ -287,6 +289,15 @@ export function updateProfile(
   return authedFetch("/api/profile", {
     method: "PUT",
     body: JSON.stringify({ displayName, expertise, profile }),
+  });
+}
+
+// Partial PUT: the server leaves omitted fields unchanged, so the reminders
+// toggle saves instantly without resending the whole profile form.
+export function setTrainingReminders(on: boolean): Promise<{ ok: boolean }> {
+  return authedFetch("/api/profile", {
+    method: "PUT",
+    body: JSON.stringify({ trainingReminders: on }),
   });
 }
 

@@ -116,6 +116,7 @@ class ProfileIn(BaseModel):
     displayName: Optional[str] = None
     expertise: Optional[str] = None
     profile: Optional[dict[str, Any]] = None
+    trainingReminders: Optional[bool] = None   # digest opt-in/out (Settings toggle)
 
 
 class PasswordChangeIn(BaseModel):
