@@ -229,6 +229,23 @@ _SCHEMA_STATEMENTS = [
         sent_utc  TEXT NOT NULL,
         PRIMARY KEY (code, day)
     )""",
+    # Recognition ledger (awards.py): domain badges + milestones. Badges are
+    # per-domain certification credentials; losing one sets revoked_utc and a
+    # re-earn APPENDS a new row (the earned/lost history is the point).
+    # Milestones are once-ever rows; acknowledged_utc records the banner
+    # dismissal so a milestone is announced exactly once.
+    """CREATE TABLE IF NOT EXISTS awards (
+        award_id         TEXT PRIMARY KEY,
+        code             TEXT NOT NULL,
+        kind             TEXT NOT NULL,
+        key              TEXT NOT NULL,
+        label            TEXT NOT NULL,
+        detail           TEXT,
+        awarded_utc      TEXT NOT NULL,
+        revoked_utc      TEXT,
+        acknowledged_utc TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_awards_code ON awards(code)",
     # The email-unique index is created in _migrate_participants AFTER the
     # ALTER TABLE that ensures the column exists (an older schema may not
     # have it yet on an existing DB).
@@ -1460,6 +1477,90 @@ class Database:
         with self._connection() as conn:
             cur = conn.execute(self._q(sql), (code, day, utc_now()))
             return cur.rowcount > 0
+
+    # ── awards: domain badges + milestones (awards.py) ────────────
+    def award_badge(self, code: str, key: str, label: str,
+                    detail: Optional[str] = None) -> bool:
+        """Award the domain badge unless it is currently held. A re-earn after
+        a loss APPENDS a row, preserving the earned/lost history."""
+        held = self._fetchone(
+            "SELECT award_id AS a FROM awards WHERE code=? AND kind='badge' "
+            "AND key=? AND revoked_utc IS NULL LIMIT 1", (code, key))
+        if held:
+            return False
+        self._write(
+            "INSERT INTO awards(award_id, code, kind, key, label, detail, "
+            "awarded_utc) VALUES (?,?,'badge',?,?,?,?)",
+            (secrets.token_hex(16), code, key, label, detail, utc_now()))
+        return True
+
+    def revoke_badge(self, code: str, key: str) -> bool:
+        """Mark the currently-held badge for `key` as lost (exam
+        underperformance). No-op when none is held."""
+        row = self._fetchone(
+            "SELECT award_id AS a FROM awards WHERE code=? AND kind='badge' "
+            "AND key=? AND revoked_utc IS NULL LIMIT 1", (code, key))
+        if not row:
+            return False
+        self._write("UPDATE awards SET revoked_utc=? WHERE award_id=?",
+                    (utc_now(), row["a"]))
+        return True
+
+    def award_milestone(self, code: str, key: str, label: str,
+                        detail: Optional[str] = None) -> bool:
+        """Once-ever recognition row; False when `key` was already awarded."""
+        if self._fetchone(
+                "SELECT 1 AS x FROM awards WHERE code=? AND kind='milestone' "
+                "AND key=? LIMIT 1", (code, key)):
+            return False
+        self._write(
+            "INSERT INTO awards(award_id, code, kind, key, label, detail, "
+            "awarded_utc) VALUES (?,?,'milestone',?,?,?,?)",
+            (secrets.token_hex(16), code, key, label, detail, utc_now()))
+        return True
+
+    def list_awards(self, code: str) -> list[dict]:
+        return self._fetchall(
+            "SELECT award_id, kind, key, label, detail, awarded_utc, "
+            "revoked_utc, acknowledged_utc FROM awards WHERE code=? "
+            "ORDER BY awarded_utc DESC, award_id DESC", (code,))
+
+    def pending_milestones(self, code: str) -> list[dict]:
+        """Milestones not yet announced (the dashboard banner's feed)."""
+        return self._fetchall(
+            "SELECT award_id, key, label, detail, awarded_utc FROM awards "
+            "WHERE code=? AND kind='milestone' AND acknowledged_utc IS NULL "
+            "ORDER BY awarded_utc, award_id", (code,))
+
+    def acknowledge_award(self, code: str, award_id: str) -> bool:
+        """Owner-scoped banner dismissal; True exactly once per award."""
+        with self._connection() as conn:
+            cur = conn.execute(self._q(
+                "UPDATE awards SET acknowledged_utc=? WHERE award_id=? "
+                "AND code=? AND acknowledged_utc IS NULL"),
+                (utc_now(), award_id, code))
+            return cur.rowcount > 0
+
+    def count_completed_results(self, code: str) -> int:
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM results r "
+            "JOIN sessions s ON s.session_id = r.session_id WHERE s.code=?",
+            (code,))
+        return int(row["n"]) if row else 0
+
+    def count_completed_trainings(self, code: str) -> int:
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM training_sessions "
+            "WHERE code=? AND status='complete'", (code,))
+        return int(row["n"]) if row else 0
+
+    def count_training_days(self, code: str) -> int:
+        """Distinct UTC days with a completed training sitting."""
+        row = self._fetchone(
+            "SELECT COUNT(DISTINCT substr(finished_utc, 1, 10)) AS n "
+            "FROM training_sessions WHERE code=? AND status='complete' "
+            "AND finished_utc IS NOT NULL", (code,))
+        return int(row["n"]) if row else 0
 
     def activity_levels(self, code: str, tz_offset_min: int = 0) -> dict[str, int]:
         """Per-day activity level (LOCAL YYYY-MM-DD → level) for the heatmap:

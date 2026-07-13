@@ -59,6 +59,15 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
     return () => { gone = true; };
   }, []);
 
+  const [collection, setCollection] =
+    useState<{ badges: api.Award[]; milestones: api.Award[] } | null>(null);
+  useEffect(() => {
+    let gone = false;
+    api.getAwards().then((a) => { if (!gone) setCollection(a); })
+      .catch(() => { /* section renders its empty state */ });
+    return () => { gone = true; };
+  }, []);
+
   async function toggleReminders(on: boolean) {
     setReminders(on); setRemindersMsg(null);   // optimistic; rolled back on error
     try {
@@ -162,6 +171,47 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
                 </div>
                 <Status msg={profileMsg} />
               </form>
+            </section>
+
+            <section style={S.card}>
+              <h2 style={S.sectionTitle}>Badges &amp; milestones</h2>
+              {(() => {
+                if (!collection) return <div style={S.faint}>Loading…</div>;
+                // newest row per badge key decides current state (held / lost)
+                const byKey = new Map<string, api.Award>();
+                for (const b of collection.badges) if (!byKey.has(b.key)) byKey.set(b.key, b);
+                const current = [...byKey.values()];
+                const fmt = (iso: string) => new Date(iso).toLocaleDateString(
+                  undefined, { year: "numeric", month: "short", day: "numeric" });
+                if (current.length === 0 && collection.milestones.length === 0) {
+                  return <div style={S.faint}>No badges yet. Pass a domain on a certification test to earn its badge.</div>;
+                }
+                return (
+                  <>
+                    {current.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                        {current.map((b) => (
+                          <span key={b.key} style={{
+                            padding: "5px 10px", fontSize: 12.5,
+                            border: b.revokedUtc ? "1px solid var(--bd-subtle)" : "1px solid var(--teal)",
+                            background: b.revokedUtc ? "transparent" : "var(--teal-weak)",
+                            color: b.revokedUtc ? "var(--ink-subtle)" : "var(--teal-deep)",
+                          }}>
+                            <b>{b.label}</b>{" "}
+                            {b.revokedUtc ? `lost ${fmt(b.revokedUtc)}` : `since ${fmt(b.awardedUtc)}`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {collection.milestones.map((m) => (
+                      <div key={m.awardId} style={{ fontSize: 13, padding: "4px 0" }}>
+                        <span style={S.faint}>{fmt(m.awardedUtc)}</span>{" "}
+                        <b>{m.label}</b>
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </section>
 
             <section style={S.card}>

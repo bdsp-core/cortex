@@ -4,7 +4,7 @@ import type { BootstrapData } from "./api";
 
 const EMPTY: BootstrapData = {
   dashboard: null, trajectories: null, regimen: null,
-  activity: null, session: null, cohorts: null,
+  activity: null, session: null, cohorts: null, awards: null,
 };
 
 describe("bootstrapStore", () => {

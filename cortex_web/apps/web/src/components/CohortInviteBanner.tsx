@@ -95,13 +95,21 @@ export function CohortInviteBanner({ highlightCohortId }: {
                                        to { transform: none; opacity: 1; } }
         @keyframes cx-invite-pulse { 0%, 100% { background: transparent; }
                                      50% { background: var(--teal-weak); } }
+        @keyframes cxBannerGlow {
+          0%, 100% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 0 0 rgba(47,143,131,0); }
+          50% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 24px 5px rgba(47,143,131,0.4); }
+        }
+        .cx-invite-card {
+          animation: cx-invite-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1),
+                     cxBannerGlow 3s ease-in-out 0.6s infinite;
+        }
+        @media (prefers-reduced-motion: reduce) { .cx-invite-card { animation: none; } }
       `}</style>
-      <div style={{
+      <div className="cx-invite-card" style={{
         width: 560, maxWidth: "92vw", background: COLORS.card,
         border: `1px solid ${COLORS.borderInactive}`,
         borderTop: "3px solid var(--teal)",
         boxShadow: "0 16px 44px rgba(15, 40, 36, 0.32)",
-        animation: "cx-invite-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1)",
       }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8,
         padding: "12px 16px", borderBottom: `1px solid ${COLORS.borderInactive}` }}>

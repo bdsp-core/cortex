@@ -665,7 +665,39 @@ export interface BootstrapData {
   activity: { days: Record<string, number> } | null;
   session: SessionStatus | null;
   cohorts: { cohorts: CohortSummary[] } | null;
+  awards: { pending: PendingMilestone[] } | null;
   errors?: Record<string, string>;
+}
+
+// ── awards: domain badges + milestones (Settings page + banner) ──
+export interface Award {
+  awardId: string;
+  kind: "badge" | "milestone";
+  key: string;                 // badge: domain code; milestone: slug
+  label: string;
+  detail: string | null;
+  awardedUtc: string;
+  revokedUtc: string | null;   // a badge lost to a later underperforming test
+}
+
+// The light bootstrap `awards` section: milestones awaiting their banner.
+export interface PendingMilestone {
+  awardId: string;
+  key: string;
+  label: string;
+  detail: string | null;
+  awardedUtc: string;
+}
+
+export function getAwards(): Promise<{ badges: Award[]; milestones: Award[] }> {
+  return authedFetch("/api/awards", {}, { retries: 2 });
+}
+
+export function ackAward(awardId: string): Promise<{ ok: boolean }> {
+  return authedFetch("/api/awards/ack", {
+    method: "POST",
+    body: JSON.stringify({ awardId }),
+  });
 }
 export function bootstrap(): Promise<BootstrapData> {
   return authedFetch(`/api/bootstrap?tz=${new Date().getTimezoneOffset()}`,

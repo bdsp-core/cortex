@@ -119,6 +119,10 @@ class ProfileIn(BaseModel):
     trainingReminders: Optional[bool] = None   # digest opt-in/out (Settings toggle)
 
 
+class AwardAckIn(BaseModel):
+    awardId: str
+
+
 class PasswordChangeIn(BaseModel):
     currentPassword: str
     newPassword: str

@@ -77,13 +77,21 @@ function WashoutBanner({ reopensAtUtc, onAccept }: {
                                     to { background: rgba(20,28,26,0.45); } }
         @keyframes cx-washout-descend { from { transform: translateY(-60vh); opacity: 0.4; }
                                         to { transform: none; opacity: 1; } }
+        @keyframes cxBannerGlow {
+          0%, 100% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 0 0 rgba(47,143,131,0); }
+          50% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 24px 5px rgba(47,143,131,0.4); }
+        }
+        .cx-washout-card {
+          animation: cx-washout-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1),
+                     cxBannerGlow 3s ease-in-out 0.6s infinite;
+        }
+        @media (prefers-reduced-motion: reduce) { .cx-washout-card { animation: none; } }
       `}</style>
-      <div style={{
+      <div className="cx-washout-card" style={{
         width: 560, maxWidth: "92vw", background: COLORS.card,
         border: `1px solid ${COLORS.borderInactive}`,
         borderTop: `3px solid ${COLORS.fail}`,
         boxShadow: "0 16px 44px rgba(15, 40, 36, 0.32)",
-        animation: "cx-washout-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1)",
         padding: "26px 28px", boxSizing: "border-box",
       }}>
         <div style={{

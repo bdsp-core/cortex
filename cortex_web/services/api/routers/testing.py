@@ -11,7 +11,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from .. import dashboard_logic
+from .. import awards, dashboard_logic
 from ..deps import require_auth
 from ..models import ProgressIn, ResultsIn, SessionIn
 
@@ -200,4 +200,7 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
         body.result, db.session_trials(body.sessionId))
     db.store_result_finalized(body.sessionId, code, body.result,
                               body.stopReason, body.nQuestions, eval_pts)
+    # Recognition AFTER the write lands: badge award/revoke + cert milestones
+    # (awards.py). Internally best-effort; can never fail the ingest.
+    awards.evaluate_certification(db, code, body.result)
     return {"ok": True}

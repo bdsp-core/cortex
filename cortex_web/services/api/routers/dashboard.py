@@ -12,7 +12,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import dashboard_logic
+from .. import awards, dashboard_logic
 from ..deps import require_auth
 from ..models import (
     TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn, TrajectoryIn)
@@ -192,6 +192,9 @@ def training_finalize(body: TrainingFinalizeIn, req: Request, code: str = Depend
         body.trainingId, code, body.nItems, body.summary)
     if not ok:
         raise HTTPException(404, "unknown training session")
+    # Recognition AFTER the sitting lands: session-count / training-day
+    # milestones (awards.py). Internally best-effort; never fails the finalize.
+    awards.evaluate_training(req.app.state.db, code)
     return {"ok": True}
 
 

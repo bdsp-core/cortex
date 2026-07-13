@@ -38,6 +38,7 @@ type View = Surface | "drilldown";
 import { SHELL_CSS } from "./shell/shellCss";
 import { reopenLabel, washoutActive } from "../washout";
 import { CohortInviteBanner } from "./CohortInviteBanner";
+import { MilestoneBanner } from "./MilestoneBanner";
 
 // Inline-SVG line icons for the four nav surfaces (ported verbatim from the
 // mockup's nav, NOT emoji).
@@ -1224,6 +1225,85 @@ function DashboardFooter() {
 
 // Settings surface — edit account credentials + the demographic/clinical
 // profile collected at signup. Mirrors the dashboard aesthetic (cx-* panels).
+// Settings "Badges & milestones": the recognition ledger (routers/awards.py).
+// Newest row per badge key decides current state: held (unrevoked) or lost
+// (revoked by a later underperforming certification test). Milestones list
+// with their timestamps. Read-only; the banner (MilestoneBanner) is the
+// announcement moment, this is the collection.
+function BadgeCollection() {
+  const [awards, setAwards] = useState<{ badges: api.Award[]; milestones: api.Award[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.getAwards()
+      .then((a) => { if (live) setAwards(a); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, []);
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString(undefined,
+    { year: "numeric", month: "short", day: "numeric" });
+  // rows come newest-first, so the first row seen per key is the current state
+  const byKey = new Map<string, api.Award>();
+  for (const b of awards?.badges ?? []) if (!byKey.has(b.key)) byKey.set(b.key, b);
+  const current = [...byKey.values()];
+  const held = current.filter((b) => !b.revokedUtc);
+  const lost = current.filter((b) => b.revokedUtc);
+  const chip: React.CSSProperties = {
+    display: "inline-flex", alignItems: "baseline", gap: 6,
+    padding: "6px 12px", fontSize: 13, whiteSpace: "nowrap",
+  };
+  return (
+    <section className="cx-panel">
+      <h2>Badges &amp; milestones</h2>
+      <p className="sub">
+        Domain badges are earned by passing a domain on a certification test and
+        are lost if a later test falls below that domain&apos;s bar. Milestones
+        mark moments along your training program.
+      </p>
+      {failed && <p className="sub">Could not load your collection. Reload to retry.</p>}
+      {awards && current.length === 0 && (
+        <p className="sub">No badges yet. Pass a domain on a certification test to earn its badge.</p>
+      )}
+      {awards && current.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: awards.milestones.length ? 18 : 0 }}>
+          {held.map((b) => (
+            <span key={b.key} style={{ ...chip, background: "var(--teal-weak)",
+              border: "1px solid var(--teal)", color: "var(--teal-deep)" }}>
+              <b>{b.label}</b>
+              <span style={{ fontSize: 11.5, opacity: 0.85 }}>
+                {b.detail ? `${b.detail} · ` : ""}since {fmt(b.awardedUtc)}
+              </span>
+            </span>
+          ))}
+          {lost.map((b) => (
+            <span key={b.key} style={{ ...chip, background: "transparent",
+              border: "1px solid var(--bd-subtle)", color: "var(--ink-subtle)" }}>
+              <b style={{ fontWeight: 600 }}>{b.label}</b>
+              <span style={{ fontSize: 11.5 }}>lost {fmt(b.revokedUtc!)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {awards && awards.milestones.length > 0 && (
+        <div>
+          {awards.milestones.map((m) => (
+            <div key={m.awardId} style={{ display: "flex", alignItems: "baseline",
+              flexWrap: "wrap", gap: 12, padding: "8px 0",
+              borderTop: "1px solid var(--bd-subtle)" }}>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 12,
+                color: "var(--ink-subtle)", whiteSpace: "nowrap" }}>
+                {fmt(m.awardedUtc)}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{m.label}</span>
+              {m.detail && <span style={{ fontSize: 13, color: "var(--ink-subtle)" }}>{m.detail}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SettingsSurface() {
   const [loaded, setLoaded] = useState(false);
   const [email, setEmail] = useState("");
@@ -1325,6 +1405,8 @@ function SettingsSurface() {
           </div>
         </section>
       )}
+
+      <BadgeCollection />
 
       <section className="cx-panel">
         <h2>Profile</h2>
@@ -1493,6 +1575,7 @@ export function Shell({
     <div className="cx-app">
       <style>{SHELL_CSS}</style>
       <CohortInviteBanner variant="desktop" highlightCohortId={inviteHighlightId} />
+      <MilestoneBanner />
 
       <aside className="cx-rail">
         <div className="cx-brand">

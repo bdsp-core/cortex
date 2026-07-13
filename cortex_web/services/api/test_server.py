@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from . import digest, helpers, security
+from . import awards, dashboard_logic, digest, helpers, security
 from .app import create_app
 from .db import Database
 from .routers import dashboard as dashboard_router
@@ -2717,7 +2717,8 @@ def test_bootstrap_matches_standalone_endpoints(client):
     body = client.get("/api/bootstrap?tz=0", headers=hdr).json()
     # no `errors` key on the happy path
     assert set(body) == {"dashboard", "trajectories", "regimen", "activity",
-                         "session", "cohorts"}
+                         "session", "cohorts", "awards"}
+    assert body["awards"] == {"pending": []}
     # each section IS the standalone endpoint's payload (same builder)
     assert body["dashboard"] == client.get("/api/dashboard", headers=hdr).json()
     assert body["trajectories"] == client.get("/api/trajectories", headers=hdr).json()
@@ -2913,3 +2914,110 @@ def test_bootstrap_persists_tz_offset(client):
     code = db.get_participant_by_email(email)["code"]
     client.get("/api/bootstrap?tz=300", headers=hdr)
     assert db.get_participant(code)["tz_offset_min"] == 300
+
+
+# ─────────────────── awards: badges + milestones (awards.py) ───────────────────
+
+def _cert_result(verdict_map: dict[str, str], auroc: float = 0.91) -> dict:
+    """A modern cert result: perTask rows for all 7 canonical domains with the
+    given per-code verdicts (default FAIL)."""
+    per = [{"taskK": k, "code": dcode, "label": label,
+            "verdict": verdict_map.get(dcode, "FAIL"),
+            "auroc": auroc, "ell": 0.4, "ellStar": 0.5, "theta": 0.0}
+           for k, dcode, label in dashboard_logic.CANONICAL_TASKS]
+    return {"perTask": per,
+            "verdicts": [p["verdict"] for p in per]}
+
+
+def test_awards_badge_lifecycle(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    # attempt 1 lands through the REAL ingest path (wiring test)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    r = client.post("/api/results", headers=hdr,
+                    json={"sessionId": sid,
+                          "result": _cert_result({"sz": "PASS", "gpd": "PASS"}),
+                          "stopReason": "all_resolved", "nQuestions": 10})
+    assert r.status_code == 200
+    a = client.get("/api/awards", headers=hdr).json()
+    held = {b["key"] for b in a["badges"] if b["revokedUtc"] is None}
+    assert held == {"sz", "gpd"}
+    assert all(b["detail"] == "AUROC 0.91" for b in a["badges"])
+    assert [m["key"] for m in a["milestones"]].count("first-certification") == 1
+    # attempt 2 (evaluator-level): gpd falls below the bar → badge lost;
+    # seizure passes again → NO duplicate row while held
+    awards.evaluate_certification(db, code, _cert_result({"sz": "PASS"}))
+    a = client.get("/api/awards", headers=hdr).json()
+    gpd = [b for b in a["badges"] if b["key"] == "gpd"]
+    assert len(gpd) == 1 and gpd[0]["revokedUtc"] is not None
+    seiz = [b for b in a["badges"] if b["key"] == "sz"]
+    assert len(seiz) == 1 and seiz[0]["revokedUtc"] is None
+    assert [m["key"] for m in a["milestones"]].count("first-certification") == 1
+    # attempt 3: gpd re-earned → a NEW row appends (earned/lost history kept)
+    awards.evaluate_certification(db, code, _cert_result({"sz": "PASS", "gpd": "PASS"}))
+    gpd = [b for b in client.get("/api/awards", headers=hdr).json()["badges"]
+           if b["key"] == "gpd"]
+    assert len(gpd) == 2
+    assert sorted(bool(b["revokedUtc"]) for b in gpd) == [False, True]
+    # PENDING verdicts move nothing in either direction
+    awards.evaluate_certification(
+        db, code, {"perTask": [{"taskK": 1, "code": "sz",
+                                "label": "Seizure", "verdict": "PENDING"}]})
+    seiz = [b for b in client.get("/api/awards", headers=hdr).json()["badges"]
+            if b["key"] == "sz"]
+    assert len(seiz) == 1 and seiz[0]["revokedUtc"] is None
+
+
+def test_awards_full_seven_milestone(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    all_pass = {dcode: "PASS" for _k, dcode, _l in dashboard_logic.CANONICAL_TASKS}
+    awards.evaluate_certification(db, code, _cert_result(all_pass))
+    keys = {m["key"] for m in client.get("/api/awards", headers=hdr).json()["milestones"]}
+    assert "full-seven" in keys
+
+
+def test_training_milestones_and_ack_flow(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    for _ in range(3):
+        tid = client.post("/api/training-sessions", headers=hdr,
+                          json={}).json()["trainingId"]
+        r = client.post("/api/training-sessions/finalize", headers=hdr,
+                        json={"trainingId": tid, "nItems": 10,
+                              "summary": {"mode": "training"}})
+        assert r.status_code == 200
+    ms = client.get("/api/awards", headers=hdr).json()["milestones"]
+    keys = [m["key"] for m in ms]
+    # the irregular ladder: 1 and 3 hit, 2 deliberately not a rung
+    assert "sessions-1" in keys and "sessions-3" in keys
+    assert "sessions-2" not in keys
+    # unacknowledged milestones ride the bootstrap awards section
+    pend = client.get("/api/bootstrap?tz=0&include=awards",
+                      headers=hdr).json()["awards"]["pending"]
+    assert {p["key"] for p in pend} == set(keys)
+    # ack → leaves the pending feed, stays in the ledger
+    first = pend[0]["awardId"]
+    assert client.post("/api/awards/ack", json={"awardId": first},
+                       headers=hdr).status_code == 200
+    left = client.get("/api/bootstrap?tz=0&include=awards",
+                      headers=hdr).json()["awards"]["pending"]
+    assert first not in {p["awardId"] for p in left}
+    assert len(client.get("/api/awards", headers=hdr).json()["milestones"]) == len(ms)
+    # double-ack and a foreign participant's ack both 404
+    assert client.post("/api/awards/ack", json={"awardId": first},
+                       headers=hdr).status_code == 404
+    email2, pw2 = _make_participant(client)
+    hdr2 = _auth_header(client, email2, pw2)
+    assert client.post("/api/awards/ack", json={"awardId": pend[1]["awardId"]},
+                       headers=hdr2).status_code == 404
+
+
+def test_awards_require_auth(client):
+    assert client.get("/api/awards").status_code == 401
+    assert client.post("/api/awards/ack", json={"awardId": "x"}).status_code == 401

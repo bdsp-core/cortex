@@ -31,7 +31,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..deps import require_auth
-from . import cohorts, dashboard, testing
+from . import awards, cohorts, dashboard, testing
 
 log = logging.getLogger("cortex.bootstrap")
 
@@ -51,6 +51,8 @@ _SECTION_BUILDERS = {
     "session": lambda req, code, tz: testing.session_status(
         req.app.state.db, req.app.state.get_bank(), code),
     "cohorts": lambda req, code, tz: cohorts.cohorts_payload(
+        req.app.state.db, code),
+    "awards": lambda req, code, tz: awards.pending_payload(
         req.app.state.db, code),
 }
 

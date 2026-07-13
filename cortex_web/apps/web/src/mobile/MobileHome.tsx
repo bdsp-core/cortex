@@ -8,6 +8,7 @@ import * as api from "../api";
 import { COLORS, VERDICT_STYLE } from "../../ui/theme";
 import { Heatmap, HeatLegend } from "../components/charts";
 import { CohortInviteBanner } from "../components/CohortInviteBanner";
+import { MilestoneBanner } from "../components/MilestoneBanner";
 import * as S from "./styles";
 
 function fmtDay(iso: string | null | undefined): string {
@@ -48,6 +49,7 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
   return (
     <div style={S.page}>
       <CohortInviteBanner variant="mobile" highlightCohortId={inviteHighlightId} />
+      <MilestoneBanner />
       <header style={S.header}>
         <img
           src="/cortex_logo_word_horizontal@3x.png"
