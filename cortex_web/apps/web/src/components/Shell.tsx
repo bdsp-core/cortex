@@ -602,7 +602,8 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               </div>
             </section>
 
-            <section className="cx-panel plain" aria-label="Today's deck">
+            <section className="cx-panel plain" aria-label="Today's deck"
+              style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--bd-subtle)" }}>
               <div className="cx-phead"><h2>Today's deck</h2><span className="sub">due now</span></div>
               {hasData && regimen ? (
                 <div className="cx-deck-mini">
