@@ -16,6 +16,7 @@
 import { memo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { cssVar } from "../../../ui/theme";
 import { useTheme } from "../../theme/ThemeProvider";
+import { computeStreak } from "../../streak";
 
 // Verdict -> theme ramp token. Mirrors VERDICT_VAR in the mockup. Accepts both
 // the chip-class shorthands the grid uses and the raw engine verdict strings,
@@ -323,6 +324,75 @@ export function HeatLegend({ lastEval }: { lastEval?: string | null } = {}) {
           <span className="cx-heat-sw" style={{ background: heatFillLevel(lvl) }} />{label}
         </span>
       ))}
+    </div>
+  );
+}
+
+// Training/testing streak bar, sits under the heatmap + legend. A "streak day"
+// is a day the participant trained or tested (activity level >= 2), NOT a plain
+// sign-in — so the bar rewards real practice. The trailing strip shows the last
+// STRIP_DAYS days oldest→today; the consecutive run ending today/yesterday (the
+// current streak) is drawn in solid teal, older qualifying days faint, missed
+// days empty. Streak math lives in streak.ts (unit-tested). Styling is INLINE
+// (no shellCss dependency) so it renders identically on the desktop Shell and
+// the mobile home — the same cross-surface contract as CohortInviteBanner.
+const STRIP_DAYS = 14;
+
+export function StreakBar({ activity = {} }: { activity?: Record<string, number> } = {}) {
+  useTheme();
+  const { current, best, active } = computeStreak(activity);
+  const teal = cssVar("--teal");
+  const tealWeak = cssVar("--teal-mid");
+  const zero = cssVar("--zero-fill");
+  const grid = cssVar("--grid-ink");
+
+  // Which trailing days belong to the *current* run: the last `current` days,
+  // offset by one when today itself isn't done yet (run ends yesterday).
+  const endAgo = active ? 0 : (current > 0 ? 1 : 0);
+  const dayLevel = (ago: number): number => {
+    const d = new Date();
+    const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ago);
+    const p = (n: number) => (n < 10 ? "0" + n : "" + n);
+    return activity[`${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`] ?? 0;
+  };
+  // oldest (left) → today (right)
+  const cells = Array.from({ length: STRIP_DAYS }, (_, i) => {
+    const ago = STRIP_DAYS - 1 - i;
+    const qualifies = dayLevel(ago) >= 2;
+    const inRun = qualifies && current > 0 && ago >= endAgo && ago < endAgo + current;
+    return { key: i, isToday: ago === 0,
+      fill: inRun ? teal : qualifies ? tealWeak : zero };
+  });
+
+  const label = current > 0 ? `${current}-day streak` : "No active streak";
+  const sub = current > 0
+    ? (active ? "Practiced today" : "Train or test today to keep it going")
+    : "Train or test to start one";
+
+  return (
+    <div aria-label={`Current streak ${current} days`}
+      style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--bd-subtle)" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600,
+          color: current > 0 ? "var(--teal-deep)" : "var(--ink-subtle)" }}>
+          {label}
+        </span>
+        {best > 0 && (
+          <span style={{ fontFamily: "var(--mono)", fontSize: 11,
+            color: "var(--ink-faint)", whiteSpace: "nowrap" }}>Best {best}</span>
+        )}
+      </div>
+      <div role="img" aria-label={`Last ${STRIP_DAYS} days; ${current} in the current run`}
+        style={{ display: "flex", gap: 3, marginTop: 6 }}>
+        {cells.map((c) => (
+          <span key={c.key} style={{
+            flex: "1 1 0", height: 10, borderRadius: 0, boxSizing: "border-box",
+            background: c.fill, border: `1px solid ${grid}`,
+            outline: c.isToday ? `1px solid ${teal}` : undefined,
+            outlineOffset: c.isToday ? 1 : undefined }} />
+        ))}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-subtle)" }}>{sub}</div>
     </div>
   );
 }

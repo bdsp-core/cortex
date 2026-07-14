@@ -21,7 +21,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import * as api from "../api";
 import { bootstrapOnce } from "../bootstrapStore";
 import { ThemeToggle } from "../theme/ThemeProvider";
-import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend } from "./charts";
+import { Ring, Sparkline, MiniChart, Heatmap, HeatLegend, StreakBar } from "./charts";
 import { useI18n, LANGS, Lang } from "../i18n/LanguageProvider";
 
 // Cohorts is a 660-line surface with its own chart engine, reached only via the
@@ -598,6 +598,7 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
               <div className="cx-heat-wrap">
                 <Heatmap activity={activity} />
                 <HeatLegend lastEval={kpis?.lastAssessed} />
+                <StreakBar activity={activity} />
               </div>
             </section>
 

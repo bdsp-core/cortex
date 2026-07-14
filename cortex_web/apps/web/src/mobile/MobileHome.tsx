@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import { COLORS, VERDICT_STYLE } from "../../ui/theme";
-import { Heatmap, HeatLegend } from "../components/charts";
+import { Heatmap, HeatLegend, StreakBar } from "../components/charts";
 import { CohortInviteBanner } from "../components/CohortInviteBanner";
 import { MilestoneBanner } from "../components/MilestoneBanner";
 import * as S from "./styles";
@@ -135,6 +135,7 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
               <Heatmap activity={activity} />
             </div>
             <HeatLegend lastEval={dash?.kpis?.lastAssessed} />
+            <StreakBar activity={activity} />
           </section>
         )}
 
