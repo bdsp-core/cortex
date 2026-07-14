@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from .. import helpers, security
+from .. import awards, helpers, security
 from ..config import TOKEN_TTL
 from ..deps import client_ip
 from ..models import AuthGoogleIn, AuthIn, EmailIn, RegisterIn, ResetIn, VerifyIn
@@ -82,6 +82,9 @@ def register(body: RegisterIn, req: Request):
             if helpers.is_unique_violation(e):
                 raise HTTPException(409, "an account with this email already exists")
             raise
+    # "Account created" milestone (idempotent; also covers a pending-signup
+    # retry whose account predates this feature). Best-effort.
+    awards.evaluate_account_created(db, code)
     # No session is issued at signup: the account must verify its email
     # before it can sign in. Email a 6-digit code; the SPA advances to the
     # verify screen.
@@ -236,6 +239,8 @@ def auth_google(body: AuthGoogleIn, req: Request):
             row = row or db.get_participant_by_email(email)
     if row is None or not row.get("active"):
         raise HTTPException(403, "account is disabled")
+    # "Account created" milestone (idempotent; fires once on first sign-in).
+    awards.evaluate_account_created(db, row["code"])
     # Google accounts are born verified: attach any cohort invites emailed to
     # this address before it had an account (no-op on later sign-ins).
     db.attach_email_invites(email, row["code"])

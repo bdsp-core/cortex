@@ -2718,7 +2718,8 @@ def test_bootstrap_matches_standalone_endpoints(client):
     # no `errors` key on the happy path
     assert set(body) == {"dashboard", "trajectories", "regimen", "activity",
                          "session", "cohorts", "awards"}
-    assert body["awards"] == {"pending": []}
+    # a freshly created account has exactly the "account" milestone pending
+    assert [p["key"] for p in body["awards"]["pending"]] == ["account"]
     # each section IS the standalone endpoint's payload (same builder)
     assert body["dashboard"] == client.get("/api/dashboard", headers=hdr).json()
     assert body["trajectories"] == client.get("/api/trajectories", headers=hdr).json()
@@ -2971,37 +2972,104 @@ def test_awards_badge_lifecycle(client):
     assert len(seiz) == 1 and seiz[0]["revokedUtc"] is None
 
 
-def test_awards_full_seven_milestone(client):
+def _now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _seed_result(db, code: str, i: int, result: dict) -> None:
+    """A completed session + result row directly (bumps count_completed_results
+    without driving the whole /api/session → /api/results path 100 times)."""
+    sid = f"seed-r-{code}-{i}"
+    db._write("INSERT INTO sessions(session_id, code, participant, started_utc, "
+              "finished_utc, status) VALUES (?,?,?,?,?, 'complete')",
+              (sid, code, code, _now_iso(), _now_iso()))
+    db._write("INSERT INTO results(session_id, result, received_utc) VALUES (?,?,?)",
+              (sid, json.dumps(result), _now_iso()))
+
+
+def _seed_training_day(db, code: str, sid: str, days_ago: int) -> None:
+    ts = time.strftime("%Y-%m-%dT12:00:00Z", time.gmtime(time.time() - days_ago * 86400))
+    db._write("INSERT INTO training_sessions(training_id, code, task_focus, "
+              "started_utc, finished_utc, status, n_items) VALUES (?,?,?,?,?, 'complete', 10)",
+              (sid, code, None, ts, ts))
+
+
+def test_account_created_milestone(client):
+    # _make_participant registers + verifies; registration awards "account"
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    keys = {m["key"] for m in client.get("/api/awards", headers=hdr).json()["milestones"]}
+    assert "account" in keys
+
+
+def test_awards_certification_milestones(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     db = client.app.state.db
     code = db.get_participant_by_email(email)["code"]
-    all_pass = {dcode: "PASS" for _k, dcode, _l in dashboard_logic.CANONICAL_TASKS}
-    awards.evaluate_certification(db, code, _cert_result(all_pass))
+    seen = lambda: {m["key"] for m in client.get("/api/awards", headers=hdr).json()["milestones"]}
+    fail_all = _cert_result({})   # verdicts are irrelevant to the count milestones
+    for i in range(1, 11):
+        _seed_result(db, code, i, fail_all)
+        awards.evaluate_certification(db, code, fail_all)
+        if i == 1:
+            assert "first-certification" in seen()
+        if i == 5:
+            assert "cert-5" in seen()
+    keys = seen()
+    assert "cert-10" in keys
+    # nothing between the official rungs, and the retired full-seven is gone
+    assert not any(f"cert-{n}" in keys for n in (2, 3, 4, 6, 7, 8, 9))
+    assert "full-seven" not in keys
+
+
+def test_awards_training_session_ladder(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    for i in range(1, 11):
+        _seed_training_day(db, code, f"tr-{i}", 0)   # all today: count-based
+        awards.evaluate_training(db, code)
     keys = {m["key"] for m in client.get("/api/awards", headers=hdr).json()["milestones"]}
-    assert "full-seven" in keys
+    assert "first-training" in keys and "sessions-10" in keys
+    assert not any(f"sessions-{n}" in keys for n in range(2, 10))
+    assert not any(k.startswith("days-") for k in keys)   # retired ladder
+
+
+def test_awards_streak_week_milestone(client):
+    email, pw = _make_participant(client)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    db.set_tz_offset(code, 0)
+    ms = lambda: {m["key"] for m in db.list_awards(code) if m["kind"] == "milestone"}
+    for n in range(6):                                # today .. 5 days ago = 6 days
+        _seed_training_day(db, code, f"wk-{n}", n)
+    awards.evaluate_training(db, code)
+    assert "streak-week" not in ms()
+    _seed_training_day(db, code, "wk-6", 6)           # the 7th consecutive day
+    awards.evaluate_training(db, code)
+    assert "streak-week" in ms()
+    assert "streak-month" not in ms() and "streak-year" not in ms()
 
 
 def test_training_milestones_and_ack_flow(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
-    for _ in range(3):
-        tid = client.post("/api/training-sessions", headers=hdr,
-                          json={}).json()["trainingId"]
-        r = client.post("/api/training-sessions/finalize", headers=hdr,
-                        json={"trainingId": tid, "nItems": 10,
-                              "summary": {"mode": "training"}})
-        assert r.status_code == 200
+    # a real training sitting via the endpoint → first-training (wiring)
+    tid = client.post("/api/training-sessions", headers=hdr, json={}).json()["trainingId"]
+    assert client.post("/api/training-sessions/finalize", headers=hdr,
+                       json={"trainingId": tid, "nItems": 10,
+                             "summary": {"mode": "training"}}).status_code == 200
     ms = client.get("/api/awards", headers=hdr).json()["milestones"]
     keys = [m["key"] for m in ms]
-    # the irregular ladder: 1 and 3 hit, 2 deliberately not a rung
-    assert "sessions-1" in keys and "sessions-3" in keys
-    assert "sessions-2" not in keys
-    # unacknowledged milestones ride the bootstrap awards section
+    assert "first-training" in keys and "sessions-2" not in keys
+    # unacknowledged milestones ride the bootstrap awards section (account + first-training)
     pend = client.get("/api/bootstrap?tz=0&include=awards",
                       headers=hdr).json()["awards"]["pending"]
     assert {p["key"] for p in pend} == set(keys)
-    # ack → leaves the pending feed, stays in the ledger
+    assert "account" in {p["key"] for p in pend}
+    # ack one → leaves the pending feed, stays in the ledger
     first = pend[0]["awardId"]
     assert client.post("/api/awards/ack", json={"awardId": first},
                        headers=hdr).status_code == 200

@@ -1554,14 +1554,6 @@ class Database:
             "WHERE code=? AND status='complete'", (code,))
         return int(row["n"]) if row else 0
 
-    def count_training_days(self, code: str) -> int:
-        """Distinct UTC days with a completed training sitting."""
-        row = self._fetchone(
-            "SELECT COUNT(DISTINCT substr(finished_utc, 1, 10)) AS n "
-            "FROM training_sessions WHERE code=? AND status='complete' "
-            "AND finished_utc IS NOT NULL", (code,))
-        return int(row["n"]) if row else 0
-
     def activity_levels(self, code: str, tz_offset_min: int = 0) -> dict[str, int]:
         """Per-day activity level (LOCAL YYYY-MM-DD → level) for the heatmap:
         1 = signed in, 2 = certification test, 3 = training completed. Highest
