@@ -490,15 +490,16 @@ export function App() {
   const startTraining = useCallback(async () => {
     setPhase("loading");
     try {
-      // createRegimen and startSession are independent server calls; run them
-      // in parallel (was a 3-call sequential waterfall), and pull the lazy
-      // trainer-engine chunk down alongside them. startTrainingSession is
+      // createRegimen and the training-bank draw are independent server calls;
+      // run them in parallel (was a 3-call sequential waterfall), and pull the
+      // lazy trainer-engine chunk down alongside them. startTrainingSession is
       // sequenced after the regimen since it links the sitting to it.
       const [{ regimen: plan }, { bank }, { buildTrainingState }] = await Promise.all([
         api.createRegimen(),                                  // weak-set + measured prior
-        // Candidate pool (spacing-aware + media) — reuse the balanced draw; the
-        // trainer picks adaptively from it and each seg is renderable.
-        api.startSession({ ...(participantRef.current ?? {}) }),
+        // Candidate pool for training — an UNGATED draw (no exam washout, no
+        // test/train exposure exclusion), so resuming training is never blocked
+        // and the weak-domain pools aren't starved. Every seg is renderable.
+        api.startTrainingBank(),
         import("./trainingSetup"),
       ]);
       const { trainingId } = await api.startTrainingSession();

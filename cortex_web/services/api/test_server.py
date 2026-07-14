@@ -588,6 +588,87 @@ def test_exam_washout_blocks_after_training(client):
     assert client.get("/api/session/active", headers=hdr).json()["washout"] is None
 
 
+def test_training_bank_not_blocked_by_washout(client):
+    # The post-training washout is one-directional: it blocks starting an EXAM
+    # soon after training, never training itself. The trainer draws through
+    # POST /api/training-bank, which is ungated — so "Resume training" works
+    # even inside the 12h window that blocks the exam.
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    code = db.get_participant_by_email(email)["code"]
+    fin = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+    db._write("INSERT INTO training_sessions(training_id, code, started_utc, "
+              "finished_utc, status) VALUES (?,?,?,?,'complete')",
+              ("tr-wash-tb", code, fin, fin))
+    # the exam is blocked (washout in force) ...
+    assert client.post("/api/session", headers=hdr,
+                       json={"participant": {}}).status_code == 409
+    # ... but the training draw is not.
+    r = client.post("/api/training-bank", headers=hdr, json={})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["bank"]["segments"]) > 0
+
+
+def test_training_bank_ignores_exposure_exclusion(client):
+    # Training is spaced repetition: its draw must NOT strip the participant's
+    # recently-seen (test + training) segments the way the exam draw does, or
+    # the weak-domain pools starve to empty (the "Resume training" blank screen).
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    # Record a first exam sitting's whole pool as seen.
+    first = client.post("/api/session", headers=hdr,
+                        json={"participant": {}, "sampleSeed": 1}).json()
+    seen = [s["segId"] for s in first["bank"]["segments"]]
+    for i, sid in enumerate(seen):
+        client.post("/api/progress", headers=hdr, json={
+            "sessionId": first["sessionId"],
+            "trial": {"trialIndex": i, "segId": sid, "taskK": 0}})
+    # The exam draw excludes the seen segs; the training draw does not.
+    exam = client.post("/api/session", headers=hdr,
+                       json={"participant": {}, "sampleSeed": 2}).json()["bank"]
+    assert {s["segId"] for s in exam["segments"]}.isdisjoint(set(seen))
+    train = client.post("/api/training-bank", headers=hdr,
+                        json={"sampleSeed": 1}).json()["bank"]
+    # nPool is the full bank (no exclusion), and a previously-seen seg is
+    # eligible to be drawn again.
+    assert train["nPool"] == client.app.state.get_bank().n_segments
+    assert {s["segId"] for s in train["segments"]} & set(seen)
+
+
+def test_training_bank_does_not_supersede_exam(client):
+    # A training draw must never disturb a resumable exam sitting: it creates no
+    # `sessions` row and supersedes no open one.
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    start = client.post("/api/session", headers=hdr,
+                        json={"participant": {}, "sampleSeed": 99}).json()
+    sid = start["sessionId"]
+    drawn_ids = [s["segId"] for s in start["bank"]["segments"]]
+    for i in range(3):
+        client.post("/api/progress", headers=hdr,
+                    json={"sessionId": sid,
+                          "trial": {"trialIndex": i, "segId": drawn_ids[i],
+                                    "taskK": 1, "pick": i % 2}})
+    # a training draw in between ...
+    assert client.post("/api/training-bank", headers=hdr,
+                       json={}).status_code == 200
+    # ... leaves the exam resumable.
+    active = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert active is not None and active["sessionId"] == sid
+
+
+def test_training_bank_requires_training_enabled(client):
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    client.app.state.cfg["training_mode"] = "off"
+    assert client.post("/api/training-bank", headers=hdr,
+                       json={}).status_code == 403
+    client.app.state.cfg["training_mode"] = "all"
+    assert client.post("/api/training-bank", headers=hdr,
+                       json={}).status_code == 200
+
+
 def test_session_resume_roundtrip(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)

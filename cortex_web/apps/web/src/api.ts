@@ -627,6 +627,21 @@ export async function startSession(
   }, { retries: 2, timeoutMs: 30_000 });
 }
 
+// Draw the candidate pool for a TRAINING sitting. A separate endpoint from
+// startSession() on purpose: the training draw is ungated — no post-training
+// exam washout (so "Resume training" is never blocked after a sitting) and no
+// test/train exposure exclusion (so the weak-domain pools aren't starved). It
+// creates no exam session row. Returns the same SessionBank shape the client
+// wraps in a Bundle.
+export async function startTrainingBank(): Promise<{
+  sampleSeed: number; bank: SessionBank;
+}> {
+  return authedFetch("/api/training-bank", {
+    method: "POST",
+    body: "{}",
+  }, { retries: 2, timeoutMs: 30_000 });
+}
+
 // One representative IIIC segment for the in-context tutorial (no full-manifest
 // fetch) — returned as a 1-segment bank the client wraps in a Bundle.
 export function tutorialExample(): Promise<SessionBank> {

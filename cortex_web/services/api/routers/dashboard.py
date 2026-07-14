@@ -8,6 +8,7 @@ response shape.
 """
 from __future__ import annotations
 
+import random
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,7 +16,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from .. import awards, dashboard_logic
 from ..deps import require_auth
 from ..models import (
-    TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn, TrajectoryIn)
+    SessionIn, TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn,
+    TrajectoryIn)
 
 router = APIRouter(prefix="/api")
 
@@ -184,6 +186,42 @@ def training_start(body: TrainingStartIn, req: Request, code: str = Depends(requ
         regimen_id=(reg["regimen_id"] if reg else None),
         source_session_id=(reg.get("source_session_id") if reg else None))
     return {"trainingId": training_id}
+
+
+@router.post("/training-bank")
+def training_bank(body: SessionIn, req: Request, code: str = Depends(require_auth)):
+    """Per-session candidate pool for the immersive TRAINER (not the exam).
+
+    Deliberately draws through a DIFFERENT gate than POST /api/session, because
+    the exam draw applies two rules that are wrong for training:
+
+      * No post-training exam washout. That washout (routers/testing.py) is
+        one-directional by design — it blocks starting an *exam* soon after
+        training so a certificate can't ride a same-day practice boost. Blocking
+        *training* after training was an unintended side effect of the two
+        surfaces sharing the exam draw; it stranded "Resume training" on a
+        `training_washout` error for 12h after every sitting.
+
+      * No test/train exposure exclusion. The trainer is built on spaced
+        *repetition* (its own within-session `served` set + the retention
+        scheduler handle spacing), so the exam's 30-day test+training exclusion
+        would starve exactly the weak-domain pools the learner is training —
+        the empty-pool "Resume training" blank screen. Item-level exam leakage
+        stays handled the other direction: the exam draw already excludes
+        training-seen segments.
+
+    It also does NOT create or supersede a `sessions` row — a training draw must
+    never disturb the participant's resumable exam sitting."""
+    if not _training_enabled(req, code):
+        raise HTTPException(403, "training is not enabled for this account")
+    cfg = req.app.state.cfg
+    bank = req.app.state.get_bank()
+    if bank is None:
+        raise HTTPException(503, "question bank unavailable")
+    seed = (body.sampleSeed if body.sampleSeed is not None
+            else random.randint(0, 2**31 - 1))
+    drawn = bank.draw(seed, cfg["session_sample"])   # exclude=None → full pool
+    return {"sampleSeed": seed, "bank": drawn}
 
 
 @router.post("/training-sessions/finalize")
