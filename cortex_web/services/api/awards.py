@@ -33,32 +33,36 @@ from . import dashboard_logic
 
 log = logging.getLogger("cortex.awards")
 
-# Certification-count milestones (count -> (key, label)); count 1 is the
-# separate first-certification below.
+# Milestone copy is deliberately dry and a little funny: certification is a long
+# haul, and a reason to smirk under a surgical mask now and then is good for
+# morale. Keep it short, one sentence, no em dashes (house style).
+
+# Certification-count milestones (count -> (key, label, detail)); count 1 is
+# the separate first-certification below.
 MILESTONE_CERTS = {
-    5:   ("cert-5",   "5th certification test"),
-    10:  ("cert-10",  "10th certification test"),
-    50:  ("cert-50",  "50th certification test"),
-    100: ("cert-100", "100th certification test"),
+    5:   ("cert-5",   "5th certification test",   "Five tests in, and that twitch is either mastery or muscle artifact."),
+    10:  ("cert-10",  "10th certification test",  "Double digits. You now dream in the 10-20 system."),
+    50:  ("cert-50",  "50th certification test",  "Fifty tests. You've seen more spikes than a hedgehog convention."),
+    100: ("cert-100", "100th certification test", "One hundred tests. The EEG machine now asks you for a second opinion."),
 }
 
-# Training-session-count milestones (count -> (key, label)); count 1 is the
-# separate first-training below.
+# Training-session-count milestones (count -> (key, label, detail)); count 1 is
+# the separate first-training below.
 MILESTONE_SESSIONS = {
-    10:    ("sessions-10",    "10th training session"),
-    50:    ("sessions-50",    "50th training session"),
-    100:   ("sessions-100",   "100th training session"),
-    314:   ("sessions-314",   "314th training session"),
-    500:   ("sessions-500",   "500th training session"),
-    1000:  ("sessions-1000",  "1,000th training session"),
-    10000: ("sessions-10000", "10,000th training session"),
+    10:    ("sessions-10",    "10th training session",    "Ten sessions in, and the squiggles are starting to make sense. Suspicious."),
+    50:    ("sessions-50",    "50th training session",    "Fifty sessions. You could read these in your sleep, and probably have."),
+    100:   ("sessions-100",   "100th training session",   "One hundred sessions: generalized, rhythmic, and relentless."),
+    314:   ("sessions-314",   "314th training session",   "Session 314, as irrational as it is delicious. Have a slice."),
+    500:   ("sessions-500",   "500th training session",   "Five hundred sessions. Your baseline is everyone else's ceiling."),
+    1000:  ("sessions-1000",  "1,000th training session", "A thousand sessions. Even the artifact has stopped trying to fool you."),
+    10000: ("sessions-10000", "10,000th training session","Ten thousand sessions. Officially an expert, per that book everyone cites."),
 }
 
 # Consecutive train-or-test day streak milestones (threshold days, high→low).
 STREAK_MILESTONES = (
-    (365, "streak-year",  "First year streak",  "A full year of training or testing without a gap."),
-    (30,  "streak-month", "First month streak", "Thirty days in a row of training or testing."),
-    (7,   "streak-week",  "First week streak",  "Seven days in a row of training or testing."),
+    (365, "streak-year",  "First year streak",  "A full year, no gaps. A truly continuous recording."),
+    (30,  "streak-month", "First month streak", "Thirty days unbroken, steadier than the hospital Wi-Fi."),
+    (7,   "streak-week",  "First week streak",  "Seven days straight, more regular than most rhythms you read."),
 )
 
 
@@ -66,7 +70,8 @@ def evaluate_account_created(db, code: str) -> None:
     """The "Account created" milestone, at signup (local + OAuth). Idempotent;
     logs and swallows all failures so it can never break registration."""
     try:
-        db.award_milestone(code, "account", "Account created", "Welcome to CORTEX.")
+        db.award_milestone(code, "account", "Account created",
+                           "Welcome aboard. The squiggles have been expecting you.")
     except Exception:
         log.exception("[cortex.awards] account milestone failed for %s", code)
 
@@ -89,10 +94,10 @@ def evaluate_certification(db, code: str, result: dict) -> None:
         n = db.count_completed_results(code)
         if n == 1:
             db.award_milestone(code, "first-certification", "First certification test",
-                               "Your baseline measurement is on the books.")
+                               "A baseline at last. Even attendings once mistook a blink for a spike.")
         elif n in MILESTONE_CERTS:
-            mkey, mlabel = MILESTONE_CERTS[n]
-            db.award_milestone(code, mkey, mlabel, "Across all your certification attempts.")
+            mkey, mlabel, mdetail = MILESTONE_CERTS[n]
+            db.award_milestone(code, mkey, mlabel, mdetail)
         _evaluate_streak(db, code)
     except Exception:
         log.exception("[cortex.awards] certification evaluation failed for %s", code)
@@ -105,12 +110,10 @@ def evaluate_training(db, code: str) -> None:
         n = db.count_completed_trainings(code)
         if n == 1:
             db.award_milestone(code, "first-training", "First training session",
-                               "The protocol begins.")
+                               "First rep down. Somewhere, your hippocampus is already forgetting this.")
         elif n in MILESTONE_SESSIONS:
-            mkey, mlabel = MILESTONE_SESSIONS[n]
-            detail = ("A slice of pi (314 = pi x 100)." if n == 314
-                      else "Counted across your whole program.")
-            db.award_milestone(code, mkey, mlabel, detail)
+            mkey, mlabel, mdetail = MILESTONE_SESSIONS[n]
+            db.award_milestone(code, mkey, mlabel, mdetail)
         _evaluate_streak(db, code)
     except Exception:
         log.exception("[cortex.awards] training evaluation failed for %s", code)
