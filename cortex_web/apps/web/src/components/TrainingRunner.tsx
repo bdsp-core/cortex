@@ -21,6 +21,22 @@ import type { TrainerSession } from "../../trainer/session";
 import { TrainingController, DEFAULT_SESSION_ITEMS } from "../trainingController";
 import { buildRevealRows, type RevealRow } from "../trainingReveal";
 
+// Teal ring flashed around the "Is this X?" prompt when the learning policy
+// switches task domains mid-session — beta testers missed the silent label
+// swap between questions. Two smooth pulses over 2s, then fades clean.
+// rgba(47,143,131,…) is --teal (#2f8f83) with alpha; the base teal is
+// theme-constant so the ring reads correctly in light and dark.
+const TASK_FLASH_CSS = `
+.cx-task-flash { animation: cxTaskFlash 2s ease-in-out; }
+@keyframes cxTaskFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(47,143,131,0); }
+  20%  { box-shadow: 0 0 0 3px var(--teal), 0 0 14px 2px rgba(47,143,131,0.35); }
+  50%  { box-shadow: 0 0 0 1px rgba(47,143,131,0.15); }
+  70%  { box-shadow: 0 0 0 3px var(--teal), 0 0 14px 2px rgba(47,143,131,0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(47,143,131,0); }
+}
+@media (prefers-reduced-motion: reduce) { .cx-task-flash { animation: none; } }
+`;
 
 export function TrainingRunner({
   bundle, session, trainingId, labels, total = DEFAULT_SESSION_ITEMS, onExit,
@@ -49,6 +65,18 @@ export function TrainingRunner({
   const [seg, setSeg] = useState<SegmentData | null>(null);
   const [currentSegId, setCurrentSegId] = useState<number | null>(ctrl.item?.segId ?? null);
   const [correctCount, setCorrectCount] = useState(0);
+
+  // flash the prompt when the policy switches task domains (no flash on the
+  // session's first question or on resume — the ref starts on the first task)
+  const task = ctrl.item?.task ?? null;
+  const prevTaskRef = useRef<number | null>(task);
+  const [taskFlashKey, setTaskFlashKey] = useState(0);
+  useEffect(() => {
+    if (task != null && prevTaskRef.current != null && task !== prevTaskRef.current) {
+      setTaskFlashKey((k) => k + 1);
+    }
+    if (task != null) prevTaskRef.current = task;
+  }, [task]);
 
   // display controls (same defaults as the exam Viewer)
   const [montage, setMontage] = useState("bipolar");
@@ -247,15 +275,24 @@ export function TrainingRunner({
     : {};
   return (
     <div ref={rootRef} tabIndex={0} className="cx-test" style={{ ...shell, outline: "none", position: "relative" }}>
+      <style>{TASK_FLASH_CSS}</style>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, transition: "opacity .12s", ...behind }}>
-        {/* header: chip + prompt + progress + exit */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
-          <span className="cx-chip train"><i />In training</span>
-          <span style={{ fontWeight: 600, color: COLORS.textPrimary }}>Is this <span style={{ color: "var(--teal-deep)" }}>{label}</span>?</span>
-          <div style={{ flex: 1, minWidth: 120 }}><ProgressBar count={count} total={total} inline /></div>
-          {/* graceful mid-sitting exit: trajectories flush + the sitting
-              finalizes, so the regimen picks up exactly here next time */}
-          <button className="cx-btn" onClick={finish}>Save &amp; finish later</button>
+        {/* header: chip (left) + centered prompt + exit (right). The flex:1
+            side zones keep the prompt truly centered regardless of widths. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <span className="cx-chip train"><i />In training</span>
+          </div>
+          {/* key remount restarts the flash on every subsequent domain switch */}
+          <span key={taskFlashKey} className={taskFlashKey > 0 ? "cx-task-flash" : undefined}
+            style={{ fontWeight: 600, fontSize: 18, color: COLORS.textPrimary, padding: "4px 14px", whiteSpace: "nowrap" }}>
+            Is this <span style={{ color: "var(--teal-deep)" }}>{label}</span>?
+          </span>
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+            {/* graceful mid-sitting exit: trajectories flush + the sitting
+                finalizes, so the regimen picks up exactly here next time */}
+            <button className="cx-btn" onClick={finish}>Save &amp; finish later</button>
+          </div>
         </div>
 
         {/* media: spectrogram (left, IIIC only) + EEG (right). For spike there is
@@ -291,7 +328,13 @@ export function TrainingRunner({
           <span style={{ fontSize: 11, color: COLORS.textBody, opacity: 0.75 }}>
             {isSpike ? "↑/↓ gain · Ctrl montage" : "↑/↓ gain · ←/→ pan · Ctrl montage"}
           </span>
-          <div style={{ flex: 1 }} />
+          {/* session progress lives here (between the hints and Yes/No), width-
+              capped — it doubles as the spacer keeping Yes/No pushed right */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 150, padding: "0 10px" }}>
+            <div style={{ flex: "0 1 220px" }}>
+              <ProgressBar count={count} total={total} inline />
+            </div>
+          </div>
           <button disabled={!seg} onClick={() => answer(true)}
             style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
               background: "var(--teal-weak)", color: "var(--teal-deep)", border: "1px solid var(--teal-mid)" }}>
