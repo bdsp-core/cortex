@@ -4,7 +4,7 @@
 // certificates are the v1.0 policy).
 
 import { useEffect, useRef, useState } from "react";
-import { COLORS, FONTS, VERDICT_STYLE, cssVar } from "../../ui/theme";
+import { COLORS, FONTS, REVEAL_CSS, VERDICT_STYLE, cssVar } from "../../ui/theme";
 import { useTheme } from "../theme/ThemeProvider";
 import { binormalSteps } from "../roc";
 import { Button, Card, Heading, Stage } from "./ui";
@@ -71,6 +71,10 @@ export function Results({ summary, onFinish, onReturn }: {
   const [showTech, setShowTech] = useState(false);
   const [openRoc, setOpenRoc] = useState<number | null>(null);
   const rows = rowPlan(summary);
+  // Staged reveal (mirrors the training session-end reveal, shared REVEAL_CSS):
+  // heading + subtitle land immediately, the verdict rows cascade in one by one,
+  // then the details toggle + actions fade in together as the footer.
+  const footDelay = 0.4 + rows.length * 0.45;
   return (
     <Stage maxW={820}>
       {/* maxHeight + overflowY makes the whole results page scroll on
@@ -78,19 +82,22 @@ export function Results({ summary, onFinish, onReturn }: {
       <div style={{ maxHeight: "calc(100vh - 48px)", overflowY: "auto",
                     width: "100%" }}>
       <Card>
+        <style>{REVEAL_CSS}</style>
         <Heading>Assessment Complete</Heading>
         <div style={{ color: COLORS.textBody, marginBottom: 8 }}>
           {summary.nQuestions} recordings reviewed ·{" "}
           {STOP_REASON_LABEL[summary.stopReason] || summary.stopReason}
         </div>
         <div style={{ marginTop: 16 }}>
-          {rows.map((o) => {
+          {rows.map((o, i) => {
             const v = summary.verdicts[o.idx] ?? "PENDING";
             const st = VERDICT_STYLE[v] ?? VERDICT_STYLE.PENDING;
             const roc = summary.roc?.[o.idx];
             const open = openRoc === o.idx;
             return (
-              <div key={o.code} style={{ borderBottom: `1px solid ${COLORS.borderInactive}` }}>
+              <div key={o.code} className="cx-reveal-in"
+                style={{ borderBottom: `1px solid ${COLORS.borderInactive}`,
+                         animationDelay: `${0.4 + i * 0.45}s` }}>
                 <div style={{ display: "flex", justifyContent: "space-between",
                               alignItems: "center", padding: "12px 0" }}>
                   <span style={{ color: COLORS.textSecondary, fontWeight: 600, fontSize: 15 }}>
@@ -134,10 +141,11 @@ export function Results({ summary, onFinish, onReturn }: {
 
         <button
           onClick={() => setShowTech((s) => !s)}
+          className="cx-reveal-in"
           style={{
             background: "none", border: "none", color: COLORS.textTertiary,
             cursor: "pointer", fontSize: 13, marginTop: 16, padding: 0,
-            fontFamily: FONTS.sans,
+            fontFamily: FONTS.sans, animationDelay: `${footDelay}s`,
           }}
         >
           {showTech ? "▾ Hide technical details" : "▸ Show technical details"}
@@ -159,7 +167,9 @@ export function Results({ summary, onFinish, onReturn }: {
         )}
 
         {(onFinish || onReturn) && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+          <div className="cx-reveal-in"
+            style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24,
+                     animationDelay: `${footDelay}s` }}>
             {onReturn && <Button kind="ghost" onClick={onReturn}>Return to dashboard</Button>}
             {onFinish && <Button onClick={onFinish}>Done</Button>}
           </div>

@@ -60,6 +60,17 @@ export const PAN_BTN_STYLE: CSSProperties = {
   padding: "8px 12px",
 };
 
+// Staged fade-in for a results reveal: each `.cx-reveal-in` layer starts hidden
+// (opacity 0, nudged down 8px) and animates up in place; parents stagger the
+// cascade via inline `animationDelay`. Static under prefers-reduced-motion.
+// Shared by the training session-end reveal (TrainingRunner) and the exam
+// Results page so the two "results" reveals stay identical.
+export const REVEAL_CSS = `
+@keyframes cxRevealIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cx-reveal-in { opacity: 0; animation: cxRevealIn .55s ease forwards; }
+@media (prefers-reduced-motion: reduce) { .cx-reveal-in { animation: none; opacity: 1; transform: none; } }
+`;
+
 export const GEOMETRY = {
   landing: { w: 980, h: 660 },
   consent: { w: 980, h: 660 },

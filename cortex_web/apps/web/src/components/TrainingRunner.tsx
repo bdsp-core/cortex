@@ -13,7 +13,7 @@ import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, WINDOW_OPTIONS, PAN_BTN_STYLE,
-  IIIC_LABEL_START_S, IIIC_LABEL_END_S,
+  REVEAL_CSS, IIIC_LABEL_START_S, IIIC_LABEL_END_S,
   SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
 import * as api from "../api";
@@ -331,13 +331,6 @@ export function TrainingRunner({
     </div>
   );
 }
-
-// Staged fade-in for the reveal rows; static under prefers-reduced-motion.
-const REVEAL_CSS = `
-@keyframes cxRevealIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.cx-reveal-in { opacity: 0; animation: cxRevealIn .55s ease forwards; }
-@media (prefers-reduced-motion: reduce) { .cx-reveal-in { animation: none; opacity: 1; transform: none; } }
-`;
 
 function RevealRowView({ r, delayS }: { r: RevealRow; delayS: number }) {
   const dSkill = r.after.skill - r.before.skill;
