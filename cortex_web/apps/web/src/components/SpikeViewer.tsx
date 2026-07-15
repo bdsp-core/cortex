@@ -158,15 +158,6 @@ export function SpikeViewer({
           style={{ minWidth: 180, padding: "12px 16px", fontWeight: 700, ...isYes(noPick) }}>
           2 · No spike
         </button>
-        {onExit && (
-          <button onClick={onExit}
-            style={{ marginLeft: "auto", background: "none", cursor: "pointer",
-              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
-              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
-              padding: "8px 12px", whiteSpace: "nowrap" }}>
-            Save &amp; finish later
-          </button>
-        )}
       </div>
 
       <div style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 6 }}>
@@ -217,6 +208,15 @@ export function SpikeViewer({
         <span style={{ color: COLORS.textTertiary, marginLeft: "auto" }}>
           {item && seg ? `EEG ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div · ${seg.fsHz} Hz` : ""}
         </span>
+        {onExit && (
+          <button onClick={onExit}
+            style={{ background: "none", cursor: "pointer",
+              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
+              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
+              padding: "8px 12px", whiteSpace: "nowrap" }}>
+            Save &amp; finish later
+          </button>
+        )}
       </div>
     </div>
   );

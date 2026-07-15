@@ -218,15 +218,6 @@ export function Viewer({
         <span style={{ color: "#ff5c5c", fontWeight: 600, marginLeft: 8 }}>
           Classify the pattern found within the red box. Pan left or right to gain context.
         </span>
-        {onExit && !tut && (
-          <button onClick={onExit}
-            style={{ marginLeft: "auto", background: "none", cursor: "pointer",
-              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
-              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
-              padding: "8px 12px", whiteSpace: "nowrap" }}>
-            Save &amp; finish later
-          </button>
-        )}
       </div>
 
       {/* middle: spectrogram (left) + EEG (right) — both sized to their panes */}
@@ -286,9 +277,18 @@ export function Viewer({
         </label>
         <button onClick={() => setPanStart((p) => Math.max(0, p - windowS))}>◀ Pan</button>
         <button onClick={() => setPanStart((p) => Math.min(Math.max(0, dur - windowS), p + windowS))}>Pan ▶</button>
-        <span style={{ color: COLORS.textTertiary }}>
+        <span style={{ color: COLORS.textTertiary, marginLeft: "auto" }}>
           {item && seg ? `EEG ${panStart.toFixed(1)}–${(panStart + windowS).toFixed(1)} s of ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div` : ""}
         </span>
+        {onExit && !tut && (
+          <button onClick={onExit}
+            style={{ background: "none", cursor: "pointer",
+              border: `1px solid ${COLORS.borderInactive}`, borderRadius: 4,
+              color: COLORS.textFaint, fontFamily: FONTS.sans, fontSize: 12,
+              padding: "8px 12px", whiteSpace: "nowrap" }}>
+            Save &amp; finish later
+          </button>
+        )}
       </div>
 
       {tutorial && seg && (
