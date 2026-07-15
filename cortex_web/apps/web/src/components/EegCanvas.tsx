@@ -87,7 +87,20 @@ export function EegCanvas(props: EegCanvasProps) {
     }
 
     const clip = EEG_CLIP_MULT * gainUv;
+
+    // Channel labels — drawn in the left gutter BEFORE the trace clip. clipTraces
+    // clips to the plot rect (x ≥ padL); the labels sit at x < padL, so drawing
+    // them inside that clip (as they were) erased them for the trainer — the only
+    // clipTraces caller. Labels never overlap the traces (x ≥ padL), so for the
+    // unclipped exam path this is pixel-identical to the previous per-row draw.
     ctx.textAlign = "right";
+    ctx.fillStyle = "#222";
+    ctx.font = "12px system-ui";
+    for (let r = 0; r < nRows; r++) {
+      const row = rows[r];
+      if (row.name) ctx.fillText(row.name, padL - 6, padT + (r + 0.5) * rowH + 3);
+    }
+
     // keep traces inside the plot so they never paint over the time labels
     if (props.clipTraces) {
       ctx.save();
@@ -98,12 +111,6 @@ export function EegCanvas(props: EegCanvasProps) {
     for (let r = 0; r < nRows; r++) {
       const row = rows[r];
       const yMid = padT + (r + 0.5) * rowH;
-      // channel label
-      if (row.name) {
-        ctx.fillStyle = "#222";
-        ctx.font = "12px system-ui";
-        ctx.fillText(row.name, padL - 6, yMid + 3);
-      }
       if (!row.data) continue; // separator
       ctx.strokeStyle = row.isEkg ? COLORS.ekgTrace : COLORS.eegTrace;
       ctx.lineWidth = 1;
