@@ -36,6 +36,12 @@ app.cortexeeg.org {
 
     # EEG bundle (static). Versioned blobs immutable; manifest short-cache.
     handle /bundle/* {
+        # Cross-origin blob fetch (app.cortexeeg.org -> bundle.cortexeeg.org via
+        # CloudFront): ACAO must be UNCONDITIONAL at the origin so every cached CDN
+        # object carries it. CloudFront's cache key omits Origin, so an Origin-
+        # conditional ACAO (SimpleCORS alone) got poisoned by no-Origin cache fills
+        # -> browser CORS failures on the EEG/spec blobs.
+        header Access-Control-Allow-Origin "*"
         @bundle_blobs path_regexp bundle_blobs ^/bundle/[^/]+/seg/.+\.(eeg|spec)$
         header @bundle_blobs Cache-Control "public, max-age=31536000, immutable"
         @manifest path_regexp manifest ^/bundle/[^/]+/manifest\.json$
