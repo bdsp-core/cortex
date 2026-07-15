@@ -311,20 +311,30 @@ function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () =
 // ℓ/θ/ℓ*/AUROC + verdict and the KPIs are real (from the latest result); the
 // training-trajectory / protocol / streak surfaces show "available after
 // training" placeholders until the trainer ships.
-// KPI-tile caption that rides under the bar at the fill's leading edge. The
-// row mirrors the bar row's [lo] [bar] [hi] geometry with hidden endpoint
-// copies so percentages line up with the bar itself, and the flex-grow split
-// (pct : 100−pct of the free space) pins the caption inside the tile at the
-// extremes — flush left at 0%, flush right at 100%, never spilling out.
-function KpiCaption({ pct, lo, hi, children }: { pct: number; lo: string; hi: string; children: React.ReactNode }) {
+// KPI-tile caption that rides under the bar, anchored at the fill's leading
+// edge: `value` right-aligns into the anchor, `sep` (the "·") sits ON it, and
+// `rest` flows right. The row mirrors the bar row's [lo] [bar] [hi] geometry
+// with hidden endpoint copies so percentages line up with the bar itself. The
+// two flex-grow cells (pct : 100−pct) can't shrink below their text, so the
+// anchor clamps inside the tile at the extremes — it never spills out.
+function KpiCaption({ pct, lo, hi, value, sep, rest }: {
+  pct: number; lo: string; hi: string;
+  value?: string;   // left of the anchor (e.g. "0.86"); omit for single-part captions
+  sep?: string;     // rendered on the anchor itself (e.g. "·")
+  rest: string;     // right of the anchor (e.g. "GPD", "of 7 domains", "no test yet")
+}) {
   const p = Math.max(0, Math.min(100, pct));
   return (
     <div style={{ display: "flex", gap: 6 }}>
       <span className="note" style={{ visibility: "hidden" }}>{lo}</span>
       <div style={{ flex: 1, minWidth: 0, display: "flex", overflow: "hidden" }}>
-        <span style={{ flexGrow: p, flexBasis: 0 }} />
-        <span className="note" style={{ whiteSpace: "nowrap" }}>{children}</span>
-        <span style={{ flexGrow: 100 - p, flexBasis: 0 }} />
+        <span className="note" style={{ flexGrow: p, flexBasis: 0, whiteSpace: "nowrap", textAlign: "right" }}>
+          {value ? `${value}\u00A0` : ""}
+        </span>
+        {sep != null && <span className="note">{sep}</span>}
+        <span className="note" style={{ flexGrow: 100 - p, flexBasis: 0, whiteSpace: "nowrap" }}>
+          {sep != null ? `\u00A0${rest}` : rest}
+        </span>
       </div>
       <span className="note" style={{ visibility: "hidden" }}>{hi}</span>
     </div>
@@ -417,9 +427,9 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             </div>
             <span className="note">{kpis ? kpis.tasksTotal : 7}</span>
           </div>
-          <KpiCaption pct={certPct} lo="0" hi={String(kpis ? kpis.tasksTotal : 7)}>
-            {kpis ? `${kpis.tasksCertified} of ${kpis.tasksTotal} domains` : "no test yet"}
-          </KpiCaption>
+          <KpiCaption pct={certPct} lo="0" hi={String(kpis ? kpis.tasksTotal : 7)}
+            value={kpis ? String(kpis.tasksCertified) : undefined}
+            rest={kpis ? `of ${kpis.tasksTotal} domains` : "no test yet"} />
         </div>
         <div className="cx-kpi">
           <span className="k">Weakest domain AUROC</span>
@@ -430,9 +440,10 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             </div>
             <span className="note">1.0</span>
           </div>
-          <KpiCaption pct={worstPct} lo="0.5" hi="1.0">
-            {kpis?.worstDomain ? `${kpis.worstDomain.auroc.toFixed(2)} · ${kpis.worstDomain.label}` : "no test yet"}
-          </KpiCaption>
+          <KpiCaption pct={worstPct} lo="0.5" hi="1.0"
+            value={kpis?.worstDomain ? kpis.worstDomain.auroc.toFixed(2) : undefined}
+            sep={kpis?.worstDomain ? "·" : undefined}
+            rest={kpis?.worstDomain ? kpis.worstDomain.label : "no test yet"} />
         </div>
         <div className="cx-kpi">
           <span className="k">Strongest domain AUROC</span>
@@ -443,9 +454,10 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
             </div>
             <span className="note">1.0</span>
           </div>
-          <KpiCaption pct={bestPct} lo="0.5" hi="1.0">
-            {kpis?.bestDomain ? `${kpis.bestDomain.auroc.toFixed(2)} · ${kpis.bestDomain.label}` : "no test yet"}
-          </KpiCaption>
+          <KpiCaption pct={bestPct} lo="0.5" hi="1.0"
+            value={kpis?.bestDomain ? kpis.bestDomain.auroc.toFixed(2) : undefined}
+            sep={kpis?.bestDomain ? "·" : undefined}
+            rest={kpis?.bestDomain ? kpis.bestDomain.label : "no test yet"} />
         </div>
       </section>
 
