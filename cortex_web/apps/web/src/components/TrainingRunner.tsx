@@ -325,15 +325,13 @@ export function TrainingRunner({
               <button style={PAN_BTN_STYLE} onClick={() => setPanStart((p) => p + windowS)} title="Pan right (→)">▶</button>
             </>
           )}
-          <span style={{ fontSize: 11, color: COLORS.textBody, opacity: 0.75 }}>
+          <span style={{ fontSize: 12, color: COLORS.textBody, opacity: 0.75 }}>
             {isSpike ? "↑/↓ gain · Ctrl montage" : "↑/↓ gain · ←/→ pan · Ctrl montage"}
           </span>
-          {/* session progress lives here (between the hints and Yes/No), width-
-              capped — it doubles as the spacer keeping Yes/No pushed right */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 150, padding: "0 10px" }}>
-            <div style={{ flex: "0 1 220px" }}>
-              <ProgressBar count={count} total={total} inline />
-            </div>
+          {/* session progress fills the space between the hints and Yes/No —
+              it doubles as the spacer keeping Yes/No pushed right */}
+          <div style={{ flex: 1, minWidth: 150, padding: "0 10px" }}>
+            <ProgressBar count={count} total={total} inline />
           </div>
           <button disabled={!seg} onClick={() => answer(true)}
             style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
