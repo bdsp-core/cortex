@@ -311,6 +311,26 @@ function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () =
 // ℓ/θ/ℓ*/AUROC + verdict and the KPIs are real (from the latest result); the
 // training-trajectory / protocol / streak surfaces show "available after
 // training" placeholders until the trainer ships.
+// KPI-tile caption that rides under the bar at the fill's leading edge. The
+// row mirrors the bar row's [lo] [bar] [hi] geometry with hidden endpoint
+// copies so percentages line up with the bar itself, and the flex-grow split
+// (pct : 100−pct of the free space) pins the caption inside the tile at the
+// extremes — flush left at 0%, flush right at 100%, never spilling out.
+function KpiCaption({ pct, lo, hi, children }: { pct: number; lo: string; hi: string; children: React.ReactNode }) {
+  const p = Math.max(0, Math.min(100, pct));
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      <span className="note" style={{ visibility: "hidden" }}>{lo}</span>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", overflow: "hidden" }}>
+        <span style={{ flexGrow: p, flexBasis: 0 }} />
+        <span className="note" style={{ whiteSpace: "nowrap" }}>{children}</span>
+        <span style={{ flexGrow: 100 - p, flexBasis: 0 }} />
+      </div>
+      <span className="note" style={{ visibility: "hidden" }}>{hi}</span>
+    </div>
+  );
+}
+
 function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: number) => void; onStartTest: () => void }) {
   const [dash, setDash] = useState<api.DashboardData | null>(null);
   const [trajPts, setTrajPts] = useState<api.TrajectoryPoint[]>([]);
@@ -356,8 +376,14 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
 
   const hasData = !!dash?.hasResult;
   // Real cert-summary KPIs (tasks certified / worst + best domain AUROC /
-  // last assessed).
+  // last assessed). Each tile's fill % is computed once and shared by the
+  // bar and its caption (which rides under the fill's leading edge).
   const kpis = dash?.kpis ?? null;
+  const certPct = kpis ? Math.round(100 * kpis.tasksCertified / Math.max(1, kpis.tasksTotal)) : 0;
+  const aurocPct = (d: { auroc: number } | null | undefined) =>
+    d ? Math.round(100 * Math.max(0, Math.min(1, (d.auroc - 0.5) / 0.5))) : 0;
+  const worstPct = aurocPct(kpis?.worstDomain);
+  const bestPct = aurocPct(kpis?.bestDomain);
 
   const sel = tasks.find((t) => t.code === selected) ?? tasks[0];
   const nCertified = tasks.filter((t) => chipFor(t.verdict).cls === "pass").length;
@@ -387,33 +413,39 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="note">0</span>
             <div className="cx-kpi-bar" aria-hidden="true" style={{ flex: 1 }}>
-              <i style={{ width: kpis ? `${Math.round(100 * kpis.tasksCertified / Math.max(1, kpis.tasksTotal))}%` : 0 }} />
+              <i style={{ width: `${certPct}%` }} />
             </div>
             <span className="note">{kpis ? kpis.tasksTotal : 7}</span>
           </div>
-          <span className="note">{kpis ? `${kpis.tasksCertified} of ${kpis.tasksTotal} domains` : "no test yet"}</span>
+          <KpiCaption pct={certPct} lo="0" hi={String(kpis ? kpis.tasksTotal : 7)}>
+            {kpis ? `${kpis.tasksCertified} of ${kpis.tasksTotal} domains` : "no test yet"}
+          </KpiCaption>
         </div>
         <div className="cx-kpi">
           <span className="k">Weakest domain AUROC</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="note">0.5</span>
             <div className="cx-kpi-bar" aria-hidden="true" style={{ flex: 1 }}>
-              <i style={{ width: kpis?.worstDomain ? `${Math.round(100 * Math.max(0, Math.min(1, (kpis.worstDomain.auroc - 0.5) / 0.5)))}%` : 0 }} />
+              <i style={{ width: `${worstPct}%` }} />
             </div>
             <span className="note">1.0</span>
           </div>
-          <span className="note">{kpis?.worstDomain ? `${kpis.worstDomain.auroc.toFixed(2)} · ${kpis.worstDomain.label}` : "no test yet"}</span>
+          <KpiCaption pct={worstPct} lo="0.5" hi="1.0">
+            {kpis?.worstDomain ? `${kpis.worstDomain.auroc.toFixed(2)} · ${kpis.worstDomain.label}` : "no test yet"}
+          </KpiCaption>
         </div>
         <div className="cx-kpi">
           <span className="k">Strongest domain AUROC</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="note">0.5</span>
             <div className="cx-kpi-bar" aria-hidden="true" style={{ flex: 1 }}>
-              <i style={{ width: kpis?.bestDomain ? `${Math.round(100 * Math.max(0, Math.min(1, (kpis.bestDomain.auroc - 0.5) / 0.5)))}%` : 0 }} />
+              <i style={{ width: `${bestPct}%` }} />
             </div>
             <span className="note">1.0</span>
           </div>
-          <span className="note">{kpis?.bestDomain ? `${kpis.bestDomain.auroc.toFixed(2)} · ${kpis.bestDomain.label}` : "no test yet"}</span>
+          <KpiCaption pct={bestPct} lo="0.5" hi="1.0">
+            {kpis?.bestDomain ? `${kpis.bestDomain.auroc.toFixed(2)} · ${kpis.bestDomain.label}` : "no test yet"}
+          </KpiCaption>
         </div>
       </section>
 
