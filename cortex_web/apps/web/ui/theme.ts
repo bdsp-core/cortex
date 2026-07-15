@@ -5,6 +5,8 @@
 // stay literal because a 2d-context fillStyle cannot resolve `var()`; canvas
 // code that needs a themed color resolves it at draw time via cssVar().
 
+import type { CSSProperties } from "react";
+
 export const COLORS = {
   bg: "var(--page)",
   card: "var(--panel)",
@@ -43,6 +45,20 @@ export const FONTS = {
   serif: '"Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", serif',
   sans: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 } as const;
+
+// Compact display-control button — the EEG pan controls. Matched to the
+// "Save & finish later" button (lighter --bd-subtle border, rounded corners,
+// 12px font / 8px-12px padding) so the viewer's bottom controls row shares ONE
+// button height + border weight instead of the taller, darker, square-cornered
+// default `.cx-test button`. Shared by Viewer (exam) + TrainingRunner (learning)
+// so the two pan controls can't drift apart.
+export const PAN_BTN_STYLE: CSSProperties = {
+  background: "none",
+  border: `1px solid ${COLORS.borderInactive}`,
+  borderRadius: 4,
+  fontSize: 12,
+  padding: "8px 12px",
+};
 
 export const GEOMETRY = {
   landing: { w: 980, h: 660 },

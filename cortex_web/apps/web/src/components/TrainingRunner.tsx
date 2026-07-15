@@ -12,7 +12,7 @@ import { buildCascade, filtfilt } from "../dsp";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import {
-  COLORS, FONTS, GAIN_LADDER, MONTAGES, WINDOW_OPTIONS,
+  COLORS, FONTS, GAIN_LADDER, MONTAGES, WINDOW_OPTIONS, PAN_BTN_STYLE,
   IIIC_LABEL_START_S, IIIC_LABEL_END_S,
   SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
@@ -284,8 +284,8 @@ export function TrainingRunner({
           {!isSpike && (
             <>
               <Ctl label="Window" value={String(windowS)} opts={WINDOW_OPTIONS.map(String)} onChange={(v) => setWindowS(Number(v))} />
-              <button className="cx-btn" onClick={() => setPanStart((p) => Math.max(0, p - windowS))} title="Pan left (←)">◀</button>
-              <button className="cx-btn" onClick={() => setPanStart((p) => p + windowS)} title="Pan right (→)">▶</button>
+              <button style={PAN_BTN_STYLE} onClick={() => setPanStart((p) => Math.max(0, p - windowS))} title="Pan left (←)">◀</button>
+              <button style={PAN_BTN_STYLE} onClick={() => setPanStart((p) => p + windowS)} title="Pan right (→)">▶</button>
             </>
           )}
           <span style={{ fontSize: 11, color: COLORS.textBody, opacity: 0.75 }}>

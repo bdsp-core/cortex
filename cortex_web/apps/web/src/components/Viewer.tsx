@@ -14,7 +14,7 @@ import { SpecCanvas } from "./SpecCanvas";
 import { TutorialOverlay, TutorialStep } from "./TutorialOverlay";
 import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
-  NOTCH_OPTIONS, WINDOW_OPTIONS,
+  NOTCH_OPTIONS, WINDOW_OPTIONS, PAN_BTN_STYLE,
   IIIC_LABEL_START_S, IIIC_LABEL_END_S,
   SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
@@ -275,8 +275,8 @@ export function Viewer({
             {WINDOW_OPTIONS.map((w) => <option key={w} value={w}>{w} s</option>)}
           </select>
         </label>
-        <button onClick={() => setPanStart((p) => Math.max(0, p - windowS))}>◀ Pan</button>
-        <button onClick={() => setPanStart((p) => Math.min(Math.max(0, dur - windowS), p + windowS))}>Pan ▶</button>
+        <button style={PAN_BTN_STYLE} onClick={() => setPanStart((p) => Math.max(0, p - windowS))}>◀ Pan</button>
+        <button style={PAN_BTN_STYLE} onClick={() => setPanStart((p) => Math.min(Math.max(0, dur - windowS), p + windowS))}>Pan ▶</button>
         <span style={{ color: COLORS.textTertiary, marginLeft: "auto" }}>
           {item && seg ? `EEG ${panStart.toFixed(1)}–${(panStart + windowS).toFixed(1)} s of ${dur.toFixed(1)} s · ${montage} · ${gain} µV/div` : ""}
         </span>
