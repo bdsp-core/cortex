@@ -32,16 +32,7 @@ const CONFIDENCE = ["1 (Novice)", "2", "3 (Competent)", "4", "5 (Expert)"];
 const COLOR_VISION = ["Normal", "Color vision deficiency", "Unsure"];
 const YESNO = ["No", "Yes"];
 const SEX = ["Female", "Male", "Other", "Prefer not to say"];
-const RACE = [
-  "American Indian or Alaska Native",
-  "Asian",
-  "Black or African American",
-  "Hispanic or Latino",
-  "Native Hawaiian or Pacific Islander",
-  "White",
-  "Multiple / Other",
-  "Prefer not to say",
-];
+const AGE = ["<20", "20-40", "40-60", "60+"];
 
 export interface ProfileFieldSpec {
   key: string;
@@ -68,12 +59,11 @@ export const PROFILE_SECTIONS: { title: string; note?: string; fields: ProfileFi
   {
     title: "Demographics",
     fields: [
-      { key: "age", label: "Age", kind: "text", placeholder: "e.g. 34" },
+      { key: "age", label: "Age", kind: "select", options: AGE },
       { key: "sex", label: "Sex", kind: "select", options: SEX },
       { key: "location", label: "Location (city / region)", kind: "text", placeholder: "e.g. Boston, MA" },
       { key: "country", label: "Country", kind: "text", placeholder: "e.g. United States" },
       { key: "color_vision", label: "Color vision", kind: "select", options: COLOR_VISION },
-      { key: "race_ethnicity", label: "Race / ethnicity", kind: "select", options: RACE },
     ],
   },
 ];
@@ -99,7 +89,6 @@ export interface Participant {
   age: string;
   location: string;
   country: string;
-  race_ethnicity: string;
   consent_version: string;
   irb_protocol_id: string;
 }
@@ -122,7 +111,6 @@ export function participantFromProfile(displayName: string, profile: Profile): P
     age: g("age"),
     location: g("location"),
     country: g("country"),
-    race_ethnicity: g("race_ethnicity"),
     consent_version: CONSENT_VERSION,
     irb_protocol_id: IRB_PROTOCOL_ID,
   };

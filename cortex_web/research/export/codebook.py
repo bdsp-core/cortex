@@ -22,7 +22,6 @@ CODEBOOK: dict[str, dict[str, dict]] = {
         "expertise": {"type": "enum", "desc": "self-reported role", "enum": [
             "epileptologist", "neurologist", "fellow", "resident", "tech", "researcher", "other"]},
         "practice_setting": {"type": "str", "desc": "academic | community | ..."},
-        "race_ethnicity": {"type": "str", "desc": "self-reported; may be 'prefer_not'"},
         "eeg_volume_per_month": {"type": "str", "desc": "banded self-reported reading volume"},
         "years_reading_eeg": {"type": "str", "desc": "banded years of EEG experience"},
         "self_rated_confidence": {"type": "int", "desc": "1-5 self-rating"},

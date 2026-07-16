@@ -40,7 +40,7 @@ K = len(TASK_CODES)
 # ── de-identification policy (verified against real participant blobs) ─
 # Quasi-identifier / non-identifying fields projected into gold:
 DEMOGRAPHIC_ALLOWLIST = [
-    "expertise", "practice_setting", "race_ethnicity", "eeg_volume_per_month",
+    "expertise", "practice_setting", "eeg_volume_per_month",
     "years_reading_eeg", "self_rated_confidence", "country", "sex",
     "color_vision", "prior_test_taken",
 ]

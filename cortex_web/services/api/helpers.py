@@ -29,7 +29,7 @@ MAX_FIELD_LEN = 200       # tame oversized payloads (display_name etc.)
 PROFILE_FIELDS = (
     "expertise", "institution", "practice_setting", "years_reading_eeg",
     "eeg_volume_per_month", "self_rated_confidence", "color_vision",
-    "prior_test_taken", "sex", "age", "location", "country", "race_ethnicity",
+    "prior_test_taken", "sex", "age", "location", "country",
 )
 
 
