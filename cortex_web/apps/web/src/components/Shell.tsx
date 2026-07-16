@@ -283,20 +283,20 @@ function WelcomeModal({ onStart, onClose }: { onStart: () => void; onClose: () =
           alt="CORTEX"
         />
         <h2>Welcome to the CORTEX protocol</h2>
-        <p>Thank you for joining us. We're excited you're here.</p>
+        <p>Thank you for joining us.</p>
         <p>By taking part and engaging with the assessments, you're directly helping{" "}
           <strong>train physicians and EEG specialists around the world</strong> to read
           EEG more accurately and consistently.</p>
         <p>To begin, please take the <strong>certification test</strong>. It tunes the
           adaptive learning algorithm to your current skill, so everything that follows
           is tailored to you.</p>
-        <p>Have an idea to make CORTEX better? We'd love to hear it. Use the{" "}
-          <strong>Report a problem</strong> tab in the left navigation any time.</p>
+        <p>Suggestions and problem reports are welcome through the{" "}
+          <strong>Report a problem</strong> tab in the left navigation.</p>
         <p className="cx-welcome-sign">
           Sincerely,<br />Elijah W. Keldsen and M. Brandon Westover
         </p>
         <div className="cx-welcome-actions">
-          <button type="button" className="cx-btn" onClick={onClose}>Maybe later</button>
+          <button type="button" className="cx-btn" onClick={onClose}>Not now</button>
           <button type="button" className="cx-btn primary" onClick={onStart}>
             Take the certification test
           </button>

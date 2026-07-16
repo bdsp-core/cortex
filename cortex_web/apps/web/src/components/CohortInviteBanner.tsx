@@ -122,7 +122,7 @@ export function CohortInviteBanner({ highlightCohortId }: {
             border: `1px solid ${COLORS.borderInactive2}`, borderRadius: 4,
             color: COLORS.textBody, fontFamily: FONTS.sans, fontSize: 12,
             padding: "6px 10px" }}>
-          Maybe later
+          Not now
         </button>
       </div>
       {invites.map((c) => (

@@ -366,8 +366,8 @@ export function StreakBar({ activity = {} }: { activity?: Record<string, number>
 
   const label = current > 0 ? `${current}-day streak` : "No active streak";
   const sub = current > 0
-    ? (active ? "Practiced today" : "Train or test today to keep it going")
-    : "Train or test to start one";
+    ? (active ? "Practiced today" : "Train or test today to maintain your streak")
+    : "Train or test to start a streak";
 
   return (
     <div aria-label={`Current streak ${current} days`}

@@ -228,7 +228,7 @@ export function TrainingRunner({
           </div>
           <div style={{ color: COLORS.textBody, marginBottom: 24 }}>
             {empty
-              ? "You've recently seen the available segments for your training domains. Come back later, or take a fresh test to refresh the pool."
+              ? "You've recently seen the available segments for your training domains. Check back later, or take a new certification test to refresh the pool."
               : `${count} items · ${acc}% correct`}
           </div>
           {rows.length > 0 && (
@@ -250,7 +250,7 @@ export function TrainingRunner({
                 background: "var(--teal-weak)", border: "1px solid var(--teal)", color: "var(--teal-deep)",
                 padding: "12px 16px", marginBottom: 24, fontSize: 14,
               }}>
-                You're ready to re-certify — take a fresh test from the dashboard whenever you like.
+                You're ready to re-certify — a new certification test is available from the dashboard.
               </div>
             )}
             <button className="cx-btn primary"
@@ -356,7 +356,7 @@ export function TrainingRunner({
               {r.correct ? "✓" : "✗"}
             </div>
             <div style={{ fontSize: 20, fontWeight: 600, color: COLORS.textPrimary, margin: "10px 0 4px" }}>
-              {r.correct ? "Correct" : "Not quite"}
+              {r.correct ? "Correct" : "Incorrect"}
             </div>
             <div style={{ color: COLORS.textBody, marginBottom: 18 }}>
               This <strong style={{ color: COLORS.textPrimary }}>{r.isTarget ? "is" : "is not"}</strong> {r.patternLabel}.

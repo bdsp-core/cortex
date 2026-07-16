@@ -509,7 +509,7 @@ function CohortView({ detail, perf, timeframe = DEFAULT_TF, onTimeframe, onInvit
               <button type="button" className="cx-btn" onClick={() => setConfirmDelete(true)}>Delete cohort</button>
             ) : (
               <>
-                <button type="button" className="cx-btn" onClick={() => setConfirmDelete(false)}>Keep it</button>
+                <button type="button" className="cx-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
                 <button type="button" className="cx-btn primary" onClick={() => onDelete?.()}>Confirm delete</button>
               </>
             )}

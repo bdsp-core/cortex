@@ -165,7 +165,7 @@ export function ReportPage() {
           <>
             <h1 style={h1Style}>Report a problem or suggestion</h1>
             <p style={ledeStyle}>
-              Found a bug or have an idea to improve CORTEX? Tell us below. To help us reproduce and
+              Use this form to report a bug or suggest an improvement. To help us reproduce and
               diagnose issues, we automatically attach your browser and device details (operating
               system, browser, screen size, timezone) and the time of submission.
             </p>
@@ -181,7 +181,7 @@ export function ReportPage() {
                   placeholder="you@example.org (so we can reply)" autoComplete="email" style={inputStyle} />
               </label>
               <label style={{ display: "block", marginBottom: 8 }}>
-                <span style={labelStyle}>How can we help? <span style={{ color: "var(--teal)" }}>*</span></span>
+                <span style={labelStyle}>Description <span style={{ color: "var(--teal)" }}>*</span></span>
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} required rows={6}
                   placeholder="Describe the bug, or suggest an improvement…"
                   style={{ ...inputStyle, resize: "vertical", minHeight: 120, fontFamily: FONTS.sans }} />
