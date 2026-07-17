@@ -30,15 +30,27 @@ ENV_FILE=/etc/cortex/cortex.env
 say() { printf "[%s] %s\n" "$(date -u +%H:%M:%SZ)" "$*"; }
 fail() { echo "✗ RESTORE CHECK FAIL: $*" >&2; exit 1; }
 
-# systemd loads the env for the backup unit; interactive runs load it here.
+# systemd loads the env for the backup unit; interactive runs pick the two
+# values needed here out of the env file. (Not `source`d: the file is systemd
+# EnvironmentFile syntax, which is not guaranteed to parse as shell.)
 if [ -z "${CORTEX_RCLONE_REMOTE:-}" ] && [ -r "$ENV_FILE" ]; then
-  set -a; . "$ENV_FILE"; set +a
-  REMOTE="${CORTEX_RCLONE_REMOTE:-box}"
-  BOX_PATH="${CORTEX_BOX_PATH:-CORTEX/backups}"
+  v=$(grep -E '^CORTEX_RCLONE_REMOTE=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)
+  [ -n "$v" ] && REMOTE="$v"
+  v=$(grep -E '^CORTEX_BOX_PATH=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)
+  [ -n "$v" ] && BOX_PATH="$v"
 fi
 
 WORK="$(mktemp -d -t cortex-restore-check-XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
+
+# The rclone Box remote is configured under the service user (the backup unit
+# runs as User=cortex), so when this script is run via sudo, rclone must run
+# as cortex too — and the workdir must be writable by it.
+RCLONE=(rclone)
+if [ "${EUID:-$(id -u)}" -eq 0 ] && id cortex >/dev/null 2>&1; then
+  RCLONE=(sudo -u cortex rclone)
+  chown cortex "$WORK"
+fi
 
 # ── 1. locate + fetch the dump ─────────────────────────────────────
 SRC="${1:-}"
@@ -49,13 +61,13 @@ else
   if [ -z "$SRC" ]; then
     say "finding newest snapshot under $REMOTE:$BOX_PATH"
     # snapshot dirs are YYYY/MM/<stamp>/ — lexicographic max = newest
-    NEWEST=$(rclone lsf --dirs-only -R "$REMOTE:$BOX_PATH" \
+    NEWEST=$("${RCLONE[@]}" lsf --dirs-only -R "$REMOTE:$BOX_PATH" \
              | grep -E '^[0-9]{4}/[0-9]{2}/[^/]+/$' | sort | tail -1)
     [ -n "$NEWEST" ] || fail "no snapshots found under $REMOTE:$BOX_PATH"
     SRC="$REMOTE:$BOX_PATH/${NEWEST%/}"
   fi
   say "fetching $SRC"
-  rclone copy --include 'db.*' --include 'HEARTBEAT.txt' "$SRC" "$WORK/"
+  "${RCLONE[@]}" copy --include 'db.*' --include 'HEARTBEAT.txt' "$SRC" "$WORK/"
 fi
 # (not `ls a b | head -1`: under pipefail one missing name fails the pipeline
 # even when the other matched)

@@ -84,7 +84,11 @@ echo "stamp=$STAMP sessions=$N_SESS host=$(hostname)" > "$WORK/HEARTBEAT.txt"
 # Size sanity: a truncated-but-exit-0 dump must NOT then trigger the prune and
 # evict older good snapshots. A real dump is comfortably over this floor; abort
 # (leaving snapshots intact) if it isn't.
-DUMP=$(ls "$WORK"/db.sql.gz "$WORK"/db.sqlite.gz 2>/dev/null | head -1)
+# (find, NOT `ls a b | head -1`: under `set -euo pipefail` ls exits 2 on the
+# flavor's missing filename and silently killed every backup here — the
+# 2026-07 ten-day backup gap found by the restore drill.)
+DUMP=$(find "$WORK" -maxdepth 1 \( -name db.sql.gz -o -name db.sqlite.gz \) | head -1)
+[ -n "$DUMP" ] || { echo "✗ no DB dump produced in $WORK" >&2; exit 1; }
 DUMP_BYTES=$(stat -c %s "$DUMP" 2>/dev/null || echo 0)
 if [ "$DUMP_BYTES" -lt 1024 ]; then
   echo "✗ DB dump is only ${DUMP_BYTES} bytes (< 1 KiB) — aborting BEFORE prune so" >&2
