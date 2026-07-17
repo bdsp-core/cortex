@@ -1,9 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { reportClientError } from "../telemetry";
 
 // App-wide safety net. Without this, any uncaught error thrown during render
 // unmounts the entire React tree and leaves a blank white screen the user
-// cannot escape from. This catches it, shows the error + a way out, and logs
-// the full component stack to the console for diagnosis. Styling is
+// cannot escape from. This catches it, shows the error + a way out, logs
+// the full component stack to the console for diagnosis, and reports it to
+// /api/client-error (boundary-caught render errors don't reach the global
+// window "error" hook in production builds, so without the explicit report
+// they would be console-only). Styling is
 // deliberately self-contained (no theme vars / CSS classes) so the fallback is
 // legible even if the theme provider is the thing that unmounted.
 interface Props { children: ReactNode }
@@ -18,6 +22,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("[cortex] uncaught render error:", error, info.componentStack);
+    reportClientError(
+      String(error.message || error),
+      `${error.stack ?? ""}\n${info.componentStack ?? ""}`.trim(),
+      "error-boundary",
+    );
     this.setState({ stack: info.componentStack ?? null });
   }
 

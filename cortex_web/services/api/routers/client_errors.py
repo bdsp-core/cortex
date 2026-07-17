@@ -5,8 +5,10 @@ every other incident signal instead of waiting for a user to file a report:
 
     journalctl -u cortex | grep cortex.clienterr
 
-Log-only by design (no DB table): the volume is tiny, the journal is already
-the ops query surface, and nothing here is worth a schema. The endpoint is
+No DB table by design: the volume is tiny, the journal is already the ops
+query surface, and nothing here is worth a schema. Each report also feeds the
+ops alerter (ops_alerts.py), which emails the operator with a per-kind
+cooldown so field crashes get noticed without grepping. The endpoint is
 public (crashes can happen pre-auth), so payloads are length-capped by the
 model and rate-limited per IP; the client additionally dedupes and caps
 reports per page load."""
@@ -32,4 +34,7 @@ def client_error(body: ClientErrorIn, req: Request):
     print(f"[cortex.clienterr] surface={body.surface or '?'} url={body.url!r} "
           f"msg={body.message!r} ua={body.ua!r} stack={stack!r}",
           file=sys.stderr, flush=True)
+    req.app.state.alerts.notify(
+        "client-error",
+        f"surface={body.surface or '?'} url={body.url!r} msg={body.message!r}")
     return {"ok": True}

@@ -2,8 +2,9 @@
 
 Routers get shared state (Database, RateLimiter, SessionBank getter, config)
 from `request.app.state` — created once in create_app(). The dependencies
-here are stateless: they read headers/env only, so any router can import them
-without a circular import back into the app factory.
+here hold no state of their own (require_auth reads the shared Database via
+`request.app.state`), so any router can import them without a circular import
+back into the app factory.
 """
 from __future__ import annotations
 
@@ -28,8 +29,12 @@ def client_ip(req: Request) -> str:
     return req.client.host if req.client else "unknown"
 
 
-def require_auth(authorization: str = Header(default="")) -> str:
-    """Bearer-token dependency: returns the participant code (JWT subject)."""
+def require_auth(request: Request, authorization: str = Header(default="")) -> str:
+    """Bearer-token dependency: returns the participant code (JWT subject).
+
+    Re-checks the participant row on every request — not just at login — so a
+    disabled or deleted account loses API access immediately instead of riding
+    out the remaining TTL of an already-issued token."""
     if not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "missing bearer token")
     token = authorization[7:].strip()
@@ -37,7 +42,11 @@ def require_auth(authorization: str = Header(default="")) -> str:
         claims = security.decode_token(token)
     except security.TokenError as e:
         raise HTTPException(401, f"invalid token: {e}")
-    return claims["sub"]
+    code = claims["sub"]
+    row = request.app.state.db.get_participant(code)
+    if row is None or not row["active"]:
+        raise HTTPException(401, "account disabled")
+    return code
 
 
 def require_admin(x_admin_token: str = Header(default="")) -> bool:

@@ -11,7 +11,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "ui-smoke": "bash scripts/ui_smoke.sh",
-    "phone-smoke": "node scripts/phone_smoke.mjs"
+    "phone-smoke": "node scripts/phone_smoke.mjs",
+    "visual-smoke": "bash scripts/visual_smoke.sh",
+    "visual-smoke:update": "bash scripts/visual_smoke.sh --update"
   },
   "dependencies": {
     "idb": "^8.0.0",
@@ -23,7 +25,9 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "pixelmatch": "^6.0.0",
     "playwright": "^1.60.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
     "vitest": "^2.0.5"

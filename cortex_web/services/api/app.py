@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import threading
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -51,6 +52,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config, digest
 from .db import Database
+from .ops_alerts import OpsAlerter
 from .routers import ALL_ROUTERS
 from .session_bank import SessionBank
 
@@ -101,6 +103,14 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     app.state.db = db
     app.state.limiter = RateLimiter()
     app.state.get_bank = get_session_bank
+    # Ops error alerting (ops_alerts.py): backend 500s + SPA crash telemetry
+    # email the operator, cooldown-collapsed. Empty CORTEX_OPS_ALERT_TO
+    # disables it.
+    app.state.alerts = OpsAlerter(
+        to_addr=os.environ.get("CORTEX_OPS_ALERT_TO", config.REPORT_TO),
+        cooldown_s=int(os.environ.get("CORTEX_OPS_ALERT_COOLDOWN_S",
+                                      str(6 * 3600))),
+    )
     app.state.cfg = {
         "bundle_url": bundle_url,
         "session_sample": int(os.environ.get("CORTEX_SESSION_SAMPLE",
@@ -215,6 +225,20 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     @app.exception_handler(HTTPException)
     async def _http_exc(_req, exc: HTTPException):
         return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+    @app.exception_handler(Exception)
+    async def _unhandled_exc(req, exc: Exception):
+        # One greppable journal line (Starlette re-raises after this handler,
+        # so the server still logs the full traceback) + an ops email so 500s
+        # get noticed instead of resting in the journal. The response body
+        # stays generic — no internals leak to the client.
+        print(f"[cortex.servererr] method={req.method} path={req.url.path} "
+              f"err={type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        app.state.alerts.notify(
+            "server-error",
+            f"{req.method} {req.url.path} → {type(exc).__name__}: {exc}")
+        return JSONResponse(status_code=500,
+                            content={"error": "internal server error"})
 
     return app
 

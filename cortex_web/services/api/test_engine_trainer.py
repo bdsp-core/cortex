@@ -88,6 +88,38 @@ def test_engine_gated_off_by_killswitch(offclient):
                                 "segIds": []}).status_code == 403
 
 
+def test_engine_endpoints_reject_foreign_training_session(eclient):
+    """IDOR probe: participant B replays A's trainingId against /start and
+    /record — both must 404 via the ownership gate, exactly like the other
+    per-object endpoints."""
+    email_a, pw_a = _make_participant(eclient)
+    hdr_a = _auth_header(eclient, email_a, pw_a)
+    _cert_with_stream(eclient, hdr_a)
+    tid = eclient.post("/api/training-sessions", headers=hdr_a,
+                       json={"taskFocus": None}).json()["trainingId"]
+    pool = eclient.post("/api/training-bank", json={}, headers=hdr_a).json()
+    seg_ids = [s["segId"] for s in pool["bank"]["segments"]]
+    st = eclient.post("/api/training-engine/start", headers=hdr_a,
+                      json={"trainingId": tid, "segIds": seg_ids})
+    assert st.status_code == 200, st.text
+    item = st.json()["item"]
+
+    email_b, pw_b = _make_participant(eclient)
+    hdr_b = _auth_header(eclient, email_b, pw_b)
+    assert eclient.post("/api/training-engine/start", headers=hdr_b,
+                        json={"trainingId": tid,
+                              "segIds": seg_ids}).status_code == 404
+    assert eclient.post("/api/training-engine/record", headers=hdr_b,
+                        json={"trainingId": tid, "segId": item["segId"],
+                              "taskK": item["task"],
+                              "pick": 1}).status_code == 404
+    # A's live sitting is untouched by B's probes
+    assert eclient.post("/api/training-engine/record", headers=hdr_a,
+                        json={"trainingId": tid, "segId": item["segId"],
+                              "taskK": item["task"],
+                              "pick": 1}).status_code == 200
+
+
 def test_engine_closed_loop_and_rebuild(eclient):
     email, pw = _make_participant(eclient)
     hdr = _auth_header(eclient, email, pw)

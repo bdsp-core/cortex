@@ -82,6 +82,21 @@ cd services && python3 -m pytest api/test_server.py -q      # 117 tests
 python3 -m pytest research -q                                # 4 tests
 ```
 
+### Visual regression smoke (screenshot diffs)
+
+The "silent rewrite" net: screenshots of the key stable screens (sign-in
+desktop/mobile, create-account, forgot-password, /report), pixel-diffed
+against baselines committed in `apps/web/scripts/visual_baselines/`:
+
+```bash
+cd apps/web && npm run visual-smoke           # compare against baselines
+cd apps/web && npm run visual-smoke:update    # after an INTENTIONAL restyle
+```
+
+Boots a throwaway server (no EEG bundle needed) and needs a production build
+in `dist/` + headless Chrome. Baselines are machine-rendered: regenerate and
+review the diff whenever a visual change is intentional.
+
 ### Type-check + production build
 
 ```bash

@@ -285,6 +285,23 @@ sudo -u cortex bash -c 'gunzip -c /tmp/restore/db.sqlite.gz > /var/lib/cortex/co
 sudo systemctl start cortex.service
 ```
 
+### Restore drill (do this without waiting for a disaster)
+
+An untested backup is hope, not a backup. `restore_check.sh` rehearses the
+whole restore path — pulls the newest snapshot from Box, restores it into a
+**scratch** database (`cortex_restore_check`), sanity-checks the participant/
+session/trial tables, and drops the scratch. It never touches the live DB or
+the service:
+
+```bash
+sudo /opt/cortex/cortex_web/deploy/scripts/restore_check.sh
+# → ✓ RESTORE CHECK PASS participants=… sessions=… training_trials=…
+```
+
+Run it after provisioning, after any Postgres upgrade, and periodically
+(quarterly is fine at this scale). It also accepts a specific snapshot
+(`box:CORTEX/backups/YYYY/MM/<stamp>`) or a local `db.sql.gz`/`db.sqlite.gz`.
+
 ## Security checklist (before opening to participants)
 
   - [ ] `CORTEX_JWT_SECRET` and `CORTEX_ADMIN_TOKEN` in `/etc/cortex/cortex.env`
@@ -299,6 +316,8 @@ sudo systemctl start cortex.service
   - [ ] `box:CORTEX/backups` is **not** publicly shared.
   - [ ] At least one successful backup is in Box before you start
         distributing codes.
+  - [ ] `restore_check.sh` has PASSed at least once against a real Box
+        snapshot (a backup that has never been restored is not a backup).
 
 ## When you outgrow this
 

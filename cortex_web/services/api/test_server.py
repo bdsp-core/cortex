@@ -345,6 +345,80 @@ def test_client_error_telemetry_logged_and_rate_limited(client, capfd):
                        json={"message": "x" * 501}).status_code == 422
 
 
+def test_ops_alerter_emails_with_per_kind_cooldown(monkeypatch):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda to, subject, body, reply_to=None:
+                        sent.append((to, subject, body)))
+    a = ops_alerts.OpsAlerter("ops@example.test", cooldown_s=3600)
+    t = a.notify("server-error", "boom 1")
+    assert t is not None
+    t.join(5)
+    # same kind inside the cooldown → suppressed, counted
+    assert a.notify("server-error", "boom 2") is None
+    assert a.notify("server-error", "boom 3") is None
+    # a different kind has its own bucket
+    t2 = a.notify("client-error", "spa crash")
+    assert t2 is not None
+    t2.join(5)
+    assert len(sent) == 2
+    assert sent[0][0] == "ops@example.test"
+    assert "server-error" in sent[0][1] and "boom 1" in sent[0][2]
+    assert "client-error" in sent[1][1]
+    # cooldown lapse → next email carries the suppressed count
+    a._last_sent["server-error"] -= 7200
+    t3 = a.notify("server-error", "boom 4")
+    assert t3 is not None
+    t3.join(5)
+    assert "+2 earlier server-error" in sent[2][2]
+    # empty destination disables alerting entirely
+    off = ops_alerts.OpsAlerter("", cooldown_s=1)
+    assert off.notify("server-error", "x") is None
+
+
+def test_client_error_feeds_ops_alerter(client, monkeypatch):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda to, subject, body, reply_to=None:
+                        sent.append(subject))
+    r = client.post("/api/client-error",
+                    json={"message": "ReferenceError: y", "stack": "at z",
+                          "url": "/train", "surface": "desktop", "ua": "t"})
+    assert r.status_code == 200
+    t = client.app.state.alerts.last_send_thread
+    assert t is not None
+    t.join(5)
+    assert any("client-error" in s for s in sent)
+
+
+def test_unhandled_exception_returns_clean_500_and_alerts(tmp_path, monkeypatch):
+    """An unhandled handler exception must (a) return a generic JSON 500 with
+    no internals, and (b) raise an ops email tagged server-error."""
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "test-secret")
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda to, subject, body, reply_to=None:
+                        sent.append((subject, body)))
+    app = create_app(db_path=tmp_path / "e.db")
+
+    @app.get("/api/_boom")
+    def _boom():
+        raise RuntimeError("kaboom secret detail")
+
+    c = TestClient(app, raise_server_exceptions=False)
+    r = c.get("/api/_boom")
+    assert r.status_code == 500
+    assert r.json() == {"error": "internal server error"}   # nothing leaks
+    t = app.state.alerts.last_send_thread
+    assert t is not None
+    t.join(5)
+    assert any("server-error" in s for s, _ in sent)
+    assert any("RuntimeError" in b and "/api/_boom" in b for _, b in sent)
+
+
 def test_no_em_dash_in_user_facing_error_strings():
     """House messaging style: no em dashes in anything a user reads.
     HTTPException detail strings surface directly in the SPA's error UI, so
@@ -815,6 +889,21 @@ def test_disabled_participant_cannot_auth(client, tmp_path):
     row = client.app.state.db.get_participant_by_email(email)
     client.app.state.db.set_participant_active(row["code"], False)
     assert client.post("/api/auth", json={"email": email, "password": pw}).status_code == 401
+
+
+def test_disabled_participant_token_revoked_immediately(client):
+    """A still-valid bearer token stops working the moment the account is
+    disabled — require_auth re-checks the participant row per request, so
+    revocation does not wait out the token's remaining TTL."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    assert client.get("/api/dashboard", headers=hdr).status_code == 200
+    row = client.app.state.db.get_participant_by_email(email)
+    client.app.state.db.set_participant_active(row["code"], False)
+    assert client.get("/api/dashboard", headers=hdr).status_code == 401
+    # re-enable → the same token works again (no token state was harmed)
+    client.app.state.db.set_participant_active(row["code"], True)
+    assert client.get("/api/dashboard", headers=hdr).status_code == 200
 
 
 def test_expired_token_rejected_by_api(client, monkeypatch):
