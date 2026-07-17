@@ -79,10 +79,21 @@ Z, SD_FLOOR = 2.0, 0.23
 # ── Phase L4 serving-layer design inputs (env-tunable; DESIGN-category
 # constants in the roadmap ledger — they shape serving, never the belief
 # or selection mathematics). ─────────────────────────────────────────
+# Domain allocation mode (D61): "greedy" = the argmax value-per-item
+# selector (locks a session onto the worst domain — live-exploitable:
+# the participant presses the hot domain, gold=hot ~0.5 in n-way even
+# post-D58); "thompson" = argmax value under one shared posterior draw,
+# so domains are served in proportion to P(highest-value). Reversible
+# flag, default off; belief/selection math bit-identical either way.
+ALLOC = os.environ.get("CORTEX_TRAINER_ALLOC", "greedy")
 # Interleave cap: after this many consecutive items on one domain the
 # allocator must offer another eligible domain (greedy value-per-item
-# locked 109/120 items onto one domain live; sim-checked, see D57).
-MAX_CONSEC = int(os.environ.get("CORTEX_TRAINER_MAX_CONSEC", "8"))
+# locked 109/120 items onto one domain live; sim-checked, see D57). Under
+# thompson it is a rarely-firing soft backstop (validated config
+# thomp_cap12; Thompson's natural runs are ~3, so the cap seldom binds —
+# no D56-style forced-switch predictability); greedy keeps its cap of 8.
+MAX_CONSEC = int(os.environ.get(
+    "CORTEX_TRAINER_MAX_CONSEC", "12" if ALLOC == "thompson" else "8"))
 # Retention (the incumbent's expanding-interval pattern, domain-level):
 # every REVIEW_EVERY-th question serves a due review item, at most
 # REVIEW_MAX per sitting; a correct review multiplies the domain's
@@ -201,7 +212,7 @@ class EngineSession:
             belief, self.reg, self.ell_star,
             lambda c: self._cand.get(c),
             alpha=ALPHA, Z=Z, sd_floor=SD_FLOOR, case_mix=case_mix,
-            restrict=restrict,
+            restrict=restrict, alloc=ALLOC,
             rng=np.random.default_rng(_seed_from(training_id) + 1))
         self.restrict = restrict
         self._pending: dict[int, dict] = {}

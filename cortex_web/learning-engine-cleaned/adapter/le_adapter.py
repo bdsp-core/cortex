@@ -91,9 +91,18 @@ class LETrainerPolicy:
 
     def __init__(self, belief, registry, ell_stars, candidates, *,
                  alpha, Z, sd_floor, exclude=None, zstar=1.0, rng=None,
-                 case_mix=(), restrict=None):
+                 case_mix=(), restrict=None, alloc="greedy", draw_k=1):
         self.bel, self.reg = belief, registry
         self.ell = dict(ell_stars)
+        # allocation mode across domains (D61): "greedy" = argmax expected
+        # value-per-item (locks a session onto the worst domain — live-
+        # exploitable, D54/D58); "thompson" = argmax value under ONE shared
+        # posterior draw, so a domain is served with probability
+        # P_posterior(it is the highest-value domain). Constant-free (the
+        # belief's own uncertainty is the temperature — the §5/D26 doctrine
+        # at item level); belief/placement math bit-identical either way.
+        self.alloc = alloc
+        self.draw_k = int(draw_k)   # 1 = pure Thompson; >1 = variance-reduced
         # roadmap §2.2: train the WEAK domains (the exam's non-PASS
         # set); None = all registry domains
         self.restrict = set(restrict) if restrict is not None else None
@@ -171,6 +180,23 @@ class LETrainerPolicy:
         g = b._gate(np.abs(z))
         a = b.a_s[:, j] if b.a_s.ndim == 2 else b.a_s[j]
         return float(np.sum(b.w * a * g * (b.u[:, j] - b.u_inf[:, j])))
+
+    def _draw_idx(self):
+        """draw_k posterior-sample particle indices (~ w) — the shared
+        draw that turns the value-per-item argmax into Thompson sampling."""
+        return self.rng.choice(self.bel.N, size=self.draw_k, p=self.bel.w)
+
+    def _push_at(self, code, s, idx):
+        """a_s * g(|z|) * (u - u_inf) evaluated at the drawn particle
+        set `idx` (D61): a single posterior sample of this domain's
+        value-per-item (draw_k=1) — the k=1 noise IS the exploration,
+        proportional to the belief's remaining uncertainty."""
+        j = self.reg.index[code]
+        b = self.bel
+        z = (float(s) - b.t[idx, j]) / np.exp(b.u[idx, j])
+        g = b._gate(np.abs(z))
+        a = b.a_s[idx, j] if b.a_s.ndim == 2 else b.a_s[j]
+        return float(np.mean(a * g * (b.u[idx, j] - b.u_inf[idx, j])))
 
     def _eligible(self):
         """Codes that may be served now, with their unserved candidate
@@ -273,8 +299,12 @@ class LETrainerPolicy:
         # (alternate +z*, -z* per domain — sign balance keeps t = 0
         # attracting under the soft criterion update, the D12
         # fixed-point doctrine; feedback-safe pools are coherent so
-        # the served side also balances labels), allocation by
-        # expected value per item (the §2.3 objective).
+        # the served side also balances labels). Allocation across
+        # domains by expected value per item (greedy, the §2.3
+        # objective) OR by value under one shared posterior draw
+        # (thompson, D61) — saturated domains self-retire on the MEAN
+        # push either way, so placement + retirement stay identical.
+        idx = self._draw_idx() if self.alloc == "thompson" else None
         best, best_gain, best_i = None, 0.0, None
         for code, (c, keep) in elig.items():
             j = self.reg.index[code]
@@ -282,9 +312,13 @@ class LETrainerPolicy:
                  / np.exp(u_bar[j]))
             side = self._side(code)
             i = int(np.argmin(np.abs(z - side * self.zstar)))
-            gain = self._expected_push(code, np.asarray(c["s"])[keep][i])
-            if gain > best_gain:
-                best, best_gain, best_i = code, gain, i
+            s_i = float(np.asarray(c["s"])[keep][i])
+            mean_push = self._expected_push(code, s_i)
+            if mean_push <= 0.0:
+                continue                      # saturated: retire (mean-gated)
+            rank = mean_push if idx is None else self._push_at(code, s_i, idx)
+            if best is None or rank > best_gain:
+                best, best_gain, best_i = code, rank, i
         if best is None:
             return None
         c, keep = elig[best]

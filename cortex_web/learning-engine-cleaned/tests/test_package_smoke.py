@@ -190,3 +190,77 @@ def test_g6_label_schedule_not_gameable():
     assert abs(int(bal[-1])) <= 12          # E-balance sanity, not a bound
     # seed-determinism preserved
     assert ys == run(5)
+
+
+def test_g7_allocation_not_gameable():
+    """D61: greedy value-per-item allocation locks a session onto the
+    worst domain (live: up to 120/120 items — the participant learns the
+    concentration and presses the hot domain, gold=hot ~0.5 in n-way ⇒
+    still gameable post-D58). Thompson posterior-draw allocation
+    (alloc='thompson') breaks the concentration and spreads coverage,
+    with belief/placement math bit-identical and sessions still
+    seed-deterministic. The greedy default must be unchanged."""
+    from scipy.special import ndtr
+    from adapter.le_adapter import LETrainerPolicy
+    M2 = 6
+    codes = [f"d{i}" for i in range(M2)]
+    reg = Registry([(c, "binary") for c in codes])
+    gate = lambda x: x * np.exp(0.5 * (1 - x ** 2))    # noqa: E731
+    art = dict(alpha_t=[0.06] * M2, alpha_s=[0.02] * M2, lam=0.02, q_t=0.0,
+               q_s=0.006, codes=codes,
+               state_prior=dict(mu_t0=[0.0] * M2, tau_t0=[0.3] * M2,
+                                mu_u0=[0.7] * M2, tau_u0=[0.3] * M2,
+                                gamma=[0.4] * M2),
+               floor_prior=([-1.2] * M2, [0.3] * M2))
+    sv = np.concatenate([np.linspace(0.2, 2.4, 60), -np.linspace(0.2, 2.4, 60)])
+    cand = dict(seg_id=np.arange(120), s=sv, s_sd=np.zeros(120),
+                y_star=(sv > 0).astype(int))
+
+    def run(alloc, seed):
+        rng = np.random.default_rng(seed)
+        t_true = rng.normal(0, 0.2, M2)
+        u_true = np.linspace(0.95, 0.2, M2) + rng.normal(0, 0.05, M2)
+        ui = np.full(M2, -1.2)
+        rsp = np.random.default_rng(seed + 7)
+        bel = MixedBelief(art, reg, N=200, rng=rng)
+        bel.t = t_true[None, :] + rng.normal(0, 0.25, (bel.N, M2))
+        bel.u = u_true[None, :] + rng.normal(0, 0.25, (bel.N, M2))
+        bel.condition_floors_on_state()
+        bel.w = np.full(bel.N, 1.0 / bel.N)
+        pol = LETrainerPolicy(bel, reg, {c: 99.0 for c in codes},
+                              lambda c: cand, alpha=0.0, Z=2.0, sd_floor=0.23,
+                              rng=rng, alloc=alloc)
+        seq = []
+        for _ in range(120):
+            ch = pol.step()
+            if ch is None:
+                break
+            j = reg.index[ch["task"]]
+            z = (ch["s"] - t_true[j]) / np.exp(u_true[j])
+            p = 0.02 + 0.96 * ndtr(z)
+            seq.append(ch["task"])
+            pol.record(ch, int(rsp.random() < p))
+            u_true[j] += -0.02 * gate(abs(z)) * (u_true[j] - ui[j])
+            t_true[j] += 0.06 * (p - ch["y_star"])
+        return seq
+
+    def longest(seq):
+        best = r = 0
+        prev = None
+        for d in seq:
+            r = r + 1 if d == prev else 1
+            best = max(best, r)
+            prev = d
+        return best
+
+    g, t = run("greedy", 5), run("thompson", 5)
+    lg, lt = longest(g), longest(t)
+    cov_g, cov_t = len(set(g)), len(set(t))
+    # the scenario concentrates under greedy, and Thompson breaks it
+    assert lg >= 15, f"greedy did not concentrate (longest {lg})"
+    assert lt <= 10, f"thompson run {lt} — not de-concentrated"
+    assert lt < lg
+    # Thompson covers every domain; greedy starves at least one
+    assert cov_t == M2 and cov_t > cov_g, (cov_t, cov_g)
+    # greedy default unchanged + both seed-deterministic
+    assert run("greedy", 5) == g and run("thompson", 5) == t
