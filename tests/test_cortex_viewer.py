@@ -247,23 +247,23 @@ def test_k7_engine_inputs_actually_returns_7_tasks_with_spike():
     assert n_segs > 6, f"K=7 bank has only {n_segs} segs — too small"
 
 
-def test_default_policy_for_k7_uses_v14_block_by_default():
-    """v1.2.1 regression: default_policy_for_k7's default block_name must
-    match load_ell_star_k7's default. Both should target the K=7 production
-    ship (ell_star_unified_v14). v1.2.0 had a mismatch — default_policy_for_k7
-    defaulted to v13 while load_ell_star_k7 defaulted to v14 — which (after
-    fixing the K=6/K=7 import bug above) would cause the engine to compute
-    verdicts against v13 ℓ\\* while ResultsScreen rendered narratives against
-    v14 ℓ\\*. Numbers on the same screen would disagree."""
+def test_default_policy_for_k7_uses_v15_block_by_default():
+    """v1.2.1 regression, re-pinned 2026-07-16: default_policy_for_k7's
+    default block_name must match load_ell_star_k7's default. Both target
+    the updated metric set (ell_star_unified_v15 — the block the served web
+    bundles certify at). The original v1.2.0 bug was a MISMATCH between the
+    two defaults (engine verdicts vs ResultsScreen narratives computed
+    against different ℓ\\* on the same screen); the invariant being guarded
+    is agreement, and both now agree at v15."""
     import inspect
     import cortex_policy_k7 as cp_k7
     sig = inspect.signature(cp_k7.default_policy_for_k7)
-    assert sig.parameters["block_name"].default == "ell_star_unified_v14", (
-        f"default_policy_for_k7 default block_name should be 'v14' to match "
+    assert sig.parameters["block_name"].default == "ell_star_unified_v15", (
+        f"default_policy_for_k7 default block_name should be 'v15' to match "
         f"load_ell_star_k7; got {sig.parameters['block_name'].default!r}")
     # And confirm load_ell_star_k7's default matches:
     sig_load = inspect.signature(cp_k7.load_ell_star_k7)
-    assert sig_load.parameters["block_name"].default == "ell_star_unified_v14"
+    assert sig_load.parameters["block_name"].default == "ell_star_unified_v15"
 
 
 # ── v1.2.4 regression tests for the 4-issue fix ───────────────────────────

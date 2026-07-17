@@ -139,6 +139,8 @@ export function App() {
   const participantRef = useRef<Participant | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const shownAtRef = useRef<number>(0);
+  const shownIsoRef = useRef<string>("");      // wall clock at item render (L2)
+  const answeredIsoRef = useRef<string>("");   // wall clock at answer (L2)
   const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
@@ -274,6 +276,7 @@ export function App() {
             return;
           }
           shownAtRef.current = performance.now();
+          shownIsoRef.current = new Date().toISOString();
           setItem(it);
         },
         onTrial: (diag: TrialDiag) => {
@@ -294,6 +297,8 @@ export function App() {
             pick: lastPickRef.current ?? undefined,
             isCorrect: diag.y === 1,
             reactionMs: lastRtRef.current ?? undefined,
+            shownClientUtc: shownIsoRef.current || undefined,
+            answeredClientUtc: answeredIsoRef.current || undefined,
             diag,
           });
         },
@@ -482,6 +487,7 @@ export function App() {
   const onAnswer = useCallback((pick: number) => {
     lastPickRef.current = pick;
     lastRtRef.current = Math.round(performance.now() - shownAtRef.current);
+    answeredIsoRef.current = new Date().toISOString();
     clientRef.current?.answer(pick);
   }, []);
 
@@ -494,7 +500,7 @@ export function App() {
       // run them in parallel (was a 3-call sequential waterfall), and pull the
       // lazy trainer-engine chunk down alongside them. startTrainingSession is
       // sequenced after the regimen since it links the sitting to it.
-      const [{ regimen: plan }, { bank }, { buildTrainingState }] = await Promise.all([
+      const [{ regimen: plan }, { bank }, setup] = await Promise.all([
         api.createRegimen(),                                  // weak-set + measured prior
         // Candidate pool for training — an UNGATED draw (no exam washout, no
         // test/train exposure exclusion), so resuming training is never blocked
@@ -502,8 +508,13 @@ export function App() {
         api.startTrainingBank(),
         import("./trainingSetup"),
       ]);
-      const { trainingId } = await api.startTrainingSession();
-      setTrainState(buildTrainingState(plan, bank, trainingId));
+      const { trainingId, engineMode } = await api.startTrainingSession();
+      // Phase L3: the server decides which trainer drives this sitting —
+      // the server-side learning engine (engineMode) or the incumbent
+      // client-side trainer. Reversible per-participant flag; same UI.
+      setTrainState(engineMode
+        ? await setup.buildServerTrainingState(plan, bank, trainingId)
+        : setup.buildTrainingState(plan, bank, trainingId));
       setPhase("training");
     } catch (e) {
       setMsg(String((e as Error)?.message ?? e));
@@ -636,6 +647,7 @@ export function App() {
             session={trainState.session}
             trainingId={trainState.trainingId}
             labels={trainState.labels}
+            attainability={trainState.attainability}
             onExit={() => { setTrainState(null); setPhase("dashboard"); }}
           />
         </Suspense>

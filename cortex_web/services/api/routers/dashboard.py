@@ -13,7 +13,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import awards, dashboard_logic
+from .. import awards, dashboard_logic, engine_trainer
 from ..deps import require_auth
 from ..models import (
     SessionIn, TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn,
@@ -185,7 +185,15 @@ def training_start(body: TrainingStartIn, req: Request, code: str = Depends(requ
         training_id, code, body.taskFocus,
         regimen_id=(reg["regimen_id"] if reg else None),
         source_session_id=(reg.get("source_session_id") if reg else None))
-    return {"trainingId": training_id}
+    # Phase L3: tell the client which trainer drives this sitting — the
+    # server-side learning engine (POST /api/training-engine/*) or the
+    # incumbent client-side trainer. Same reversible-flag pattern as
+    # training_mode; default off.
+    cfg = req.app.state.cfg
+    participant = (db.get_participant(code)
+                   if cfg.get("trainer_engine") == "cohort" else None)
+    return {"trainingId": training_id,
+            "engineMode": engine_trainer.enabled(cfg, code, participant)}
 
 
 @router.post("/training-bank")
@@ -286,7 +294,24 @@ def regimen_create(req: Request, code: str = Depends(require_auth)):
         }
         for t in tasks
     ]
-    plan = {"weeks": 8, "weekOf": 1, "deck": deck, "prior": prior, "sourceSessionId": src}
+    # Raw test stream (learning handoff contract v1.1 §2a): the source cert
+    # sitting's EXACT question sequence — the contiguous fully-picked prefix
+    # in served order, full n-way pick included (never binarized: measured to
+    # corrupt criterion estimates). A replay-capable trainer seeds its belief
+    # by re-observing this stream through its own observation model, which is
+    # preferred over the `prior` summary; a client must seed from ONE of the
+    # two, never both (double counting). taskK rides along so the asked task
+    # is known without a bank join.
+    stream: list[dict] = []
+    if src:
+        for t in db.session_trials(src):
+            if t.get("pick") is None or t["trial_index"] != len(stream):
+                break
+            stream.append({"trialIndex": t["trial_index"],
+                           "segId": t["seg_id"], "taskK": t["task_k"],
+                           "pick": t["pick"]})
+    plan = {"weeks": 8, "weekOf": 1, "deck": deck, "prior": prior,
+            "sourceSessionId": src, "testStream": stream}
     regimen_id = uuid.uuid4().hex
     db.create_regimen(regimen_id, code, src, plan)
     return {"regimenId": regimen_id, "regimen": plan}

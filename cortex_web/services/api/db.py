@@ -86,6 +86,8 @@ _SCHEMA_STATEMENTS = [
         reaction_ms    REAL,
         diag           TEXT,
         received_utc   TEXT NOT NULL,
+        shown_client_utc    TEXT,   -- client wall-clock at item render (L2)
+        answered_client_utc TEXT,   -- client wall-clock at answer (L2)
         PRIMARY KEY (session_id, trial_index)
     )""",
     """CREATE TABLE IF NOT EXISTS results (
@@ -180,7 +182,28 @@ _SCHEMA_STATEMENTS = [
         seg_id        INTEGER NOT NULL,
         task_k        INTEGER,
         shown_utc     TEXT NOT NULL,
+        pick                INTEGER,  -- response record (Phase L2): raw response index
+        y_star              INTEGER,  -- gold label for the asked task
+        is_correct          INTEGER,
+        feedback_shown      TEXT,     -- the reveal text actually rendered
+        rt_ms               REAL,     -- client reaction time delta
+        shown_client_utc    TEXT,
+        answered_client_utc TEXT,
+        seq_in_session      INTEGER,  -- answer order (engine rebuild key, L3)
+        mode                TEXT,     -- serving mode (skill/bias/review; L4)
+        link                TEXT,     -- 'binary' one-vs-rest | 'nway' (L4)
+        quality_flag        TEXT,     -- NULL ok | 'burst' sub-500ms run (L4)
         PRIMARY KEY (training_id, seg_id)
+    )""",
+    # Cross-sitting spaced-repetition state (Phase L4 retention layer): the
+    # incumbent's expanding-interval pattern (interval x ease on a correct
+    # review retrieval, reset on a miss), persisted per (participant, domain).
+    """CREATE TABLE IF NOT EXISTS training_retention (
+        code          TEXT NOT NULL,
+        domain        TEXT NOT NULL,
+        next_due_utc  TEXT NOT NULL,
+        interval_s    REAL NOT NULL,
+        PRIMARY KEY (code, domain)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_training_trials_code ON training_trials(code)",
     # ── cohorts: manager-run peer groups ──
@@ -290,6 +313,42 @@ _SESSIONS_MIGRATION_COLUMNS = [
     ("bundle_version",    "TEXT"),
     ("drawn_seg_ids",     "TEXT"),
 ]
+# Response record on training exposure rows (Phase L2 instrumentation): what
+# the participant answered, what the feedback reveal displayed, and true
+# client-side timing — the longitudinal per-trial training ledger that the
+# learning-engine dynamics refit consumes (learning handoff contract v1.1).
+# Mirror the CREATE TABLE additions above.
+_TRAINING_TRIALS_MIGRATION_COLUMNS = [
+    ("pick",                "INTEGER"),  # raw response index (binary UI: 1=yes / 0=no; n-way pick later)
+    ("y_star",              "INTEGER"),  # the asked task's one-vs-rest gold label
+    ("is_correct",          "INTEGER"),
+    ("feedback_shown",      "TEXT"),     # the reveal text actually rendered
+    ("rt_ms",               "REAL"),     # client reaction time (performance.now delta)
+    ("shown_client_utc",    "TEXT"),     # client wall-clock when the item rendered
+    ("answered_client_utc", "TEXT"),     # client wall-clock at answer
+    ("seq_in_session",      "INTEGER"),  # answer order within the sitting — the
+    # engine-trainer's deterministic belief-rebuild ordering (Phase L3)
+    ("mode",                "TEXT"),     # serving mode (skill/bias/review; L4)
+    ("link",                "TEXT"),     # observation link: 'binary' one-vs-rest
+    # (pick/y_star in {0,1}) or 'nway' full identification (pick/y_star =
+    # 0-based TASK-axis indices, the exam's coding) — the refit's dispatch key
+    ("quality_flag",        "TEXT"),     # NULL=ok; 'burst'=this and the prior
+    # response were both sub-500 ms (ingest-time data-hygiene rule, L4) —
+    # refit-qualified data excludes flagged runs mechanically
+]
+# Sitting-level engine metadata (Phase L4): written server-side at
+# /training-engine/start (seeding + attainability report + config), so
+# analyses never re-derive it from HTTP logs.
+_TRAINING_SESSIONS_L4_COLUMNS = [
+    ("engine_meta",         "TEXT"),
+]
+# True client display/answer wall times on exam trials (reaction_ms is the
+# delta; these anchor session load, fatigue position, and between-session
+# structure for the learning model).
+_TRIALS_MIGRATION_COLUMNS = [
+    ("shown_client_utc",    "TEXT"),
+    ("answered_client_utc", "TEXT"),
+]
 
 
 def utc_now() -> str:
@@ -369,6 +428,9 @@ class Database:
             self._add_missing_columns(conn, "param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
             self._add_missing_columns(conn, "training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
             self._add_missing_columns(conn, "sessions", _SESSIONS_MIGRATION_COLUMNS)
+            self._add_missing_columns(conn, "training_trials", _TRAINING_TRIALS_MIGRATION_COLUMNS)
+            self._add_missing_columns(conn, "trials", _TRIALS_MIGRATION_COLUMNS)
+            self._add_missing_columns(conn, "training_sessions", _TRAINING_SESSIONS_L4_COLUMNS)
             # Quarantine backfill: every pre-existing trajectory row is synthetic
             # (the only writer before the L1 trainer was the removed Shell.tsx
             # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
@@ -827,17 +889,21 @@ class Database:
         # ON CONFLICT … DO UPDATE on the (session_id, trial_index) PK.
         if self._pg:
             sql = ("INSERT INTO trials(session_id, trial_index, seg_id, "
-                   "task_k, pick, is_correct, reaction_ms, diag, received_utc) "
-                   "VALUES (?,?,?,?,?,?,?,?,?) "
+                   "task_k, pick, is_correct, reaction_ms, diag, received_utc, "
+                   "shown_client_utc, answered_client_utc) "
+                   "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
                    "ON CONFLICT (session_id, trial_index) DO UPDATE SET "
                    "seg_id=EXCLUDED.seg_id, task_k=EXCLUDED.task_k, "
                    "pick=EXCLUDED.pick, is_correct=EXCLUDED.is_correct, "
                    "reaction_ms=EXCLUDED.reaction_ms, diag=EXCLUDED.diag, "
-                   "received_utc=EXCLUDED.received_utc")
+                   "received_utc=EXCLUDED.received_utc, "
+                   "shown_client_utc=EXCLUDED.shown_client_utc, "
+                   "answered_client_utc=EXCLUDED.answered_client_utc")
         else:
             sql = ("INSERT OR REPLACE INTO trials(session_id, trial_index, "
                    "seg_id, task_k, pick, is_correct, reaction_ms, diag, "
-                   "received_utc) VALUES (?,?,?,?,?,?,?,?,?)")
+                   "received_utc, shown_client_utc, answered_client_utc) "
+                   "VALUES (?,?,?,?,?,?,?,?,?,?,?)")
         self._write(sql, (
             session_id,
             int(trial.get("trialIndex", trial.get("trial_index", 0))),
@@ -848,6 +914,8 @@ class Database:
             trial.get("reactionMs", trial.get("reaction_ms")),
             json.dumps(trial.get("diag")) if trial.get("diag") is not None else None,
             utc_now(),
+            trial.get("shownClientUtc"),
+            trial.get("answeredClientUtc"),
         ))
 
     def session_trials(self, session_id: str) -> list[dict]:
@@ -1088,18 +1156,25 @@ class Database:
         """Server-authoritative per-trial training record (L1). For each point:
         (1) an idempotent `training_trials` exposure row (its seg_id then feeds
         `get_exposure_exclusion`, so retests never re-show a trained segment —
-        D-INT-4/7); and (2) a REAL `param_trajectories` row. `is_real`, `phase`,
+        D-INT-4/7), which since Phase L2 also carries the RESPONSE RECORD
+        (pick, y_star, is_correct, feedback_shown, rt_ms, client timestamps) —
+        the longitudinal training ledger the learning-engine dynamics refit
+        consumes; and (2) a REAL `param_trajectories` row. `is_real`, `phase`,
         and `code` are set HERE from the authenticated session — never trusted
         from the client (anti-tamper). Caller must have verified ownership."""
         if not points:
             return
+        cols = ("training_id, code, seg_id, task_k, shown_utc, pick, y_star, "
+                "is_correct, feedback_shown, rt_ms, shown_client_utc, "
+                "answered_client_utc, seq_in_session, mode, link, "
+                "quality_flag")
+        vals = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?"
         if self._pg:
-            excl = ("INSERT INTO training_trials(training_id, code, seg_id, "
-                    "task_k, shown_utc) VALUES (?,?,?,?,?) "
+            excl = (f"INSERT INTO training_trials({cols}) VALUES ({vals}) "
                     "ON CONFLICT (training_id, seg_id) DO NOTHING")
         else:
-            excl = ("INSERT OR IGNORE INTO training_trials(training_id, code, "
-                    "seg_id, task_k, shown_utc) VALUES (?,?,?,?,?)")
+            excl = (f"INSERT OR IGNORE INTO training_trials({cols}) "
+                    f"VALUES ({vals})")
         with self._connection() as conn:
             # Idempotency for the per-answer checkpoint outbox: a point whose
             # (training_id, seq_in_session) already landed is skipped, so a
@@ -1108,6 +1183,12 @@ class Database:
             seen = {r["seq_in_session"] for r in conn.execute(self._q(
                 "SELECT seq_in_session FROM param_trajectories "
                 "WHERE training_id=?"), (training_id,)).fetchall()}
+            # Burst detection (L4 data hygiene): a response is flagged when
+            # it AND its immediate predecessor are both sub-500 ms — runs of
+            # speed-clicking become mechanically queryable at refit time.
+            rt_by_seq = {r["seq_in_session"]: r["rt_ms"] for r in conn.execute(
+                self._q("SELECT seq_in_session, rt_ms FROM training_trials "
+                        "WHERE training_id=?"), (training_id,)).fetchall()}
             for p in points:
                 seq = p.get("seqInSession")
                 if seq is not None and seq in seen:
@@ -1117,14 +1198,53 @@ class Database:
                 seg = p.get("segId")
                 tk = int(p["taskK"])
                 if seg is not None:
-                    conn.execute(self._q(excl),
-                                 (training_id, code, int(seg), tk, utc_now()))
+                    rt = p.get("rtMs", p.get("rt"))
+                    if seq is not None and rt is not None:
+                        rt_by_seq[seq] = rt
+                    prev_rt = (rt_by_seq.get(seq - 1)
+                               if seq is not None else None)
+                    burst = (rt is not None and float(rt) < 500
+                             and prev_rt is not None
+                             and float(prev_rt) < 500)
+                    conn.execute(self._q(excl), (
+                        training_id, code, int(seg), tk, utc_now(),
+                        p.get("pick"), p.get("yStar"),
+                        (1 if p.get("isCorrect") else 0
+                         if "isCorrect" in p else None),
+                        p.get("feedbackShown"), rt,
+                        p.get("shownClientUtc"), p.get("answeredClientUtc"),
+                        seq, p.get("mode"), p.get("link"),
+                        "burst" if burst else None))
                 conn.execute(self._q(
                     "INSERT INTO param_trajectories(code, task_k, phase, ell, "
                     "theta, sd, rt, ts, training_id, seq_in_session, is_real) "
                     "VALUES (?,?,'train',?,?,?,?,?,?,?,1)"),
                     (code, tk, p.get("ell"), p.get("theta"), p.get("sd"),
                      p.get("rt"), utc_now(), training_id, seq))
+
+    # ── engine-trainer metadata + retention state (Phase L4) ─────
+    def set_training_engine_meta(self, training_id: str, meta: dict) -> None:
+        """Sitting-level engine metadata (seeding, attainability report,
+        config), written server-side at /training-engine/start."""
+        self._write("UPDATE training_sessions SET engine_meta=? "
+                    "WHERE training_id=?", (json.dumps(meta), training_id))
+
+    def get_retention(self, code: str) -> list[dict]:
+        return self._fetchall(
+            "SELECT * FROM training_retention WHERE code=?", (code,))
+
+    def upsert_retention(self, code: str, domain: str,
+                         next_due_utc: str, interval_s: float) -> None:
+        if self._pg:
+            sql = ("INSERT INTO training_retention(code, domain, "
+                   "next_due_utc, interval_s) VALUES (?,?,?,?) "
+                   "ON CONFLICT (code, domain) DO UPDATE SET "
+                   "next_due_utc=EXCLUDED.next_due_utc, "
+                   "interval_s=EXCLUDED.interval_s")
+        else:
+            sql = ("INSERT OR REPLACE INTO training_retention(code, domain, "
+                   "next_due_utc, interval_s) VALUES (?,?,?,?)")
+        self._write(sql, (code, domain, next_due_utc, float(interval_s)))
 
     # ── training pilot monitor (admin) ────────────────────────────
     def training_monitor(self) -> dict:

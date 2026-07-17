@@ -112,6 +112,18 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             x.strip().lower()
             for x in os.environ.get("CORTEX_TRAINING_ALLOWLIST", "").split(",")
             if x.strip()),
+        # Engine-trainer exposure. Default ALL (2026-07-17 integration
+        # decision: the learning engine IS the production trainer; the
+        # incumbent client-side trainer is ARCHIVED as the fallback).
+        # Kill switch: CORTEX_TRAINER_ENGINE=off reverts every sitting to
+        # the incumbent with zero deploys; "cohort" + allowlist scopes it.
+        "trainer_engine": os.environ.get(
+            "CORTEX_TRAINER_ENGINE", "all").strip().lower(),
+        "trainer_engine_allowlist": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_TRAINER_ENGINE_ALLOWLIST", "").split(",")
+            if x.strip()),
     }
 
     origins = os.environ.get(

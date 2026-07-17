@@ -6,7 +6,8 @@ helpers in api.helpers / api.dashboard_logic. Helper calls go through the
 module attribute (`helpers.x(...)`) so test monkeypatching reaches them.
 """
 from . import (account, admin, auth, awards, bootstrap, client_errors,  # noqa: F401
-               cohorts, dashboard, report, ses_events, testing)
+               cohorts, dashboard, report, ses_events, testing,
+               training_engine)
 
 ALL_ROUTERS = [
     auth.router,
@@ -20,4 +21,5 @@ ALL_ROUTERS = [
     admin.router,
     ses_events.router,
     client_errors.router,
+    training_engine.router,
 ]

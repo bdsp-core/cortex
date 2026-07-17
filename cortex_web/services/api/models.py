@@ -82,10 +82,30 @@ class TrajectoryIn(BaseModel):
 
 class TrainingProgressIn(BaseModel):
     """One or more real training trials to persist (L1). Each point carries
-    {taskK, segId?, ell?, theta?, sd?, rt?, seqInSession?}. The server sets
+    {taskK, segId?, ell?, theta?, sd?, rt?, seqInSession?} plus, since Phase
+    L2, the response record {pick?, yStar?, isCorrect?, feedbackShown?,
+    rtMs?, shownClientUtc?, answeredClientUtc?}. The server sets
     is_real/phase/code from the authenticated training session."""
     trainingId: str
     points: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class EngineStartIn(BaseModel):
+    """Start (or rebuild) an engine-trainer sitting (Phase L3). segIds =
+    the client's drawn training-bank pool (media the client can load);
+    restrictTaskKs = the regimen's weak-task set (None = all tasks)."""
+    trainingId: str
+    segIds: list[int] = Field(default_factory=list)
+    restrictTaskKs: Optional[list[int]] = None
+
+
+class EngineRecordIn(BaseModel):
+    """One answered engine-served item: the pick updates the belief; the
+    full response record lands via the existing checkpoint outbox."""
+    trainingId: str
+    segId: int
+    taskK: int
+    pick: int
 
 
 class ReportIn(BaseModel):

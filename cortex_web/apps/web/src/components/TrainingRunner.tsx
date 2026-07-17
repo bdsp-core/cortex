@@ -17,8 +17,8 @@ import {
   SPEC_CLIP_START_FRAC, SPEC_CLIP_END_FRAC,
 } from "../../ui/theme";
 import * as api from "../api";
-import type { TrainerSession } from "../../trainer/session";
-import { TrainingController, DEFAULT_SESSION_ITEMS } from "../trainingController";
+import { TrainingController, DEFAULT_SESSION_ITEMS,
+         type TrainerSessionLike } from "../trainingController";
 import { buildRevealRows, type RevealRow } from "../trainingReveal";
 
 // Teal ring flashed around the "Is this X?" prompt when the learning policy
@@ -40,13 +40,18 @@ const TASK_FLASH_CSS = `
 
 export function TrainingRunner({
   bundle, session, trainingId, labels, total = DEFAULT_SESSION_ITEMS, onExit,
+  attainability,
 }: {
   bundle: Bundle;
-  session: TrainerSession;
+  session: TrainerSessionLike;    // local TrainerSession or the Phase-L3
+                                  // server-driven ServerTrainerSession
   trainingId: string;
   labels: string[];                 // per-task display label, e.g. "GPD"
   total?: number;
   onExit: (summary: { allMastered: boolean; nItems: number }) => void;
+  // R5: seed-time "where you stand" report (engine mode only) — shown as a
+  // slim strip on the first question, gone after the first answer.
+  attainability?: { label: string; tier: "far" | "mid" | "near" }[];
 }) {
   const ctrlRef = useRef<TrainingController | null>(null);
   if (ctrlRef.current === null) {
@@ -66,17 +71,20 @@ export function TrainingRunner({
   const [currentSegId, setCurrentSegId] = useState<number | null>(ctrl.item?.segId ?? null);
   const [correctCount, setCorrectCount] = useState(0);
 
-  // flash the prompt when the policy switches task domains (no flash on the
-  // session's first question or on resume — the ref starts on the first task)
-  const task = ctrl.item?.task ?? null;
-  const prevTaskRef = useRef<number | null>(task);
+  // flash the prompt on EVERY new question (user request 2026-07-17; it
+  // originally fired only on domain switches). Keyed by segId so the CSS
+  // animation restarts per question; no flash on the session's very first
+  // question or on resume (the ref starts on the first segment).
+  const flashSeg = ctrl.item?.segId ?? null;
+  const prevSegRef = useRef<number | null>(flashSeg);
   const [taskFlashKey, setTaskFlashKey] = useState(0);
   useEffect(() => {
-    if (task != null && prevTaskRef.current != null && task !== prevTaskRef.current) {
+    if (flashSeg != null && prevSegRef.current != null
+        && flashSeg !== prevSegRef.current) {
       setTaskFlashKey((k) => k + 1);
     }
-    if (task != null) prevTaskRef.current = task;
-  }, [task]);
+    if (flashSeg != null) prevSegRef.current = flashSeg;
+  }, [flashSeg]);
 
   // display controls (same defaults as the exam Viewer)
   const [montage, setMontage] = useState("bipolar");
@@ -159,17 +167,35 @@ export function TrainingRunner({
     rerender();
   }, [ctrl, seg, flush, rerender]);
 
-  const proceed = useCallback(() => {
-    ctrl.continue();                       // no-op unless on the result step (controller guards)
-    if (ctrl.phase === "done") {
-      // Completing the session lands on the reveal screen (today's movement),
-      // not straight back on the dashboard; the state is persisted right away.
-      persistFinal();
-      rerender();
-      return;
-    }
-    setCurrentSegId(ctrl.item?.segId ?? null);
+  // Full-identification answer (Phase L4 native n-way): pickTask is the
+  // 0-based task-axis index of the chosen class.
+  const answerPick = useCallback((pickTask: number) => {
+    if (ctrl.phase !== "question" || !seg) return;
+    ctrl.answerPick(pickTask, performance.now());
+    if (ctrl.lastResult?.correct) setCorrectCount((n) => n + 1);
+    flush();
     rerender();
+  }, [ctrl, seg, flush, rerender]);
+  const isNway =
+    (ctrl.item as { link?: string } | null)?.link === "nway";
+
+  const proceed = useCallback(() => {
+    void (async () => {
+      // Engine mode (Phase L3): the next item arrives from the server;
+      // waitForNext resolves immediately for the local trainer. The round
+      // trip normally lands while the participant reads the reveal.
+      await ctrl.waitForNext();
+      ctrl.continue();                     // no-op unless on the result step (controller guards)
+      if (ctrl.phase === "done") {
+        // Completing the session lands on the reveal screen (today's movement),
+        // not straight back on the dashboard; the state is persisted right away.
+        persistFinal();
+        rerender();
+        return;
+      }
+      setCurrentSegId(ctrl.item?.segId ?? null);
+      rerender();
+    })();
   }, [ctrl, persistFinal, rerender]);
 
   // live refs so the global key handler reads current window/duration without
@@ -183,8 +209,12 @@ export function TrainingRunner({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (ctrl.phase === "question") {
-        if (e.key === "y" || e.key === "Y" || e.key === "1") { e.preventDefault(); answer(true); }
-        else if (e.key === "n" || e.key === "N" || e.key === "2") { e.preventDefault(); answer(false); }
+        // y/n (or 1/2) answer binary items; on n-way items the digits 1-6
+        // answer the six classes in button order (Seizure … Other)
+        const nway = (ctrl.item as { link?: string } | null)?.link === "nway";
+        if (nway && e.key >= "1" && e.key <= "6") { e.preventDefault(); answerPick(Number(e.key)); }
+        else if (!nway && (e.key === "y" || e.key === "Y" || e.key === "1")) { e.preventDefault(); answer(true); }
+        else if (!nway && (e.key === "n" || e.key === "N" || e.key === "2")) { e.preventDefault(); answer(false); }
         else if (e.key === "ArrowUp") { e.preventDefault(); setGain((g) => GAIN_LADDER[Math.max(0, GAIN_LADDER.indexOf(g) - 1)]); }
         else if (e.key === "ArrowDown") { e.preventDefault(); setGain((g) => GAIN_LADDER[Math.min(GAIN_LADDER.length - 1, GAIN_LADDER.indexOf(g) + 1)]); }
         else if (e.key === "ArrowLeft") { e.preventDefault(); setPanStart((p) => Math.max(0, p - windowSRef.current)); }
@@ -196,7 +226,7 @@ export function TrainingRunner({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [ctrl, answer, proceed]);
+  }, [ctrl, answer, answerPick, proceed]);
 
   const { count } = ctrl.progress();
   const label = ctrl.item ? labels[ctrl.item.task] : (ctrl.lastResult?.patternLabel ?? "");
@@ -286,7 +316,8 @@ export function TrainingRunner({
           {/* key remount restarts the flash on every subsequent domain switch */}
           <span key={taskFlashKey} className={taskFlashKey > 0 ? "cx-task-flash" : undefined}
             style={{ fontWeight: 600, fontSize: 18, color: COLORS.textPrimary, padding: "4px 14px", whiteSpace: "nowrap" }}>
-            Is this <span style={{ color: "var(--teal-deep)" }}>{label}</span>?
+            {isNway ? <>Which pattern is this?</>
+              : <>Is this <span style={{ color: "var(--teal-deep)" }}>{label}</span>?</>}
           </span>
           <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
             {/* graceful mid-sitting exit: trajectories flush + the sitting
@@ -333,17 +364,40 @@ export function TrainingRunner({
           <div style={{ flex: 1, minWidth: 150, padding: "0 10px" }}>
             <ProgressBar count={count} total={total} inline />
           </div>
-          <button disabled={!seg} onClick={() => answer(true)}
-            style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
-              background: "var(--teal-weak)", color: "var(--teal-deep)", border: "1px solid var(--teal-mid)" }}>
-            1 · Yes
-          </button>
-          <button disabled={!seg} onClick={() => answer(false)}
-            style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
-              background: COLORS.card, color: COLORS.textPrimary, border: `1px solid ${COLORS.borderInactive2}` }}>
-            2 · No
-          </button>
+          {isNway ? labels.slice(1).map((lb, i) => (
+            <button key={lb} disabled={!seg} onClick={() => answerPick(i + 1)}
+              style={{ minWidth: 84, padding: "12px 10px", fontWeight: 600, cursor: "pointer",
+                background: "var(--teal-weak)", color: "var(--teal-deep)", border: "1px solid var(--teal-mid)" }}>
+              {i + 1} · {lb}
+            </button>
+          )) : (<>
+            <button disabled={!seg} onClick={() => answer(true)}
+              style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
+                background: "var(--teal-weak)", color: "var(--teal-deep)", border: "1px solid var(--teal-mid)" }}>
+              1 · Yes
+            </button>
+            <button disabled={!seg} onClick={() => answer(false)}
+              style={{ minWidth: 130, padding: "12px 16px", fontWeight: 600, cursor: "pointer",
+                background: COLORS.card, color: COLORS.textPrimary, border: `1px solid ${COLORS.borderInactive2}` }}>
+              2 · No
+            </button>
+          </>)}
         </div>
+        {/* R5: "where you stand" strip — first question only */}
+        {count === 0 && attainability && attainability.length > 0 && (
+          <div style={{ marginTop: 6, fontSize: 13, color: COLORS.textBody }}>
+            Today&apos;s focus — {" "}
+            {(["far", "mid", "near"] as const).map((tier) => {
+              const ls = attainability.filter((a) => a.tier === tier)
+                .map((a) => a.label);
+              if (!ls.length) return null;
+              const word = tier === "far" ? "building foundations"
+                : tier === "mid" ? "within reach" : "near the bar";
+              return <span key={tier} style={{ marginRight: 12 }}>
+                <strong>{word}:</strong> {ls.join(", ")}</span>;
+            })}
+          </div>
+        )}
       </div>
 
       {/* result reveal — a modal card over the dimmed question */}
@@ -359,7 +413,9 @@ export function TrainingRunner({
               {r.correct ? "Correct" : "Incorrect"}
             </div>
             <div style={{ color: COLORS.textBody, marginBottom: 18 }}>
-              This <strong style={{ color: COLORS.textPrimary }}>{r.isTarget ? "is" : "is not"}</strong> {r.patternLabel}.
+              {r.nway
+                ? <>This is <strong style={{ color: COLORS.textPrimary }}>{r.patternLabel}</strong>{r.correct ? "" : `, not ${r.pickedLabel}`}.</>
+                : <>This <strong style={{ color: COLORS.textPrimary }}>{r.isTarget ? "is" : "is not"}</strong> {r.patternLabel}.</>}
             </div>
             <ProgressBar count={count} total={total} />
             <button className="cx-btn primary" onClick={proceed} autoFocus

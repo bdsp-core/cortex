@@ -16,9 +16,11 @@ The K=7-specific changes:
     ell_star + Var_prior (the diagonal of the K=7 Corr_l from
     Sigma_l_fitted_k7.npy).
 
-When v14 cert_config ships (Layer 4 output), this module switches its
-default config_path to point at `calibration/cert_config_v14.yaml`. Until
-v14 lands, it reads v13 (which already carries all 7 ℓ\* values).
+Cut-block default: `ell_star_unified_v15` (2026-07-16 decision — v15 is the
+updated metric set, matching the served web bundles). v15 resolves from the
+sibling `calibration/cert_config_v15.yaml`; the frozen `cert_config.yaml`
+stays bit-identical. Explicit `block_name=` still reaches v14/v13 for
+historical replay.
 """
 from __future__ import annotations
 
@@ -58,13 +60,14 @@ _KEY_FOR_CODE_K7 = {
 
 
 def load_ell_star_k7(task_codes, config_path=None,
-                     block_name: str = "ell_star_unified_v14") -> list:
+                     block_name: str = "ell_star_unified_v15") -> list:
     """Load the Youden ℓ\*_k for K=7 (spike + 6 IIIC) from cert_config.
 
     Returns a list aligned to `task_codes`. Default block is
-    `ell_star_unified_v14` (Phase-9 ship state — uniform CV-top-14 Youden
-    across all 7 tasks). Callers can pass `block_name='ell_star_unified_v13'`
-    explicitly for the legacy K=6+spike-special calibration.
+    `ell_star_unified_v15` (the updated metric set, 2026-07-16 decision;
+    resolves from the sibling cert_config_v15.yaml so the frozen main file
+    stays bit-identical). Callers can pass `block_name=
+    'ell_star_unified_v14'` / `'..._v13'` explicitly for historical replay.
     """
     import yaml
     path = Path(config_path) if config_path else (
@@ -112,7 +115,7 @@ def load_ell_star_k7(task_codes, config_path=None,
 
 def default_policy_for_k7(inputs, *, delta_auroc=None,
                           policy=None, config_path=None,
-                          block_name: str = "ell_star_unified_v14"):
+                          block_name: str = "ell_star_unified_v15"):
     """Resolve the policy used by a K=7 CortexSession. Precedence:
       explicit `policy=` instance         → use it
       `delta_auroc` is None (production)  → AD6Policy.from_inputs_k7(inputs)

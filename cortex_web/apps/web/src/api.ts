@@ -35,6 +35,11 @@ export interface TrialCheckpoint {
   isCorrect?: boolean;
   reactionMs?: number;
   diag?: unknown;
+  // Client wall-clock at item render / at answer (Phase L2): anchors session
+  // load and between-session structure for the learning model; reactionMs
+  // stays the authoritative RT delta.
+  shownClientUtc?: string;
+  answeredClientUtc?: string;
 }
 
 export class ApiError extends Error {
@@ -489,11 +494,22 @@ export interface RegimenTaskPrior {
   theta: number;
   sd: number | null;
 }
+// One trial of the source cert sitting's raw test stream (learning handoff
+// contract v1.1 §2a): served order, full n-way pick. A replay-capable
+// trainer seeds its belief by re-observing this stream; a client seeds from
+// EITHER this OR `prior`, never both (double counting).
+export interface RegimenTestTrial {
+  trialIndex: number;
+  segId: number;
+  taskK: number;
+  pick: number;
+}
 export interface RegimenPlan {
   weeks: number;
   weekOf: number;
   deck: RegimenDeckEntry[];
   prior?: RegimenTaskPrior[];
+  testStream?: RegimenTestTrial[];
 }
 
 // One completed certification attempt (real data) from /api/history.
@@ -552,10 +568,54 @@ export function getHistory(): Promise<{ sessions: HistorySession[] }> {
 export function getQuestions(sessionId: string): Promise<{ sessionId: string; nQuestions: number; questions: QuestionRow[] }> {
   return authedFetch(`/api/history/${encodeURIComponent(sessionId)}/questions`, {}, { retries: 2 });
 }
-export function startTrainingSession(taskFocus?: string): Promise<{ trainingId: string }> {
+export function startTrainingSession(
+  taskFocus?: string,
+): Promise<{ trainingId: string; engineMode?: boolean }> {
   return authedFetch("/api/training-sessions", {
     method: "POST",
     body: JSON.stringify({ taskFocus: taskFocus ?? null }),
+  });
+}
+
+// ── engine trainer (Phase L3): the server-side learning engine drives the
+// sitting; the client renders + collects answers. Awaited (not outboxed):
+// the engine's next decision depends on the response landing.
+export interface EngineItem {
+  task: number; segId: number; s: number; sSd: number; yStar: number;
+  mode: string;
+  link?: string;   // 'binary' one-vs-rest | 'nway' full identification (L4)
+}
+export interface EngineTaskSnapshot {
+  task: number; mastered: boolean; skill: number; theta: number; sd: number;
+  passMass: number; trainability: number | null;
+}
+export interface EngineStepResponse {
+  item: EngineItem | null;
+  snapshot: EngineTaskSnapshot[];
+  allMastered: boolean;
+  done?: boolean;
+  seeded?: number;
+  rebuiltSeq?: number;
+  // /start only: per-task trainability report (never serving-blocking in
+  // practice mode) + surviving unique ancestors of the seeding cloud.
+  attainability?: Record<string, number>;
+  seedUnique?: number;
+}
+export function engineStart(
+  trainingId: string, segIds: number[], restrictTaskKs?: number[],
+): Promise<EngineStepResponse> {
+  return authedFetch("/api/training-engine/start", {
+    method: "POST",
+    body: JSON.stringify({ trainingId, segIds,
+                           restrictTaskKs: restrictTaskKs ?? null }),
+  });
+}
+export function engineRecord(
+  trainingId: string, segId: number, taskK: number, pick: number,
+): Promise<EngineStepResponse> {
+  return authedFetch("/api/training-engine/record", {
+    method: "POST",
+    body: JSON.stringify({ trainingId, segId, taskK, pick }),
   });
 }
 export function finalizeTrainingSession(
@@ -579,6 +639,16 @@ export interface api_TrainingPointIn {
   sd?: number;
   rt?: number;
   seqInSession?: number;
+  // Phase L2 response record (persisted into training_trials server-side).
+  pick?: number;
+  yStar?: number;
+  isCorrect?: boolean;
+  feedbackShown?: string;
+  shownClientUtc?: string;
+  answeredClientUtc?: string;
+  // Phase L4 serving metadata (mode: skill/bias/review; link: binary/nway).
+  mode?: string;
+  link?: string;
 }
 // Fire-and-forget per-answer training checkpoint (crash-safety; the same
 // contract as the exam's postProgress): unsent points queue in the outbox

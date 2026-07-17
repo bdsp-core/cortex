@@ -1,0 +1,168 @@
+{
+ "artifact": {
+  "codes": [
+   "domain2",
+   "domain3",
+   "domain4",
+   "domain5",
+   "domain6",
+   "domain7"
+  ],
+  "alpha_t": [
+   0.008022597726629945,
+   0.012281778620653388,
+   0.014032929589843802,
+   0.038520521397464494,
+   0.02661815482248784,
+   0.025439253255494045
+  ],
+  "alpha_s": [
+   0.009004444213883462,
+   0.008194046532912825,
+   0.006982536482518302,
+   0.005812629802278485,
+   0.004266874871428009,
+   0.003007567174730972
+  ],
+  "lam": 0.0027591919248299425,
+  "q_t": 0.0,
+  "q_s": 0.006,
+  "state_prior": {
+   "mu_t0": [
+    -0.5745602811316779,
+    -0.9915080079966385,
+    -1.1047073065990993,
+    -0.48481979804504627,
+    -0.16154584679392697,
+    -3.904920475442873
+   ],
+   "tau_t0": [
+    0.6274749451011595,
+    1.0820348137909888,
+    0.7433882061674559,
+    1.7468560697301694,
+    1.709716031176809,
+    1.0978274669772405
+   ],
+   "mu_u0": [
+    0.1852138459073392,
+    1.0892661730629802,
+    1.3143003166521439,
+    1.337455287740852,
+    1.2853507539633275,
+    1.3600568060814529
+   ],
+   "tau_u0": [
+    0.42341130350689316,
+    0.5961364091290083,
+    0.7908553347019234,
+    0.7446628468520573,
+    0.7531762954134996,
+    0.5317614870270474
+   ],
+   "gamma": [
+    0.2613888565897216,
+    0.6216767343910612,
+    0.8068761015234545,
+    0.774433401271622,
+    0.7704939535782936,
+    0.4479389118339276
+   ]
+  },
+  "floor_prior": [
+   [
+    -0.2100606176188432,
+    0.8026523203873076,
+    0.759336154610959,
+    0.8323706342750435,
+    0.43818578737929054,
+    0.27436608397136825
+   ],
+   [
+    0.5718939126909549,
+    0.700343493577183,
+    1.00609538683737,
+    0.9307396472303222,
+    1.0043622865644377,
+    1.0065296046054932
+   ]
+  ],
+  "hyper": {
+   "mu_alpha_t": 0.020819205902095586,
+   "sd_alpha_t": 0.010416362192596217,
+   "mu_alpha_s": 0.006211349846292009,
+   "sd_alpha_s": 0.002102830439085518,
+   "mu_t0": -1.2036769526682103,
+   "tau_t0": 1.1678829221573037,
+   "mu_u0": 1.0952738639013493,
+   "tau_u0": 0.6400006127717383,
+   "gamma": 0.6138013265313468,
+   "floor_mu": 0.4828083938341876,
+   "floor_sd": 0.8699940552509603
+  },
+  "floor_joint": {
+   "slope": [
+    0.8969785580610715,
+    0.9904579339632974,
+    0.9123374808759653,
+    0.8945311919137694,
+    1.0030370075676187,
+    0.9672553498830334
+   ],
+   "intercept": [
+    -0.3761934660537538,
+    -0.27622000292075966,
+    -0.43974928539794134,
+    -0.3640248383991541,
+    -0.8510685865508678,
+    -1.0411561378557483
+   ],
+   "resid_sd": [
+    0.3807102913072726,
+    0.2745447713918398,
+    0.6183779539828387,
+    0.5808788112794396,
+    0.5679746810413127,
+    0.8251131148175654
+   ]
+  }
+ },
+ "manifest": {
+  "name": "nway_dynamics_v1",
+  "provenance": "REAL: refit of the validated hierarchical multiclass learning model on the integration repo's vote-derived evidence axes (segment_signals_general), cohort = the external validation population (dataset identity, D47)",
+  "codes": [
+   "domain2",
+   "domain3",
+   "domain4",
+   "domain5",
+   "domain6",
+   "domain7"
+  ],
+  "date": "2026-07-18",
+  "fit": {
+   "warmup": 400,
+   "samples": 400,
+   "chains": 2,
+   "max_tree_depth": 8,
+   "target_accept": 0.9,
+   "form": "soft",
+   "use_rt": false,
+   "fatigue": false,
+   "L": 145,
+   "K": 600,
+   "trials": 46532
+  },
+  "health": {
+   "rhat": 1.0515309245603313,
+   "div": 0,
+   "tree_sat": 0.09875
+  },
+  "axis_coverage": 1.0,
+  "caveats": [
+   "binary-family dynamics NOT included (no feedback-ordered real data; derive from the trainer's truth model, provenance-labeled)",
+   "s_sd attenuation is engine-side only; the fit used s_mean point axes",
+   "refit trigger: longitudinal trainer ledgers"
+  ],
+  "floor_joint_added": "2026-07-16 (D51/D52): per-domain regression of u_inf on u0 over the SAME P2 posterior draws (sim/results/p2.npz, 800 draws x 145 participants); pooled-draw attenuation is the conservative direction. v1 kept unchanged as the validated-experiment input; deployments should consume v1_1."
+ }
+}

@@ -1,9 +1,11 @@
-"""Guard the v15 credentialed cut-scores + the staged (non-live) wiring (2026-06-11).
+"""Guard the v15 credentialed cut-scores + the LIVE default wiring.
 
   * cert_config carries an `ell_star_unified_v15` block with the credentialed
     panel cut-scores (spike=Super8; IIIC=Super8∪Bonobo; lpd robust-trimmed);
-  * the LIVE default block is still `ell_star_unified_v14` (frozen instrument —
-    v15 is staged, opt-in only);
+  * the LIVE default block is `ell_star_unified_v15` (2026-07-16 decision:
+    v15 is the updated metric set — loader + policy-builder defaults agree
+    with the served web bundles; v14 remains reachable by explicit
+    block_name for historical replay);
   * the codified lpd robust-trim regenerates ell*=0.3059 (drop credentialed
     experts with lpd ell<=0.19), proving the once-hand-assembled value reproduces.
 """
@@ -39,14 +41,17 @@ def test_v15_block_values():
         assert abs(v - V15[c]) < 1e-3, f"{c}: {v} != {V15[c]}"
 
 
-def test_live_default_is_still_v14_frozen():
-    """The default (no block_name) must remain v14 — the live instrument is frozen."""
+def test_live_default_is_v15():
+    """The default (no block_name) is v15 — the updated metric set
+    (2026-07-16 decision). v14 stays reachable explicitly for replay."""
     got = load_ell_star_k7(CODES)
     for c, v in zip(CODES, got):
-        assert abs(v - V14[c]) < 1e-3, f"default drifted off v14 for {c}: {v}"
-    # and v15 is genuinely different (lower cuts)
-    v15 = load_ell_star_k7(CODES, block_name="ell_star_unified_v15")
-    assert all(b < a for a, b in zip(got, v15)), "v15 cuts should all be < v14"
+        assert abs(v - V15[c]) < 1e-3, f"default drifted off v15 for {c}: {v}"
+    # v14 remains reachable and genuinely different (higher cuts)
+    v14 = load_ell_star_k7(CODES, block_name="ell_star_unified_v14")
+    for c, v in zip(CODES, v14):
+        assert abs(v - V14[c]) < 1e-3, f"explicit v14 drifted for {c}: {v}"
+    assert all(b < a for a, b in zip(v14, got)), "v15 cuts should all be < v14"
 
 
 def test_lpd_robust_trim_reproduces_0_3059():

@@ -2787,9 +2787,10 @@ class ResultsScreen(QWidget):
         even when cert_config is missing / malformed.
 
         Phase-9 K=7: defaults to cortex_policy_k7.load_ell_star_k7 which
-        reads the K=7 cert_config v14 block (`ell_star_unified_v14`,
-        7 tasks). Falls back to the K=6 loader if the K=7 loader cannot
-        be imported (back-compat with K=6 builds)."""
+        reads the K=7 v15 block (`ell_star_unified_v15`, 7 tasks — the
+        updated metric set, 2026-07-16 decision). Falls back to the K=6
+        loader if the K=7 loader cannot be imported (back-compat with
+        K=6 builds)."""
         if not codes:
             return []
         try:

@@ -3170,3 +3170,81 @@ def test_training_milestones_and_ack_flow(client):
 def test_awards_require_auth(client):
     assert client.get("/api/awards").status_code == 401
     assert client.post("/api/awards/ack", json={"awardId": "x"}).status_code == 401
+
+
+# ── Phase L2: per-trial response record + raw test stream (learning handoff) ──
+
+def test_training_response_record_lands(client):
+    """Phase L2: the per-trial response record (pick / y* / correctness /
+    feedback shown / RT / client wall times) persists on the training
+    exposure row — the longitudinal ledger the learning-engine dynamics
+    refit consumes. Legacy points without the L2 fields still land (drift
+    guard: NULLs, no rejection)."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    tid = client.post("/api/training-sessions", headers=hdr,
+                      json={"taskFocus": "gpd"}).json()["trainingId"]
+    pt = {"taskK": 1, "segId": 42, "ell": 0.2, "theta": 0.0, "sd": 0.1,
+          "rt": 900, "seqInSession": 0,
+          "pick": 1, "yStar": 0, "isCorrect": False,
+          "feedbackShown": "Incorrect — This is not GPD.",
+          "rtMs": 912.5, "shownClientUtc": "2026-07-16T10:00:00Z",
+          "answeredClientUtc": "2026-07-16T10:00:01Z"}
+    assert client.post("/api/training-progress", headers=hdr,
+                       json={"trainingId": tid,
+                             "points": [pt]}).status_code == 200
+    db = client.app.state.db
+    row = db._fetchall(
+        "SELECT * FROM training_trials WHERE training_id=?", (tid,))[0]
+    assert row["pick"] == 1 and row["y_star"] == 0 and row["is_correct"] == 0
+    assert row["feedback_shown"] == "Incorrect — This is not GPD."
+    assert row["rt_ms"] == 912.5
+    assert row["shown_client_utc"] == "2026-07-16T10:00:00Z"
+    assert row["answered_client_utc"] == "2026-07-16T10:00:01Z"
+    # drift guard: a pre-L2 point (no response fields) is still accepted
+    pt2 = {"taskK": 1, "segId": 43, "ell": 0.2, "theta": 0.0, "sd": 0.1,
+           "rt": 900, "seqInSession": 1}
+    assert client.post("/api/training-progress", headers=hdr,
+                       json={"trainingId": tid,
+                             "points": [pt2]}).status_code == 200
+    rows = db._fetchall(
+        "SELECT * FROM training_trials WHERE training_id=? ORDER BY seg_id",
+        (tid,))
+    assert rows[1]["pick"] is None and rows[1]["feedback_shown"] is None
+
+
+def test_exam_timestamps_and_regimen_test_stream(client):
+    """Phase L2: exam checkpoints persist client display/answer wall times,
+    and the regimen carries the source sitting's raw test stream (learning
+    handoff contract v1.1 §2a): the contiguous fully-picked prefix, served
+    order, full n-way pick, taskK included."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    d = client.post("/api/session", json={}, headers=hdr).json()
+    sid = d["sessionId"]
+    segs = [s["segId"] for s in d["bank"]["segments"]][:3]
+    for i, seg in enumerate(segs):
+        assert client.post("/api/progress", headers=hdr, json={
+            "sessionId": sid,
+            "trial": {"trialIndex": i, "segId": seg, "taskK": i % 7,
+                      "pick": (i + 1) % 6, "isCorrect": i % 2 == 0,
+                      "reactionMs": 1000 + i,
+                      "shownClientUtc": f"2026-07-16T09:00:0{i}Z",
+                      "answeredClientUtc": f"2026-07-16T09:00:1{i}Z"},
+        }).status_code == 200
+    rows = client.app.state.db.session_trials(sid)
+    assert rows[0]["shown_client_utc"] == "2026-07-16T09:00:00Z"
+    assert rows[2]["answered_client_utc"] == "2026-07-16T09:00:12Z"
+    verdicts = ["PASS"] * 7
+    verdicts[2] = "FAIL"
+    result = {"verdicts": verdicts,
+              "perTask": [{"taskK": k, "ellStar": 0.3, "verdict": v,
+                           "ell": 0.4, "theta": 0.0}
+                          for k, v in enumerate(verdicts)]}
+    assert client.post("/api/results", headers=hdr,
+                       json={"sessionId": sid, "result": result,
+                             "nQuestions": 3}).status_code == 200
+    reg = client.post("/api/regimen", json={}, headers=hdr).json()["regimen"]
+    assert reg["testStream"] == [
+        {"trialIndex": i, "segId": seg, "taskK": i % 7, "pick": (i + 1) % 6}
+        for i, seg in enumerate(segs)]

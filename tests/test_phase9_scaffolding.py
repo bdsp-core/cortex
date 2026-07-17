@@ -81,16 +81,19 @@ def test_v13_cert_config_has_all_7_ell_star():
         assert np.isfinite(ell), f"v13 {k} ell_star is not finite: {ell}"
 
 
-def test_cortex_policy_k7_load_ell_star_v14_is_default():
-    """K=7 ell_star load defaults to v14 (Phase-9 ship state)."""
+def test_cortex_policy_k7_load_ell_star_v15_is_default():
+    """K=7 ell_star load defaults to v15 (2026-07-16 decision — the updated
+    metric set); the v14 block stays pinned via explicit block_name."""
     import cortex_policy_k7 as p
     codes = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
-    ell_v14 = p.load_ell_star_k7(codes)
-    assert len(ell_v14) == 7
-    # v14: 5 of 6 IIIC tasks reproduce v13 ell* exactly (lpd, gpd, lrda,
-    # grda, iic — panel byte-stable under cross-task expansion); sz and
-    # spike differ due to spike's inclusion in cross-task expert score +
-    # spike methodology change from 70/30 TRAIN to uniform CV-top-14.
+    ell_default = p.load_ell_star_k7(codes)
+    ell_v15 = p.load_ell_star_k7(codes, block_name="ell_star_unified_v15")
+    assert ell_default == ell_v15 and len(ell_default) == 7
+    ell_v14 = p.load_ell_star_k7(codes, block_name="ell_star_unified_v14")
+    # v14 (historical): 5 of 6 IIIC tasks reproduce v13 ell* exactly (lpd,
+    # gpd, lrda, grda, iic — panel byte-stable under cross-task expansion);
+    # sz and spike differ due to spike's inclusion in cross-task expert
+    # score + spike methodology change from 70/30 TRAIN to uniform CV-top-14.
     assert abs(ell_v14[2] - 0.5337430687087749) < 1e-9, "lpd v14 != v13"
     assert abs(ell_v14[3] - 0.3297002787536504) < 1e-9, "gpd v14 != v13"
     assert abs(ell_v14[4] - 0.4792595265871899) < 1e-9, "lrda v14 != v13"
