@@ -3,7 +3,7 @@
 // the filter's real posterior state (nothing is manufactured); the ceremony is
 // only in WHEN the numbers are shown. UI-free so it is unit-testable;
 // TrainingRunner's done screen renders the rows.
-import type { TaskSnapshot } from "../trainer/session";
+import type { TaskSnapshot } from "../trainer/types";
 
 export interface RevealRow {
   taskK: number;

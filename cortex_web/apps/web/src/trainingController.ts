@@ -4,8 +4,7 @@
 // directly to the trainer's belief update (y = yes/no, y* = the item's label).
 // The daily session is bounded to a fixed item count. Kept UI-free so it is
 // unit-testable; TrainingRunner.tsx is a thin view over it.
-import type { Choice } from "../trainer/policy";
-import type { TaskSnapshot } from "../trainer/session";
+import type { Choice, TaskSnapshot } from "../trainer/types";
 
 export type RunnerPhase = "question" | "result" | "done";
 

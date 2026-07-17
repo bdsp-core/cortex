@@ -508,13 +508,11 @@ export function App() {
         api.startTrainingBank(),
         import("./trainingSetup"),
       ]);
-      const { trainingId, engineMode } = await api.startTrainingSession();
-      // Phase L3: the server decides which trainer drives this sitting —
-      // the server-side learning engine (engineMode) or the incumbent
-      // client-side trainer. Reversible per-participant flag; same UI.
-      setTrainState(engineMode
-        ? await setup.buildServerTrainingState(plan, bank, trainingId)
-        : setup.buildTrainingState(plan, bank, trainingId));
+      const { trainingId } = await api.startTrainingSession();
+      // The server-side learning engine is the SOLE trainer (2026-07-17:
+      // the incumbent client trainer was removed, no fallback). If the
+      // engine is disabled server-side, this surfaces as an error state.
+      setTrainState(await setup.buildServerTrainingState(plan, bank, trainingId));
       setPhase("training");
     } catch (e) {
       setMsg(String((e as Error)?.message ?? e));

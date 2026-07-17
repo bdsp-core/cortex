@@ -16,8 +16,7 @@
 // A record failure resolves whenReady() with no next item, ending the
 // sitting gracefully (progress is preserved; the engine rebuilds from the
 // ledger on the next start).
-import type { Choice } from "./policy";
-import type { TaskSnapshot } from "./session";
+import type { Choice, TaskSnapshot } from "./types";
 import * as api from "../src/api";
 
 // Choice plus the engine's link tag (binary one-vs-rest vs native n-way

@@ -1,65 +1,78 @@
-import { describe, it, expect } from "vitest";
-import { ArrayBank, TrainerSession, buildFilters, type CandidateArrays } from "../trainer/session";
-import type { FilterParams } from "../trainer/filter";
-import { TrainingController } from "./trainingController";
+import { describe, expect, it } from "vitest";
+import { TrainingController, type TrainerSessionLike } from "./trainingController";
+import type { Choice, TaskSnapshot } from "../trainer/types";
 
-function makeController(total = 6) {
-  const per: CandidateArrays[] = [0, 1].map((k) => {
-    const a: CandidateArrays = { seg: [], sMean: [], sSd: [], yStar: [], margin: [], coherent: [] };
-    for (let i = 0; i < 40; i++) {
-      const s = -1.5 + (3 * i) / 39;
-      const y = s > 0 ? 1 : 0;
-      a.seg.push(k * 100 + i); a.sMean.push(s); a.sSd.push(0.4);
-      a.yStar.push(y); a.margin.push(1); a.coherent.push(true);
-    }
-    return a;
-  });
-  const bank = new ArrayBank(per);
-  const params: FilterParams = { alphaT: 0.1, alphaSigma: 0.15, sigmaInf: 0.4, qT: 0.05, qSigma: 0.02, rho: 0.5, rule: "soft" };
-  const clouds = [0, 1].map(() => ({
-    theta: new Array(80).fill(0), ell: new Array(80).fill(0), w: new Array(80).fill(1 / 80),
+// Controller state-machine tests over a plain TrainerSessionLike fake.
+// Rewritten 2026-07-17 for the engine-only trainer (the incumbent client
+// TrainerSession was removed from the codebase).
+const LABELS = ["Spike", "Seizure", "LPD"];
+
+function item(task: number, yStar: number, extra: Partial<Choice> = {}): Choice {
+  return { task, mode: "skill", segId: 10 + task, s: 0.4, sSd: 0.1,
+           yStar, margin: 0, info: {}, now: 0, ...extra };
+}
+
+function fakeSession(items: Choice[]): TrainerSessionLike {
+  let i = 0;
+  const snap = (): TaskSnapshot[] => LABELS.map((_, task) => ({
+    task, mastered: false, skill: 0.1 * i, theta: 0, sd: 0.3,
+    passMass: 0.2, trainability: 0.9,
   }));
-  const filters = buildFilters(clouds, params, [0.4, 0.4], [0.3, 0.3], { seed: 1, useMixture: false });
-  const session = new TrainerSession(filters, [0.3, 0.3], [Math.exp(-0.3), Math.exp(-0.3)], bank, { seed: 1 });
-  return new TrainingController(session, ["Spike", "Seizure"], { total });
+  return {
+    next: () => (i < items.length ? items[i++] : null),
+    submit: () => {},
+    snapshot: snap,
+    allMastered: () => false,
+    policy: { ellStars: LABELS.map(() => 0.3) },
+  };
 }
 
 describe("TrainingController", () => {
-  it("question → result → question, with correctness, label, and a trajectory point", () => {
-    const c = makeController(6);
+  it("runs the binary question flow and records the L2 response", () => {
+    const c = new TrainingController(
+      fakeSession([item(1, 1), item(2, 0)]), LABELS, { total: 5 });
     expect(c.phase).toBe("question");
-    const it = c.item!;
-    c.markShown(0);
-    c.answer(true, 100);                       // "yes"
+    c.markShown(0, "2026-07-17T10:00:00Z");
+    c.answer(true, 850, "2026-07-17T10:00:01Z");
     expect(c.phase).toBe("result");
-    expect(c.lastResult!.correct).toBe(it.yStar === 1);
-    expect(c.lastResult!.patternLabel).toBe(["Spike", "Seizure"][it.task]);
-    expect(c.progress().count).toBe(1);
-    const pts = c.drainTrajectory();
-    expect(pts.length).toBe(1);
-    expect(pts[0].segId).toBe(it.segId);
-    expect(Number.isFinite(pts[0].ell)).toBe(true);
+    expect(c.lastResult).toMatchObject({ correct: true, taskK: 1 });
+    const [pt] = c.drainTrajectory();
+    expect(pt).toMatchObject({
+      pick: 1, yStar: 1, isCorrect: true, link: "binary", rt: 850,
+      shownClientUtc: "2026-07-17T10:00:00Z",
+      feedbackShown: "Correct — This is Seizure.",
+    });
     c.continue();
     expect(c.phase).toBe("question");
+    expect(c.item?.task).toBe(2);
   });
 
-  it("finishes at the item budget", () => {
-    const c = makeController(3);
-    for (let i = 0; i < 20 && c.phase !== "done"; i++) {
-      if (c.phase === "question") { c.markShown(0); c.answer(i % 2 === 0, 50); }
-      else if (c.phase === "result") c.continue();
+  it("runs the n-way flow via answerPick with task-axis coding", () => {
+    const c = new TrainingController(
+      fakeSession([item(2, 1, { link: "nway" } as Partial<Choice>)]),
+      LABELS, { total: 5 });
+    c.markShown(0);
+    c.answerPick(2, 400);   // picked LPD; gold is Seizure
+    expect(c.lastResult).toMatchObject({
+      correct: false, nway: true, patternLabel: "Seizure",
+      pickedLabel: "LPD",
+    });
+    const [pt] = c.drainTrajectory();
+    expect(pt).toMatchObject({ pick: 2, yStar: 1, isCorrect: false,
+                               link: "nway" });
+    expect(pt.feedbackShown).toBe("Incorrect — This is Seizure, not LPD.");
+  });
+
+  it("finishes at the session bound and reports done", () => {
+    const c = new TrainingController(
+      fakeSession([item(0, 1), item(1, 0), item(2, 1)]), LABELS,
+      { total: 2 });
+    for (let k = 0; k < 2; k++) {
+      c.markShown(0);
+      c.answer(true, 100);
+      c.continue();
     }
     expect(c.phase).toBe("done");
-    expect(c.progress().count).toBeGreaterThan(0);
-    expect(c.progress().count).toBeLessThanOrEqual(3);
-  });
-
-  it("ignores an answer outside the question phase", () => {
-    const c = makeController(6);
-    c.markShown(0);
-    c.answer(true, 10);
-    const cnt = c.progress().count;
-    c.answer(false, 20);                       // in result phase → no-op
-    expect(c.progress().count).toBe(cnt);
+    expect(c.progress()).toEqual({ count: 2, total: 2 });
   });
 });

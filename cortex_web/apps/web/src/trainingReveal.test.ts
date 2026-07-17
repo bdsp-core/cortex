@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildRevealRows } from "./trainingReveal";
-import type { TaskSnapshot } from "../trainer/session";
+import type { TaskSnapshot } from "../trainer/types";
 
 function snap(task: number, over: Partial<TaskSnapshot> = {}): TaskSnapshot {
   return {
