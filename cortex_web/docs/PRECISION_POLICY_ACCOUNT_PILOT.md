@@ -1,0 +1,69 @@
+# PrecisionPolicy account pilot
+
+## Scope
+
+`precision_v1` supersedes AD6 only for the authenticated account whose
+normalized email is `elikeldsen@icloud.com`. The API, not the browser, selects
+the policy and stamps it on the session row. An absent/legacy stamp is `ad6`.
+AD6 remains the public default and remains available in the engine.
+
+This is the frozen, uncalibrated `frontier_p90guard_m3` profile. There is no
+`g` parameter in the TypeScript port. The optional Python calibration
+arguments remain absent: no interval scale, estimate ramp, or bias scale is
+implemented or accepted here.
+
+## Frozen session profile
+
+- Task order: `spike, sz, lpd, gpd, lrda, grda, iic`.
+- 1,200 particles; `Corr_l` for skill and `Corr_t` for bias.
+- `total_var` selection, stable signal ordering, uncertainty-aware
+  coarse-to-fine candidate scan with `n_subsample=128`.
+- Randomized first item from the best 10; at most five consecutive questions
+  from one domain.
+- Equal-tailed weighted 95% intervals for reporting. Stopping uses the
+  separate point-centered radius and quantile-MCSE guard.
+- Three questions per frozen signal tercile, at least 20 own-domain questions,
+  ESS at least half of the particle count, two consecutive precision passes.
+- 60 questions per domain, hence no more than 420 in seven domains. The 60th
+  answer is evaluated before CAP; BANK is evaluated afterward.
+- Certification cuts are used only in final reporting and only for
+  `ESTIMATE_COMPLETE` domains: `ABOVE_CUT`, `BELOW_CUT`, or
+  `INDETERMINATE_AT_CUT`.
+
+The profile uses the complete exposure-eligible
+`v1.6-k7-35k` served bank (manifest SHA-256
+`c3ce43b5639bb1a5e15b2c014246c5f4e6916bcb3284d10aaebf1d253e8811fa`).
+AD6 continues to receive its existing sampled candidate pool. Precision resume
+stores the small temporal exclusion list plus this manifest hash, rather than
+persisting all 35k candidate IDs.
+
+## Configuration and rollback
+
+The defaults are:
+
+```text
+CORTEX_PRECISION_POLICY_ROLLOUT=email_allowlist
+CORTEX_PRECISION_POLICY_EMAILS=elikeldsen@icloud.com
+CORTEX_PRECISION_BUNDLE_URL=/bundle/v1.6-k7-35k
+```
+
+Set `CORTEX_PRECISION_POLICY_ROLLOUT=off` and restart the API to make every new
+sitting AD6 immediately. Existing sittings retain their stored policy and bank
+provenance so resume stays deterministic. A client-supplied policy is ignored
+at start, and result ingest rejects a policy that differs from the session
+stamp.
+
+## Verification gates
+
+- Scripted fixed-cloud Python/TypeScript parity for intervals, radii, MCSE,
+  guard results, reversible statuses, and stopping.
+- Deterministic TypeScript Precision golden session and inline/speculative
+  clone equality.
+- Transactional fail-closed posterior update test.
+- Production-sized full-bank selector latency gate at 1,200 particles.
+- Exact-email API gate, immutable resume stamp, compact full-bank resume
+  provenance, result-spoof rejection, and rollback-switch test.
+- Existing AD6 drift, browser, API, type-check, and build regressions.
+
+The accepted extreme-skill interval-coverage limitation remains disclosed and
+unchanged; this port does not recalibrate or alter the frozen stopping rule.

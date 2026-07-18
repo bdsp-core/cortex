@@ -8,6 +8,7 @@ import { COLORS, FONTS, REVEAL_CSS, VERDICT_STYLE, cssVar } from "../../ui/theme
 import { useTheme } from "../theme/ThemeProvider";
 import { binormalSteps } from "../roc";
 import { Button, Card, Heading, Stage } from "./ui";
+import type { TerminationPolicyName } from "../../engine/types";
 
 export interface RocDatum {
   auroc: number;
@@ -20,6 +21,8 @@ export interface ResultSummary {
   nQuestions: number;
   stopReason: string;
   verdicts: string[];
+  terminationPolicy?: TerminationPolicyName;
+  determinations?: string[];
   pi?: number[];
   R?: number[];
   nPerTask?: number[];
@@ -61,6 +64,7 @@ const STOP_REASON_LABEL: Record<string, string> = {
   MAX_QUESTIONS: "Maximum questions reached",
   REFER_BORDERLINE: "Referred — borderline",
   REFER_UNINFORMATIVE: "Referred — uninformative",
+  all_estimated_or_undeterminable: "All estimates completed or reached a precision limit",
 };
 
 export function Results({ summary, onFinish, onReturn }: {

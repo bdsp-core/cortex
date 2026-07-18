@@ -49,7 +49,8 @@ _SECTION_BUILDERS = {
     "activity": lambda req, code, tz: dashboard.activity_payload(
         req.app.state.db, code, tz),
     "session": lambda req, code, tz: testing.session_status(
-        req.app.state.db, req.app.state.get_bank(), code),
+        req.app.state.db, req.app.state.get_bank(), code,
+        req.app.state.get_precision_bank),
     "cohorts": lambda req, code, tz: cohorts.cohorts_payload(
         req.app.state.db, code),
     "awards": lambda req, code, tz: awards.pending_payload(

@@ -10,7 +10,7 @@
 // Stop when all K resolved. finalize() maps leftover PENDING →
 // REFER_BORDERLINE (gate opened) / REFER_UNINFORMATIVE (gate never opened).
 
-import { ParticleState } from "./types";
+import { ParticleState, TerminationPolicyName } from "./types";
 import { ess } from "./particles";
 
 export const VERDICT = {
@@ -30,16 +30,50 @@ export const DEFAULT_ALPHA = 0.05;
 export const DEFAULT_Z = 2.0;
 
 export interface PolicyResult {
+  policyName: TerminationPolicyName;
   stop: boolean;
   stopReason: string;
+  // Selection state is deliberately policy-neutral: AD6 emits its monotone
+  // verdict locks; Precision emits fresh ACTIVE/ESTIMATE_COMPLETE/terminal
+  // statuses. The selector only tests whether a domain remains active.
+  selectionStates: string[];
   verdicts: string[];
   pi: number[];
   mcse: number[];
   R: number[];
   ess: number;
+  domainStatuses?: string[];
+  determinations?: string[];
+  terminalReasons?: (string | null)[];
+  streakCounts?: number[];
+  diagnostics?: Record<string, unknown>;
 }
 
-export class AD6Policy {
+export interface FinalPolicyResult {
+  verdicts: string[];
+  domainStatuses?: string[];
+  determinations?: string[];
+  terminalReasons?: (string | null)[];
+  skillIntervals?: [number, number][];
+  biasIntervals?: [number, number][];
+}
+
+export interface EngineTerminationPolicy {
+  readonly name: TerminationPolicyName;
+  readonly activeLabel: string;
+  reset(K: number): void;
+  evaluate(
+    st: ParticleState,
+    nPerTask: number[],
+    telemetry?: Record<string, unknown>,
+  ): PolicyResult;
+  finalizeResult(ellStar: number[]): FinalPolicyResult;
+  clone(): EngineTerminationPolicy;
+}
+
+export class AD6Policy implements EngineTerminationPolicy {
+  readonly name = "ad6" as const;
+  readonly activeLabel = VERDICT.PENDING;
   private ellStar: number[];
   private varPrior: number[];
   private nMin: number;
@@ -107,14 +141,24 @@ export class AD6Policy {
     this.lastR = R;
     const allResolved = this.verdicts.every((v) => v !== VERDICT.PENDING);
     return {
+      policyName: this.name,
       stop: allResolved,
       stopReason: allResolved ? "all_resolved" : "continue",
+      selectionStates: [...this.verdicts],
       verdicts: [...this.verdicts],
       pi,
       mcse,
       R,
       ess: e,
     };
+  }
+
+  reset(K: number): void {
+    if (K !== this.ellStar.length) {
+      throw new Error(`K=${K} != configured domains=${this.ellStar.length}`);
+    }
+    this.verdicts.fill(VERDICT.PENDING);
+    this.lastR.fill(0);
   }
 
   finalize(): string[] {
@@ -125,6 +169,10 @@ export class AD6Policy {
           ? VERDICT.REFER_BORDERLINE
           : VERDICT.REFER_UNINFORMATIVE,
     );
+  }
+
+  finalizeResult(_ellStar: number[]): FinalPolicyResult {
+    return { verdicts: this.finalize() };
   }
 
   // Deep copy of the monotonic verdict state — for speculative branch isolation

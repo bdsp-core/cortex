@@ -144,7 +144,9 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
             <h2 style={S.sectionTitle}>Past tests</h2>
             {history.map((s) => {
               const verdicts = s.result?.verdicts ?? [];
-              const passed = verdicts.filter((v) => v === "PASS").length;
+              const passed = verdicts.filter(
+                (v) => v === "PASS" || v === "ABOVE_CUT",
+              ).length;
               return (
                 <div key={s.session_id} style={S.rowLine}>
                   <span>{fmtDay(s.finished_utc)}</span>

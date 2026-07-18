@@ -12,12 +12,15 @@
 // (proven in speculative.test.ts) — speculation hides the heavy N=1200 selection
 // in otherwise-idle think-time without changing a single result.
 
-import { EngineInputs, TrialDiag } from "./types";
+import { EngineInputs, TerminationPolicyName, TrialDiag } from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
 import { Chosen } from "./choose_item";
-import { AD6Policy } from "./policy";
+import { AD6Policy, EngineTerminationPolicy } from "./policy";
+import {
+  PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
+} from "./precision_policy";
 import { Rng } from "./rng";
 import {
   SessionCore, AdvanceParams, AdvanceResult, cloneCore, advanceCore, chooseNext,
@@ -47,6 +50,8 @@ export const FIRST_ITEM_TOPN = 10;
 // streak one domain for ten in a row. Fallback inside the loop restores the
 // excluded task if no others have remaining items.
 export const MAX_CONSECUTIVE_SAME_DOMAIN = 5;
+export const PRECISION_N_PARTICLES = 1200;
+export const PRECISION_N_SUBSAMPLE = 128;
 
 // SHA-256(sessionId) → 32-bit int seed, matching the desktop's
 // int(hashlib.sha256(session_id)[:8], 16).
@@ -76,6 +81,12 @@ export interface SessionResult {
   nQuestions: number;
   stopReason: string;
   verdicts: string[];
+  terminationPolicy: TerminationPolicyName;
+  domainStatuses?: string[];
+  determinations?: string[];
+  terminalReasons?: (string | null)[];
+  skillIntervals?: [number, number][];
+  biasIntervals?: [number, number][];
   servedSegIds: number[];
   trials: TrialDiag[];
   finalAuroc: number[]; // per-task posterior-mean AUROC (final cloud)
@@ -143,12 +154,31 @@ export class WebCortexSession {
     // carries nParticles. The prior pair uses corrT for the t-block when the
     // manifest carries it (v15), else corrL for both blocks (pilot — bit-
     // identical to the single-PriorPieces era).
-    const nParticles = this.inputs.nParticles ?? N_PARTICLES;
+    const policyName = this.inputs.terminationPolicy ?? "ad6";
+    let policy: EngineTerminationPolicy;
+    let nParticles: number;
+    let perDomainCap: number;
+    if (policyName === "precision_v1") {
+      if (this.inputs.nParticles !== PRECISION_N_PARTICLES) {
+        throw new Error(`precision_v1 freezes nParticles=${PRECISION_N_PARTICLES}`);
+      }
+      if ((this.inputs.perDomainCap ?? PER_DOMAIN_CAP) !== PRECISION_PER_DOMAIN_CAP) {
+        throw new Error(`precision_v1 freezes perDomainCap=${PRECISION_PER_DOMAIN_CAP}`);
+      }
+      policy = PrecisionPolicy.fromInputs(this.inputs);
+      nParticles = PRECISION_N_PARTICLES;
+      perDomainCap = PRECISION_PER_DOMAIN_CAP;
+    } else if (policyName === "ad6") {
+      policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
+      nParticles = this.inputs.nParticles ?? N_PARTICLES;
+      perDomainCap = this.inputs.perDomainCap ?? PER_DOMAIN_CAP;
+    } else {
+      throw new Error(`unknown termination policy ${String(policyName)}`);
+    }
+    policy.reset(K);
     const rng = new Rng(this.seed);
     const prior = precomputePriorPair(this.inputs.corrL, this.inputs.corrT);
     const state = makeState(nParticles, K, prior, rng);
-    const policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
-    const perDomainCap = this.inputs.perDomainCap ?? PER_DOMAIN_CAP;
     // Phase-aware selection (desktop session_controller.py l.241+): for K=7
     // bundles with spike at index 0, run the spike block first (Phase A) until
     // spike locks or its bank exhausts, then Phase B (only IIIC).
@@ -163,7 +193,7 @@ export class WebCortexSession {
       remaining: new Set(this.inputs.segments.map((s) => s.segId)),
       nPerTask: new Array(K).fill(0),
       cappedTasks: new Set<number>(),
-      lastVerdicts: new Array(K).fill("PENDING"),
+      lastOutcomes: new Array(K).fill(policy.activeLabel),
       lastTaskK: -1,
       streakCount: 0,
     };
@@ -178,6 +208,10 @@ export class WebCortexSession {
       maxConsecutiveSameDomain: MAX_CONSECUTIVE_SAME_DOMAIN,
       k7Spike: spikeIdx >= 0,
       spikeIdx,
+      ...(policyName === "precision_v1" ? {
+        nSubsample: PRECISION_N_SUBSAMPLE,
+        uncertaintyAwareSubsample: true,
+      } : {}),
     };
     // Safety backstop: every task either resolves or hits its per-domain cap,
     // so K × cap bounds the session even if AD6 never fires.
@@ -188,6 +222,10 @@ export class WebCortexSession {
     let chosen: Chosen = this.core.remaining.size > 0
       ? chooseNext(this.core, this.inputs, params, 0)
       : NO_ITEM;
+    if (chosen.segId === -1 && policyName === "precision_v1"
+      && (policy as PrecisionPolicy).domainStatuses.every(
+        (s) => s !== PRECISION_STATUS.ACTIVE,
+      )) stopReason = "all_estimated_or_undeterminable";
 
     let trialIndex = 0;
     while (chosen.segId !== -1 && trialIndex < maxQ && !this.aborted) {
@@ -229,7 +267,7 @@ export class WebCortexSession {
       trialIndex++;
     }
 
-    const verdicts = this.core.policy.finalize();
+    const finalized = this.core.policy.finalizeResult(this.inputs.ellStar);
     const { mean: finalAuroc, hw: finalAurocHw } = aurocSummary(
       this.core.state.l, this.core.state.w, this.core.state.N, K,
     );
@@ -245,7 +283,13 @@ export class WebCortexSession {
       sessionId: this.sessionId,
       nQuestions: this.trials.length,
       stopReason,
-      verdicts,
+      verdicts: finalized.verdicts,
+      terminationPolicy: policyName,
+      ...(finalized.domainStatuses ? { domainStatuses: finalized.domainStatuses } : {}),
+      ...(finalized.determinations ? { determinations: finalized.determinations } : {}),
+      ...(finalized.terminalReasons ? { terminalReasons: finalized.terminalReasons } : {}),
+      ...(finalized.skillIntervals ? { skillIntervals: finalized.skillIntervals } : {}),
+      ...(finalized.biasIntervals ? { biasIntervals: finalized.biasIntervals } : {}),
       servedSegIds: this.served,
       trials: this.trials,
       finalAuroc,

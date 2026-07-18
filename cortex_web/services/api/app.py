@@ -85,6 +85,8 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     # lifetime; a missing manifest (CI / fresh box) leaves it None and yields a
     # clear 503 instead of breaking app construction or unrelated endpoints.
     bundle_url = os.environ.get("CORTEX_BUNDLE_URL", config.DEFAULT_BUNDLE_URL)
+    precision_bundle_url = os.environ.get(
+        "CORTEX_PRECISION_BUNDLE_URL", config.DEFAULT_PRECISION_BUNDLE_URL)
     bundle_dir = Path(os.environ.get("CORTEX_BUNDLE_DIR", str(config.BUNDLE_DIR)))
     _bank_cache: dict[str, Optional[SessionBank]] = {}
     _bank_lock = threading.Lock()   # two first-requests must not both parse the 35 MB manifest
@@ -98,11 +100,22 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                     SessionBank(mpath, bundle_url) if mpath.exists() else None)
             return _bank_cache["bank"]
 
+    def get_precision_session_bank() -> Optional[SessionBank]:
+        with _bank_lock:
+            if "precision_bank" not in _bank_cache:
+                version = precision_bundle_url.rstrip("/").split("/")[-1]
+                mpath = bundle_dir / version / "manifest.json"
+                _bank_cache["precision_bank"] = (
+                    SessionBank(mpath, precision_bundle_url)
+                    if mpath.exists() else None)
+            return _bank_cache["precision_bank"]
+
     # Shared state the routers read (see routers/__init__.py).
     from .deps import RateLimiter
     app.state.db = db
     app.state.limiter = RateLimiter()
     app.state.get_bank = get_session_bank
+    app.state.get_precision_bank = get_precision_session_bank
     # Ops error alerting (ops_alerts.py): backend 500s + SPA crash telemetry
     # email the operator, cooldown-collapsed. Empty CORTEX_OPS_ALERT_TO
     # disables it.
@@ -113,6 +126,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     )
     app.state.cfg = {
         "bundle_url": bundle_url,
+        "precision_bundle_url": precision_bundle_url,
         "session_sample": int(os.environ.get("CORTEX_SESSION_SAMPLE",
                                              str(config.DEFAULT_SESSION_SAMPLE))),
         "spacing_days": int(os.environ.get("CORTEX_SPACING_DAYS", "30")),
@@ -121,6 +135,15 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         "training_allowlist": frozenset(
             x.strip().lower()
             for x in os.environ.get("CORTEX_TRAINING_ALLOWLIST", "").split(",")
+            if x.strip()),
+        "precision_policy_rollout": os.environ.get(
+            "CORTEX_PRECISION_POLICY_ROLLOUT",
+            config.PRECISION_POLICY_ROLLOUT).strip().lower(),
+        "precision_policy_emails": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_PRECISION_POLICY_EMAILS",
+                ",".join(sorted(config.PRECISION_POLICY_EMAILS))).split(",")
             if x.strip()),
         # Engine-trainer exposure. Default ALL (2026-07-17 integration
         # decision: the learning engine IS the production trainer; the

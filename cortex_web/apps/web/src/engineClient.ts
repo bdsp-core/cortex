@@ -2,7 +2,7 @@
 // particle filter off the UI thread; the client just relays init/answer/abort
 // and surfaces item/trial/done/error events.
 
-import { EngineInputs, TrialDiag } from "../engine/types";
+import { EngineInputs, TerminationPolicyName, TrialDiag } from "../engine/types";
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;
@@ -12,6 +12,12 @@ export interface EngineClientHandlers {
     nQuestions: number;
     stopReason: string;
     verdicts: string[];
+    terminationPolicy: TerminationPolicyName;
+    domainStatuses?: string[];
+    determinations?: string[];
+    terminalReasons?: (string | null)[];
+    skillIntervals?: [number, number][];
+    biasIntervals?: [number, number][];
     servedSegIds: number[];
     trials: TrialDiag[];
     finalAuroc: number[];

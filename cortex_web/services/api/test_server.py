@@ -67,12 +67,17 @@ def _write_test_bank(bundle_dir, version="test-bank", per_class=8):
     for k, w in enumerate(words):
         for i in range(per_class):
             sm = [0.0] * 7
+            applicable = [0] if w == "spike" else [1, 2, 3, 4, 5, 6]
+            # Every applicable domain needs a non-degenerate full-bank signal
+            # distribution so the frozen Precision content terciles exist.
+            for j in applicable:
+                sm[j] = 0.15 + 0.02 * i + 0.003 * k + 0.001 * j
             sm[k] = 1.0 + 0.05 * i           # informative on the true task
             segs.append({
                 "segId": sid, "patternClass": w,
                 "testClass": "spike" if w == "spike" else "iiic",
                 "sMean": sm, "sSd": [0.3] * 7,
-                "applicableTaskIdx": [0] if w == "spike" else [1, 2, 3, 4, 5, 6],
+                "applicableTaskIdx": applicable,
                 "fsHz": 200, "nCh": 20, "nSamp": 100, "channelNames": [],
                 "specShape": None, "eeg": f"seg/{sid}.eeg", "spec": "",
             })
@@ -86,7 +91,8 @@ def _write_test_bank(bundle_dir, version="test-bank", per_class=8):
         "certBlock": "test", "ellStar": [0.0] * 7,
         "corrL": [[1.0 if i == j else 0.0 for j in range(7)] for i in range(7)],
         "corrT": [[1.0 if i == j else 0.0 for j in range(7)] for i in range(7)],
-        "nParticles": 1200, "nSegments": len(segs), "segments": segs,
+        "nParticles": 1200, "perDomainCap": 60,
+        "nSegments": len(segs), "segments": segs,
     }
     d = Path(bundle_dir) / version
     d.mkdir(parents=True, exist_ok=True)
@@ -103,6 +109,7 @@ def client(tmp_path, monkeypatch):
     _write_test_bank(tmp_path / "bundle", "test-bank", per_class=8)
     monkeypatch.setenv("CORTEX_BUNDLE_DIR", str(tmp_path / "bundle"))
     monkeypatch.setenv("CORTEX_BUNDLE_URL", "/bundle/test-bank")
+    monkeypatch.setenv("CORTEX_PRECISION_BUNDLE_URL", "/bundle/test-bank")
     monkeypatch.setenv("CORTEX_SESSION_SAMPLE", "21")        # draw 21 of 56 → 3/class
     app = create_app(db_path=tmp_path / "t.db")
     return TestClient(app)
@@ -616,6 +623,82 @@ def test_full_session_flow(client):
     row = next(s for s in sessions if s["session_id"] == sid)
     assert row["status"] == "complete"
     assert row["n_questions"] == 42
+
+
+def test_precision_policy_is_server_scoped_to_exact_pilot_email(client):
+    """Only the named account gets Precision; the stamp survives resume and
+    result ingest rejects a client-side attempt to change it."""
+    ordinary_email, ordinary_pw = _make_participant(client)
+    ordinary_headers = _auth_header(client, ordinary_email, ordinary_pw)
+    ordinary = client.post(
+        "/api/session", headers=ordinary_headers,
+        json={"participant": {}, "sampleSeed": 41},
+    )
+    assert ordinary.status_code == 200, ordinary.text
+    assert ordinary.json()["terminationPolicy"] == "ad6"
+    assert ordinary.json()["bank"]["terminationPolicy"] == "ad6"
+
+    pilot_email, pilot_pw = _make_participant(client)
+    db = client.app.state.db
+    pilot_code = db.get_participant_by_email(pilot_email)["code"]
+    db.update_email(pilot_code, "elikeldsen@icloud.com")
+    pilot_headers = _auth_header(client, "ELIKELDSEN@ICLOUD.COM", pilot_pw)
+    started = client.post(
+        "/api/session", headers=pilot_headers,
+        json={"participant": {}, "sampleSeed": 42},
+    )
+    assert started.status_code == 200, started.text
+    body = started.json()
+    assert body["terminationPolicy"] == "precision_v1"
+    assert body["bank"]["terminationPolicy"] == "precision_v1"
+    assert body["bank"]["nParticles"] == 1200
+    assert body["bank"]["perDomainCap"] == 60
+    assert len(body["bank"]["precisionBandEdges"]) == 7
+    assert len(body["bank"]["segments"]) == client.app.state.get_precision_bank().n_segments
+    session_row = db.get_session(body["sessionId"])
+    assert session_row["termination_policy"] == "precision_v1"
+    assert session_row["drawn_seg_ids"] is None       # never persist 35k ids
+    assert json.loads(session_row["candidate_exclusion"]) == []
+    assert session_row["candidate_bank_sha256"] == client.app.state.get_precision_bank().manifest_sha256
+
+    first_seg = body["bank"]["segments"][0]["segId"]
+    assert client.post("/api/progress", headers=pilot_headers, json={
+        "sessionId": body["sessionId"],
+        "trial": {"trialIndex": 0, "segId": first_seg, "taskK": 0, "pick": 0},
+    }).status_code == 200
+
+    # A rollout kill-switch affects only new sittings. In-flight policy
+    # identity is provenance, so resume returns the persisted Precision stamp.
+    client.app.state.cfg["precision_policy_rollout"] = "off"
+    active = client.get("/api/session/active", headers=pilot_headers).json()["active"]
+    assert active["bank"]["terminationPolicy"] == "precision_v1"
+
+    rejected = client.post("/api/results", headers=pilot_headers, json={
+        "sessionId": body["sessionId"],
+        "result": {"terminationPolicy": "ad6", "verdicts": ["PASS"] * 7},
+        "stopReason": "spoofed", "nQuestions": 1,
+    })
+    assert rejected.status_code == 409
+    accepted = client.post("/api/results", headers=pilot_headers, json={
+        "sessionId": body["sessionId"],
+        "result": {
+            "terminationPolicy": "precision_v1",
+            "verdicts": ["ABOVE_CUT"] * 7,
+            "determinations": ["DETERMINED"] * 7,
+        },
+        "stopReason": "all_estimated_or_undeterminable", "nQuestions": 1,
+    })
+    assert accepted.status_code == 200, accepted.text
+
+    # With the emergency switch off, a fresh sitting for the same account is
+    # AD6. No browser payload can request Precision.
+    rolled_back = client.post(
+        "/api/session", headers=pilot_headers,
+        json={"participant": {}, "sampleSeed": 43,
+              "terminationPolicy": "precision_v1"},
+    )
+    assert rolled_back.status_code == 200, rolled_back.text
+    assert rolled_back.json()["terminationPolicy"] == "ad6"
 
 
 def test_progress_rejects_foreign_session(client):

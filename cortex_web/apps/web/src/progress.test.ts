@@ -18,7 +18,7 @@ describe("resolutionConfidence", () => {
 
   it("is symmetric: π and 1−π give the same confidence", () => {
     expect(resolutionConfidence(diagWithPi([0.9]))).toBeCloseTo(
-      resolutionConfidence(diagWithPi([0.1])), 12);
+      resolutionConfidence(diagWithPi([0.1]))!, 12);
   });
 
   it("is bound by the least-resolved (most-uncertain) task", () => {
@@ -28,5 +28,9 @@ describe("resolutionConfidence", () => {
 
   it("approaches 1 when every task is decisive", () => {
     expect(resolutionConfidence(diagWithPi([0.999, 0.001, 0.998]))).toBeGreaterThan(0.99);
+  });
+
+  it("is absent for cut-independent Precision diagnostics", () => {
+    expect(resolutionConfidence(diagWithPi([]))).toBeNull();
   });
 });

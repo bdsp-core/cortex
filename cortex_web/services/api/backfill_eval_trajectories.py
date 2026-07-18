@@ -58,6 +58,11 @@ def reconstruct(result: dict, trials: list[dict],
     """Rebuild (perTask, eval_points) from a legacy result's final trial +
     trials reaction times + ℓ*. Returns None if the blob can't be reconstructed
     (no final-trial lMean/tMean)."""
+    # Precision rows use a different, explicit determination/classification
+    # schema and are always written with perTask. Never reinterpret one as a
+    # legacy AD6 verdict-only blob.
+    if result.get("terminationPolicy", "ad6") != "ad6":
+        return None
     tr = result.get("trials")
     if not isinstance(tr, list) or not tr:
         return None

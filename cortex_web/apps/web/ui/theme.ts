@@ -150,6 +150,12 @@ export const VERDICT_STYLE: Record<string, { color: string; label: string }> = {
   REFER_BORDERLINE: { color: COLORS.referBorderline, label: "REFER (borderline)" },
   REFER_UNINFORMATIVE: { color: COLORS.referUninformative, label: "REFER (uninformative)" },
   PENDING: { color: COLORS.pending, label: "—" },
+  ABOVE_CUT: { color: COLORS.pass, label: "ABOVE CUT" },
+  BELOW_CUT: { color: COLORS.fail, label: "BELOW CUT" },
+  INDETERMINATE_AT_CUT: { color: COLORS.referBorderline, label: "INDETERMINATE AT CUT" },
+  UNDETERMINABLE_CAP: { color: COLORS.referUninformative, label: "INSUFFICIENT PRECISION (CAP)" },
+  UNDETERMINABLE_BANK: { color: COLORS.referUninformative, label: "INSUFFICIENT PRECISION (BANK)" },
+  ACTIVE: { color: COLORS.pending, label: "—" },
 };
 
 // Keyboard shortcuts (app-level; intercept before form controls).

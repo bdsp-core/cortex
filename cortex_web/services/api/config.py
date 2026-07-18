@@ -25,6 +25,11 @@ BUNDLE_DIR = Path(os.environ.get("CORTEX_BUNDLE_DIR", str(CORTEX_WEB / "apps" / 
 
 # Default bundle the SPA pulls (overridable via env for S3/CloudFront).
 DEFAULT_BUNDLE_URL = os.environ.get("CORTEX_BUNDLE_URL", "/bundle/v1.5-k7")
+# The frozen Precision profile was qualified on the full 35k served bank. It
+# is a separate pilot input so the public AD6 account population keeps its
+# existing bundle/sample profile during the account-scoped rollout.
+DEFAULT_PRECISION_BUNDLE_URL = os.environ.get(
+    "CORTEX_PRECISION_BUNDLE_URL", "/bundle/v1.6-k7-35k")
 # Per-session candidate-pool size (the server-drawn subset the client engine
 # selects within). The prod value is env-driven from /etc/cortex/cortex.env
 # (provision.sh writes 500); speculative precompute hides the between-question
@@ -57,5 +62,18 @@ TRAINING_MODE = os.environ.get("CORTEX_TRAINING_MODE", "all").strip().lower()
 TRAINING_ALLOWLIST = frozenset(
     x.strip().lower()
     for x in os.environ.get("CORTEX_TRAINING_ALLOWLIST", "").split(",")
+    if x.strip()
+)
+
+# Certification stopping-policy pilot. Public/default behavior remains AD6;
+# only authenticated accounts whose normalized email is in this server-side
+# allowlist receive precision_v1. Set CORTEX_PRECISION_POLICY_ROLLOUT=off for
+# an immediate rollback without changing code or any in-flight session stamp.
+PRECISION_POLICY_ROLLOUT = os.environ.get(
+    "CORTEX_PRECISION_POLICY_ROLLOUT", "email_allowlist").strip().lower()
+PRECISION_POLICY_EMAILS = frozenset(
+    x.strip().lower()
+    for x in os.environ.get(
+        "CORTEX_PRECISION_POLICY_EMAILS", "elikeldsen@icloud.com").split(",")
     if x.strip()
 )

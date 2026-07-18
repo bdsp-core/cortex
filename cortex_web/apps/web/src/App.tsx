@@ -254,9 +254,12 @@ export function App() {
       const inputs = b.inputs;
       sessionIdRef.current = sessionId;
 
-      // Adaptive test: the engine ends on per-task resolution (AD6 + per-domain
-      // cap), bounded by the drawn pool — use the pool as the progress max.
-      const maxQ = inputs.segments.length;
+      // Precision selects from the full 35k candidate bank but can serve only
+      // 60 per domain (<=420). Do not present the candidate-pool size as the
+      // participant's question ceiling. Preserve the legacy AD6 display.
+      const maxQ = inputs.terminationPolicy === "precision_v1"
+        ? inputs.taskCodes.length * (inputs.perDomainCap ?? 60)
+        : inputs.segments.length;
       setProgress({ answered: replayTrials.length, maxQ, resolveConf: null });
 
       const replay = new ReplayDriver(replayTrials);
@@ -321,6 +324,8 @@ export function App() {
             nQuestions: r.nQuestions,
             stopReason: r.stopReason,
             verdicts: r.verdicts,
+            terminationPolicy: r.terminationPolicy,
+            determinations: r.determinations,
             pi: d?.pi,
             R: d?.R,
             nPerTask: d?.nPerTask,
@@ -370,12 +375,21 @@ export function App() {
             auroc: roc[k]?.auroc ?? null,
             aurocHw: roc[k]?.hw ?? null,
             verdict: r.verdicts?.[k] ?? "PENDING",
+            determination: r.determinations?.[k] ?? null,
+            skillInterval: r.skillIntervals?.[k] ?? null,
+            biasInterval: r.biasIntervals?.[k] ?? null,
           }));
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
           // rather than lost (PLAN §8).
           const delivered = await api.submitResults(sessionId, {
             verdicts: r.verdicts,
+            terminationPolicy: r.terminationPolicy,
+            domainStatuses: r.domainStatuses,
+            determinations: r.determinations,
+            terminalReasons: r.terminalReasons,
+            skillIntervals: r.skillIntervals,
+            biasIntervals: r.biasIntervals,
             perTask,
             roc,
             servedSegIds: r.servedSegIds,
@@ -412,9 +426,9 @@ export function App() {
   const startTest = useCallback(async () => {
     setPhase("loading");
     try {
-      // Server-side draw (goal 3): the backend picks this sitting's balanced,
-      // spacing-aware question subset from the full 35k bank and returns it —
-      // the browser never downloads the full manifest.
+      // Server-authoritative candidate profile: AD6 receives its balanced
+      // sample; the allowlisted Precision pilot receives the complete
+      // exposure-eligible served bank required by its frozen profile.
       const { sessionId, sampleSeed, bank } = await api.startSession(
         { ...(participantRef.current ?? {}) },
       );

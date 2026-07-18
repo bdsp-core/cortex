@@ -94,6 +94,125 @@ export interface Chosen {
   loss: number;
 }
 
+export interface SelectionOptions {
+  nSubsample?: number;
+  uncertaintyAware?: boolean;
+}
+
+function roundToEven(x: number): number {
+  const lo = Math.floor(x), frac = x - lo;
+  if (frac < 0.5) return lo;
+  if (frac > 0.5) return lo + 1;
+  return lo % 2 === 0 ? lo : lo + 1;
+}
+
+function uniqueSorted(values: number[]): number[] {
+  return Array.from(new Set(values)).sort((a, b) => a - b);
+}
+
+function stableLossOrder(indices: number[], losses: number[]): number[] {
+  return indices.map((value, position) => ({ value, position, loss: losses[position] }))
+    .sort((a, b) => (a.loss - b.loss) || (a.position - b.position))
+    .map((x) => x.value);
+}
+
+function uncertaintyAwareTopIndices(
+  st: ParticleState, k: number, sigs: number[], sds: number[],
+  nTop: number, nCoarse: number,
+): number[] {
+  const n = sigs.length;
+  nTop = Math.min(Math.max(1, nTop), n);
+  const full = Array.from({ length: n }, (_, i) => i);
+  const losses = (indices: number[]) => indices.map(
+    (i) => expectedLoss(st, k, sigs[i], sds[i]),
+  );
+  if (n <= nCoarse) return stableLossOrder(full, losses(full)).slice(0, nTop);
+
+  // np.array_split(arange(n), nCoarse): the first n%nCoarse bins receive one
+  // extra element. Each bin contributes its centre and first minimum-sd item.
+  const q = Math.floor(n / nCoarse), r = n % nCoarse;
+  const representatives: number[] = [];
+  let start = 0;
+  for (let b = 0; b < nCoarse; b++) {
+    const size = q + (b < r ? 1 : 0);
+    if (!size) continue;
+    representatives.push(start + Math.floor(size / 2));
+    let minI = start;
+    for (let i = start + 1; i < start + size; i++) {
+      if (sds[i] < sds[minI]) minI = i;
+    }
+    representatives.push(minI);
+    start += size;
+  }
+  const reps = uniqueSorted(representatives);
+  const best = stableLossOrder(reps, losses(reps)).slice(0, Math.max(3, nTop));
+  const h = Math.ceil(n / nCoarse);
+  const candidates = reps.slice();
+  for (const center of best) {
+    for (let i = Math.max(0, center - h); i <= Math.min(n - 1, center + h); i++) {
+      candidates.push(i);
+    }
+  }
+  const cand = uniqueSorted(candidates);
+  return stableLossOrder(cand, losses(cand)).slice(0, nTop);
+}
+
+function coarseToFineTopIndices(
+  st: ParticleState, k: number, sigs: number[], sds: number[],
+  nTop: number, nCoarse: number,
+): number[] {
+  const n = sigs.length;
+  nTop = Math.min(Math.max(1, nTop), n);
+  const full = Array.from({ length: n }, (_, i) => i);
+  const losses = (indices: number[]) => indices.map(
+    (i) => expectedLoss(st, k, sigs[i], sds[i]),
+  );
+  if (n <= nCoarse) return stableLossOrder(full, losses(full)).slice(0, nTop);
+  const coarse = uniqueSorted(Array.from({ length: nCoarse }, (_, i) =>
+    roundToEven(i * (n - 1) / (nCoarse - 1))));
+  const brackets = stableLossOrder(coarse, losses(coarse)).slice(0, Math.max(nTop, 3));
+  const h = Math.ceil(n / nCoarse);
+  const candidates = coarse.slice();
+  for (const center of brackets) {
+    for (let i = Math.max(0, center - h); i <= Math.min(n - 1, center + h); i++) {
+      candidates.push(i);
+    }
+  }
+  const cand = uniqueSorted(candidates);
+  return stableLossOrder(cand, losses(cand)).slice(0, nTop);
+}
+
+function candidateIndices(
+  st: ParticleState, k: number, sigs: number[], sds: number[],
+  nTop: number, options: SelectionOptions,
+): number[] {
+  if (!sigs.length) return [];
+  const nCoarse = options.nSubsample;
+  if (!nCoarse || sigs.length <= nCoarse) {
+    const idx = Array.from({ length: sigs.length }, (_, i) => i);
+    const losses = idx.map((i) => expectedLoss(st, k, sigs[i], sds[i]));
+    return stableLossOrder(idx, losses).slice(0, nTop);
+  }
+  return options.uncertaintyAware
+    ? uncertaintyAwareTopIndices(st, k, sigs, sds, nTop, nCoarse)
+    : coarseToFineTopIndices(st, k, sigs, sds, nTop, nCoarse);
+}
+
+// Precision's coarse-to-fine scan assumes each domain is stable-mergesorted by
+// signal. Index is the explicit stability tie-break, matching Python.
+export function sortBankBySignalStable(bank: BankArrays): BankArrays {
+  const out: BankArrays = { sMean: [], sSd: [], segId: [] };
+  for (let k = 0; k < bank.sMean.length; k++) {
+    const order = bank.sMean[k].map((value, index) => ({ value, index }))
+      .sort((a, b) => (a.value - b.value) || (a.index - b.index))
+      .map((x) => x.index);
+    out.sMean.push(order.map((i) => bank.sMean[k][i]));
+    out.sSd.push(order.map((i) => bank.sSd[k][i]));
+    out.segId.push(order.map((i) => bank.segId[k][i]));
+  }
+  return out;
+}
+
 // Global argmin over all tasks × remaining candidates. `excludedTasks` (used
 // by the session-level variety cap) skips whole task indices; if nothing
 // remains, returns segId === -1 so the caller can retry without exclusions.
@@ -101,6 +220,7 @@ export function chooseItem(
   st: ParticleState,
   bank: BankArrays,
   excludedTasks?: ReadonlySet<number>,
+  options: SelectionOptions = {},
 ): Chosen {
   let best: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
   for (let k = 0; k < st.K; k++) {
@@ -108,7 +228,8 @@ export function chooseItem(
     const sigs = bank.sMean[k];
     const sds = bank.sSd[k];
     const ids = bank.segId[k];
-    for (let i = 0; i < sigs.length; i++) {
+    const indices = candidateIndices(st, k, sigs, sds, 1, options);
+    for (const i of indices) {
       const loss = expectedLoss(st, k, sigs[i], sds[i]);
       if (loss < best.loss) {
         best = { k, s: sigs[i], sSd: sds[i], segId: ids[i], loss };
@@ -128,12 +249,14 @@ export function chooseFirstItem(
   topN: number,
   rng: { int: (n: number) => number },
   excludedTasks?: ReadonlySet<number>,
+  options: SelectionOptions = {},
 ): Chosen {
   const scored: Chosen[] = [];
   for (let k = 0; k < st.K; k++) {
     if (excludedTasks?.has(k)) continue;
     const sigs = bank.sMean[k];
-    for (let i = 0; i < sigs.length; i++) {
+    const indices = candidateIndices(st, k, sigs, bank.sSd[k], topN, options);
+    for (const i of indices) {
       scored.push({
         k,
         s: sigs[i],
@@ -145,5 +268,5 @@ export function chooseFirstItem(
   }
   scored.sort((a, b) => a.loss - b.loss);
   const nTop = Math.min(topN, scored.length);
-  return scored[rng.int(nTop)];
+  return nTop ? scored[rng.int(nTop)] : { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
 }

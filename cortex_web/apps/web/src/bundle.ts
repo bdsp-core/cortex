@@ -83,6 +83,9 @@ export class Bundle {
       corrL: m.corrL,
       corrT: m.corrT,               // v15 OPT-IN (undefined on the frozen-pilot manifest)
       nParticles: m.nParticles,     // v15 OPT-IN (undefined → engine defaults to 600)
+      perDomainCap: m.perDomainCap,
+      terminationPolicy: m.terminationPolicy,
+      precisionBandEdges: m.precisionBandEdges,
       ellStar: m.ellStar,
       segments: m.segments,
     };

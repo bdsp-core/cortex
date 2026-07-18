@@ -27,7 +27,11 @@ export interface Progress {
   resolveConf: number | null; // null until the first trial diagnostic
 }
 
-export function resolutionConfidence(diag: TrialDiag): number {
+export function resolutionConfidence(diag: TrialDiag): number | null {
+  // PrecisionPolicy is intentionally cut-independent, so it does not compute
+  // AD6's cut-mass π. Showing the empty-vector initializer as 100% would be a
+  // false progress claim; keep this legacy readout absent for the pilot.
+  if (!diag.pi.length) return null;
   let minConf = 1;
   for (let k = 0; k < diag.pi.length; k++) {
     const conf = Math.max(diag.pi[k], 1 - diag.pi[k]);

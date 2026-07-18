@@ -27,6 +27,11 @@ const VERDICT_VAR: Record<string, string> = {
   referb: "--refer-b",
   referu: "--refer-u",
   train: "--teal",
+  ABOVE_CUT: "--pass",
+  BELOW_CUT: "--fail",
+  INDETERMINATE_AT_CUT: "--refer-b",
+  UNDETERMINABLE_CAP: "--refer-u",
+  UNDETERMINABLE_BANK: "--refer-u",
 };
 
 export function verdictVar(chipClass: string): string {

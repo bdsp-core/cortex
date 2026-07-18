@@ -40,6 +40,14 @@ export interface EngineInputs {
   // still PENDING after this many of its own questions is REFERred. Absent →
   // engine default PER_DOMAIN_CAP. Emitted by the v15+ bundle build.
   perDomainCap?: number;
+  // Server-authoritative stopping-policy stamp. It is written when a sitting
+  // is created and returned unchanged on resume; clients never choose it.
+  // Absent on legacy/local fixtures => AD6 (the public rollback/default path).
+  terminationPolicy?: TerminationPolicyName;
+  // Frozen full-bank signal terciles used by precision_v1's content floor.
+  // The API derives these from the complete served manifest before drawing the
+  // per-session subset, so a participant's random draw cannot move the floor.
+  precisionBandEdges?: number[][];
   ellStar: number[]; // (K) Youden cut-scores from the cert_config block
   segments: SegmentMeta[];
 }
@@ -58,6 +66,19 @@ export interface ParticleState {
   // both are precomputePrior(corrL) and the computation is bit-identical to the
   // single-PriorPieces era; on the v15 path tPieces uses corrT.
   prior: PriorPair;
+  // Most recent resample/rejuvenation event. PrecisionPolicy reports these
+  // diagnostics (acceptance 0.20 / ancestry 0.35); quantile_mcse reliability
+  // remains the load-bearing guard in the frozen profile.
+  lastRejuvenation?: RejuvenationTelemetry;
+}
+
+export type TerminationPolicyName = "ad6" | "precision_v1";
+
+export interface RejuvenationTelemetry {
+  qIndex: number;
+  acceptanceRate: number;
+  distinctAncestors: number;
+  distinctAncestorFraction: number;
 }
 
 export interface PriorPieces {
@@ -91,4 +112,16 @@ export interface TrialDiag {
   tMean: number[];
   lMean: number[];
   aurocHw: number[]; // per-task AUROC credible halfwidth (for the collapse video)
+  terminationPolicy?: TerminationPolicyName;
+  domainStatuses?: string[];
+  determinations?: string[];
+  terminalReasons?: (string | null)[];
+  precisionStreakCounts?: number[];
+  skillIntervals?: [number, number][];
+  biasIntervals?: [number, number][];
+  skillPointCenteredRadius?: number[];
+  skillPointCenteredRadiusMcse?: number[];
+  guardedPrecisionStatistic?: number[];
+  skillTolerance?: number[];
+  lastRejuvenation?: RejuvenationTelemetry;
 }

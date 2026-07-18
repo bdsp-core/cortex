@@ -74,6 +74,9 @@ _SCHEMA_STATEMENTS = [
         status         TEXT NOT NULL DEFAULT 'in_progress',
         stop_reason    TEXT,
         n_questions    INTEGER,
+        termination_policy TEXT NOT NULL DEFAULT 'ad6',
+        candidate_exclusion TEXT,
+        candidate_bank_sha256 TEXT,
         FOREIGN KEY (code) REFERENCES participants(code)
     )""",
     """CREATE TABLE IF NOT EXISTS trials (
@@ -308,10 +311,15 @@ _TRAINING_SESSIONS_MIGRATION_COLUMNS = [
 # 35k/v15 session stays attributable + reproducible after a bundle change.
 # drawn_seg_ids = the exact server-drawn candidate pool (JSON list of seg_ids):
 # the sample_seed alone can't reproduce it later because the exposure exclusion
-# is temporal.
+# is temporal. Precision uses the complete 35k bank, so persisting every id
+# would be wasteful; candidate_exclusion + candidate_bank_sha256 reconstruct
+# the identical manifest-ordered pool roughly two orders of magnitude smaller.
 _SESSIONS_MIGRATION_COLUMNS = [
     ("bundle_version",    "TEXT"),
     ("drawn_seg_ids",     "TEXT"),
+    ("termination_policy", "TEXT NOT NULL DEFAULT 'ad6'"),
+    ("candidate_exclusion", "TEXT"),
+    ("candidate_bank_sha256", "TEXT"),
 ]
 # Response record on training exposure rows (Phase L2 instrumentation): what
 # the participant answered, what the feedback reveal displayed, and true
@@ -814,13 +822,18 @@ class Database:
     def create_session(self, session_id: str, code: str, participant: dict,
                         sample_seed: Optional[int],
                         bundle_version: Optional[str] = None,
-                        drawn_seg_ids: Optional[str] = None) -> None:
+                        drawn_seg_ids: Optional[str] = None,
+                        termination_policy: str = "ad6",
+                        candidate_exclusion: Optional[str] = None,
+                        candidate_bank_sha256: Optional[str] = None) -> None:
         self._write(
             "INSERT INTO sessions(session_id, code, participant, sample_seed, "
-            "bundle_version, drawn_seg_ids, started_utc, status) "
-            "VALUES (?,?,?,?,?,?,?, 'in_progress')",
+            "bundle_version, drawn_seg_ids, termination_policy, "
+            "candidate_exclusion, candidate_bank_sha256, started_utc, status) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?, 'in_progress')",
             (session_id, code, json.dumps(participant), sample_seed,
-             bundle_version, drawn_seg_ids, utc_now()),
+             bundle_version, drawn_seg_ids, termination_policy,
+             candidate_exclusion, candidate_bank_sha256, utc_now()),
         )
 
     def get_session(self, session_id: str) -> Optional[dict]:
@@ -1342,7 +1355,8 @@ class Database:
             if verdict is None:
                 continue
             confirmed += 1
-            if str(verdict).upper() != "PASS":
+            from .dashboard_logic import is_certified_verdict
+            if not is_certified_verdict(verdict):
                 false_grad += 1
         return {
             "graduatedDomains": graduated,

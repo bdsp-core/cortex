@@ -84,12 +84,12 @@ def evaluate_certification(db, code: str, result: dict) -> None:
             verdict = str(t.get("verdict") or "").upper()
             key = str(t.get("code") or t.get("taskK"))
             label = str(t.get("label") or key)
-            if verdict == "PASS":
+            if dashboard_logic.is_certified_verdict(verdict):
                 auroc = t.get("auroc")
                 detail = (f"AUROC {auroc:.2f}"
                           if isinstance(auroc, (int, float)) else None)
                 db.award_badge(code, key, label, detail)
-            elif verdict == "FAIL":
+            elif dashboard_logic.is_below_standard_verdict(verdict):
                 db.revoke_badge(code, key)
         n = db.count_completed_results(code)
         if n == 1:

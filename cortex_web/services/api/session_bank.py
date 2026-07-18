@@ -2,11 +2,10 @@
 
 The full ~35k bank's signal index — the bundle ``manifest.json`` that
 ``prepare_web_bundle.py`` emits — is loaded ONCE at boot (read-only, shared).
-Each session start draws a seeded, class-balanced, difficulty-stratified subset
-(~``target`` segments), excluding the participant's recently-seen segments
-(spacing, goal 5). The browser SMC engine runs over the returned subset exactly
-as before, so the client never downloads the 35k manifest and per-question
-selection stays bounded by the subset size, independent of bank size.
+AD6 session starts draw a seeded, class-balanced, difficulty-stratified subset
+(~``target`` segments), excluding the participant's recently-seen segments.
+The account-scoped Precision pilot instead receives the complete exposure-
+eligible served bank required by its frozen coarse-to-fine selector profile.
 
 This is a faithful Python port of ``apps/web/src/sampleSession.ts`` operating on
 the same web manifest schema (``patternClass`` groups, difficulty = the
@@ -17,6 +16,7 @@ from the stored ``sample_seed``.
 from __future__ import annotations
 
 import json
+import hashlib
 import random
 from pathlib import Path
 from typing import Optional
@@ -30,8 +30,20 @@ _N_BINS = 8
 _ENGINE_KEYS = (
     "version", "eegScale", "specDbRange", "taskCodes", "taskLabels",
     "taskPatternWords", "taskClasses", "certBlock", "ellStar", "corrL",
-    "corrT", "nParticles", "perDomainCap",
+    "corrT", "nParticles", "perDomainCap", "precisionBandEdges",
 )
+
+
+def _linear_quantile(values: list[float], q: float) -> float:
+    """NumPy-compatible default linear quantile over a finite vector."""
+    ordered = sorted(float(value) for value in values)
+    if not ordered:
+        raise ValueError("cannot take a quantile of an empty vector")
+    position = (len(ordered) - 1) * float(q)
+    low = int(position)
+    high = min(low + 1, len(ordered) - 1)
+    fraction = position - low
+    return ordered[low] + fraction * (ordered[high] - ordered[low])
 
 
 class SessionBank:
@@ -39,10 +51,36 @@ class SessionBank:
 
     def __init__(self, manifest_path: Path | str, bundle_url: str):
         self.bundle_url = bundle_url
-        manifest = json.loads(Path(manifest_path).read_text())
+        manifest_bytes = Path(manifest_path).read_bytes()
+        self.manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+        manifest = json.loads(manifest_bytes)
         self.version = manifest.get("version")
         self.engine = {k: manifest[k] for k in _ENGINE_KEYS if k in manifest}
         self.segments: list[dict] = manifest["segments"]
+        # PrecisionPolicy's three-per-tercile floor is defined against the full
+        # served bank, not a participant's random session draw. Older manifests
+        # do not carry the edges, so derive and attach them once at bank load.
+        if "precisionBandEdges" not in self.engine:
+            edges: list[list[float]] = []
+            valid_edges = True
+            for k in range(len(manifest["taskCodes"])):
+                values = [
+                    float(seg["sMean"][k])
+                    for seg in self.segments
+                    if (not seg.get("applicableTaskIdx")
+                        or k in seg["applicableTaskIdx"])
+                ]
+                if len(values) < 3:
+                    valid_edges = False
+                    break
+                q1 = _linear_quantile(values, 1.0 / 3.0)
+                q2 = _linear_quantile(values, 2.0 / 3.0)
+                if not q1 < q2:
+                    valid_edges = False
+                    break
+                edges.append([q1, q2])
+            if valid_edges:
+                self.engine["precisionBandEdges"] = edges
         words = manifest["taskPatternWords"]
         self._word_idx = {w: i for i, w in enumerate(words)}
         # Group segment indices by pattern class once, at load.
@@ -126,6 +164,23 @@ class SessionBank:
         return {
             **self.engine,
             "bundleUrl": self.bundle_url,
+            "nPool": len(segs),
+            "segments": segs,
+        }
+
+    def full(self, seed: int, exclude: Optional[set] = None) -> dict:
+        """Full exposure-eligible bank for the frozen Precision profile.
+
+        Manifest order is retained exactly; per-domain browser candidates are
+        then stable-sorted by signal. Resume can reconstruct this payload from
+        only the exclusion list after verifying ``manifest_sha256``.
+        """
+        exclude = exclude or set()
+        segs = [seg for seg in self.segments if seg["segId"] not in exclude]
+        return {
+            **self.engine,
+            "bundleUrl": self.bundle_url,
+            "sampleSeed": seed,
             "nPool": len(segs),
             "segments": segs,
         }

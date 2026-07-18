@@ -8,6 +8,7 @@
 // empty base works there too.
 
 import type { SessionBank } from "./bundle";
+import type { TerminationPolicyName } from "../engine/types";
 import { Outbox, transportFetch, type TransportOpts } from "./transport";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
@@ -18,6 +19,7 @@ export interface StartSessionResult {
   sessionId: string;
   sampleSeed: number;
   bank: SessionBank;        // the server-drawn per-session question subset
+  terminationPolicy: TerminationPolicyName;
 }
 
 export interface ActiveSession {
@@ -454,6 +456,9 @@ export interface DashboardTask {
 // along untyped.
 export interface CertResult {
   verdicts?: string[];
+  terminationPolicy?: TerminationPolicyName;
+  domainStatuses?: string[];
+  determinations?: string[];
   roc?: Array<{ auroc?: number } | null>;
   [k: string]: unknown;
 }

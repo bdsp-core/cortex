@@ -38,10 +38,15 @@ export function cloneState(st: ParticleState): ParticleState {
     logLik: st.logLik.slice(),
     history: st.history.slice(),
     prior: st.prior,
+    ...(st.lastRejuvenation ? { lastRejuvenation: { ...st.lastRejuvenation } } : {}),
   };
 }
 
-// Reweight by the likelihood of (k, s, y); update history + logLik in place.
+export class PosteriorUpdateError extends Error {}
+
+// Reweight by the likelihood of (k, s, y). All derived fields are validated
+// before commit: a zero/non-finite update throws with the cloud byte-identical
+// to its pre-answer state. The old uniform-reset behavior was not fail-closed.
 export function update(
   st: ParticleState,
   k: number,
@@ -50,21 +55,46 @@ export function update(
   sSd = 0,
 ): void {
   const { N, K, t, l, w, logLik } = st;
+  if (y !== 0 && y !== 1) throw new Error(`binary response y must be 0 or 1, got ${y}`);
+  if (!Number.isFinite(s) || !Number.isFinite(sSd) || sSd < 0) {
+    throw new Error(`invalid signal parameters s=${s}, sSd=${sSd}`);
+  }
+  let oldSum = 0;
+  for (let n = 0; n < N; n++) {
+    if (!Number.isFinite(w[n]) || w[n] < 0) {
+      throw new PosteriorUpdateError("pre-update particle weights are invalid");
+    }
+    if (!Number.isFinite(logLik[n])) {
+      throw new PosteriorUpdateError("pre-update log likelihood is invalid");
+    }
+    oldSum += w[n];
+  }
+  if (!Number.isFinite(oldSum) || oldSum <= 0) {
+    throw new PosteriorUpdateError("pre-update particle weights are invalid");
+  }
+
+  const nextW = new Float64Array(N);
+  const nextLogLik = new Float64Array(N);
   let sumW = 0;
   for (let n = 0; n < N; n++) {
     const off = n * K + k;
     const z = signalZ(l[off], t[off], s, sSd);
     const lp = logPResponse(z, y);
-    logLik[n] += lp;
+    const ll = logLik[n] + lp;
     const nw = w[n] * Math.exp(lp);
-    w[n] = nw;
+    if (!Number.isFinite(lp) || !Number.isFinite(ll) || !Number.isFinite(nw)) {
+      throw new PosteriorUpdateError("posterior update has zero mass or non-finite values");
+    }
+    nextLogLik[n] = ll;
+    nextW[n] = nw;
     sumW += nw;
   }
-  if (sumW <= 0) {
-    w.fill(1 / N);
-  } else {
-    for (let n = 0; n < N; n++) w[n] /= sumW;
+  if (!Number.isFinite(sumW) || sumW <= 0) {
+    throw new PosteriorUpdateError("posterior update has zero mass or non-finite values");
   }
+  for (let n = 0; n < N; n++) nextW[n] /= sumW;
+  st.w = nextW;
+  st.logLik = nextLogLik;
   st.history.push({ k, s, y, sSd });
 }
 
@@ -100,10 +130,12 @@ export function resampleAndRejuvenate(
   rng: Rng,
   nMhSteps: number,
   proposalScale: number,
+  qIndex = -1,
 ): number {
   const { N, K } = st;
   // --- multinomial resample ---
   const idx = rng.resampleIndices(st.w, N);
+  const distinctAncestors = new Set(idx).size;
   const t2 = new Float64Array(N * K);
   const l2 = new Float64Array(N * K);
   const lp2 = new Float64Array(N);
@@ -179,7 +211,14 @@ export function resampleAndRejuvenate(
     }
     accepts.push(nAcc / N);
   }
-  return accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);
+  const acceptanceRate = accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);
+  st.lastRejuvenation = {
+    qIndex,
+    acceptanceRate,
+    distinctAncestors,
+    distinctAncestorFraction: distinctAncestors / N,
+  };
+  return acceptanceRate;
 }
 
 // weighted per-task posterior means + standard deviations (telemetry).

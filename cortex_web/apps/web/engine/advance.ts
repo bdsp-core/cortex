@@ -12,8 +12,13 @@
 import { EngineInputs, ParticleState, TrialDiag } from "./types";
 import { update, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
 import { aurocSummary } from "./auroc";
-import { BankArrays, chooseItem, chooseFirstItem, Chosen } from "./choose_item";
-import { AD6Policy, VERDICT } from "./policy";
+import {
+  BankArrays, chooseItem, chooseFirstItem, Chosen, sortBankBySignalStable,
+} from "./choose_item";
+import { EngineTerminationPolicy, VERDICT } from "./policy";
+import {
+  PRECISION_STATUS, PrecisionDiagnostics, PrecisionPolicy,
+} from "./precision_policy";
 import { Rng } from "./rng";
 
 // The full MUTABLE per-trial session state — everything the next item's
@@ -23,11 +28,11 @@ import { Rng } from "./rng";
 export interface SessionCore {
   state: ParticleState;
   rng: Rng;
-  policy: AD6Policy;
+  policy: EngineTerminationPolicy;
   remaining: Set<number>;
   nPerTask: number[];
   cappedTasks: Set<number>;
-  lastVerdicts: string[];
+  lastOutcomes: string[];
   lastTaskK: number;
   streakCount: number;
 }
@@ -45,6 +50,8 @@ export interface AdvanceParams {
   maxConsecutiveSameDomain: number;
   k7Spike: boolean;
   spikeIdx: number;
+  nSubsample?: number;
+  uncertaintyAwareSubsample?: boolean;
 }
 
 export interface AdvanceResult {
@@ -70,7 +77,7 @@ export function cloneCore(c: SessionCore): SessionCore {
     remaining: new Set(c.remaining),
     nPerTask: c.nPerTask.slice(),
     cappedTasks: new Set(c.cappedTasks),
-    lastVerdicts: c.lastVerdicts.slice(),
+    lastOutcomes: c.lastOutcomes.slice(),
     lastTaskK: c.lastTaskK,
     streakCount: c.streakCount,
   };
@@ -112,18 +119,76 @@ export function chooseNext(
   core: SessionCore, inputs: EngineInputs, params: AdvanceParams, trialIndex: number,
 ): Chosen {
   const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
-  const bank = bankArrays(inputs, core.remaining);
+  let bank = bankArrays(inputs, core.remaining);
+  const precisionPolicy = core.policy instanceof PrecisionPolicy ? core.policy : null;
+  if (precisionPolicy) {
+    bank = sortBankBySignalStable(bank);
+    bank = precisionPolicy.prepareCandidates(bank, core.nPerTask);
+    core.lastOutcomes = precisionPolicy.domainStatuses;
+
+    // Precision statuses are fresh-derived, not AD6 verdict locks. Match the
+    // controller's exact active-domain/variety semantics: phase A remains
+    // spike-only; in phase B, after five consecutive questions, another
+    // ACTIVE domain is preferred. If the last domain is the only ACTIVE one,
+    // an ESTIMATE_COMPLETE IIIC domain may absorb the variety question (and
+    // can consequently reopen). Sticky terminal domains and domains at cap
+    // are never revived.
+    const statuses = precisionPolicy.domainStatuses;
+    let allowed: number[];
+    const spikeActive = k7Spike
+      && statuses[spikeIdx] === PRECISION_STATUS.ACTIVE
+      && core.nPerTask[spikeIdx] < precisionPolicy.perDomainCap
+      && bank.sMean[spikeIdx].length > 0;
+    if (spikeActive) {
+      allowed = [spikeIdx];
+    } else {
+      const active = Array.from({ length: K }, (_, k) => k).filter(
+        (k) => statuses[k] === PRECISION_STATUS.ACTIVE
+          && core.nPerTask[k] < precisionPolicy.perDomainCap
+          && bank.sMean[k].length > 0,
+      );
+      allowed = active;
+      if (trialIndex > 0 && core.streakCount >= maxConsecutiveSameDomain
+          && active.includes(core.lastTaskK)) {
+        const others = active.filter((k) => k !== core.lastTaskK);
+        if (others.length) {
+          allowed = others;
+        } else {
+          const variety = Array.from({ length: K }, (_, k) => k).filter(
+            (k) => k >= 1 && k !== core.lastTaskK
+              && statuses[k] === PRECISION_STATUS.ESTIMATE_COMPLETE
+              && core.nPerTask[k] < precisionPolicy.perDomainCap
+              && bank.sMean[k].length > 0,
+          );
+          if (variety.length) allowed = variety;
+        }
+      }
+    }
+    const excluded = new Set<number>();
+    for (let k = 0; k < K; k++) if (!allowed.includes(k)) excluded.add(k);
+    return trialIndex === 0
+      ? chooseFirstItem(core.state, bank, firstItemTopN, core.rng, excluded, {
+          nSubsample: params.nSubsample,
+          uncertaintyAware: params.uncertaintyAwareSubsample,
+        })
+      : chooseItem(core.state, bank, excluded, {
+          nSubsample: params.nSubsample,
+          uncertaintyAware: params.uncertaintyAwareSubsample,
+        });
+  }
 
   // Hard exclusions — survive ALL fallbacks. RESOLVED tasks (verdict locked) +
   // CAPPED tasks (PENDING but spent their budget → REFER) are never reselected.
   const hardExcluded = new Set<number>();
   for (let k = 0; k < K; k++) {
-    if (core.lastVerdicts[k] !== VERDICT.PENDING || core.cappedTasks.has(k)) hardExcluded.add(k);
+    if (core.lastOutcomes[k] !== core.policy.activeLabel || core.cappedTasks.has(k)) {
+      hardExcluded.add(k);
+    }
   }
   // Phase exclusion (spike-first sectioning), layered on the hard floor.
   const phaseExcluded = new Set<number>(hardExcluded);
   if (k7Spike) {
-    const spikePending = core.lastVerdicts[spikeIdx] === VERDICT.PENDING;
+    const spikePending = core.lastOutcomes[spikeIdx] === core.policy.activeLabel;
     const spikeBankNonEmpty = bank.sMean[spikeIdx]?.length > 0;
     if (spikePending && spikeBankNonEmpty) {
       for (let k = 0; k < K; k++) if (k !== spikeIdx) phaseExcluded.add(k);
@@ -143,8 +208,14 @@ export function chooseNext(
 
   const pick = (ex: Set<number>): Chosen =>
     trialIndex === 0
-      ? chooseFirstItem(core.state, bank, firstItemTopN, core.rng, ex)
-      : chooseItem(core.state, bank, ex);
+      ? chooseFirstItem(core.state, bank, firstItemTopN, core.rng, ex, {
+          nSubsample: params.nSubsample,
+          uncertaintyAware: params.uncertaintyAwareSubsample,
+        })
+      : chooseItem(core.state, bank, ex, {
+          nSubsample: params.nSubsample,
+          uncertaintyAware: params.uncertaintyAwareSubsample,
+        });
   // Fallbacks: drop the variety cap, then phase — but NEVER revive a
   // resolved/capped task (hardExcluded is the floor).
   let chosen = pick(excluded);
@@ -165,23 +236,33 @@ export function advanceCore(
   update(state, chosen.k, chosen.s, y, chosen.sSd);
   let rejuv = false;
   if (ess(state.w) < params.essThresholdFrac * params.nParticles) {
-    resampleAndRejuvenate(state, rng, params.nMhSteps, params.proposalScale);
+    resampleAndRejuvenate(
+      state, rng, params.nMhSteps, params.proposalScale, trialIndex,
+    );
     rejuv = true;
   }
 
   core.remaining.delete(chosen.segId);
   core.nPerTask[chosen.k] += 1;
+  if (policy instanceof PrecisionPolicy) policy.recordAdministered(chosen.k, chosen.s);
   // Snapshot the (post-update) particle cloud for the visualization videos.
   const trajSnapshot = { t: state.t.slice(), l: state.l.slice(), w: state.w.slice() };
   // Variety-cap streak.
   if (chosen.k === core.lastTaskK) core.streakCount += 1;
   else { core.lastTaskK = chosen.k; core.streakCount = 1; }
 
-  const res = policy.evaluate(state, core.nPerTask);
-  core.lastVerdicts = res.verdicts;
-  for (let k = 0; k < params.K; k++) {
-    if (res.verdicts[k] === VERDICT.PENDING && core.nPerTask[k] >= params.perDomainCap) {
-      core.cappedTasks.add(k);
+  let telemetry: Record<string, unknown> | undefined;
+  if (policy instanceof PrecisionPolicy) {
+    const rawBank = sortBankBySignalStable(bankArrays(inputs, core.remaining));
+    telemetry = policy.bankTelemetry(rawBank, state.lastRejuvenation);
+  }
+  const res = policy.evaluate(state, core.nPerTask, telemetry);
+  core.lastOutcomes = res.selectionStates;
+  if (policy.name === "ad6") {
+    for (let k = 0; k < params.K; k++) {
+      if (res.verdicts[k] === VERDICT.PENDING && core.nPerTask[k] >= params.perDomainCap) {
+        core.cappedTasks.add(k);
+      }
     }
   }
   const { tMean, lMean } = posteriorMeans(state);
@@ -202,15 +283,34 @@ export function advanceCore(
     tMean,
     lMean,
     aurocHw: aurocSummary(state.l, state.w, state.N, params.K).hw,
+    terminationPolicy: res.policyName,
+    ...(res.domainStatuses ? { domainStatuses: res.domainStatuses } : {}),
+    ...(res.determinations ? { determinations: res.determinations } : {}),
+    ...(res.terminalReasons ? { terminalReasons: res.terminalReasons } : {}),
+    ...(res.streakCounts ? { precisionStreakCounts: res.streakCounts } : {}),
+    ...(state.lastRejuvenation ? { lastRejuvenation: { ...state.lastRejuvenation } } : {}),
   };
+  const pd = res.diagnostics as PrecisionDiagnostics | undefined;
+  if (pd) {
+    diag.skillIntervals = pd.skillIntervals.map((x) => [...x] as [number, number]);
+    diag.biasIntervals = pd.biasIntervals.map((x) => [...x] as [number, number]);
+    diag.skillPointCenteredRadius = pd.skillPointCenteredRadius.slice();
+    diag.skillPointCenteredRadiusMcse = pd.skillPointCenteredRadiusMcse.slice();
+    diag.guardedPrecisionStatistic = pd.guardedPrecisionStatistic.slice();
+    diag.skillTolerance = pd.skillTolerance.slice();
+  }
 
   // Adaptive stop: every task resolved OR capped-out (capped → REFER at
   // finalize). Subsumes AD6's all-resolved stop.
-  const done = res.verdicts.every((v, k) => v !== VERDICT.PENDING || core.cappedTasks.has(k));
+  const done = policy.name === "precision_v1"
+    ? res.stop
+    : res.verdicts.every((v, k) => v !== VERDICT.PENDING || core.cappedTasks.has(k));
   let stopReason = "";
   let nextChosen = NO_ITEM;
   if (done) {
-    stopReason = res.stop ? "all_resolved" : "resolved_or_referred";
+    stopReason = policy.name === "precision_v1"
+      ? res.stopReason
+      : res.stop ? "all_resolved" : "resolved_or_referred";
   } else {
     nextChosen = chooseNext(core, inputs, params, trialIndex + 1);
   }

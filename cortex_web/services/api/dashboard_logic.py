@@ -68,6 +68,16 @@ CANONICAL_TASKS = [
 ]
 
 
+def is_certified_verdict(value) -> bool:
+    """AD6 PASS and Precision's downstream ABOVE_CUT mean certified."""
+    return str(value or "").upper() in {"PASS", "ABOVE_CUT"}
+
+
+def is_below_standard_verdict(value) -> bool:
+    """Only a definite below-standard result revokes an existing badge."""
+    return str(value or "").upper() in {"FAIL", "BELOW_CUT"}
+
+
 def dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[dict]:
     """Per-task mastery summary derived from a real cert result. Reads the
     persisted `perTask` block (real ℓ/θ/ℓ*/AUROC + verdict) when present; for a
@@ -153,7 +163,7 @@ def dashboard_kpis(tasks: list[dict], last_assessed: Optional[str]) -> dict:
     certification and the natural next training target."""
     scored = [(float(t["auroc"]), str(t.get("label") or t.get("code") or ""))
               for t in tasks if isinstance(t.get("auroc"), (int, float))]
-    certified = sum(1 for t in tasks if str(t.get("verdict") or "").upper() == "PASS")
+    certified = sum(1 for t in tasks if is_certified_verdict(t.get("verdict")))
 
     def _domain(pair: tuple[float, str]) -> dict:
         return {"label": pair[1], "auroc": round(pair[0], 3)}

@@ -51,6 +51,18 @@ def tutorial_example(req: Request, _code: str = Depends(require_auth)):
 # new_session. A rolling window (not a calendar day) closes the
 # train-at-23:59, test-at-00:05 hole.
 WASHOUT_HOURS = 12
+AD6_POLICY = "ad6"
+PRECISION_POLICY = "precision_v1"
+
+
+def _termination_policy_for(db, cfg: dict, code: str) -> str:
+    """Server-authoritative account rollout; clients cannot request a policy."""
+    if cfg.get("precision_policy_rollout") != "email_allowlist":
+        return AD6_POLICY
+    participant = db.get_participant(code)
+    email = str((participant or {}).get("email") or "").strip().lower()
+    allowlist = cfg.get("precision_policy_emails") or frozenset()
+    return PRECISION_POLICY if email in allowlist else AD6_POLICY
 
 
 def _iso_plus_hours(iso: str, hours: int) -> str:
@@ -73,14 +85,19 @@ def _washout_reopens(db, code: str) -> str | None:
 
 @router.post("/session")
 def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)):
-    # Server-side balanced draw (goal 3): pick this sitting's ~session_sample
-    # questions from the full bank, excluding the participant's recently-seen
-    # segments (goal 5 spacing), and stamp the bundle version (provenance O3).
-    # The browser SMC engine runs over `bank.segments` exactly as before.
+    # AD6 keeps the server-side balanced ~session_sample draw. The account-
+    # scoped Precision pilot receives the full validated 35k candidate bank.
+    # Both exclude recently-seen segments and stamp exact provenance.
     db, cfg = req.app.state.db, req.app.state.cfg
-    bank = req.app.state.get_bank()
+    termination_policy = _termination_policy_for(db, cfg, code)
+    bank = (req.app.state.get_precision_bank()
+            if termination_policy == PRECISION_POLICY
+            else req.app.state.get_bank())
     if bank is None:
-        raise HTTPException(503, "question bank unavailable")
+        label = ("precision_v1 bank"
+                 if termination_policy == PRECISION_POLICY
+                 else "question bank")
+        raise HTTPException(503, f"{label} unavailable")
     reopens = _washout_reopens(db, code)
     if reopens is not None:
         # Machine-readable: the SPA turns this into the washout banner.
@@ -88,21 +105,40 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
             "error": "training_washout", "reopensAtUtc": reopens})
     seed = (body.sampleSeed if body.sampleSeed is not None
             else random.randint(0, 2**31 - 1))
-    exclude = db.get_exposure_exclusion(code, cfg["spacing_days"], cfg["spacing_sessions"])
-    drawn = bank.draw(seed, cfg["session_sample"], exclude)
+    exclude = db.get_exposure_exclusion(
+        code, cfg["spacing_days"], cfg["spacing_sessions"])
+    drawn = (bank.full(seed, exclude) if termination_policy == PRECISION_POLICY
+             else bank.draw(seed, cfg["session_sample"], exclude))
+    if termination_policy == PRECISION_POLICY:
+        required = ("corrT", "nParticles", "perDomainCap", "precisionBandEdges")
+        missing = [key for key in required if key not in drawn]
+        if missing:
+            raise HTTPException(
+                503, f"precision_v1 bundle profile incomplete: {','.join(missing)}")
+        if drawn["nParticles"] != 1200 or drawn["perDomainCap"] != 60:
+            raise HTTPException(503, "precision_v1 bundle profile mismatch")
+    drawn["terminationPolicy"] = termination_policy
     session_id = uuid.uuid4().hex
     # A fresh sitting retires any still-open one (at most one resumable
     # session per account; see GET /api/session/active).
     db.supersede_open_sessions(code)
-    # Persist the drawn candidate pool itself (a few KB of seg_ids): the
-    # seed alone does NOT reproduce it later, because the exposure
-    # exclusion is temporal — replaying the same seed after more sittings
-    # yields a different pool. This makes every session exactly replayable.
+    # AD6 persists the sampled ids. Precision persists the much smaller
+    # temporal exclusion list plus exact manifest hash; together they recreate
+    # the same full manifest-ordered candidate pool without storing 35k ids.
     db.create_session(session_id, code, body.participant, seed,
                       bundle_version=bank.version,
-                      drawn_seg_ids=json.dumps(
-                          [s["segId"] for s in drawn["segments"]]))
-    return {"sessionId": session_id, "sampleSeed": seed, "bank": drawn}
+                      drawn_seg_ids=(
+                          None if termination_policy == PRECISION_POLICY
+                          else json.dumps([s["segId"] for s in drawn["segments"]])),
+                      termination_policy=termination_policy,
+                      candidate_exclusion=(
+                          json.dumps(sorted(exclude))
+                          if termination_policy == PRECISION_POLICY else None),
+                      candidate_bank_sha256=(
+                          bank.manifest_sha256
+                          if termination_policy == PRECISION_POLICY else None))
+    return {"sessionId": session_id, "sampleSeed": seed,
+            "terminationPolicy": termination_policy, "bank": drawn}
 
 
 # Sessions older than this aren't offered for resume — the participant's
@@ -123,7 +159,7 @@ def _replay_prefix(trials: list[dict]) -> list[dict]:
     return replay
 
 
-def session_status(db, bank, code: str) -> dict:
+def session_status(db, bank, code: str, precision_bank_getter=None) -> dict:
     """Light resume/washout status for the dashboard bootstrap: the CTA labels
     need two facts, not the drawn-pool payload GET /api/session/active carries
     (hundreds of KB). Mirrors that endpoint's checks EXCEPT the bank-subset
@@ -133,9 +169,16 @@ def session_status(db, bank, code: str) -> dict:
     washout = {"reopensAtUtc": reopens} if reopens else None
     resumable = False
     row = db.get_active_session(code, max_age_hours=RESUME_WINDOW_HOURS)
+    if row and row.get("termination_policy") == PRECISION_POLICY:
+        bank = precision_bank_getter() if precision_bank_getter else None
+    candidate_replayable = bool(row and (
+        (row.get("termination_policy") == PRECISION_POLICY
+         and row.get("candidate_exclusion") is not None
+         and row.get("candidate_bank_sha256") == bank.manifest_sha256)
+        or row.get("drawn_seg_ids"))) if bank is not None else False
     if (row is not None and bank is not None
             and row.get("bundle_version") == bank.version
-            and row.get("drawn_seg_ids")):
+            and candidate_replayable):
         resumable = bool(_replay_prefix(db.session_trials(row["session_id"])))
     return {"examResumable": resumable, "washout": washout}
 
@@ -144,23 +187,35 @@ def session_status(db, bank, code: str) -> dict:
 def active_session(req: Request, code: str = Depends(require_auth)):
     """The participant's most recent resumable sitting: its exact drawn pool
     plus the logged trials — powers mid-test resume after a refresh/crash.
-    Replay contract: the pool is returned verbatim in original draw order
-    (sessions.drawn_seg_ids), the engine seed re-derives from the stored
-    sample_seed (client uses `web-${sampleSeed}`), so feeding the logged
+    Replay contract: AD6 returns sessions.drawn_seg_ids verbatim; Precision
+    reconstructs manifest order from candidate_exclusion after a hash match.
+    The engine seed re-derives from stored sample_seed, so feeding the logged
     picks back through the engine reconstructs its exact state. Returns
     {"active": null} when there is nothing (or nothing safe) to resume:
     no open sitting, sitting too old, bundle version changed, no trials yet,
     or a hole in the trial log."""
     db = req.app.state.db
-    bank = req.app.state.get_bank()
     reopens = _washout_reopens(db, code)
     washout = {"reopensAtUtc": reopens} if reopens else None
     row = db.get_active_session(code, max_age_hours=RESUME_WINDOW_HOURS)
+    bank = (req.app.state.get_precision_bank()
+            if row and row.get("termination_policy") == PRECISION_POLICY
+            else req.app.state.get_bank())
     if row is None or bank is None:
         return {"active": None, "washout": washout}
-    if row.get("bundle_version") != bank.version or not row.get("drawn_seg_ids"):
+    if row.get("bundle_version") != bank.version:
         return {"active": None, "washout": washout}
-    payload = bank.subset(json.loads(row["drawn_seg_ids"]))
+    if row.get("termination_policy") == PRECISION_POLICY:
+        if (row.get("candidate_exclusion") is None
+                or row.get("candidate_bank_sha256") != bank.manifest_sha256):
+            return {"active": None, "washout": washout}
+        payload = bank.full(
+            int(row.get("sample_seed") or 0),
+            set(json.loads(row["candidate_exclusion"])))
+    else:
+        if not row.get("drawn_seg_ids"):
+            return {"active": None, "washout": washout}
+        payload = bank.subset(json.loads(row["drawn_seg_ids"]))
     if payload is None:
         return {"active": None, "washout": washout}
     replay = _replay_prefix(db.session_trials(row["session_id"]))
@@ -168,6 +223,7 @@ def active_session(req: Request, code: str = Depends(require_auth)):
         # nothing checkpointed: a fresh start is equal
         return {"active": None, "washout": washout}
     payload["sampleSeed"] = row.get("sample_seed")
+    payload["terminationPolicy"] = row.get("termination_policy") or AD6_POLICY
     return {"active": {
         "sessionId": row["session_id"],
         "startedUtc": row["started_utc"],
@@ -192,6 +248,10 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
     sess = db.get_session(body.sessionId)
     if sess is None or sess["code"] != code:
         raise HTTPException(404, "unknown session")
+    expected_policy = sess.get("termination_policy") or AD6_POLICY
+    reported_policy = body.result.get("terminationPolicy") or AD6_POLICY
+    if reported_policy != expected_policy:
+        raise HTTPException(409, "termination policy does not match session stamp")
     # Derive the EVAL operating points (ℓ/θ/σ + median RT per task) BEFORE
     # writing, then store-result + finalize-session + trajectory-replace land
     # as ONE transaction — no half-finalized session can survive a crash

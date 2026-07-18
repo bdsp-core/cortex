@@ -271,7 +271,7 @@ def regimen_create(req: Request, code: str = Depends(require_auth)):
             "new": 0, "learning": 0, "due": 0,
         }
         for t in tasks
-        if str(t.get("verdict") or "").upper() != "PASS"
+        if not dashboard_logic.is_certified_verdict(t.get("verdict"))
     ]
     # Real-skill handoff: the learner's MEASURED per-task posterior (ALL 7 tasks,
     # engine coords ℓ/θ + the ℓ posterior SD from the cert `perTask` block, which
