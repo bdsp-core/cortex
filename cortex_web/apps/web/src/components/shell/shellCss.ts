@@ -304,7 +304,7 @@ td.ellcell .of{color:var(--ink-faint);}
 .cx-q-scroll{max-height:min(60vh,520px);overflow:auto;
   border:1px solid var(--bd-subtle);border-radius:var(--radius-ctl);background:var(--panel);
   -webkit-overflow-scrolling:touch;}
-.cx-q-table{width:100%;min-width:660px;border-collapse:collapse;font-size:12.5px;}
+.cx-q-table{width:100%;min-width:520px;border-collapse:collapse;font-size:12.5px;}
 .cx-q-table th,.cx-q-table td{padding:6px 10px;text-align:left;white-space:nowrap;
   border-bottom:1px solid var(--bd-subtle);}
 .cx-q-table th{position:sticky;top:0;z-index:1;background:var(--panel);font-weight:600;

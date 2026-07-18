@@ -239,14 +239,12 @@ def _truth_map_for(version: Optional[str] = None,
 
 def question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
     """Per-question rows for one session: the examinee's answer, the correct
-    answer (spike → s>0; IIIC → segment class == task word), reaction time, the
-    per-question contribution to skill-parameter uncertainty (ΔR, the increment
-    in normalized info gain for the targeted domain), and the running posterior
-    (ℓ/θ), pass-mass π, and cumulative R. Reconstructed from the stored diag, so
-    legacy sessions work too."""
+    answer (spike → s>0; IIIC → segment class == task word), reaction time,
+    and the running posterior (ℓ/θ). Reconstructed from the stored diag, so
+    legacy sessions work too. Internal diagnostics such as R and π remain in the
+    stored trial record but are deliberately excluded from this participant view."""
     seg, words, classes, labels = (truth["seg"], truth["words"],
                                    truth["classes"], truth["labels"])
-    prev_R: dict[int, float] = {}
     out = []
     for row in trials:
         diag = row.get("diag")
@@ -289,11 +287,6 @@ def question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
                 correct = labels[ci] if (ci is not None and ci < len(labels)) else pc.upper()
             if pick is not None and 0 <= pick < len(words) and pc is not None:
                 is_correct = (words[pick] == pc)
-        R_k = _at("R", k)
-        d_R = None
-        if R_k is not None and k is not None:
-            d_R = max(0.0, R_k - prev_R.get(k, 0.0))
-            prev_R[k] = R_k
         out.append({
             "q": (row.get("trial_index", 0) or 0) + 1,
             "taskK": k,
@@ -304,9 +297,6 @@ def question_breakdown(trials: list[dict], truth: dict) -> list[dict]:
             "correct": correct,
             "isCorrect": is_correct,
             "rt": row.get("reaction_ms"),
-            "deltaR": d_R,
-            "R": R_k,
-            "pi": _at("pi", k),
             "ell": _at("lMean", k),
             "theta": _at("tMean", k),
         })

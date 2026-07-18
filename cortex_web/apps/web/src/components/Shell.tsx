@@ -892,7 +892,7 @@ function HistorySurface() {
 // Scrollable, responsive per-question table for one certification attempt.
 // Up to ~500 rows; the scroll container caps height and handles narrow widths
 // via horizontal scroll (the table keeps a min-width so columns never crush).
-function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
+export function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
   if (!rows.length) {
     return <div className="cx-placeholder">No per-question data for this attempt.</div>;
   }
@@ -907,10 +907,7 @@ function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
             <th>Your answer</th>
             <th>Correct</th>
             <th className="r">RT</th>
-            <th className="r" title="This question's contribution to skill-parameter certainty (Δ normalized info gain)">Δ info</th>
             <th className="r">ℓ / θ</th>
-            <th className="r" title="Pass-mass P(ℓ > ℓ*)">π</th>
-            <th className="r" title="Cumulative info gain">R</th>
           </tr>
         </thead>
         <tbody>
@@ -923,10 +920,7 @@ function QuestionTable({ rows }: { rows: api.QuestionRow[] }) {
               </td>
               <td>{q.correct ?? "—"}</td>
               <td className="r mono">{q.rt === null ? "—" : (q.rt / 1000).toFixed(1) + "s"}</td>
-              <td className="r mono">{num(q.deltaR, 3)}</td>
               <td className="r mono">{num(q.ell)} / {num(q.theta)}</td>
-              <td className="r mono">{num(q.pi)}</td>
-              <td className="r mono">{num(q.R, 3)}</td>
             </tr>
           ))}
         </tbody>

@@ -1257,14 +1257,14 @@ def _diag(k, y, s, R, pi=0.5, ell=0.3, theta=-0.1):
 def test_question_breakdown_pure():
     from .dashboard_logic import question_breakdown as _question_breakdown
     trials = [
-        # spike, said YES, s>0 → correct; ΔR from 0 → 0.2
+        # spike, said YES, s>0 → correct
         {"trial_index": 0, "seg_id": 50, "task_k": 0, "pick": 0, "reaction_ms": 1500,
          "diag": _diag(0, 1, 0.8, 0.2, pi=0.6, ell=0.5, theta=0.1)},
-        # IIIC: chose LPD (pick=2) on seg100 (truth lpd) → correct; ΔR 0→0.3
+        # IIIC: chose LPD (pick=2) on seg100 (truth lpd) → correct
         {"trial_index": 1, "seg_id": 100, "task_k": 2, "pick": 2, "reaction_ms": 2000,
          "diag": _diag(2, 1, 0.0, 0.3)},
         # IIIC: chose LPD (pick=2) on seg200 (truth GPD) → INCORRECT; the user's
-        # example: answer "LPD", correct "GPD". ΔR 0.3→0.5 = 0.2 (same domain).
+        # example: answer "LPD", correct "GPD".
         {"trial_index": 2, "seg_id": 200, "task_k": 2, "pick": 2, "reaction_ms": 1800,
          "diag": _diag(2, 0, 0.0, 0.5)},
     ]
@@ -1273,11 +1273,12 @@ def test_question_breakdown_pure():
     assert rows[0]["q"] == 1 and rows[0]["domain"] == "Spike"
     assert rows[1]["domain"] == "IIIC" and rows[2]["domain"] == "IIIC"
     assert rows[0]["answer"] == "Yes" and rows[0]["correct"] == "Yes" and rows[0]["isCorrect"] is True
-    assert rows[0]["deltaR"] == 0.2 and rows[0]["pi"] == 0.6 and rows[0]["ell"] == 0.5
+    assert rows[0]["ell"] == 0.5 and rows[0]["theta"] == 0.1
     assert rows[1]["answer"] == "LPD" and rows[1]["correct"] == "LPD" and rows[1]["isCorrect"] is True
-    assert rows[1]["deltaR"] == 0.3
     assert rows[2]["answer"] == "LPD" and rows[2]["correct"] == "GPD" and rows[2]["isCorrect"] is False
-    assert abs(rows[2]["deltaR"] - 0.2) < 1e-9   # cumulative-R delta on same domain
+    # R and π still exist in the internal trial diagnostics used above, but no
+    # AD6-only diagnostic is projected into the participant-facing response.
+    assert all({"deltaR", "R", "pi"}.isdisjoint(row) for row in rows)
 
 
 def test_history_questions_endpoint(client, monkeypatch):
@@ -1301,6 +1302,13 @@ def test_history_questions_endpoint(client, monkeypatch):
     assert q0["domain"] == "Spike" and q0["answer"] == "Yes" and q0["isCorrect"] is True and q0["rt"] == 1500
     assert q1["answer"] == "No" and q1["correct"] == "No" and q1["isCorrect"] is True
     assert q2["domain"] == "IIIC" and q2["answer"] == "LPD" and q2["correct"] == "GPD" and q2["isCorrect"] is False
+    assert all({"deltaR", "R", "pi"}.isdisjoint(q) for q in r["questions"])
+
+    # Preserve the full diagnostics internally for AD6 rollback and audit.
+    stored_diag = client.app.state.db.session_trials(sid)[0]["diag"]
+    if isinstance(stored_diag, str):
+        stored_diag = json.loads(stored_diag)
+    assert "R" in stored_diag and "pi" in stored_diag
 
     # auth-scoped: another participant cannot read this session's questions
     e2, p2 = _make_participant(client)

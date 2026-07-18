@@ -536,9 +536,6 @@ export interface QuestionRow {
   correct: string | null;    // correct answer: "Yes"/"No" (spike) or true pattern (IIIC)
   isCorrect: boolean | null; // answer matched the correct answer
   rt: number | null;         // reaction time, ms
-  deltaR: number | null;     // per-question Δ info gain for the domain
-  R: number | null;          // cumulative info gain (R)
-  pi: number | null;         // pass-mass P(ℓ>ℓ*)
   ell: number | null;        // running skill ℓ
   theta: number | null;      // running bias θ
 }
