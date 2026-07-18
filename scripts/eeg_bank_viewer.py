@@ -3156,8 +3156,10 @@ def main():
         # tests/test_cortex_viewer.py::test_main_open_viewer_uses_k7_engine_inputs.
         from cortex_engine_inputs_k7 import build_k7_engine_inputs
         from session_controller import (
-            SessionController, N_PARTICLES, MAX_QUESTIONS_DEFAULT,
+            SessionController, N_PARTICLES,
             MAX_CONSEC_SAME_DOMAIN_DEFAULT, EXTENDED_DATA_COLLECTION_DEFAULT)
+        from cortex_policy_k7 import (
+            PRECISION_POLICY_NAME, resolve_termination_policy_name)
         from cortex_storage import SessionRecorder
         inputs = build_k7_engine_inputs()
         # Reserve one IIIC segment for the tutorial and exclude it from the
@@ -3177,20 +3179,20 @@ def main():
         else:
             tutorial_sid = inputs.all_seg_ids[0]
         engine_inputs = inputs.without([tutorial_sid])
-        # v1.1.0: hard cap at MAX_QUESTIONS_DEFAULT — keeps the live-test
-        # runway decoupled from bank size so future bank growth doesn't
-        # implicitly lengthen the test. capture_clouds=True so the session
-        # writes trajectory.npz.
+        selected_policy = resolve_termination_policy_name()
+        # The policy/controller now owns termination. AD6 and Precision both
+        # enforce 60 questions per domain; K=7 is therefore bounded by 420
+        # without a separate global-question constant.
         controller = SessionController(
             engine_inputs, reg.session_id,
             capture_clouds=True,
-            max_questions=MAX_QUESTIONS_DEFAULT,
             # v1.3.5: break up long single-domain runs (sim-validated cap=12).
             max_consecutive_same_domain=MAX_CONSEC_SAME_DOMAIN_DEFAULT,
-            # Lab internal-test release: keep asking past the would-have-stopped
-            # point (to MAX_QUESTIONS_DEFAULT) for retrospective threshold
-            # recalibration. OFFICIAL result stays frozen at the v1.4.0 stop.
-            extended_data_collection=EXTENDED_DATA_COLLECTION_DEFAULT)
+            # Historical AD6 collection can continue past its decision; the
+            # frozen Precision profile explicitly forbids that mode.
+            extended_data_collection=(
+                EXTENDED_DATA_COLLECTION_DEFAULT
+                if selected_policy != PRECISION_POLICY_NAME else False))
         # Record which termination policy actually drives this session —
         # AD6Policy in production, DeltaStopPolicy / NoStopPolicy on the
         # legacy/audit paths — so participant.json reflects what stopped
@@ -3206,8 +3208,9 @@ def main():
             {"n_iiic_segments": len(engine_inputs.all_seg_ids),
              "policy": type(controller.session.policy).__name__,
              "n_particles": N_PARTICLES,
-             "max_questions": MAX_QUESTIONS_DEFAULT,
-             "extended_data_collection": EXTENDED_DATA_COLLECTION_DEFAULT,
+             "per_domain_cap": controller.session.per_domain_cap,
+             "max_questions": controller.session.max_questions,
+             "extended_data_collection": controller.session._extended,
              "tutorial_seg_id": int(tutorial_sid)},
             render_videos=is_opt_in_for_visualizations(reg.registration))
         win = BankViewer(controller, reg.session_id, tutorial_sid, recorder)

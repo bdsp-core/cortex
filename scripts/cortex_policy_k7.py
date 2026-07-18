@@ -16,14 +16,12 @@ The K=7-specific changes:
     ell_star + Var_prior (the diagonal of the K=7 Corr_l from
     Sigma_l_fitted_k7.npy).
 
-Cut-block default: `ell_star_unified_v15` (2026-07-16 decision — v15 is the
-updated metric set, matching the served web bundles). v15 resolves from the
-sibling `calibration/cert_config_v15.yaml`; the frozen `cert_config.yaml`
-stays bit-identical. Explicit `block_name=` still reaches v14/v13 for
-historical replay.
+The isolated full-session reference now defaults to the served v15 block;
+explicit callers may still request v14/v13 for historical replay.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -41,10 +39,23 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from cortex_policy import (  # noqa: E402  re-export
-    AD6Policy, DeltaStopPolicy, NoStopPolicy, StopDecision, TerminationPolicy,
+    AD6Policy, PrecisionPolicy, DeltaStopPolicy, NoStopPolicy, StopDecision,
+    TerminationPolicy,
     PASS, FAIL, PENDING, REFER_BORDERLINE, REFER_UNINFORMATIVE,
+    ACTIVE, ESTIMATE_COMPLETE, UNDETERMINABLE_CAP, UNDETERMINABLE_BANK,
+    DETERMINED, ABOVE_CUT, BELOW_CUT, INDETERMINATE_AT_CUT,
+    classify_interval_against_cut,
     DEFAULT_N_MIN, DEFAULT_R_STAR, DEFAULT_ALPHA, DEFAULT_Z,
 )
+from precision_policy import (  # noqa: E402
+    FROZEN_PRECISION_PROFILE,
+    build_frozen_precision_policy,
+)
+
+TERMINATION_POLICY_ENV = "CORTEX_TERMINATION_POLICY"
+AD6_POLICY_NAME = "ad6"
+PRECISION_POLICY_NAME = FROZEN_PRECISION_PROFILE.name
+_SUPPORTED_POLICY_NAMES = (AD6_POLICY_NAME, PRECISION_POLICY_NAME)
 
 # K=7 task code → cert_config v13/v14 YAML key. v14 keeps v13 names verbatim
 # per Eli's Q2 choice.
@@ -61,13 +72,12 @@ _KEY_FOR_CODE_K7 = {
 
 def load_ell_star_k7(task_codes, config_path=None,
                      block_name: str = "ell_star_unified_v15") -> list:
-    """Load the Youden ℓ\*_k for K=7 (spike + 6 IIIC) from cert_config.
+    """Load the Youden ℓ*_k for K=7 (spike + 6 IIIC) from cert_config.
 
     Returns a list aligned to `task_codes`. Default block is
-    `ell_star_unified_v15` (the updated metric set, 2026-07-16 decision;
-    resolves from the sibling cert_config_v15.yaml so the frozen main file
-    stays bit-identical). Callers can pass `block_name=
-    'ell_star_unified_v14'` / `'..._v13'` explicitly for historical replay.
+    `ell_star_unified_v15` (the updated metric set, 2026-07-16 decision —
+    loader and policy-builder defaults now agree). Callers can request
+    v14/v13 explicitly for historical replay.
     """
     import yaml
     path = Path(config_path) if config_path else (
@@ -135,10 +145,43 @@ def default_policy_for_k7(inputs, *, delta_auroc=None,
     return DeltaStopPolicy(float(delta_auroc))
 
 
+def resolve_termination_policy_name(value: str | None = None) -> str:
+    """Resolve the local integration flag, defaulting safely to AD6."""
+
+    selected = os.environ.get(TERMINATION_POLICY_ENV, AD6_POLICY_NAME)
+    if value is not None:
+        selected = value
+    selected = str(selected).strip().lower()
+    if selected not in _SUPPORTED_POLICY_NAMES:
+        raise ValueError(
+            f"{TERMINATION_POLICY_ENV} must be one of "
+            f"{_SUPPORTED_POLICY_NAMES}, got {selected!r}"
+        )
+    return selected
+
+
+def policy_for_name_k7(inputs, name: str):
+    """Build one named policy; used by the explicit local session factory."""
+
+    selected = resolve_termination_policy_name(name)
+    if selected == PRECISION_POLICY_NAME:
+        return build_frozen_precision_policy(inputs)
+    ell_star = load_ell_star_k7(inputs.task_codes)
+    var_prior = list(np.diag(np.asarray(inputs.Corr_l, dtype=float)))
+    return AD6Policy(ell_star, var_prior)
+
+
 __all__ = [
-    "AD6Policy", "DeltaStopPolicy", "NoStopPolicy", "StopDecision",
+    "AD6Policy", "PrecisionPolicy", "DeltaStopPolicy", "NoStopPolicy",
+    "StopDecision",
     "TerminationPolicy",
     "PASS", "FAIL", "PENDING", "REFER_BORDERLINE", "REFER_UNINFORMATIVE",
+    "ACTIVE", "ESTIMATE_COMPLETE", "UNDETERMINABLE_CAP",
+    "UNDETERMINABLE_BANK", "DETERMINED", "ABOVE_CUT", "BELOW_CUT",
+    "INDETERMINATE_AT_CUT", "classify_interval_against_cut",
     "DEFAULT_N_MIN", "DEFAULT_R_STAR", "DEFAULT_ALPHA", "DEFAULT_Z",
+    "FROZEN_PRECISION_PROFILE", "build_frozen_precision_policy",
+    "TERMINATION_POLICY_ENV", "AD6_POLICY_NAME", "PRECISION_POLICY_NAME",
+    "resolve_termination_policy_name", "policy_for_name_k7",
     "load_ell_star_k7", "default_policy_for_k7",
 ]

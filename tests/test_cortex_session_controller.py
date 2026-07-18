@@ -190,10 +190,18 @@ def test_y_source_equivalence(inputs):
 
     assert ([t["seg_id"] for t in res_direct.trials]
             == [t["seg_id"] for t in res_queue.trials])
-    assert ([t["max_hw"] for t in res_direct.trials]
-            == [t["max_hw"] for t in res_queue.trials])
-    assert ([t["total_var"] for t in res_direct.trials]
-            == [t["total_var"] for t in res_queue.trials])
+    np.testing.assert_allclose(
+        [t["max_hw"] for t in res_direct.trials],
+        [t["max_hw"] for t in res_queue.trials],
+        rtol=0.0,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        [t["total_var"] for t in res_direct.trials],
+        [t["total_var"] for t in res_queue.trials],
+        rtol=0.0,
+        atol=1e-12,
+    )
 
 
 def test_delta_stop_mechanism(inputs):

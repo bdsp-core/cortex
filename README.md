@@ -3,6 +3,12 @@
 
 **An adaptive Bayesian test that measures how well a clinician reads an EEG, and stops the moment it knows the answer.**
 
+The current Python stopping-policy layout is documented in
+[`POLICY_LAYOUT.md`](POLICY_LAYOUT.md). AD6 remains the default and rollback
+policy; the frozen cut-independent PrecisionPolicy is available through the
+local `precision_v1` integration flag. The TypeScript web port is a separate,
+not-yet-started phase.
+
 Reading an electroencephalogram is a high stakes judgment call. Is this run
 of sharp waves a seizure or a benign rhythm? Two board certified
 neurologists can look at the same tracing and disagree, and that

@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "cortex_web_python_reference_v6",
+  "copyPolicy": "independent integration copy plus hash-pinned sibling policy packages; authorized Python implementation changes are synchronized to the primary local algorithm; cortex_web remains unchanged",
+  "sourceWorkspace": "..",
+  "files": {
+    "engine/core_mcmc.py": {
+      "source": "engine/core_mcmc.py",
+      "sha256": "23caeb222098a7d6e87221a5ca65972b7f2bda02260ad61b2df2da17061458b8",
+      "sourceSha256": "23caeb222098a7d6e87221a5ca65972b7f2bda02260ad61b2df2da17061458b8",
+      "change": "Authorized local implementation: posterior updates fail transactionally on zero/non-finite mass, resampling records acceptance/ancestry diagnostics, and the frozen Precision session can select with the deterministic uncertainty-aware coarse-to-fine path."
+    },
+    "engine/auroc.py": {
+      "source": "engine/auroc.py",
+      "sha256": "59b79697b9beff3a7e97bdbbc42d29f6043a6efcf8fcf31b8a615aa2b9d8f7d7"
+    },
+    "scripts/cortex_policy.py": {
+      "source": "scripts/cortex_policy.py",
+      "sha256": "80922d4c7d7b377a77849d5f126aaf5da05b911c0087d672b933f5ebe3b47588",
+      "sourceSha256": "80922d4c7d7b377a77849d5f126aaf5da05b911c0087d672b933f5ebe3b47588",
+      "change": "Compatibility facade for the standalone AD6 and PrecisionPolicy packages. AD6 configuration loading and legacy policy adapters remain here; concrete stopping math has one canonical package copy."
+    },
+    "scripts/cortex_policy_k7.py": {
+      "source": "scripts/cortex_policy_k7.py",
+      "sha256": "24133a143b44885fd44e2b929767a46b92998b9d917cb696e39b4ea519da325e",
+      "sourceSha256": "24133a143b44885fd44e2b929767a46b92998b9d917cb696e39b4ea519da325e",
+      "change": "K=7 registry with the default-ad6/precision_v1 name resolver, fail-closed environment flag validation, frozen Precision factory, and served v15 AD6 cut loader."
+    },
+    "scripts/cortex_engine_inputs_k7.py": {
+      "source": "scripts/cortex_engine_inputs_k7.py",
+      "sha256": "ee2b6c08ba4bc72f4f629f6c3c60df54d5c90bee5d0286d96d1f5b19ec3c0933",
+      "sourceSha256": "ee2b6c08ba4bc72f4f629f6c3c60df54d5c90bee5d0286d96d1f5b19ec3c0933",
+      "change": "Adds a hash-pinned, read-only loader for the exact 35,193-segment served calibration manifest with stable per-domain signal ordering and preserves the 700-segment parity fixture path."
+    },
+    "scripts/session_controller.py": {
+      "source": "scripts/session_controller.py",
+      "sha256": "e097bb2354d6f0e2ee32f5a706f56e0bfaba7c4ee8ba93ddfc6b27a8b371c675",
+      "sourceSha256": "e097bb2354d6f0e2ee32f5a706f56e0bfaba7c4ee8ba93ddfc6b27a8b371c675",
+      "change": "Local controller integration for both packaged policies, complete frozen Precision session profile, Corr_t requirement, fail-closed updates, fresh status flow, trial-0 bank feasibility, and 60/domain cap ordering. AD6 is still the default."
+    },
+    "Sigma_l_fitted_k7.npy": {
+      "source": "Sigma_l_fitted_k7.npy",
+      "sha256": "d4411a0793572c20b5856f09bf4683502b08dc2bd1d6c0723ea9cc2566b71f7d"
+    },
+    "calibration/cert_config.yaml": {
+      "source": "calibration/cert_config.yaml",
+      "sha256": "ea6098d4d64cb2365600c56988ba6cc4737e858e5c8cc4e4b8742809e63ae9b8"
+    },
+    "calibration/cert_config_v15.yaml": {
+      "source": "calibration/cert_config_v15.yaml",
+      "sha256": "9d4d604353b105fc4d88c84aca8770404fd2dbbb10f56ca90ad6bbc9257a194d"
+    },
+    "data/labels/segment_signals.csv": {
+      "source": "data/labels/segment_signals.csv",
+      "sha256": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5"
+    },
+    "data/eeg_bank.h5": {
+      "source": "data/eeg_bank.h5",
+      "sha256": "42cd334552750844104edb2e7fff7f18862aa9379dfc22889a03e3ad7bebe061"
+    },
+    "cortex_web/apps/web/scripts/prepare_web_bundle.py": {
+      "source": "cortex_web/apps/web/scripts/prepare_web_bundle.py",
+      "sha256": "0c7c1164137ea9fb881193f805a5d74b834e2d4e419909ff3e966447f78e529a"
+    },
+    "cortex_web/apps/web/public/bundle/v1.6-k7-35k/manifest.json": {
+      "source": "cortex_web/apps/web/public/bundle/v1.6-k7-35k/manifest.json",
+      "sha256": "c3ce43b5639bb1a5e15b2c014246c5f4e6916bcb3284d10aaebf1d253e8811fa"
+    },
+    "cortex_web/apps/web/engine/__testdata__/reference.json": {
+      "source": "cortex_web/apps/web/engine/__testdata__/reference.json",
+      "sha256": "b996548afc3c09a0d3dd906d160286306ae300a3f379f2a579433ef871597ea7"
+    }
+  },
+  "policyPackages": {
+    "contract": "termination-policy/src/cortex_termination_policy/contract.py",
+    "ad6": "ad6-policy/src/ad6_policy/policy.py",
+    "precision": "precision-policy/src/precision_policy/policy.py",
+    "files": {
+      "termination-policy/src/cortex_termination_policy/contract.py": "e3255982fde8e83211dcef07fa7e45e6dddd2b03ed5428afda72ddc1a5f10941",
+      "ad6-policy/src/ad6_policy/policy.py": "0b82700831868fa4359b8dea95ac933b6d72788b4bc55a530e40825575728cc5",
+      "precision-policy/src/precision_policy/policy.py": "e25a3197ef7c957017fde53ad7f2fda2c6eb7a983891754bb507291f431a69d7",
+      "precision-policy/src/precision_policy/profile.py": "fde00c8276cd6701c20b8bdbaacc32aaf9b49164a02f9a580cab3fac86275d89",
+      "precision-policy/src/precision_policy/reporting.py": "036979fd3edd35a23221f5079851845077fd98c28055a5b0fb0c708951610398"
+    }
+  },
+  "compactOvernightProtocol": {
+    "status": "pricing_halt_both_families_failed",
+    "protocol": "calibration/ad6_replacement_overnight/00_protocol/OVERNIGHT_PROTOCOL.md",
+    "protocolSha256": "98d10aac747ca2337d2ae8f9b9aa4f50a4fd10b8c8abc5ee470f33fb7419a66f",
+    "runner": "calibration/run_ad6_replacement_overnight.py",
+    "runnerSha256": "ee8a6f34fff966ac851b24f105b628a7dd2c426aed76e817b529943160551fac",
+    "testSha256": "cc411055927455748e958f2da4ca2a80f03f75cbd21ea3085f7b0ca44a14009e",
+    "runManifest": "calibration/ad6_replacement_overnight/RUN_MANIFEST.json",
+    "runManifestSha256": "dc70e6e2927a40535fb0db9f4036beb825ebc3d8b8d5a1297390c11fb803fe7a",
+    "pricingArtifactsSha256": {
+      "candidates.json": "d693418a65a4d35f4cf28479f0bba8441e295f3e33e639cd69cddd65634e2023",
+      "trajectory_price_rows.csv": "5146ac1c01a75a5c170e0c61b2348bb1a95b2b97410fd90fd1b7083729338db2",
+      "summary.json": "e4e6847b114ad6c222c9ffb3f86927b01a7f72b692412c38767d9309dc3dcecd",
+      "PRICING_REPORT.md": "23dd2289f0e0c255421e14eb6b6a61b09d539d3e55fbb8629ffb0d2a220c4ec2",
+      "PRICING_HALT.md": "c0e51a878c28cf2ba59c08aaf148b4c199a02bd12fb4f6c62f1638d8196a994a",
+      "PRICING_DIAGNOSIS.md": "08cb6249833072d7d1bea84b1d605161aa6b9045a858b77aee2c4a86795dad2b"
+    },
+    "r1SeedsConsumed": false,
+    "r2SeedsConsumed": false
+  },
+  "calibrationEvidence": {
+    "status": "development_closed_extreme_skill_undercoverage_accepted_disclosed",
+    "candidate": "calibration/precision_policy_vnext_candidate.json",
+    "candidateSha256": "a6deaed5f4eb87dcbe1b769dbea43ada853dd4e01dc7d23f47c3c2478a73d111",
+    "frontierRunsVerified": 840,
+    "composedReaders": 100,
+    "factorialStoppingReaders": 270,
+    "factorialStoppingOutcome": "gross_tail_undercoverage_observed",
+    "lockedCampaignBlockedOnTailCalibration": true,
+    "limitationAcceptedWithoutCalibrationRepair": true,
+    "selectorProfile": {
+      "objective": "total_var",
+      "candidateScan": "uncertainty_aware_coarse_to_fine",
+      "nSubsample": 128,
+      "uncertaintyAwareSubsample": true
+    },
+    "selectedArm": "frontier_p90guard_m3",
+    "lockedCampaignRun": false,
+    "ad6DefaultUnchanged": true,
+    "pythonLocalImplementationAuthorized": true,
+    "typescriptPortAuthorized": false
+  }
+}

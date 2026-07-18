@@ -21,6 +21,7 @@ explicit callers may still request v14/v13 for historical replay.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -46,6 +47,15 @@ from cortex_policy import (  # noqa: E402  re-export
     classify_interval_against_cut,
     DEFAULT_N_MIN, DEFAULT_R_STAR, DEFAULT_ALPHA, DEFAULT_Z,
 )
+from precision_policy import (  # noqa: E402
+    FROZEN_PRECISION_PROFILE,
+    build_frozen_precision_policy,
+)
+
+TERMINATION_POLICY_ENV = "CORTEX_TERMINATION_POLICY"
+AD6_POLICY_NAME = "ad6"
+PRECISION_POLICY_NAME = FROZEN_PRECISION_PROFILE.name
+_SUPPORTED_POLICY_NAMES = (AD6_POLICY_NAME, PRECISION_POLICY_NAME)
 
 # K=7 task code → cert_config v13/v14 YAML key. v14 keeps v13 names verbatim
 # per Eli's Q2 choice.
@@ -135,6 +145,32 @@ def default_policy_for_k7(inputs, *, delta_auroc=None,
     return DeltaStopPolicy(float(delta_auroc))
 
 
+def resolve_termination_policy_name(value: str | None = None) -> str:
+    """Resolve the local integration flag, defaulting safely to AD6."""
+
+    selected = os.environ.get(TERMINATION_POLICY_ENV, AD6_POLICY_NAME)
+    if value is not None:
+        selected = value
+    selected = str(selected).strip().lower()
+    if selected not in _SUPPORTED_POLICY_NAMES:
+        raise ValueError(
+            f"{TERMINATION_POLICY_ENV} must be one of "
+            f"{_SUPPORTED_POLICY_NAMES}, got {selected!r}"
+        )
+    return selected
+
+
+def policy_for_name_k7(inputs, name: str):
+    """Build one named policy; used by the explicit local session factory."""
+
+    selected = resolve_termination_policy_name(name)
+    if selected == PRECISION_POLICY_NAME:
+        return build_frozen_precision_policy(inputs)
+    ell_star = load_ell_star_k7(inputs.task_codes)
+    var_prior = list(np.diag(np.asarray(inputs.Corr_l, dtype=float)))
+    return AD6Policy(ell_star, var_prior)
+
+
 __all__ = [
     "AD6Policy", "PrecisionPolicy", "DeltaStopPolicy", "NoStopPolicy",
     "StopDecision",
@@ -144,5 +180,8 @@ __all__ = [
     "UNDETERMINABLE_BANK", "DETERMINED", "ABOVE_CUT", "BELOW_CUT",
     "INDETERMINATE_AT_CUT", "classify_interval_against_cut",
     "DEFAULT_N_MIN", "DEFAULT_R_STAR", "DEFAULT_ALPHA", "DEFAULT_Z",
+    "FROZEN_PRECISION_PROFILE", "build_frozen_precision_policy",
+    "TERMINATION_POLICY_ENV", "AD6_POLICY_NAME", "PRECISION_POLICY_NAME",
+    "resolve_termination_policy_name", "policy_for_name_k7",
     "load_ell_star_k7", "default_policy_for_k7",
 ]

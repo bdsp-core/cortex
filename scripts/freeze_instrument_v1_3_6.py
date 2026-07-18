@@ -52,7 +52,8 @@ def _params() -> dict:
     return {
         "alpha": cp.DEFAULT_ALPHA, "n_min": cp.DEFAULT_N_MIN,
         "r_star": cp.DEFAULT_R_STAR, "z": cp.DEFAULT_Z,
-        "max_questions": sc.MAX_QUESTIONS_DEFAULT,
+        "max_questions": getattr(sc, "MAX_QUESTIONS_DEFAULT", None),
+        "per_domain_cap": sc.PER_DOMAIN_CAP_DEFAULT,
         "n_particles": sc.N_PARTICLES,
         "max_consecutive_same_domain": sc.MAX_CONSEC_SAME_DOMAIN_DEFAULT,
         "ell_star_block": "ell_star_unified_v14",
