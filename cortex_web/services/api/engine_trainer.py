@@ -92,6 +92,14 @@ Z, SD_FLOOR = 2.0, 0.23
 # 109/120 onto one domain live). A rarely-firing backstop under thompson
 # (natural runs ~3). Env-tunable; default 8.
 MAX_CONSEC = int(os.environ.get("CORTEX_TRAINER_MAX_CONSEC", "8"))
+# Exposure-share cap (D62): no domain may exceed this fraction of a
+# session's served items. The confidence-INDEPENDENT de-concentration
+# lever — Thompson alone only spreads in proportion to posterior
+# uncertainty, so a cert-seeded (sharp) belief still pinned the live pilot
+# to 85% share; the cap holds max share near this value at any sharpness.
+# Applied only on the thompson path (the pilot), so greedy is untouched.
+# 0/unset = off. env-tunable, no code change.
+SHARE_CAP = float(os.environ.get("CORTEX_TRAINER_SHARE_CAP", "0")) or None
 # Retention (the incumbent's expanding-interval pattern, domain-level):
 # every REVIEW_EVERY-th question serves a due review item, at most
 # REVIEW_MAX per sitting; a correct review multiplies the domain's
@@ -178,6 +186,9 @@ class EngineSession:
         np, MixedBelief, Registry, LETrainerPolicy = _engine()
         self.np = np
         self.alloc = alloc
+        # the exposure-share cap rides with the thompson path (the pilot);
+        # greedy sittings are unchanged (share_cap=None)
+        self.share_cap = SHARE_CAP if alloc == "thompson" else None
         self.training_id, self.code = training_id, code
         codes = list(bank.engine["taskCodes"])
         self.codes = codes
@@ -230,7 +241,7 @@ class EngineSession:
             belief, self.reg, self.ell_star,
             lambda c: self._cand.get(c),
             alpha=ALPHA, Z=Z, sd_floor=SD_FLOOR, case_mix=case_mix,
-            restrict=restrict, alloc=self.alloc,
+            restrict=restrict, alloc=self.alloc, share_cap=self.share_cap,
             rng=np.random.default_rng(_seed_from(training_id) + 1))
         self.restrict = restrict
         self._pending: dict[int, dict] = {}

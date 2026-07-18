@@ -56,7 +56,7 @@ def engine_start(body: EngineStartIn, req: Request,
         seeded=es.n_seeded, seedUnique=es.seed_unique,
         attainability=es.attain0, alpha=engine_trainer.ALPHA,
         nway=engine_trainer.NWAY, artifact="nway_dynamics_v1_1",
-        alloc=es.alloc))
+        alloc=es.alloc, shareCap=es.share_cap))
     return {"item": item, "snapshot": snap,
             "allMastered": es.all_mastered(), "seeded": es.n_seeded,
             "rebuiltSeq": es.seq,

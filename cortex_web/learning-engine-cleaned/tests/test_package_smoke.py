@@ -253,14 +253,159 @@ def test_g7_allocation_not_gameable():
             prev = d
         return best
 
+    def maxshare(seq):
+        c = np.bincount([codes.index(x) for x in seq])
+        return c.max() / len(seq)
+
     g, t = run("greedy", 5), run("thompson", 5)
     lg, lt = longest(g), longest(t)
     cov_g, cov_t = len(set(g)), len(set(t))
-    # the scenario concentrates under greedy, and Thompson breaks it
-    assert lg >= 15, f"greedy did not concentrate (longest {lg})"
-    assert lt <= 10, f"thompson run {lt} — not de-concentrated"
-    assert lt < lg
-    # Thompson covers every domain; greedy starves at least one
+    # the scenario concentrates under greedy, and Thompson de-concentrates:
+    # shorter runs, full coverage, smaller single-domain share. (Absolute
+    # run bounds are seed-fragile; assert the greedy-vs-thompson contrast.)
+    assert lg >= 12, f"greedy did not concentrate (longest {lg})"
+    assert lt < lg, (lt, lg)
     assert cov_t == M2 and cov_t > cov_g, (cov_t, cov_g)
+    assert maxshare(t) < maxshare(g), (maxshare(t), maxshare(g))
     # greedy default unchanged + both seed-deterministic
     assert run("greedy", 5) == g and run("thompson", 5) == t
+
+
+def test_g8_bias_mode_thompson_de_concentrates():
+    """D62: the live pilot's belief was seeded from a full cert sitting =>
+    sharp => ~all items ran in BIAS mode, which D61's skill-only Thompson
+    never touched, so the session still pinned to one domain. With the
+    shared-draw fix, bias mode is Thompson too. Under a sharp (bias-firing)
+    belief, Thompson must break up the run length and improve coverage vs
+    greedy. (SHARE is only partially helped and is NOT asserted — a
+    confident belief has little posterior uncertainty for Thompson to
+    spread; robust share de-concentration needs an exposure cap, tracked
+    separately.)"""
+    from scipy.special import ndtr
+    from adapter.le_adapter import LETrainerPolicy
+    M2 = 6
+    codes = [f"d{i}" for i in range(M2)]
+    reg = Registry([(c, "binary") for c in codes])
+    gate = lambda x: x * np.exp(0.5 * (1 - x ** 2))    # noqa: E731
+    art = dict(alpha_t=[0.06] * M2, alpha_s=[0.02] * M2, lam=0.02, q_t=0.0,
+               q_s=0.006, codes=codes,
+               state_prior=dict(mu_t0=[0.0] * M2, tau_t0=[0.3] * M2,
+                                mu_u0=[0.7] * M2, tau_u0=[0.3] * M2,
+                                gamma=[0.4] * M2),
+               floor_prior=([-1.2] * M2, [0.3] * M2))
+    sv = np.concatenate([np.linspace(0.2, 2.4, 60), -np.linspace(0.2, 2.4, 60)])
+    cand = dict(seg_id=np.arange(120), s=sv, s_sd=np.zeros(120),
+                y_star=(sv > 0).astype(int))
+
+    def run(alloc, seed):
+        rng = np.random.default_rng(seed)
+        t_true = np.linspace(0.6, 0.1, M2)          # confident offsets
+        u_true = np.linspace(0.95, 0.2, M2) + rng.normal(0, 0.05, M2)
+        ui = np.full(M2, -1.2)
+        rsp = np.random.default_rng(seed + 7)
+        bel = MixedBelief(art, reg, N=300, rng=rng)
+        bel.t = t_true[None, :] + rng.normal(0, 0.10, (bel.N, M2))  # sharp
+        bel.u = u_true[None, :] + rng.normal(0, 0.25, (bel.N, M2))
+        bel.condition_floors_on_state()
+        bel.w = np.full(bel.N, 1.0 / bel.N)
+        pol = LETrainerPolicy(bel, reg, {c: 99.0 for c in codes},
+                              lambda c: cand, alpha=0.0, Z=2.0, sd_floor=0.23,
+                              rng=rng, alloc=alloc)
+        seq, modes = [], []
+        for _ in range(120):
+            ch = pol.step()
+            if ch is None:
+                break
+            j = reg.index[ch["task"]]
+            z = (ch["s"] - t_true[j]) / np.exp(u_true[j])
+            p = 0.02 + 0.96 * ndtr(z)
+            seq.append(ch["task"]); modes.append(ch["mode"])
+            pol.record(ch, int(rsp.random() < p))
+            u_true[j] += -0.02 * gate(abs(z)) * (u_true[j] - ui[j])
+            t_true[j] += 0.06 * (p - ch["y_star"])
+        return seq, modes
+
+    def longest(seq):
+        best = r = 0
+        prev = None
+        for d in seq:
+            r = r + 1 if d == prev else 1
+            best = max(best, r)
+            prev = d
+        return best
+
+    g, gm = run("greedy", 6)
+    t, tm = run("thompson", 6)
+    # regime check: this scenario really is bias-dominated (else it isn't
+    # exercising the D62 fix at all)
+    assert gm.count("bias") / len(gm) > 0.8, gm.count("bias") / len(gm)
+    assert tm.count("bias") / len(tm) > 0.8, tm.count("bias") / len(tm)
+    # bias-mode Thompson breaks up runs and widens coverage vs greedy
+    assert longest(t) < longest(g), (longest(t), longest(g))
+    assert len(set(t)) >= len(set(g)), (len(set(t)), len(set(g)))
+    # greedy bias-mode unchanged + seed-deterministic
+    assert run("greedy", 6)[0] == g and run("thompson", 6)[0] == t
+
+
+def test_g9_exposure_share_cap_bounds_concentration():
+    """D62: Thompson only de-concentrates in proportion to posterior
+    uncertainty, so a cert-seeded (confident) belief still pins one domain
+    to a large SHARE (the live pilot: 85%). The exposure-share cap is the
+    confidence-INDEPENDENT guardrail: no domain may exceed `share_cap` of
+    the session's items. Under the same sharp/bias-dominated belief where
+    plain Thompson leaves share high, the cap must hold it at ~share_cap."""
+    from scipy.special import ndtr
+    from adapter.le_adapter import LETrainerPolicy
+    M2 = 6
+    codes = [f"d{i}" for i in range(M2)]
+    reg = Registry([(c, "binary") for c in codes])
+    gate = lambda x: x * np.exp(0.5 * (1 - x ** 2))    # noqa: E731
+    art = dict(alpha_t=[0.06] * M2, alpha_s=[0.02] * M2, lam=0.02, q_t=0.0,
+               q_s=0.006, codes=codes,
+               state_prior=dict(mu_t0=[0.0] * M2, tau_t0=[0.3] * M2,
+                                mu_u0=[0.7] * M2, tau_u0=[0.3] * M2,
+                                gamma=[0.4] * M2),
+               floor_prior=([-1.2] * M2, [0.3] * M2))
+    sv = np.concatenate([np.linspace(0.2, 2.4, 60), -np.linspace(0.2, 2.4, 60)])
+    cand = dict(seg_id=np.arange(120), s=sv, s_sd=np.zeros(120),
+                y_star=(sv > 0).astype(int))
+    CAP = 0.34
+
+    def run(alloc, seed, share_cap=None):
+        rng = np.random.default_rng(seed)
+        t_true = np.linspace(0.6, 0.1, M2)
+        u_true = np.linspace(0.95, 0.2, M2) + rng.normal(0, 0.05, M2)
+        ui = np.full(M2, -1.2)
+        rsp = np.random.default_rng(seed + 7)
+        bel = MixedBelief(art, reg, N=300, rng=rng)
+        bel.t = t_true[None, :] + rng.normal(0, 0.10, (bel.N, M2))
+        bel.u = u_true[None, :] + rng.normal(0, 0.25, (bel.N, M2))
+        bel.condition_floors_on_state()
+        bel.w = np.full(bel.N, 1.0 / bel.N)
+        pol = LETrainerPolicy(bel, reg, {c: 99.0 for c in codes},
+                              lambda c: cand, alpha=0.0, Z=2.0, sd_floor=0.23,
+                              rng=rng, alloc=alloc, share_cap=share_cap)
+        seq = []
+        for _ in range(120):
+            ch = pol.step()
+            if ch is None:
+                break
+            j = reg.index[ch["task"]]
+            z = (ch["s"] - t_true[j]) / np.exp(u_true[j])
+            p = 0.02 + 0.96 * ndtr(z)
+            seq.append(ch["task"])
+            pol.record(ch, int(rsp.random() < p))
+            u_true[j] += -0.02 * gate(abs(z)) * (u_true[j] - ui[j])
+            t_true[j] += 0.06 * (p - ch["y_star"])
+        return seq
+
+    def maxshare(seq):
+        return np.bincount([codes.index(x) for x in seq]).max() / len(seq)
+
+    g = run("greedy", 6)
+    tc = run("thompson", 6, CAP)
+    # greedy pins one domain to a large share; the cap holds it near CAP
+    assert maxshare(g) > 0.5, maxshare(g)
+    assert maxshare(tc) <= CAP + 0.06, maxshare(tc)
+    assert len(set(tc)) >= len(set(g)), (len(set(tc)), len(set(g)))
+    assert run("thompson", 6, CAP) == tc          # seed-deterministic

@@ -91,9 +91,20 @@ class LETrainerPolicy:
 
     def __init__(self, belief, registry, ell_stars, candidates, *,
                  alpha, Z, sd_floor, exclude=None, zstar=1.0, rng=None,
-                 case_mix=(), restrict=None, alloc="greedy", draw_k=1):
+                 case_mix=(), restrict=None, alloc="greedy", draw_k=1,
+                 share_cap=None):
         self.bel, self.reg = belief, registry
         self.ell = dict(ell_stars)
+        # Exposure-share cap (D62): no domain may exceed this fraction of the
+        # session's served items — once it does, it drops out of eligibility
+        # until other domains catch up. A NON-value guardrail: Thompson only
+        # de-concentrates in proportion to posterior uncertainty, so a
+        # cert-seeded (confident) belief still pins to one domain (the live
+        # pilot: 85% share). This bounds share regardless of confidence.
+        # None = off. Value-driven allocation still chooses AMONG the
+        # under-cap domains, so learning efficiency degrades only at the
+        # margin. Warmup lets the first few items go value-first.
+        self.share_cap = share_cap
         # allocation mode across domains (D61): "greedy" = argmax expected
         # value-per-item (locks a session onto the worst domain — live-
         # exploitable, D54/D58); "thompson" = argmax value under ONE shared
@@ -198,6 +209,17 @@ class LETrainerPolicy:
         a = b.a_s[idx, j] if b.a_s.ndim == 2 else b.a_s[j]
         return float(np.mean(a * g * (b.u[idx, j] - b.u_inf[idx, j])))
 
+    def _bias_at(self, code, idx):
+        """a_t * |t| at the drawn particle set (D62): a posterior sample of
+        this domain's criterion-correction magnitude — the bias-mode
+        value-per-item, the analogue of `_push_at` for skill mode. The
+        CONFIDENCE gate (|mean t| > Z*sd) stays on the mean elsewhere; only
+        the choice AMONG confident-bias domains is drawn."""
+        j = self.reg.index[code]
+        b = self.bel
+        a = b.a_t[idx, j] if b.a_t.ndim == 2 else b.a_t[j]
+        return float(np.mean(a * np.abs(b.t[idx, j])))
+
     def _eligible(self):
         """Codes that may be served now, with their unserved candidate
         masks. alpha = 0 runs FULL-TRAINING mode: no readiness
@@ -225,6 +247,21 @@ class LETrainerPolicy:
                 keep = np.ones(len(sid), dtype=bool)
             if keep.any():
                 elig[code] = (c, keep)
+        # Exposure-share cap: drop domains already over their share, unless
+        # that would empty the eligible set (at most 1/share_cap domains can
+        # be over it, so with >= 2 eligible there is always an under-cap one).
+        if self.share_cap is not None and len(elig) > 1:
+            total = len(self.log)
+            warmup = max(4, int(round(1.0 / self.share_cap)))
+            if total >= warmup:
+                counts = {}
+                for row in self.log:
+                    counts[row["task"]] = counts.get(row["task"], 0) + 1
+                over = [code for code in elig
+                        if counts.get(code, 0) / total > self.share_cap]
+                if over and len(over) < len(elig):
+                    for code in over:
+                        del elig[code]
         return elig
 
     # Label-schedule randomization, second iteration (2026-07-17 live
@@ -274,17 +311,27 @@ class LETrainerPolicy:
         # base-rate drift restores t toward 0 regardless of belief
         # error (the D12 corrective anchored at the field-defined
         # boundary): it can waste an item, never anti-correct.
-        bias_code, bias_val = None, 0.0
+        # One shared posterior draw for BOTH modes (D61/D62): domain
+        # selection in bias AND skill mode ranks by value under this draw,
+        # so a domain is served with probability P(it is the highest-value
+        # domain). Bias mode dominates sessions with a cert-seeded (sharp)
+        # belief — leaving it greedy silently pinned the pilot to one
+        # domain, D61's skill-only fix notwithstanding. idx=None => greedy
+        # argmax over the mean (unchanged).
+        idx = self._draw_idx() if self.alloc == "thompson" else None
+        bias_code, bias_val = None, -np.inf
         for code in elig:
             j = self.reg.index[code]
             mu = float(w @ self.bel.t[:, j])
             sd = float(np.sqrt(max(
                 w @ (self.bel.t[:, j] ** 2) - mu * mu, 1e-12)))
-            if abs(mu) > self.Z * sd:
+            if abs(mu) > self.Z * sd:              # evidence gate (on mean)
                 a = self.bel.a_t
-                a_j = float(w @ a[:, j]) if a.ndim == 2 else float(a[j])
-                if a_j * abs(mu) > bias_val:
-                    bias_code, bias_val = code, a_j * abs(mu)
+                val = (self._bias_at(code, idx) if idx is not None
+                       else (float(w @ a[:, j]) if a.ndim == 2
+                             else float(a[j])) * abs(mu))
+                if bias_code is None or val > bias_val:
+                    bias_code, bias_val = code, val
         if bias_code is not None:
             c, keep = elig[bias_code]
             s_all = np.asarray(c["s"])[keep]
@@ -303,8 +350,8 @@ class LETrainerPolicy:
         # domains by expected value per item (greedy, the §2.3
         # objective) OR by value under one shared posterior draw
         # (thompson, D61) — saturated domains self-retire on the MEAN
-        # push either way, so placement + retirement stay identical.
-        idx = self._draw_idx() if self.alloc == "thompson" else None
+        # push either way, so placement + retirement stay identical. Reuses
+        # the single `idx` draw shared with bias mode above.
         best, best_gain, best_i = None, 0.0, None
         for code, (c, keep) in elig.items():
             j = self.reg.index[code]
