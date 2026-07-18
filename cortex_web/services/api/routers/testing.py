@@ -56,8 +56,14 @@ PRECISION_POLICY = "precision_v1"
 
 
 def _termination_policy_for(db, cfg: dict, code: str) -> str:
-    """Server-authoritative account rollout; clients cannot request a policy."""
-    if cfg.get("precision_policy_rollout") != "email_allowlist":
+    """Server-authoritative rollout; clients cannot request a policy.
+
+    Unknown values deliberately take the AD6 rollback path.
+    """
+    mode = cfg.get("precision_policy_rollout")
+    if mode == "all":
+        return PRECISION_POLICY
+    if mode != "email_allowlist":
         return AD6_POLICY
     participant = db.get_participant(code)
     email = str((participant or {}).get("email") or "").strip().lower()
@@ -85,8 +91,8 @@ def _washout_reopens(db, code: str) -> str | None:
 
 @router.post("/session")
 def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)):
-    # AD6 keeps the server-side balanced ~session_sample draw. The account-
-    # scoped Precision pilot receives the full validated 35k candidate bank.
+    # AD6 keeps the server-side balanced ~session_sample draw. Precision
+    # receives the full validated 35k candidate bank.
     # Both exclude recently-seen segments and stamp exact provenance.
     db, cfg = req.app.state.db, req.app.state.cfg
     termination_policy = _termination_policy_for(db, cfg, code)

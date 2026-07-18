@@ -1,11 +1,12 @@
-# PrecisionPolicy account pilot
+# PrecisionPolicy production rollout
 
 ## Scope
 
-`precision_v1` supersedes AD6 only for the authenticated account whose
-normalized email is `elikeldsen@icloud.com`. The API, not the browser, selects
-the policy and stamps it on the session row. An absent/legacy stamp is `ad6`.
-AD6 remains the public default and remains available in the engine.
+`precision_v1` supersedes AD6 for every new authenticated certification
+sitting. The API, not the browser, selects the policy and stamps it on the
+session row. An absent/legacy stamp is `ad6`; existing AD6 sittings resume and
+finish under that persisted stamp. AD6 remains in the engine as the immediate
+rollback policy.
 
 This is the frozen, uncalibrated `frontier_p90guard_m3` profile. There is no
 `g` parameter in the TypeScript port. The optional Python calibration
@@ -73,13 +74,15 @@ written into the repository.
 The defaults are:
 
 ```text
-CORTEX_PRECISION_POLICY_ROLLOUT=email_allowlist
+CORTEX_PRECISION_POLICY_ROLLOUT=all
 CORTEX_PRECISION_POLICY_EMAILS=elikeldsen@icloud.com
 CORTEX_PRECISION_BUNDLE_URL=/bundle/v1.6-k7-35k
 ```
 
-Set `CORTEX_PRECISION_POLICY_ROLLOUT=off` and restart the API to make every new
-sitting AD6 immediately. Existing sittings retain their stored policy and bank
+The supported rollout values are `all` (public Precision), `email_allowlist`
+(server-side canary), and `off` (AD6 for every new sitting). Unknown values also
+fail closed to AD6. Set the rollout to `off` and restart the API for an immediate
+new-session rollback. Existing sittings retain their stored policy and bank
 provenance so resume stays deterministic. A client-supplied policy is ignored
 at start, and result ingest rejects a policy that differs from the session
 stamp.
@@ -92,8 +95,9 @@ stamp.
   clone equality.
 - Transactional fail-closed posterior update test.
 - Production-sized full-bank selector latency gate at 1,200 particles.
-- Exact-email API gate, immutable resume stamp, compact full-bank resume
-  provenance, result-spoof rejection, and rollback-switch test.
+- Public, exact-email canary, and fail-closed API gates; immutable resume stamp;
+  compact full-bank resume provenance; result-spoof rejection; and rollback
+  switch test.
 - Existing AD6 drift, browser, API, type-check, and build regressions.
 
 The accepted extreme-skill interval-coverage limitation remains disclosed and

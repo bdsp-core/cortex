@@ -65,12 +65,14 @@ TRAINING_ALLOWLIST = frozenset(
     if x.strip()
 )
 
-# Certification stopping-policy pilot. Public/default behavior remains AD6;
-# only authenticated accounts whose normalized email is in this server-side
-# allowlist receive precision_v1. Set CORTEX_PRECISION_POLICY_ROLLOUT=off for
-# an immediate rollback without changing code or any in-flight session stamp.
+# Certification stopping-policy rollout:
+#   "all"             — every new authenticated sitting uses precision_v1
+#   "email_allowlist" — only normalized emails in PRECISION_POLICY_EMAILS
+#   "off"             — every new sitting uses AD6 (immediate rollback)
+# Existing sittings always retain their persisted policy stamp. Unknown modes
+# fail closed to AD6 in routers/testing.py.
 PRECISION_POLICY_ROLLOUT = os.environ.get(
-    "CORTEX_PRECISION_POLICY_ROLLOUT", "email_allowlist").strip().lower()
+    "CORTEX_PRECISION_POLICY_ROLLOUT", "all").strip().lower()
 PRECISION_POLICY_EMAILS = frozenset(
     x.strip().lower()
     for x in os.environ.get(

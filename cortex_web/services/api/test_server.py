@@ -110,6 +110,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CORTEX_BUNDLE_DIR", str(tmp_path / "bundle"))
     monkeypatch.setenv("CORTEX_BUNDLE_URL", "/bundle/test-bank")
     monkeypatch.setenv("CORTEX_PRECISION_BUNDLE_URL", "/bundle/test-bank")
+    # Most legacy API tests intentionally exercise AD6. Public Precision and
+    # rollback behavior have dedicated tests below.
+    monkeypatch.setenv("CORTEX_PRECISION_POLICY_ROLLOUT", "email_allowlist")
     monkeypatch.setenv("CORTEX_SESSION_SAMPLE", "21")        # draw 21 of 56 → 3/class
     app = create_app(db_path=tmp_path / "t.db")
     return TestClient(app)
@@ -625,9 +628,38 @@ def test_full_session_flow(client):
     assert row["n_questions"] == 42
 
 
-def test_precision_policy_is_server_scoped_to_exact_pilot_email(client):
-    """Only the named account gets Precision; the stamp survives resume and
-    result ingest rejects a client-side attempt to change it."""
+def test_precision_policy_public_rollout_applies_to_every_account(client):
+    """The public mode stamps Precision without consulting the email."""
+    client.app.state.cfg["precision_policy_rollout"] = "all"
+    email, password = _make_participant(client)
+    headers = _auth_header(client, email, password)
+    started = client.post(
+        "/api/session", headers=headers,
+        json={"participant": {}, "sampleSeed": 40},
+    )
+    assert started.status_code == 200, started.text
+    body = started.json()
+    assert body["terminationPolicy"] == "precision_v1"
+    assert body["bank"]["terminationPolicy"] == "precision_v1"
+    assert client.app.state.db.get_session(body["sessionId"])[
+        "termination_policy"] == "precision_v1"
+
+    # Unknown configuration values fail closed to AD6 rather than silently
+    # broadening or partially applying the rollout.
+    client.app.state.cfg["precision_policy_rollout"] = "unexpected"
+    other_email, other_password = _make_participant(client)
+    other_headers = _auth_header(client, other_email, other_password)
+    fallback = client.post(
+        "/api/session", headers=other_headers,
+        json={"participant": {}, "sampleSeed": 41},
+    )
+    assert fallback.status_code == 200, fallback.text
+    assert fallback.json()["terminationPolicy"] == "ad6"
+
+
+def test_precision_policy_allowlist_canary_and_rollback(client):
+    """The canary remains exact-email scoped; persisted stamps survive
+    rollback and result ingest rejects a client-side policy change."""
     ordinary_email, ordinary_pw = _make_participant(client)
     ordinary_headers = _auth_header(client, ordinary_email, ordinary_pw)
     ordinary = client.post(
