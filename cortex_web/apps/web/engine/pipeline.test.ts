@@ -80,6 +80,58 @@ describe("expectedLoss vs engine _expected_loss_vec", () => {
     const loss = expectedLoss(st, ef.k, ef.s, ef.sSd);
     expect(Math.abs(loss - ef.loss)).toBeLessThan(LIK_TOL);
   });
+
+  it("total-variance identity matches the direct conditional-variance calculation", () => {
+    const f = ref.updateFixture;
+    const st = makeFixtureState(f.t, f.l, f.w);
+
+    const direct = (k: number, s: number, sSd: number): number => {
+      const probabilities = new Float64Array(st.N);
+      let pYes = 0;
+      for (let n = 0; n < st.N; n++) {
+        const off = n * st.K + k;
+        const pn = Math.min(1 - 1e-9, Math.max(
+          1e-9,
+          pResponseYes(signalZ(st.l[off], st.t[off], s, sSd)),
+        ));
+        probabilities[n] = pn;
+        pYes += pn * st.w[n];
+      }
+      const conditionalTotal = (yes: boolean): number => {
+        const norm = st.w.reduce(
+          (sum, weight, n) => sum + weight * (yes ? probabilities[n] : 1 - probabilities[n]),
+          0,
+        );
+        let total = 0;
+        for (const values of [st.t, st.l]) {
+          for (let kk = 0; kk < st.K; kk++) {
+            let mean = 0;
+            for (let n = 0; n < st.N; n++) {
+              const weight = st.w[n] * (yes ? probabilities[n] : 1 - probabilities[n]);
+              mean += weight * values[n * st.K + kk];
+            }
+            mean /= norm;
+            let variance = 0;
+            for (let n = 0; n < st.N; n++) {
+              const weight = st.w[n] * (yes ? probabilities[n] : 1 - probabilities[n]);
+              const delta = values[n * st.K + kk] - mean;
+              variance += weight * delta * delta;
+            }
+            total += variance / norm;
+          }
+        }
+        return total;
+      };
+      return pYes * conditionalTotal(true) + (1 - pYes) * conditionalTotal(false);
+    };
+
+    for (let k = 0; k < st.K; k++) {
+      for (const [s, sSd] of [[-2, 0], [-0.4, 0.1], [0.8, 0.3], [2.2, 0.5]]) {
+        expect(Math.abs(expectedLoss(st, k, s, sSd) - direct(k, s, sSd)))
+          .toBeLessThan(1e-11);
+      }
+    }
+  });
 });
 
 describe("AD6 policy π/mcse/R vs cortex_policy.py", () => {

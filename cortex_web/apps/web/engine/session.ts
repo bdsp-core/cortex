@@ -4,10 +4,9 @@
 // The per-trial step (reweight → maybe rejuvenate → AD6 + per-domain cap →
 // choose next) lives in engine/advance.ts as advanceCore, so it can run either
 // INLINE (committed straight onto the live core) or SPECULATIVELY: during the
-// participant's think-time the worker precomputes BOTH answer branches on clones
-// of the core, then adopts the matching one when the real answer arrives. The
-// answer is binary (Y = 1 iff the rater's 6-way pick == the asked task), so two
-// branches cover every outcome. Because both paths call the SAME advanceCore on
+// participant's think-time the worker starts the posterior-predicted answer
+// branch on a clone, yields to accept an answer, and computes the other branch
+// only when it is still needed. Because both paths call the SAME advanceCore on
 // an exact clone, a speculative session is BIT-IDENTICAL to the inline one
 // (proven in speculative.test.ts) — speculation hides the heavy N=1200 selection
 // in otherwise-idle think-time without changing a single result.
@@ -16,7 +15,7 @@ import { EngineInputs, TerminationPolicyName, TrialDiag } from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
-import { Chosen } from "./choose_item";
+import { Chosen, predictedYesProbability } from "./choose_item";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
 import {
   PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
@@ -24,6 +23,7 @@ import {
 import { Rng } from "./rng";
 import {
   SessionCore, AdvanceParams, AdvanceResult, cloneCore, advanceCore, chooseNext,
+  precisionRemainingBank,
 } from "./advance";
 
 // Default particle count (frozen-pilot instrument). v15 staging (OPT-IN) lets a
@@ -148,6 +148,13 @@ export class WebCortexSession {
     return new Promise((resolve) => (this.answerResolver = resolve));
   }
 
+  // Let the worker service an answer/abort message that arrived while a
+  // speculative branch was running. A timer task is used instead of a
+  // microtask because Worker message delivery itself is a task.
+  private yieldToWorker(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   async run(): Promise<SessionResult> {
     const K = this.inputs.taskCodes.length;
     // N is opt-in (v15 staging): default 600 (frozen pilot) unless the manifest
@@ -229,28 +236,69 @@ export class WebCortexSession {
 
     let trialIndex = 0;
     while (chosen.segId !== -1 && trialIndex < maxQ && !this.aborted) {
+      // Arm the resolver before exposing the item. This also makes synchronous
+      // test/demo callbacks safe; production answers arrive as Worker messages.
+      let observedPick: number | undefined;
+      const answerPromise = this.awaitAnswer().then((pick) => {
+        observedPick = pick;
+        return pick;
+      });
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
 
-      // Speculative precompute: during think-time, run BOTH answer branches on
-      // clones of the core. advanceCore is identical to the inline path, so the
-      // adopted branch is bit-identical to computing it after the answer.
-      let branches: [AdvanceResult, AdvanceResult] | null = null;
+      // The post-answer remaining bank is independent of the answer. Build it
+      // once and share it across both speculative branches instead of
+      // expanding/filtering/sorting the same 35k manifest twice.
+      const preparedPrecisionBank = policyName === "precision_v1"
+        ? precisionRemainingBank(this.inputs, this.core.remaining, chosen.segId)
+        : undefined;
+
+      // Speculative precompute: start the predicted answer branch during
+      // think-time. advanceCore is identical to the inline path, so whichever
+      // branch is adopted remains bit-identical to post-answer computation.
+      let branches: [AdvanceResult | null, AdvanceResult | null] | null = null;
       if (this.speculative) {
-        branches = [
-          advanceCore(cloneCore(this.core), this.inputs, chosen, 0, params, trialIndex),
-          advanceCore(cloneCore(this.core), this.inputs, chosen, 1, params, trialIndex),
-        ];
+        branches = [null, null];
+        const firstY: 0 | 1 = predictedYesProbability(
+          this.core.state, chosen.k, chosen.s, chosen.sSd,
+        ) >= 0.5 ? 1 : 0;
+        branches[firstY] = advanceCore(
+          cloneCore(this.core), this.inputs, chosen, firstY, params, trialIndex,
+          preparedPrecisionBank,
+        );
+
+        // If the participant answered during the first branch, process that
+        // message now and compute only the requested branch. Otherwise use the
+        // remaining think-time to finish the second branch as before.
+        await this.yieldToWorker();
+        if (!this.aborted && observedPick !== undefined && observedPick >= 0) {
+          const observedY: 0 | 1 = observedPick === chosen.k ? 1 : 0;
+          if (!branches[observedY]) {
+            branches[observedY] = advanceCore(
+              cloneCore(this.core), this.inputs, chosen, observedY, params, trialIndex,
+              preparedPrecisionBank,
+            );
+          }
+        } else if (!this.aborted) {
+          const secondY: 0 | 1 = firstY === 0 ? 1 : 0;
+          branches[secondY] = advanceCore(
+            cloneCore(this.core), this.inputs, chosen, secondY, params, trialIndex,
+            preparedPrecisionBank,
+          );
+        }
       }
       // An abort that arrived during the (synchronous) speculation above.
       if (this.aborted) { stopReason = "aborted"; break; }
 
-      const pick = await this.awaitAnswer();
+      const pick = observedPick ?? await answerPromise;
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
       const y: 0 | 1 = pick === chosen.k ? 1 : 0;
 
       const res = branches
-        ? branches[y]
-        : advanceCore(this.core, this.inputs, chosen, y, params, trialIndex);
+        ? branches[y]!
+        : advanceCore(
+          this.core, this.inputs, chosen, y, params, trialIndex,
+          preparedPrecisionBank,
+        );
       this.core = res.core; // spec: adopt the matching clone; inline: same ref
 
       this.served.push(res.servedSegId);

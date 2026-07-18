@@ -37,6 +37,37 @@ AD6 continues to receive its existing sampled candidate pool. Precision resume
 stores the small temporal exclusion list plus this manifest hash, rather than
 persisting all 35k candidate IDs.
 
+## Browser performance implementation
+
+The browser keeps the frozen policy and selector unchanged while avoiding
+redundant computation:
+
+- The A-optimal expected-loss calculation uses the law of total variance and
+  reuses each coarse candidate's loss during refinement. A direct
+  conditional-variance regression pins the algebraic equivalence.
+- Each particle cloud is stable-sorted once per domain and reused for every
+  interval and MCSE quantile. Reported intervals and guarded radii remain
+  numerically identical to the fixed-cloud reference.
+- The manifest-expanded, signal-sorted full bank is cached once per session;
+  the post-answer remaining-bank view is built once and shared by speculative
+  branches.
+- The Web Worker computes the posterior-predicted answer branch first, yields
+  to accept the participant's answer, and skips the unused branch when the
+  answer is already available. The adopted branch still calls the same
+  `advanceCore`; inline/speculative trajectory identity remains a test gate.
+
+These are scheduling and algebraic optimizations only. They do not change the
+particle count, candidate set, `n_subsample`, selection objective, stopping
+rule, intervals, cuts, or status semantics.
+
+Before release, stream a sanitized completed-session fixture into
+`apps/web/scripts/replay_precision_session.ts`. The audit reconstructs the
+served full-bank session from its exclusion list, bank manifest, production RNG
+identity, and recorded answers. It requires exact question order, stop reason,
+statuses, determinations, terminal reasons, and verdicts; numeric telemetry must
+agree within combined absolute/relative `1e-12` tolerance. Fixtures are not
+written into the repository.
+
 ## Configuration and rollback
 
 The defaults are:

@@ -2,7 +2,7 @@
 // either INLINE (committed straight onto the live core) or SPECULATIVELY (on a
 // clone of the core during the participant's think-time, then adopted when the
 // real answer arrives). The answer is binary (Y = 1 iff the rater's 6-way pick
-// == the asked task), so precomputing BOTH branches covers every outcome.
+// == the asked task), so either possible branch can be computed independently.
 //
 // Both paths call the SAME advanceCore on an exact clone, so a speculative
 // session is BIT-IDENTICAL to the inline one — proven in speculative.test.ts.
@@ -86,13 +86,13 @@ export function cloneCore(c: SessionCore): SessionCore {
 // Per-task candidate arrays over the remaining (unserved) bank. A segment only
 // contributes to its applicableTaskIdx (IIIC → tasks 1..6, spike → task 0);
 // pre-K=7 bundles omit it and fall back to "all K tasks".
-function bankArrays(inputs: EngineInputs, remaining: Set<number>): BankArrays {
+function bankArrays(inputs: EngineInputs, remaining?: ReadonlySet<number>): BankArrays {
   const K = inputs.taskCodes.length;
   const sMean: number[][] = Array.from({ length: K }, () => []);
   const sSd: number[][] = Array.from({ length: K }, () => []);
   const segId: number[][] = Array.from({ length: K }, () => []);
   for (const seg of inputs.segments) {
-    if (!remaining.has(seg.segId)) continue;
+    if (remaining && !remaining.has(seg.segId)) continue;
     const applicable = seg.applicableTaskIdx;
     if (applicable) {
       for (const k of applicable) {
@@ -111,18 +111,61 @@ function bankArrays(inputs: EngineInputs, remaining: Set<number>): BankArrays {
   return { sMean, sSd, segId };
 }
 
+// Precision always uses the same full, manifest-ordered bank for a session.
+// Stable-sorting ~35k candidates into seven domain arrays on every branch of
+// every answer was pure repeated work. Cache that immutable expansion once per
+// EngineInputs object, then retain only currently available ids. Filtering a
+// stable full sort is equivalent to stable-sorting the filtered manifest.
+const precisionSortedBankCache = new WeakMap<EngineInputs, BankArrays>();
+
+function precisionSortedBank(inputs: EngineInputs): BankArrays {
+  let bank = precisionSortedBankCache.get(inputs);
+  if (!bank) {
+    bank = sortBankBySignalStable(bankArrays(inputs));
+    precisionSortedBankCache.set(inputs, bank);
+  }
+  return bank;
+}
+
+export function precisionRemainingBank(
+  inputs: EngineInputs,
+  remaining: ReadonlySet<number>,
+  additionallyRemove?: number,
+): BankArrays {
+  const full = precisionSortedBank(inputs);
+  const out: BankArrays = { sMean: [], sSd: [], segId: [] };
+  for (let k = 0; k < full.sMean.length; k++) {
+    const means: number[] = [];
+    const sds: number[] = [];
+    const ids: number[] = [];
+    for (let i = 0; i < full.segId[k].length; i++) {
+      const id = full.segId[k][i];
+      if (id === additionallyRemove || !remaining.has(id)) continue;
+      means.push(full.sMean[k][i]);
+      sds.push(full.sSd[k][i]);
+      ids.push(id);
+    }
+    out.sMean.push(means);
+    out.sSd.push(sds);
+    out.segId.push(ids);
+  }
+  return out;
+}
+
 // Select the item for `trialIndex` from the current core. trialIndex 0 uses the
 // top-N uniform opener (consumes core.rng via chooseFirstItem); i≥1 uses the
 // deterministic A-optimal chooseItem. Identical hard/phase/variety exclusions +
 // defensive fallbacks as the original inline loop.
 export function chooseNext(
   core: SessionCore, inputs: EngineInputs, params: AdvanceParams, trialIndex: number,
+  preparedPrecisionBank?: BankArrays,
 ): Chosen {
   const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
-  let bank = bankArrays(inputs, core.remaining);
   const precisionPolicy = core.policy instanceof PrecisionPolicy ? core.policy : null;
+  let bank = precisionPolicy
+    ? (preparedPrecisionBank ?? precisionRemainingBank(inputs, core.remaining))
+    : bankArrays(inputs, core.remaining);
   if (precisionPolicy) {
-    bank = sortBankBySignalStable(bank);
     bank = precisionPolicy.prepareCandidates(bank, core.nPerTask);
     core.lastOutcomes = precisionPolicy.domainStatuses;
 
@@ -230,6 +273,7 @@ export function chooseNext(
 export function advanceCore(
   core: SessionCore, inputs: EngineInputs, chosen: Chosen, y: 0 | 1,
   params: AdvanceParams, trialIndex: number,
+  preparedPrecisionBank?: BankArrays,
 ): AdvanceResult {
   const { state, rng, policy } = core;
 
@@ -253,7 +297,8 @@ export function advanceCore(
 
   let telemetry: Record<string, unknown> | undefined;
   if (policy instanceof PrecisionPolicy) {
-    const rawBank = sortBankBySignalStable(bankArrays(inputs, core.remaining));
+    const rawBank = preparedPrecisionBank
+      ?? precisionRemainingBank(inputs, core.remaining);
     telemetry = policy.bankTelemetry(rawBank, state.lastRejuvenation);
   }
   const res = policy.evaluate(state, core.nPerTask, telemetry);
@@ -312,7 +357,9 @@ export function advanceCore(
       ? res.stopReason
       : res.stop ? "all_resolved" : "resolved_or_referred";
   } else {
-    nextChosen = chooseNext(core, inputs, params, trialIndex + 1);
+    nextChosen = chooseNext(
+      core, inputs, params, trialIndex + 1, preparedPrecisionBank,
+    );
   }
   return { core, diag, trajSnapshot, servedSegId: chosen.segId, rejuv, nextChosen, done, stopReason };
 }

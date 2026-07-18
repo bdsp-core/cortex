@@ -131,8 +131,18 @@ function deriveBandEdges(inputs: EngineInputs): number[][] {
 export function weightedQuantile(
   values: Float64Array, weights: Float64Array, q: number,
 ): number {
+  return weightedQuantileInOrder(values, weights, q, stableValueOrder(values));
+}
+
+function stableValueOrder(values: Float64Array): number[] {
   const order = Array.from({ length: values.length }, (_, i) => i);
   order.sort((a, b) => (values[a] - values[b]) || (a - b));
+  return order;
+}
+
+function weightedQuantileInOrder(
+  values: Float64Array, weights: Float64Array, q: number, order: number[],
+): number {
   let cdf = 0;
   for (const i of order) {
     cdf += weights[i];
@@ -143,13 +153,14 @@ export function weightedQuantile(
 
 function quantileDensity(
   values: Float64Array, weights: Float64Array, q: number, essValue: number,
+  order: number[],
 ): number {
   let bandwidth = Math.min(0.02, q / 2, (1 - q) / 2);
   bandwidth = Math.max(bandwidth, Math.min(0.01, 1 / Math.sqrt(Math.max(essValue, 1))));
   const q0 = Math.max(0, q - bandwidth);
   const q1 = Math.min(1, q + bandwidth);
-  const x0 = weightedQuantile(values, weights, q0);
-  const x1 = weightedQuantile(values, weights, q1);
+  const x0 = weightedQuantileInOrder(values, weights, q0, order);
+  const x1 = weightedQuantileInOrder(values, weights, q1, order);
   const span = x1 - x0;
   return Number.isFinite(span) && span > 0 ? (q1 - q0) / span : Number.NaN;
 }
@@ -163,9 +174,10 @@ function pointCenteredRadiusMcse(
   low: number,
   high: number,
   mean: number,
+  order: number[],
 ): number {
-  const fLow = quantileDensity(values, weights, qLow, essValue);
-  const fHigh = quantileDensity(values, weights, qHigh, essValue);
+  const fLow = quantileDensity(values, weights, qLow, essValue, order);
+  const fHigh = quantileDensity(values, weights, qHigh, essValue, order);
   if (!Number.isFinite(fLow) || !Number.isFinite(fHigh) || fLow <= 0 || fHigh <= 0) {
     return Number.NaN;
   }
@@ -444,19 +456,26 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
         bias[n] = st.t[n * K + k];
         mean += weights[n] * skill[n];
       }
-      const low = weightedQuantile(skill, weights, qLow);
-      const high = weightedQuantile(skill, weights, qHigh);
+      // The same ordered skill cloud serves the interval and all four density
+      // quantiles used by the MCSE calculation. Re-sorting it for each q was
+      // the dominant avoidable cost in the browser's per-answer path.
+      const skillOrder = stableValueOrder(skill);
+      const biasOrder = stableValueOrder(bias);
+      const low = weightedQuantileInOrder(skill, weights, qLow, skillOrder);
+      const high = weightedQuantileInOrder(skill, weights, qHigh, skillOrder);
       const radius = Math.max(mean - low, high - mean);
       intervals.push([low, high]);
       biasIntervals.push([
-        weightedQuantile(bias, weights, qLow),
-        weightedQuantile(bias, weights, qHigh),
+        weightedQuantileInOrder(bias, weights, qLow, biasOrder),
+        weightedQuantileInOrder(bias, weights, qHigh, biasOrder),
       ]);
       means.push(mean);
       halfwidths.push((high - low) / 2);
       radii.push(radius);
       radiusMcses.push(
-        pointCenteredRadiusMcse(skill, weights, qLow, qHigh, essValue, low, high, mean),
+        pointCenteredRadiusMcse(
+          skill, weights, qLow, qHigh, essValue, low, high, mean, skillOrder,
+        ),
       );
     }
 

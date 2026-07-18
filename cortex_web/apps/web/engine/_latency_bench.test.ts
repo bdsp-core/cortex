@@ -65,8 +65,8 @@ describe("N=1200 between-question latency (bench)", () => {
   }, 360_000);
 
   // Proves speculation moves the cost OFF the answer→next-item critical path:
-  // the perceived gap (answer submitted → next item shown) collapses to ~0 with
-  // speculation, since both branches were precomputed during the prior think-time.
+  // the perceived gap (answer submitted → next item shown) collapses with
+  // speculation when the predicted branch completes during prior think-time.
   it.runIf(!!process.env.CORTEX_BENCH)("speculation hides the answer→next-item latency", async () => {
     for (const speculative of [false, true]) {
       const inputs = realisticBank(57, 6); // pool ≈ 400, ~42 trials

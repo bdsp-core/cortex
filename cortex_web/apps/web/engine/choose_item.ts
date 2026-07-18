@@ -10,18 +10,83 @@ import { ParticleState } from "./types";
 import { pResponseYes, signalZ } from "./likelihood";
 
 // Expected total posterior variance for ONE candidate (task k, signal s,sSd).
-// Returns the scalar EV loss. (The Python version vectorizes over a signal
-// grid; here each bank candidate is one scalar call, which is plenty fast at
-// N=600 and matches the per-segment bank structure.)
+// Returns the scalar EV loss. The Python version vectorizes over a signal
+// grid; the browser evaluates served-bank candidates through a reused scalar
+// workspace so it retains the per-segment selector and stable tie semantics.
 export function expectedLoss(
   st: ParticleState,
   k: number,
   s: number,
   sSd: number,
 ): number {
+  return expectedLossWithWorkspace(st, k, s, sSd, makeLossWorkspace(st));
+}
+
+interface ExpectedLossWorkspace {
+  meanT1: Float64Array;
+  meanT0: Float64Array;
+  meanL1: Float64Array;
+  meanL0: Float64Array;
+  baselineTotalVariance: number;
+}
+
+function makeLossWorkspace(st: ParticleState): ExpectedLossWorkspace {
+  const vector = () => new Float64Array(st.K);
+  return {
+    meanT1: vector(), meanT0: vector(), meanL1: vector(), meanL0: vector(),
+    baselineTotalVariance: totalPosteriorVariance(st),
+  };
+}
+
+function totalPosteriorVariance(st: ParticleState): number {
+  const meanT = new Float64Array(st.K);
+  const meanL = new Float64Array(st.K);
+  let weightSum = 0;
+  for (let n = 0; n < st.N; n++) {
+    const weight = st.w[n];
+    weightSum += weight;
+    const base = n * st.K;
+    for (let k = 0; k < st.K; k++) {
+      meanT[k] += weight * st.t[base + k];
+      meanL[k] += weight * st.l[base + k];
+    }
+  }
+  for (let k = 0; k < st.K; k++) {
+    meanT[k] /= weightSum;
+    meanL[k] /= weightSum;
+  }
+  let total = 0;
+  for (let n = 0; n < st.N; n++) {
+    const weight = st.w[n] / weightSum;
+    const base = n * st.K;
+    for (let k = 0; k < st.K; k++) {
+      const dt = st.t[base + k] - meanT[k];
+      const dl = st.l[base + k] - meanL[k];
+      total += weight * dt * dt;
+      total += weight * dl * dl;
+    }
+  }
+  return total;
+}
+
+function expectedLossWithWorkspace(
+  st: ParticleState,
+  k: number,
+  s: number,
+  sSd: number,
+  workspace: ExpectedLossWorkspace,
+): number {
   const { N, K, t, l, w } = st;
-  // predicted P(yes) per particle and the two reweightings
-  const p = new Float64Array(N);
+  // By the law of total variance,
+  //   E_y[Var(X|y)] = Var(X) - Var_y(E[X|y]).
+  // The current total variance is candidate-independent and cached once per
+  // domain scan. Each candidate therefore needs only its two conditional
+  // means, not a second full particle pass for 28 conditional variances.
+  const { meanT1, meanT0, meanL1, meanL0 } = workspace;
+  meanT1.fill(0);
+  meanT0.fill(0);
+  meanL1.fill(0);
+  meanL0.fill(0);
   let pYes = 0;
   let sumY1 = 0;
   let sumY0 = 0;
@@ -31,52 +96,44 @@ export function expectedLoss(
     let pn = pResponseYes(z);
     if (pn < 1e-9) pn = 1e-9;
     else if (pn > 1 - 1e-9) pn = 1 - 1e-9;
-    p[n] = pn;
     const wy1 = pn * w[n];
     const wy0 = (1 - pn) * w[n];
     pYes += wy1;
     sumY1 += wy1;
     sumY0 += wy0;
+    const base = n * K;
+    for (let kk = 0; kk < K; kk++) {
+      const tv = t[base + kk];
+      const lv = l[base + kk];
+      meanT1[kk] += wy1 * tv;
+      meanT0[kk] += wy0 * tv;
+      meanL1[kk] += wy1 * lv;
+      meanL0[kk] += wy0 * lv;
+    }
   }
-  // total variance over all 2K coords under each hypothetical answer
-  let totalY1 = 0;
-  let totalY0 = 0;
   for (let kk = 0; kk < K; kk++) {
-    // t-block coord kk
-    totalY1 += weightedVar(t, kk, K, p, w, sumY1, true);
-    totalY0 += weightedVar(t, kk, K, p, w, sumY0, false);
-    // l-block coord kk
-    totalY1 += weightedVar(l, kk, K, p, w, sumY1, true);
-    totalY0 += weightedVar(l, kk, K, p, w, sumY0, false);
+    meanT1[kk] /= sumY1;
+    meanT0[kk] /= sumY0;
+    meanL1[kk] /= sumY1;
+    meanL0[kk] /= sumY0;
   }
-  return pYes * totalY1 + (1 - pYes) * totalY0;
+
+  let betweenAnswerVariance = 0;
+  for (let kk = 0; kk < K; kk++) {
+    const dt = meanT1[kk] - meanT0[kk];
+    const dl = meanL1[kk] - meanL0[kk];
+    betweenAnswerVariance += dt * dt + dl * dl;
+  }
+  const predictedYes = pYes / (sumY1 + sumY0);
+  return workspace.baselineTotalVariance
+    - predictedYes * (1 - predictedYes) * betweenAnswerVariance;
 }
 
-// weighted variance of coordinate `kk` under the y=1 (useP=true) or y=0
-// reweighting w_y ∝ p·w (or (1-p)·w), normalized by `norm`.
-function weightedVar(
-  arr: Float64Array,
-  kk: number,
-  K: number,
-  p: Float64Array,
-  w: Float64Array,
-  norm: number,
-  useP: boolean,
-): number {
-  const N = w.length;
-  let mu = 0;
-  for (let n = 0; n < N; n++) {
-    const wy = (useP ? p[n] : 1 - p[n]) * w[n];
-    mu += wy * arr[n * K + kk];
-  }
-  mu /= norm;
-  let v = 0;
-  for (let n = 0; n < N; n++) {
-    const wy = (useP ? p[n] : 1 - p[n]) * w[n];
-    const d = arr[n * K + kk] - mu;
-    v += wy * d * d;
-  }
-  return v / norm;
+function expectedLossEvaluator(
+  st: ParticleState, k: number,
+): (s: number, sSd: number) => number {
+  const workspace = makeLossWorkspace(st);
+  return (s, sSd) => expectedLossWithWorkspace(st, k, s, sSd, workspace);
 }
 
 export interface BankArrays {
@@ -97,6 +154,27 @@ export interface Chosen {
 export interface SelectionOptions {
   nSubsample?: number;
   uncertaintyAware?: boolean;
+}
+
+// Posterior-predictive probability for the binary response used by the engine
+// (y=1 iff the participant selects the asked task). Session speculation uses
+// this only to decide which immutable branch to compute first; it never enters
+// stopping, selection, or the adopted posterior calculation.
+export function predictedYesProbability(
+  st: ParticleState,
+  k: number,
+  s: number,
+  sSd: number,
+): number {
+  let weighted = 0;
+  let totalWeight = 0;
+  for (let n = 0; n < st.N; n++) {
+    const off = n * st.K + k;
+    const pn = pResponseYes(signalZ(st.l[off], st.t[off], s, sSd));
+    weighted += st.w[n] * pn;
+    totalWeight += st.w[n];
+  }
+  return totalWeight > 0 ? weighted / totalWeight : 0.5;
 }
 
 function roundToEven(x: number): number {
@@ -123,9 +201,18 @@ function uncertaintyAwareTopIndices(
   const n = sigs.length;
   nTop = Math.min(Math.max(1, nTop), n);
   const full = Array.from({ length: n }, (_, i) => i);
-  const losses = (indices: number[]) => indices.map(
-    (i) => expectedLoss(st, k, sigs[i], sds[i]),
-  );
+  // Representatives are included again in the refinement set. Cache their
+  // exact losses so the expensive N×2K expectation is not evaluated twice.
+  const lossCache = new Map<number, number>();
+  const evaluate = expectedLossEvaluator(st, k);
+  const losses = (indices: number[]) => indices.map((i) => {
+    let loss = lossCache.get(i);
+    if (loss === undefined) {
+      loss = evaluate(sigs[i], sds[i]);
+      lossCache.set(i, loss);
+    }
+    return loss;
+  });
   if (n <= nCoarse) return stableLossOrder(full, losses(full)).slice(0, nTop);
 
   // np.array_split(arange(n), nCoarse): the first n%nCoarse bins receive one
@@ -164,9 +251,16 @@ function coarseToFineTopIndices(
   const n = sigs.length;
   nTop = Math.min(Math.max(1, nTop), n);
   const full = Array.from({ length: n }, (_, i) => i);
-  const losses = (indices: number[]) => indices.map(
-    (i) => expectedLoss(st, k, sigs[i], sds[i]),
-  );
+  const lossCache = new Map<number, number>();
+  const evaluate = expectedLossEvaluator(st, k);
+  const losses = (indices: number[]) => indices.map((i) => {
+    let loss = lossCache.get(i);
+    if (loss === undefined) {
+      loss = evaluate(sigs[i], sds[i]);
+      lossCache.set(i, loss);
+    }
+    return loss;
+  });
   if (n <= nCoarse) return stableLossOrder(full, losses(full)).slice(0, nTop);
   const coarse = uniqueSorted(Array.from({ length: nCoarse }, (_, i) =>
     roundToEven(i * (n - 1) / (nCoarse - 1))));
@@ -190,7 +284,8 @@ function candidateIndices(
   const nCoarse = options.nSubsample;
   if (!nCoarse || sigs.length <= nCoarse) {
     const idx = Array.from({ length: sigs.length }, (_, i) => i);
-    const losses = idx.map((i) => expectedLoss(st, k, sigs[i], sds[i]));
+    const evaluate = expectedLossEvaluator(st, k);
+    const losses = idx.map((i) => evaluate(sigs[i], sds[i]));
     return stableLossOrder(idx, losses).slice(0, nTop);
   }
   return options.uncertaintyAware
