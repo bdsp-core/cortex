@@ -79,21 +79,19 @@ Z, SD_FLOOR = 2.0, 0.23
 # ── Phase L4 serving-layer design inputs (env-tunable; DESIGN-category
 # constants in the roadmap ledger — they shape serving, never the belief
 # or selection mathematics). ─────────────────────────────────────────
-# Domain allocation mode (D61): "greedy" = the argmax value-per-item
-# selector (locks a session onto the worst domain — live-exploitable:
-# the participant presses the hot domain, gold=hot ~0.5 in n-way even
-# post-D58); "thompson" = argmax value under one shared posterior draw,
-# so domains are served in proportion to P(highest-value). Reversible
-# flag, default off; belief/selection math bit-identical either way.
-ALLOC = os.environ.get("CORTEX_TRAINER_ALLOC", "greedy")
+# Domain allocation mode (D61/D62): resolved PER PARTICIPANT by alloc_for()
+# below. The global default CORTEX_TRAINER_ALLOC ("greedy" — the validated
+# value-per-item selector, and the instant rollback) applies to everyone;
+# CORTEX_TRAINER_ALLOC_ALLOWLIST opts matching participants into "thompson"
+# (argmax value under one shared posterior draw — breaks the worst-domain
+# concentration the pilot exploited; the trained domain rotates so the
+# n-way gold spreads toward 1/G). Belief/selection math is bit-identical
+# either way; reversible by editing the env, no deploy.
 # Interleave cap: after this many consecutive items on one domain the
-# allocator must offer another eligible domain (greedy value-per-item
-# locked 109/120 items onto one domain live; sim-checked, see D57). Under
-# thompson it is a rarely-firing soft backstop (validated config
-# thomp_cap12; Thompson's natural runs are ~3, so the cap seldom binds —
-# no D56-style forced-switch predictability); greedy keeps its cap of 8.
-MAX_CONSEC = int(os.environ.get(
-    "CORTEX_TRAINER_MAX_CONSEC", "12" if ALLOC == "thompson" else "8"))
+# allocator must offer another eligible domain (D57 R2; greedy locked
+# 109/120 onto one domain live). A rarely-firing backstop under thompson
+# (natural runs ~3). Env-tunable; default 8.
+MAX_CONSEC = int(os.environ.get("CORTEX_TRAINER_MAX_CONSEC", "8"))
 # Retention (the incumbent's expanding-interval pattern, domain-level):
 # every REVIEW_EVERY-th question serves a due review item, at most
 # REVIEW_MAX per sitting; a correct review multiplies the domain's
@@ -146,6 +144,25 @@ def enabled(cfg: dict, code: str, participant) -> bool:
     return bool(cand & allow)
 
 
+def alloc_for(cfg: dict, code: str, participant) -> str:
+    """Per-sitting allocation mode (D62 pilot), mirroring enabled():
+    global "thompson" serves everyone; otherwise CORTEX_TRAINER_ALLOC_ALLOWLIST
+    opts a participant into thompson by code/public_id/email; default
+    "greedy" (the validated selector + instant rollback)."""
+    mode = (cfg or {}).get("trainer_alloc", "greedy")
+    if mode == "thompson":
+        return "thompson"
+    allow = (cfg or {}).get("trainer_alloc_allowlist") or frozenset()
+    if not allow:
+        return "greedy"
+    cand = {str(code).strip().lower()}
+    for key in ("public_id", "email"):
+        v = (participant or {}).get(key)
+        if v:
+            cand.add(str(v).strip().lower())
+    return "thompson" if (cand & allow) else "greedy"
+
+
 def _seed_from(training_id: str) -> int:
     # Stable, python-hash-independent seed from the sitting id.
     import hashlib
@@ -157,9 +174,10 @@ class EngineSession:
     """One participant sitting: belief + policy + pending-choice ledger."""
 
     def __init__(self, db, bank, training_id: str, code: str,
-                 seg_ids, restrict_ks=None):
+                 seg_ids, restrict_ks=None, alloc="greedy"):
         np, MixedBelief, Registry, LETrainerPolicy = _engine()
         self.np = np
+        self.alloc = alloc
         self.training_id, self.code = training_id, code
         codes = list(bank.engine["taskCodes"])
         self.codes = codes
@@ -212,7 +230,7 @@ class EngineSession:
             belief, self.reg, self.ell_star,
             lambda c: self._cand.get(c),
             alpha=ALPHA, Z=Z, sd_floor=SD_FLOOR, case_mix=case_mix,
-            restrict=restrict, alloc=ALLOC,
+            restrict=restrict, alloc=self.alloc,
             rng=np.random.default_rng(_seed_from(training_id) + 1))
         self.restrict = restrict
         self._pending: dict[int, dict] = {}
@@ -526,10 +544,11 @@ class EngineManager:
         self._sessions: dict[str, EngineSession] = {}
         self._lock = threading.Lock()
 
-    def start(self, db, bank, training_id, code, seg_ids, restrict_ks):
+    def start(self, db, bank, training_id, code, seg_ids, restrict_ks,
+              alloc="greedy"):
         with self._lock:
             es = EngineSession(db, bank, training_id, code, seg_ids,
-                               restrict_ks)
+                               restrict_ks, alloc=alloc)
             self._sessions[training_id] = es
             return es, es.next_item(), es.snapshot()
 

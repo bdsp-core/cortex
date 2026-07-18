@@ -134,6 +134,17 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             for x in os.environ.get(
                 "CORTEX_TRAINER_ENGINE_ALLOWLIST", "").split(",")
             if x.strip()),
+        # Domain allocation (D62): greedy default for everyone; the
+        # allowlist opts a pilot participant into thompson. Same shape as
+        # the engine exposure gate above; resolved per sitting by
+        # engine_trainer.alloc_for().
+        "trainer_alloc": os.environ.get(
+            "CORTEX_TRAINER_ALLOC", "greedy").strip().lower(),
+        "trainer_alloc_allowlist": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_TRAINER_ALLOC_ALLOWLIST", "").split(",")
+            if x.strip()),
     }
 
     origins = os.environ.get(

@@ -43,15 +43,20 @@ def engine_start(body: EngineStartIn, req: Request,
         engine_trainer._engine()
     except ImportError as e:
         raise HTTPException(503, f"engine numeric stack unavailable: {e}")
+    # D62: allocation mode for THIS participant — greedy (validated
+    # default) for everyone, thompson only for the pilot allowlist.
+    alloc = engine_trainer.alloc_for(
+        req.app.state.cfg, code, req.app.state.db.get_participant(code))
     es, item, snap = _manager.start(
         req.app.state.db, bank, body.trainingId, code,
-        body.segIds, body.restrictTaskKs)
+        body.segIds, body.restrictTaskKs, alloc=alloc)
     # L4: sitting-level engine metadata lands in the ledger (server-side
     # writer) so analyses never re-derive it from HTTP logs.
     req.app.state.db.set_training_engine_meta(body.trainingId, dict(
         seeded=es.n_seeded, seedUnique=es.seed_unique,
         attainability=es.attain0, alpha=engine_trainer.ALPHA,
-        nway=engine_trainer.NWAY, artifact="nway_dynamics_v1_1"))
+        nway=engine_trainer.NWAY, artifact="nway_dynamics_v1_1",
+        alloc=es.alloc))
     return {"item": item, "snapshot": snap,
             "allMastered": es.all_mastered(), "seeded": es.n_seeded,
             "rebuiltSeq": es.seq,

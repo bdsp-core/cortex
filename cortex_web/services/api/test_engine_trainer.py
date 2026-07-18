@@ -285,3 +285,24 @@ def test_burst_flagging_at_ingest(eclient):
         "WHERE training_id=? ORDER BY seq_in_session", (tid,))
     flags = [r["quality_flag"] for r in rows]
     assert flags == [None, None, "burst", "burst", None, None]
+
+
+def test_alloc_for_pilot_allowlist():
+    """D62: greedy is the default for everyone; CORTEX_TRAINER_ALLOC_ALLOWLIST
+    opts a participant into thompson by email/public_id/code; a global
+    'thompson' serves all. This is the pilot gate — greedy stays the
+    validated default and the instant rollback."""
+    from . import engine_trainer as et
+    assert et.alloc_for({}, "abc", None) == "greedy"
+    assert et.alloc_for({"trainer_alloc": "greedy"}, "abc",
+                        {"email": "x@y.com"}) == "greedy"
+    cfg = {"trainer_alloc": "greedy",
+           "trainer_alloc_allowlist": frozenset({"elikeldsen@icloud.com"})}
+    assert et.alloc_for(cfg, "abc",
+                        {"email": "elikeldsen@icloud.com"}) == "thompson"
+    assert et.alloc_for(cfg, "ELIKELDSEN@icloud.com", None) == "thompson"
+    assert et.alloc_for(cfg, "abc",
+                        {"email": "someone@else.com"}) == "greedy"
+    assert et.alloc_for(cfg, "abc", None) == "greedy"
+    assert et.alloc_for({"trainer_alloc": "thompson"}, "abc", None) \
+        == "thompson"
