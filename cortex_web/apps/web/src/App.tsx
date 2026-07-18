@@ -326,9 +326,6 @@ export function App() {
             verdicts: r.verdicts,
             terminationPolicy: r.terminationPolicy,
             determinations: r.determinations,
-            pi: d?.pi,
-            R: d?.R,
-            nPerTask: d?.nPerTask,
             // Carry the bundle's task list so the Results table reads the
             // right labels at any K and indexes verdicts by real task idx.
             taskCodes: inputs.taskCodes,
