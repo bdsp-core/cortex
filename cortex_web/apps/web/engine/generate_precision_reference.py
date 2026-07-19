@@ -22,6 +22,7 @@ for source in (
 
 from precision_policy.policy import (  # noqa: E402
     PRECISION_CONTRACTION_BY_DOMAIN,
+    PRECISION_RADIUS_MCSE_INFLATION_30MH,
     PrecisionPolicy,
 )
 
@@ -68,7 +69,9 @@ def main() -> None:
         reliability_mode="quantile_mcse",
         ess_floor_fraction=0.5,
         radius_mcse_z=1.645,
-        radius_mcse_inflation=1.5962415320776275,
+        # Shipped guard inflation (mc-guard v2, default since 2026-07-18);
+        # tracks the promoted default so the parity fixture never drifts.
+        radius_mcse_inflation=PRECISION_RADIUS_MCSE_INFLATION_30MH,
         precision_statistic="point_centered_radius",
     )
     telemetry = {

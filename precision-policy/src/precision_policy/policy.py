@@ -20,7 +20,20 @@ PRECISION_ESS_FLOOR_FRACTION = 0.50
 PRECISION_SURROGATE_ACCEPTANCE_FLOOR = 0.20
 PRECISION_SURROGATE_ANCESTRY_FLOOR = 0.35
 PRECISION_RADIUS_MCSE_Z = 1.645
+# Legacy 15-MH guard inflation. Remains the PrecisionPolicy.__init__ default
+# (raw-class contract; reproduces the frozen composed-sweep evidence, which is
+# produced with 15 MH steps) and backs LEGACY_PRECISION_15MH_PROFILE. The
+# SHIPPED profile default is the 30-MH value below.
 PRECISION_RADIUS_MCSE_INFLATION = 1.5962415320776275
+# Shipped guard inflation (mc-guard v2, default since 2026-07-18): the
+# FrozenPrecisionProfile / live precision path uses this with n_mh_steps=30.
+# Same 12-prior-histories x 24-replicate protocol as the 1.5962 qualification
+# (LOO upper coverage 0.9795 vs 0.9805; mixed uniform+tail robustness panel
+# q95 1.3010 did not escalate); mini-OC promotion gate passed all 5 gates.
+# Valid ONLY with n_mh_steps=30. Provenance:
+# cortex_web_python_reference/calibration/mc_guard_requal/
+# radius_mcse_qualification_1200p30mh.json + MINI_OC_REPORT.md
+PRECISION_RADIUS_MCSE_INFLATION_30MH = 1.3090533918867642
 DEFAULT_N_MIN = 20
 
 

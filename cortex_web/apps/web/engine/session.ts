@@ -43,6 +43,10 @@ export const MAX_QUESTIONS = 500;
 // so a single borderline domain can't consume half the test before REFER.
 export const PER_DOMAIN_CAP = 60;
 export const N_MH_STEPS = 15;
+// PrecisionPolicy uses stronger rejuvenation (mc-guard v2, default 2026-07-18);
+// AD6 keeps 15. Mirrors the precision_policy profile's n_mh_steps=30 and its
+// requalified guard inflation (PRECISION_RADIUS_MCSE_INFLATION).
+export const PRECISION_N_MH_STEPS = 30;
 export const ESS_THRESHOLD_FRAC = 0.5;
 export const FIRST_ITEM_TOPN = 10;
 // Variety cap (v1.3.7 alignment): after this many consecutive picks from the
@@ -208,7 +212,7 @@ export class WebCortexSession {
       K,
       nParticles,
       perDomainCap,
-      nMhSteps: N_MH_STEPS,
+      nMhSteps: policyName === "precision_v1" ? PRECISION_N_MH_STEPS : N_MH_STEPS,
       essThresholdFrac: ESS_THRESHOLD_FRAC,
       proposalScale: this.proposalScale,
       firstItemTopN: FIRST_ITEM_TOPN,

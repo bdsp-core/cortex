@@ -6,12 +6,23 @@ from .policy import (
     PRECISION_BAND_MIN,
     PRECISION_ESS_FLOOR_FRACTION,
     PRECISION_RADIUS_MCSE_INFLATION,
+    PRECISION_RADIUS_MCSE_INFLATION_30MH,
     PRECISION_RADIUS_MCSE_Z,
     PRECISION_SURROGATE_ACCEPTANCE_FLOOR,
     PRECISION_SURROGATE_ANCESTRY_FLOOR,
     PRECISION_TASK_CODES,
     PrecisionPolicy,
 )
+
+
+# Shipped guard calibration (mc-guard v2, promoted to default 2026-07-18 after
+# the mc_guard_requal mini-OC passed all gates): 30 MH rejuvenation steps with
+# the requalified MCSE inflation. The 15-MH calibration is retained below as
+# LEGACY_PRECISION_15MH_PROFILE for rollback/provenance only. "precision_v1"
+# stays the POLICY IDENTITY / selection key — the guard recalibration is
+# internal to that policy, not a new stopping rule.
+DEFAULT_N_MH_STEPS = 30
+DEFAULT_RADIUS_MCSE_INFLATION = PRECISION_RADIUS_MCSE_INFLATION_30MH
 
 
 @dataclass(frozen=True)
@@ -30,6 +41,8 @@ class FrozenPrecisionProfile:
     per_domain_cap: int = 60
     reliability_mode: str = "quantile_mcse"
     precision_statistic: str = "point_centered_radius"
+    n_mh_steps: int = DEFAULT_N_MH_STEPS
+    radius_mcse_inflation: float = DEFAULT_RADIUS_MCSE_INFLATION
 
     @property
     def maximum_k7_questions(self) -> int:
@@ -50,18 +63,35 @@ class FrozenPrecisionProfile:
             "floor_progress_deadline": self.floor_progress_deadline,
             "per_domain_cap": self.per_domain_cap,
             "ess_threshold_frac": 0.5,
-            "n_mh_steps": 15,
+            "n_mh_steps": self.n_mh_steps,
             "extended_data_collection": False,
         }
 
 
 FROZEN_PRECISION_PROFILE = FrozenPrecisionProfile()
 
+# Legacy 15-MH guard calibration (inflation 1.5962415320776275), the shipped
+# default before 2026-07-18. Retained for rollback and provenance ONLY; it is
+# no longer the default. Its own drift history lives in
+# cortex_web_python_reference/calibration/precision_frontier/
+# radius_mcse_qualification.json.
+LEGACY_PRECISION_15MH_PROFILE = FrozenPrecisionProfile(
+    name="precision_v1_legacy_15mh",
+    n_mh_steps=15,
+    radius_mcse_inflation=PRECISION_RADIUS_MCSE_INFLATION,
+)
 
-def build_frozen_precision_policy(inputs) -> PrecisionPolicy:
-    """Build the immutable, uncalibrated `frontier_p90guard_m3` policy."""
 
-    profile = FROZEN_PRECISION_PROFILE
+def build_frozen_precision_policy(
+    inputs, profile: FrozenPrecisionProfile = FROZEN_PRECISION_PROFILE
+) -> PrecisionPolicy:
+    """Build the immutable, uncalibrated `frontier_p90guard_m3` policy.
+
+    Defaults to the shipped guard calibration (mc-guard v2: 30 MH steps +
+    requalified inflation). Pass `profile=LEGACY_PRECISION_15MH_PROFILE` to
+    reconstruct the pre-2026-07-18 15-MH guard for rollback.
+    """
+
     task_codes = tuple(str(code) for code in inputs.task_codes)
     if task_codes != profile.task_codes:
         raise ValueError(
@@ -81,7 +111,7 @@ def build_frozen_precision_policy(inputs) -> PrecisionPolicy:
         min_rejuvenation_acceptance=PRECISION_SURROGATE_ACCEPTANCE_FLOOR,
         min_distinct_ancestor_fraction=PRECISION_SURROGATE_ANCESTRY_FLOOR,
         radius_mcse_z=PRECISION_RADIUS_MCSE_Z,
-        radius_mcse_inflation=PRECISION_RADIUS_MCSE_INFLATION,
+        radius_mcse_inflation=profile.radius_mcse_inflation,
         precision_statistic=profile.precision_statistic,
     )
     if any(

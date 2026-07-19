@@ -9,6 +9,7 @@ from .policy import (
     PRECISION_CONTRACTION_FRACTION,
     PRECISION_ESS_FLOOR_FRACTION,
     PRECISION_RADIUS_MCSE_INFLATION,
+    PRECISION_RADIUS_MCSE_INFLATION_30MH,
     PRECISION_RADIUS_MCSE_Z,
     PRECISION_SURROGATE_ACCEPTANCE_FLOOR,
     PRECISION_SURROGATE_ANCESTRY_FLOOR,
@@ -17,8 +18,12 @@ from .policy import (
     UNDETERMINABLE_CAP,
     PrecisionPolicy,
 )
-from .profile import FROZEN_PRECISION_PROFILE, FrozenPrecisionProfile
-from .profile import build_frozen_precision_policy
+from .profile import (
+    FROZEN_PRECISION_PROFILE,
+    LEGACY_PRECISION_15MH_PROFILE,
+    FrozenPrecisionProfile,
+    build_frozen_precision_policy,
+)
 from .reporting import (
     ABOVE_CUT,
     BELOW_CUT,
@@ -51,4 +56,6 @@ __all__ = [
     "PRECISION_SURROGATE_ANCESTRY_FLOOR",
     "PRECISION_RADIUS_MCSE_Z",
     "PRECISION_RADIUS_MCSE_INFLATION",
+    "PRECISION_RADIUS_MCSE_INFLATION_30MH",
+    "LEGACY_PRECISION_15MH_PROFILE",
 ]

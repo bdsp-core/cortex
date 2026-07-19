@@ -4107,8 +4107,8 @@
         "ancestry_pass": true,
         "surrogate_diagnostics_pass": true,
         "precision_statistic_mcse_z": 1.645,
-        "precision_statistic_mcse_inflation": 1.5962415320776275,
-        "precision_statistic_mcse_multiplier": 2.6258173202676973,
+        "precision_statistic_mcse_inflation": 1.3090533918867642,
+        "precision_statistic_mcse_multiplier": 2.1533928296537272,
         "guard_pass": [
           true,
           true,
@@ -4119,13 +4119,13 @@
           true
         ],
         "guarded_precision_statistic": [
-          0.5534748590469064,
-          0.5534748590469065,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064
+          0.5389299228375996,
+          0.5389299228375997,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996
         ]
       }
     },
@@ -4445,8 +4445,8 @@
         "ancestry_pass": true,
         "surrogate_diagnostics_pass": true,
         "precision_statistic_mcse_z": 1.645,
-        "precision_statistic_mcse_inflation": 1.5962415320776275,
-        "precision_statistic_mcse_multiplier": 2.6258173202676973,
+        "precision_statistic_mcse_inflation": 1.3090533918867642,
+        "precision_statistic_mcse_multiplier": 2.1533928296537272,
         "guard_pass": [
           true,
           true,
@@ -4457,13 +4457,13 @@
           true
         ],
         "guarded_precision_statistic": [
-          0.5534748590469064,
-          0.5534748590469065,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064,
-          0.5534748590469064
+          0.5389299228375996,
+          0.5389299228375997,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996,
+          0.5389299228375996
         ]
       }
     },
@@ -4783,8 +4783,8 @@
         "ancestry_pass": true,
         "surrogate_diagnostics_pass": true,
         "precision_statistic_mcse_z": 1.645,
-        "precision_statistic_mcse_inflation": 1.5962415320776275,
-        "precision_statistic_mcse_multiplier": 2.6258173202676973,
+        "precision_statistic_mcse_inflation": 1.3090533918867642,
+        "precision_statistic_mcse_multiplier": 2.1533928296537272,
         "guard_pass": [
           false,
           false,
@@ -4795,13 +4795,13 @@
           false
         ],
         "guarded_precision_statistic": [
-          3.443843567402973,
-          3.443843567402973,
-          3.443843567402973,
-          3.443843567402973,
-          3.443843567402973,
-          3.443843567402973,
-          3.443843567402973
+          3.353341742100619,
+          3.353341742100619,
+          3.3533417421006186,
+          3.3533417421006186,
+          3.353341742100619,
+          3.3533417421006186,
+          3.3533417421006186
         ]
       }
     }

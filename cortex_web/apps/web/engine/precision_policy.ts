@@ -39,7 +39,13 @@ export const PRECISION_PER_DOMAIN_CAP = 60;
 export const PRECISION_PERSISTENCE = 2;
 export const PRECISION_ESS_FLOOR_FRACTION = 0.5;
 export const PRECISION_RADIUS_MCSE_Z = 1.645;
-export const PRECISION_RADIUS_MCSE_INFLATION = 1.5962415320776275;
+// Shipped guard inflation (mc-guard v2, default since 2026-07-18): used with
+// PRECISION_N_MH_STEPS=30 rejuvenation. Requalified 12-prior x 24-replicate
+// protocol; the mc_guard_requal mini-OC passed all five promotion gates.
+// Mirrors precision_policy PRECISION_RADIUS_MCSE_INFLATION_30MH. The 15-MH
+// value below is retained for rollback/provenance only.
+export const PRECISION_RADIUS_MCSE_INFLATION = 1.3090533918867642;
+export const PRECISION_RADIUS_MCSE_INFLATION_LEGACY_15MH = 1.5962415320776275;
 export const PRECISION_SURROGATE_ACCEPTANCE_FLOOR = 0.20;
 export const PRECISION_SURROGATE_ANCESTRY_FLOOR = 0.35;
 

@@ -69,28 +69,31 @@ describe("Precision per-engine deterministic golden session", () => {
       radiusMcse: rounded(last?.skillPointCenteredRadiusMcse),
       streaks: last?.precisionStreakCounts,
     };
+    // Golden regenerated 2026-07-18 for the mc-guard v2 default (30 MH
+    // rejuvenation + requalified inflation 1.3090533918867642). Deterministic
+    // (JS engine); verified identical across repeated runs.
     expect(golden).toEqual({
       nQuestions: 20,
       stopReason: "all_estimated_or_undeterminable",
-      items: [13, 10, 12, 11, 4, 7, 8, 6, 1, 3, 2, 5, 9, 14, 15, 16, 17, 18, 19, 20],
+      items: [13, 10, 12, 5, 8, 9, 7, 1, 4, 3, 2, 6, 11, 14, 15, 16, 17, 18, 19, 20],
       verdicts: new Array(7).fill("UNDETERMINABLE_BANK"),
       domainStatuses: new Array(7).fill("UNDETERMINABLE_BANK"),
       determinations: new Array(7).fill("UNDETERMINABLE_BANK"),
       finalAuroc: [
-        0.886224152996, 0.808394411791, 0.809996355607, 0.80876406091,
-        0.808633671687, 0.810540045215, 0.813492628681,
+        0.887441282001, 0.805521924498, 0.807925398904, 0.809039855684,
+        0.814195326743, 0.806795792622, 0.815216617389,
       ],
       lMean: [
-        0.807796814039, -0.010923878676, 0.014772225831, 0.00080607016,
-        -0.026312796347, 0.018443317374, 0.055124611465,
+        0.832037541266, -0.055032653519, -0.014967141147, 0.007167667373,
+        0.042178529543, -0.006808585652, 0.056747515935,
       ],
       radii: [
-        1.545752190313, 1.936975635024, 1.940976525386, 2.0818848863,
-        1.949532229156, 1.954307156512, 1.985080091331,
+        1.455189563025, 2.039682015564, 1.998461408126, 1.964979902026,
+        1.918893634779, 2.086133089494, 1.963331043901,
       ],
       radiusMcse: [
-        0.050426640969, 0.075069070094, 0.091941275482, 0.102798386481,
-        0.091625901491, 0.104731594263, 0.066901173299,
+        0.059771121067, 0.10179637015, 0.110353091087, 0.103555240577,
+        0.093900656031, 0.107774204025, 0.090189922441,
       ],
       streaks: new Array(7).fill(0),
     });

@@ -9,7 +9,7 @@ from precision_policy import (
     DETERMINED,
     ESTIMATE_COMPLETE,
     FROZEN_PRECISION_PROFILE,
-    PRECISION_RADIUS_MCSE_INFLATION,
+    PRECISION_RADIUS_MCSE_INFLATION_30MH,
     PRECISION_RADIUS_MCSE_Z,
     UNDETERMINABLE_BANK,
     UNDETERMINABLE_CAP,
@@ -122,7 +122,7 @@ def test_frozen_factory_pins_policy_and_controller_profile_without_g() -> None:
         "floor_progress_deadline": True,
         "per_domain_cap": 60,
         "ess_threshold_frac": 0.5,
-        "n_mh_steps": 15,
+        "n_mh_steps": 30,
         "extended_data_collection": False,
     }
     assert policy.reliability_mode == "quantile_mcse"
@@ -130,10 +130,13 @@ def test_frozen_factory_pins_policy_and_controller_profile_without_g() -> None:
     assert policy.persistence == 2
     assert policy.band_min == 3
     assert policy.radius_mcse_z == PRECISION_RADIUS_MCSE_Z == 1.645
+    # Shipped default is the mc-guard v2 (30-MH) guard inflation since
+    # 2026-07-18; the legacy 15-MH value is pinned in
+    # test_precision_guard_default.py.
     assert (
         policy.radius_mcse_inflation
-        == PRECISION_RADIUS_MCSE_INFLATION
-        == 1.5962415320776275
+        == PRECISION_RADIUS_MCSE_INFLATION_30MH
+        == 1.3090533918867642
     )
     assert policy.interval_radius_scale_by_domain is None
     assert policy.interval_radius_ramp_max_by_domain is None
