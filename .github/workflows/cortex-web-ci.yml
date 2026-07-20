@@ -25,12 +25,14 @@ defaults:
 
 jobs:
   quality:
-    name: Static, numerical, API, build, and security gates
+    name: Complete quality and Chromium release gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       CORTEX_QUALITY_PYTHON: python
+      CORTEX_PY: python
+      CORTEX_BROWSER_GATES: "1"
+      CORTEX_SMOKE_SYNTHETIC: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,37 +49,6 @@ jobs:
         run: |
           npm ci
           python -m pip install -r services/api/requirements.lock
+          npx playwright install --with-deps chromium
       - name: Run complete quality gate
         run: npm run quality
-
-  browser:
-    name: Chromium worker parity and participant flow
-    needs: quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20.20.0"
-          cache: npm
-          cache-dependency-path: cortex_web/package-lock.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: cortex_web/services/api/requirements.lock
-      - name: Install locked and smoke-test dependencies
-        run: |
-          npm ci
-          python -m pip install -r services/api/requirements.lock
-          npx playwright install --with-deps chromium
-      - name: Build production assets
-        run: npm run build
-      - name: Verify worker and UI behavior in Chromium
-        env:
-          CORTEX_PY: python
-          CORTEX_SMOKE_SYNTHETIC: "1"
-        run: |
-          npm run -w cortex-web worker-smoke
-          npm run -w cortex-web ui-smoke
