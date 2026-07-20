@@ -157,7 +157,9 @@ true latest attempt. Now one `store_result_finalized` transaction, plus
 ## G9 — Docs
 
 - `LOCAL_DEV.md` rewritten with the monorepo paths/commands/test counts.
-- `STATUS.md` given a current-state banner (deployed; monorepo; real counts).
+- The former root `STATUS.md` received a current-state banner at the time; it
+  was later retired by the repository-hygiene pass when its phase model became
+  obsolete. See `docs/README.md` for current contracts.
 - This close-out.
 
 ## Deferred follow-ups (out of scope for a no-big-bang, test-gated pass)
