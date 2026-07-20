@@ -26,7 +26,10 @@ try {
   // App opens directly on the auth screen (no landing page).
   // Auth: public email/password signup → verify email → sign in. The signup
   // screen starts on "Sign in"; switch to "Create an account" first.
-  const email = `qa+${Date.now()}@example.org`;
+  // The production signup guard performs a real MX lookup. Use a domain that
+  // accepts mail even though the explicit dev backend never sends this message;
+  // example.org publishes a null MX and is correctly rejected on CI runners.
+  const email = `qa+${Date.now()}@gmail.com`;
   const password = "smoke-pass-123";
 
   // Capture the dev verification code echoed by the server in dev/CI
