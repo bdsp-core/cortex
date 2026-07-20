@@ -3,12 +3,11 @@
 // The engine speaks task indices 0..K-1; the UI speaks "the IIIC button at
 // position N." These helpers bridge the two so K=6 and K=7 bundles both work.
 
-import { EngineInputs } from "../engine/types";
+import { EngineInputs, SegmentMeta } from "../engine/types";
 
 export interface TaskInfo {
-  /** Engine task index (0..K-1). The pick we submit must equal the engine's
-   * `chosen.k` for y=1, so the button must carry the real index, not the
-   * 0-based position in the IIIC subset. */
+  /** Engine task index (0..K-1). The raw pick must carry this real index, not
+   * the 0-based position in the IIIC subset. */
   idx: number;
   code: string;   // "spike" | "sz" | "lpd" | ...
   label: string;  // "Spike" | "Seizure" | ...
@@ -38,4 +37,19 @@ export function spikeTask(inputs: EngineInputs): TaskInfo | null {
     }
   }
   return null;
+}
+
+/** Gold correctness is distinct from whether the response matched the domain
+ * the adaptive selector chose to measure. */
+export function answerIsCorrect(
+  inputs: EngineInputs, segment: SegmentMeta | undefined,
+  askedK: number, rawPick: number,
+): boolean | undefined {
+  if (!segment) return undefined;
+  if (inputs.taskClasses?.[askedK] === "spike") {
+    const expected = segment.sMean[askedK] > 0 ? askedK : inputs.taskCodes.length;
+    return rawPick === expected;
+  }
+  const expected = inputs.taskPatternWords.indexOf(segment.patternClass);
+  return expected >= 0 ? rawPick === expected : undefined;
 }

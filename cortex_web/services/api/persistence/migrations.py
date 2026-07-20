@@ -44,6 +44,7 @@ SESSIONS: list[Column] = [
     ("compute_mode", "TEXT NOT NULL DEFAULT 'serial'"),
     ("candidate_exclusion", "TEXT"),
     ("candidate_bank_sha256", "TEXT"),
+    ("nway_profile", "TEXT"),
 ]
 
 TRAINING_TRIALS: list[Column] = [

@@ -1,4 +1,4 @@
-import { precisionGoldenInputs } from "../../engine/__testdata__/precision_fixture";
+import { nwayWorkerInputs } from "../../engine/__testdata__/precision_fixture";
 import type { SessionResult } from "../../engine/session";
 import type {
   ComputeEngineInputs, EnginePerformanceEvent, RequestedComputeMode,
@@ -63,7 +63,7 @@ window.runWorkerHarness = (mode, options = {}) => new Promise((resolve, reject) 
       reject(new Error(message));
     },
   });
-  client.start(options.inputs ?? precisionGoldenInputs(), "browser-worker-parity", {
+  client.start(options.inputs ?? nwayWorkerInputs(), "browser-worker-parity", {
     seed: 31415,
     requestedComputeMode: mode,
   });

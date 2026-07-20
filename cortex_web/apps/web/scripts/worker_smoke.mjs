@@ -54,8 +54,11 @@ try {
   await page.goto(url);
   await page.waitForFunction(() => window.workerHarnessReady === true);
 
-  const serial = await page.evaluate(() => window.runWorkerHarness("serial"));
-  const dual = await page.evaluate(() => window.runWorkerHarness("dual_branch_auto"));
+  const options = { maxQuestions: 1, answerPattern: "yes" };
+  const serial = await page.evaluate(
+    (runOptions) => window.runWorkerHarness("serial", runOptions), options);
+  const dual = await page.evaluate(
+    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), options);
   assert.deepStrictEqual(dual.result, serial.result,
     "nested-worker execution changed the authoritative session result");
   assert.equal(pageErrors.length, 0, pageErrors.join("\n"));
@@ -67,7 +70,7 @@ try {
   assert.ok(dual.events.some((event) =>
     event.kind === "engine_step" && event.executionMode === "dual_branch"));
   process.stdout.write(
-    `worker-smoke: exact serial/dual result parity (${serial.result.nQuestions} questions); `
+    `worker-smoke: exact native-IIIC serial/dual result parity (${serial.result.nQuestions} questions); `
     + `browser reported ${dualProfile?.hardwareConcurrency} logical cores; `
     + `2 compute threads used under worker-src 'self'\n`,
   );

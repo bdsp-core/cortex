@@ -18,6 +18,8 @@ import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
 import { Chosen, predictedYesProbability } from "./choose_item";
+import { isNWaySession, validateNWayInputs } from "./nway_profile";
+import { predictedOutcomeDistribution, rankOutcomes } from "./nway_selector";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
 import {
   PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
@@ -77,10 +79,10 @@ export interface SessionCallbacks {
 }
 
 export interface SessionOptions {
-  // Speculative precompute (v1.6): compute both answer branches during the
-  // participant's think-time so the answer→next-item path is just a branch
-  // adopt. Bit-identical to the inline path; defaults OFF (tests/back-compat
-  // opt in explicitly; the worker turns it ON in production).
+  // Speculative precompute (v1.6): compute the two highest-probability raw
+  // outcomes during participant think-time so the common answer→next-item
+  // path is a branch adopt. Bit-identical to the inline path; defaults OFF
+  // (tests/back-compat opt in explicitly; the worker enables it in production).
   speculative?: boolean;
   branchExecutor?: BranchExecutor;
 }
@@ -96,6 +98,7 @@ export interface SessionResult {
   terminalReasons?: (string | null)[];
   skillIntervals?: [number, number][];
   biasIntervals?: [number, number][];
+  nwayProfile?: ComputeEngineInputs["nwayProfile"];
   servedSegIds: number[];
   trials: TrialDiag[];
   finalAuroc: number[]; // per-task posterior-mean AUROC (final cloud)
@@ -173,6 +176,8 @@ export class WebCortexSession {
     // manifest carries it (v15), else corrL for both blocks (pilot — bit-
     // identical to the single-PriorPieces era).
     const policyName = this.inputs.terminationPolicy ?? "ad6";
+    const nway = isNWaySession(this.inputs);
+    if (nway) validateNWayInputs(this.inputs);
     let policy: EngineTerminationPolicy;
     let nParticles: number;
     let perDomainCap: number;
@@ -219,7 +224,7 @@ export class WebCortexSession {
       K,
       nParticles,
       perDomainCap,
-      nMhSteps: policyName === "precision_v1" ? PRECISION_N_MH_STEPS : N_MH_STEPS,
+      nMhSteps: nway || policyName === "precision_v1" ? PRECISION_N_MH_STEPS : N_MH_STEPS,
       essThresholdFrac: ESS_THRESHOLD_FRAC,
       proposalScale: this.proposalScale,
       firstItemTopN: FIRST_ITEM_TOPN,
@@ -262,26 +267,35 @@ export class WebCortexSession {
         : undefined;
       let bankPreparationMs = performance.now() - bankStartedAt;
 
-      // Split-branch speculation: the coordinator computes the predicted
-      // response exactly as the serial path always has. On eligible devices a
-      // single helper concurrently computes the alternate response from an
-      // exact snapshot. This keeps the common path free of worker round-trip
-      // overhead while removing the serial misprediction tail.
-      let branches: [AdvanceResult | null, AdvanceResult | null] | null = null;
-      let firstY: 0 | 1 | null = null;
-      let helperY: 0 | 1 | null = null;
+      // Bounded ranked speculation: compute the most probable raw outcome on
+      // the coordinator and, when available, the second-ranked outcome on one
+      // helper. The other four IIIC outcomes remain deferred; an observed miss
+      // is calculated from an untouched authoritative clone.
+      let branches: Map<number, AdvanceResult> | null = null;
+      let firstPick: number | null = null;
+      let helperPick: number | null = null;
       let helperReady = false;
       let helperJob: Promise<AdvanceResult> | null = null;
       if (this.speculative) {
-        branches = [null, null];
-        firstY = predictedYesProbability(
-          this.core.state, chosen.k, chosen.s, chosen.sSd,
-        ) >= 0.5 ? 1 : 0;
-        helperY = firstY === 0 ? 1 : 0;
-        if (this.branchExecutor) {
+        branches = new Map<number, AdvanceResult>();
+        const distribution = nway
+          ? predictedOutcomeDistribution(this.core.state, this.inputs, chosen)
+          : (() => {
+              const yes = predictedYesProbability(
+                this.core.state, chosen.k, chosen.s, chosen.sSd,
+              );
+              return [
+                { outcome: chosen.k, probability: yes },
+                { outcome: K, probability: 1 - yes },
+              ];
+            })();
+        const ranked = rankOutcomes(distribution);
+        firstPick = ranked[0].outcome;
+        helperPick = ranked[1]?.outcome ?? null;
+        if (this.branchExecutor && helperPick !== null) {
           try {
             helperJob = this.branchExecutor.advance(
-              this.core, chosen, params, trialIndex, helperY,
+              this.core, chosen, params, trialIndex, helperPick,
             ).then((result) => { helperReady = true; return result; });
             // A predicted response leaves the alternate result unused. Its
             // failure must never surface as an unhandled rejection.
@@ -291,10 +305,10 @@ export class WebCortexSession {
             this.branchExecutor = undefined;
           }
         }
-        branches[firstY] = advanceCore(
-          cloneCore(this.core), this.inputs, chosen, firstY, params, trialIndex,
+        branches.set(firstPick, advanceCore(
+          cloneCore(this.core), this.inputs, chosen, firstPick, params, trialIndex,
           preparedPrecisionBank,
-        );
+        ));
 
         // If the participant answered during the first branch, process that
         // message now and compute only the requested branch. Otherwise use the
@@ -302,19 +316,12 @@ export class WebCortexSession {
         await this.yieldToWorker();
         if (!this.aborted && observedPick !== undefined && observedPick >= 0
             && !helperJob) {
-          const observedY: 0 | 1 = observedPick === chosen.k ? 1 : 0;
-          if (!branches[observedY]) {
-            branches[observedY] = advanceCore(
-              cloneCore(this.core), this.inputs, chosen, observedY, params, trialIndex,
+          if (!branches.has(observedPick)) {
+            branches.set(observedPick, advanceCore(
+              cloneCore(this.core), this.inputs, chosen, observedPick, params, trialIndex,
               preparedPrecisionBank,
-            );
+            ));
           }
-        } else if (!this.aborted && !helperJob) {
-          const secondY: 0 | 1 = firstY === 0 ? 1 : 0;
-          branches[secondY] = advanceCore(
-            cloneCore(this.core), this.inputs, chosen, secondY, params, trialIndex,
-            preparedPrecisionBank,
-          );
         }
       }
       // An abort that arrived during the (synchronous) speculation above.
@@ -322,10 +329,9 @@ export class WebCortexSession {
 
       const pick = observedPick ?? await answerPromise;
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
-      const y: 0 | 1 = pick === chosen.k ? 1 : 0;
 
       let res: AdvanceResult;
-      if (helperJob && y === helperY) {
+      if (helperJob && pick === helperPick) {
         const readyAtAnswer = helperReady;
         try {
           res = await helperJob;
@@ -341,20 +347,20 @@ export class WebCortexSession {
             : undefined;
           bankPreparationMs = performance.now() - fallbackBankStartedAt;
           res = advanceCore(
-            this.core, this.inputs, chosen, y, params, trialIndex,
+            this.core, this.inputs, chosen, pick, params, trialIndex,
             preparedPrecisionBank,
           );
           res.timing.executionMode = "serial_fallback";
           res.timing.speculative = false;
         }
       } else {
-        res = branches?.[y] ?? advanceCore(
-            this.core, this.inputs, chosen, y, params, trialIndex,
+        res = branches?.get(pick) ?? advanceCore(
+            this.core, this.inputs, chosen, pick, params, trialIndex,
             preparedPrecisionBank,
           );
         res.timing.bankPreparationMs = bankPreparationMs;
         res.timing.speculative = this.speculative;
-        if (helperJob && y === firstY) {
+        if (helperJob && pick === firstPick) {
           res.timing.executionMode = "dual_branch";
           res.timing.requiredBranchReadyAtAnswer = true;
         }
@@ -399,6 +405,7 @@ export class WebCortexSession {
       ...(finalized.terminalReasons ? { terminalReasons: finalized.terminalReasons } : {}),
       ...(finalized.skillIntervals ? { skillIntervals: finalized.skillIntervals } : {}),
       ...(finalized.biasIntervals ? { biasIntervals: finalized.biasIntervals } : {}),
+      ...(this.inputs.nwayProfile ? { nwayProfile: { ...this.inputs.nwayProfile } } : {}),
       servedSegIds: this.served,
       trials: this.trials,
       finalAuroc,

@@ -1,8 +1,28 @@
 import type { ComputeEngineInputs } from "../types";
+import { expectedNWayProfile } from "../nway_profile";
 
 function identity(n: number): number[][] {
   return Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => Number(i === j)));
+}
+
+/** Small native-IIIC bank for real Worker/CSP serial-vs-helper parity. */
+export function nwayWorkerInputs(): ComputeEngineInputs {
+  const base = precisionGoldenInputs();
+  return {
+    ...base,
+    nwayProfile: expectedNWayProfile("a".repeat(64)),
+    segments: Array.from({ length: 21 }, (_, index) => {
+      const signal = [-1, 0, 1][index % 3] + index * 1e-3;
+      return {
+        segId: 1000 + index,
+        applicableTaskIdx: [1, 2, 3, 4, 5, 6],
+        sMean: [0, signal, signal + 0.1, signal - 0.1,
+          signal + 0.2, signal - 0.2, signal + 0.05],
+        sSd: [0, 0.2, 0.22, 0.21, 0.19, 0.23, 0.18],
+      };
+    }),
+  };
 }
 
 /** Small deterministic Precision bank used by execution-path drift guards. */

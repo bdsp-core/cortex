@@ -31,7 +31,7 @@ self.onmessage = (event: MessageEvent<BranchWorkerRequest>) => {
       : undefined;
     const bankPreparationMs = performance.now() - bankStartedAt;
     const result = advanceCore(
-      core, inputs, message.chosen, message.y, message.params,
+      core, inputs, message.chosen, message.pick, message.params,
       message.trialIndex, preparedBank,
     );
     result.timing.bankPreparationMs = bankPreparationMs;

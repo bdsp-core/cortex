@@ -8,7 +8,7 @@ export interface BranchExecutor {
     chosen: Chosen,
     params: AdvanceParams,
     trialIndex: number,
-    y: 0 | 1,
+    pick: number,
   ): Promise<AdvanceResult>;
   dispose(): void;
 }

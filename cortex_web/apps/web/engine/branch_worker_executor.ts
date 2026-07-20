@@ -24,9 +24,9 @@ interface BranchSlot {
 }
 
 /**
- * One persistent helper for the alternate response branch. The coordinator
- * computes the predicted branch concurrently, so total compute concurrency is
- * two without paying for two helper-worker copies of the full bank.
+ * One persistent helper for the second-ranked response branch. The coordinator
+ * computes the most likely branch concurrently, so total compute concurrency
+ * is two without paying for two helper-worker copies of the full bank.
  */
 export class BranchWorkerExecutor implements BranchExecutor {
   private static readonly READY_TIMEOUT_MS = 10_000;
@@ -61,14 +61,14 @@ export class BranchWorkerExecutor implements BranchExecutor {
     chosen: Chosen,
     params: AdvanceParams,
     trialIndex: number,
-    y: 0 | 1,
+    pick: number,
   ): Promise<AdvanceResult> {
     if (this.disposed) throw new Error("branch worker executor is disposed");
     const jobId = this.nextJobId++;
     const request: Extract<BranchWorkerRequest, { type: "advance" }> = {
       type: "advance",
       jobId,
-      y,
+      pick,
       snapshot: snapshotCore(core),
       chosen,
       params,

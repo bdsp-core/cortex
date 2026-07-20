@@ -437,6 +437,9 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       sMean: Array.from({ length: this.statuses.length }, () => []),
       sSd: Array.from({ length: this.statuses.length }, () => []),
       segId: Array.from({ length: this.statuses.length }, () => []),
+      ...(bank.segment
+        ? { segment: Array.from({ length: this.statuses.length }, () => []) }
+        : {}),
     };
     for (let k = 0; k < this.statuses.length; k++) {
       for (let i = 0; i < bank.segId[k].length; i++) {
@@ -448,6 +451,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
         out.sMean[k].push(bank.sMean[k][i]);
         out.sSd[k].push(bank.sSd[k][i]);
         out.segId[k].push(id);
+        if (bank.segment) out.segment![k].push(bank.segment[k][i]);
       }
     }
     return out;

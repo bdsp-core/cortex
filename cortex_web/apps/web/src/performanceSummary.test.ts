@@ -13,7 +13,7 @@ describe("internal engine performance summary", () => {
     for (let i = 1; i <= 20; i += 1) {
       collector.record({ kind: "answer_to_item", trialIndex: i, durationMs: i });
       collector.record({
-        kind: "engine_step", trialIndex: i, y: 1, rejuvenated: i === 20,
+        kind: "engine_step", trialIndex: i, y: 1, pick: 1, rejuvenated: i === 20,
         bankPreparationMs: 0, updateMs: 1, rejuvenationMs: i === 20 ? 5 : 0,
         bookkeepingMs: 1, policyMs: 1, diagnosticsMs: 1,
         selectionMs: i, totalMs: i * 2, executionMode: "dual_branch",

@@ -692,9 +692,11 @@ def test_precision_policy_allowlist_canary_and_rollback(client):
     assert len(body["bank"]["segments"]) == client.app.state.get_precision_bank().n_segments
     session_row = db.get_session(body["sessionId"])
     assert session_row["termination_policy"] == "precision_v1"
+    assert session_row["status"] == "in_progress_nway"
     assert session_row["drawn_seg_ids"] is None       # never persist 35k ids
     assert json.loads(session_row["candidate_exclusion"]) == []
     assert session_row["candidate_bank_sha256"] == client.app.state.get_precision_bank().manifest_sha256
+    assert body["bank"]["nwayProfile"] == json.loads(session_row["nway_profile"])
 
     first_seg = body["bank"]["segments"][0]["segId"]
     assert client.post("/api/progress", headers=pilot_headers, json={
@@ -714,10 +716,23 @@ def test_precision_policy_allowlist_canary_and_rollback(client):
         "stopReason": "spoofed", "nQuestions": 1,
     })
     assert rejected.status_code == 409
+    wrong_profile = dict(body["bank"]["nwayProfile"])
+    wrong_profile["responseArtifactSha256"] = "0" * 64
+    rejected_profile = client.post("/api/results", headers=pilot_headers, json={
+        "sessionId": body["sessionId"],
+        "result": {
+            "terminationPolicy": "precision_v1",
+            "nwayProfile": wrong_profile,
+            "verdicts": ["ABOVE_CUT"] * 7,
+        },
+        "stopReason": "spoofed", "nQuestions": 1,
+    })
+    assert rejected_profile.status_code == 409
     accepted = client.post("/api/results", headers=pilot_headers, json={
         "sessionId": body["sessionId"],
         "result": {
             "terminationPolicy": "precision_v1",
+            "nwayProfile": body["bank"]["nwayProfile"],
             "verdicts": ["ABOVE_CUT"] * 7,
             "determinations": ["DETERMINED"] * 7,
         },

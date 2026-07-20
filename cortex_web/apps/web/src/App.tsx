@@ -31,6 +31,7 @@ import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
 import type { TrainingState } from "./trainingSetup";
 import { EnginePerformanceCollector } from "./performanceSummary";
+import { answerIsCorrect } from "./tasks";
 
 // The training surface is trainer-only weight (belief-filter engine, candidate
 // bank, feedback runner) that most visitors — signup, exam — never reach, so
@@ -142,7 +143,6 @@ export function App() {
   const shownAtRef = useRef<number>(0);
   const shownIsoRef = useRef<string>("");      // wall clock at item render (L2)
   const answeredIsoRef = useRef<string>("");   // wall clock at answer (L2)
-  const lastPickRef = useRef<number | null>(null);
   const lastRtRef = useRef<number | null>(null);
   const lastDiagRef = useRef<TrialDiag | null>(null);
 
@@ -253,6 +253,7 @@ export function App() {
       bundleRef.current = b;
       setBundle(b);
       const inputs = b.computeInputs;
+      const segmentById = new Map(b.manifest.segments.map((segment) => [segment.segId, segment]));
       sessionIdRef.current = sessionId;
 
       // Precision selects from the full 35k candidate bank but can serve only
@@ -299,8 +300,10 @@ export function App() {
             trialIndex: diag.trialIndex,
             segId: diag.segId,
             taskK: diag.taskK,
-            pick: lastPickRef.current ?? undefined,
-            isCorrect: diag.y === 1,
+            pick: diag.pick,
+            isCorrect: answerIsCorrect(
+              b.inputs, segmentById.get(diag.segId), diag.taskK, diag.pick,
+            ),
             reactionMs: lastRtRef.current ?? undefined,
             shownClientUtc: shownIsoRef.current || undefined,
             answeredClientUtc: answeredIsoRef.current || undefined,
@@ -385,6 +388,7 @@ export function App() {
           const delivered = await api.submitResults(sessionId, {
             verdicts: r.verdicts,
             terminationPolicy: r.terminationPolicy,
+            nwayProfile: r.nwayProfile,
             domainStatuses: r.domainStatuses,
             determinations: r.determinations,
             terminalReasons: r.terminalReasons,
@@ -504,7 +508,6 @@ export function App() {
   }, []);
 
   const onAnswer = useCallback((pick: number) => {
-    lastPickRef.current = pick;
     lastRtRef.current = Math.round(performance.now() - shownAtRef.current);
     answeredIsoRef.current = new Date().toISOString();
     clientRef.current?.answer(pick);

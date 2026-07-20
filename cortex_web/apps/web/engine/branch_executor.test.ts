@@ -23,7 +23,7 @@ class SnapshotBranchExecutor implements BranchExecutor {
     chosen: Chosen,
     params: AdvanceParams,
     trialIndex: number,
-    y: 0 | 1,
+    pick: number,
   ): Promise<AdvanceResult> {
     const snapshot = snapshotCore(core);
     return Promise.resolve().then(() => {
@@ -32,7 +32,7 @@ class SnapshotBranchExecutor implements BranchExecutor {
         this.inputs, restored.remaining, chosen.segId,
       );
       const result = advanceCore(
-        restored, this.inputs, chosen, y, params, trialIndex, prepared,
+        restored, this.inputs, chosen, pick, params, trialIndex, prepared,
       );
       result.timing.executionMode = "dual_branch";
       result.timing.speculative = true;

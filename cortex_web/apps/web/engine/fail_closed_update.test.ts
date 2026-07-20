@@ -13,7 +13,7 @@ function fixture(): ParticleState {
     w: Float64Array.from([0.25, 0.75]),
     logPrior: Float64Array.from([0, 0]),
     logLik: Float64Array.from([-1, -2]),
-    history: [{ k: 0, s: 0.1, y: 1, sSd: 0.2 }],
+    history: [{ kind: "binary", k: 0, s: 0.1, y: 1, sSd: 0.2, rawPick: 0 }],
     prior: { tPieces: pieces, lPieces: pieces },
   };
 }

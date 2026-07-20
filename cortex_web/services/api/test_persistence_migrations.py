@@ -61,6 +61,7 @@ def test_additive_session_migration_preserves_legacy_rows(tmp_path):
     assert row["bundle_version"] == "legacy-bank"
     assert row["termination_policy"] == "ad6"
     assert row["compute_mode"] == "serial"
+    assert row["nway_profile"] is None
     database.close()
 
     # Reopening proves the declarations and executor are idempotent.
@@ -74,3 +75,4 @@ def test_migration_registry_has_unique_columns_per_table_pass():
         names = [name for name, _sql_type in columns]
         assert len(names) == len(set(names)), table
     assert ("compute_mode", "TEXT NOT NULL DEFAULT 'serial'") in migrations.SESSIONS
+    assert ("nway_profile", "TEXT") in migrations.SESSIONS

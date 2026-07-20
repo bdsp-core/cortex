@@ -2,8 +2,9 @@
 // Port of make_state_hier / update / ess / resample_and_rejuvenate /
 // mh_rejuvenate from engine/core_mcmc.py.
 
-import { ParticleState, PriorPair } from "./types";
+import { ParticleObservation, ParticleState, PriorPair } from "./types";
 import { logPResponse, signalZ } from "./likelihood";
+import { logObservationProbability } from "./nway_likelihood";
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
 import { Rng } from "./rng";
@@ -36,7 +37,9 @@ export function cloneState(st: ParticleState): ParticleState {
     w: st.w.slice(),
     logPrior: st.logPrior.slice(),
     logLik: st.logLik.slice(),
-    history: st.history.slice(),
+    history: st.history.map((observation) => observation.kind === "categorical_f1"
+      ? { ...observation, sMean: observation.sMean.slice(), sSd: observation.sSd.slice() }
+      : { ...observation }),
     prior: st.prior,
     ...(st.lastRejuvenation ? { lastRejuvenation: { ...st.lastRejuvenation } } : {}),
   };
@@ -95,7 +98,66 @@ export function update(
   for (let n = 0; n < N; n++) nextW[n] /= sumW;
   st.w = nextW;
   st.logLik = nextLogLik;
-  st.history.push({ k, s, y, sSd });
+  st.history.push({ kind: "binary", k, s, y, sSd, rawPick: y === 1 ? k : st.K });
+}
+
+// Production response update. IIIC observations retain the raw category and
+// normalize in log space; spike observations preserve the original binary
+// multiply/normalize order. All arrays commit transactionally only after every
+// particle and the normalizer validate.
+export function updateObservation(st: ParticleState, observation: ParticleObservation): void {
+  if (observation.kind === "binary") {
+    update(st, observation.k, observation.s, observation.y, observation.sSd);
+    st.history[st.history.length - 1] = { ...observation };
+    return;
+  }
+  const { N, K, w, logLik } = st;
+  if (observation.sMean.length !== K || observation.sSd.length !== K
+      || observation.sMean.some((value) => !Number.isFinite(value))
+      || observation.sSd.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new Error("invalid categorical signal vectors");
+  }
+  let maximumLogWeight = -Infinity;
+  const likelihood = new Float64Array(N);
+  const nextLogLik = new Float64Array(N);
+  for (let n = 0; n < N; n++) {
+    if (!Number.isFinite(w[n]) || w[n] < 0 || !Number.isFinite(logLik[n])) {
+      throw new PosteriorUpdateError("pre-update particle state is invalid");
+    }
+    const lp = logObservationProbability(observation, st.t, st.l, n, K);
+    const cumulative = logLik[n] + lp;
+    if (!Number.isFinite(lp) || !Number.isFinite(cumulative)) {
+      throw new PosteriorUpdateError("categorical posterior update is non-finite");
+    }
+    likelihood[n] = lp;
+    nextLogLik[n] = cumulative;
+    if (w[n] > 0) maximumLogWeight = Math.max(
+      maximumLogWeight, Math.log(w[n]) + lp,
+    );
+  }
+  if (!Number.isFinite(maximumLogWeight)) {
+    throw new PosteriorUpdateError("categorical posterior update has zero mass");
+  }
+  const nextW = new Float64Array(N);
+  let sumW = 0;
+  for (let n = 0; n < N; n++) {
+    const value = w[n] === 0
+      ? 0
+      : Math.exp(Math.log(w[n]) + likelihood[n] - maximumLogWeight);
+    nextW[n] = value;
+    sumW += value;
+  }
+  if (!Number.isFinite(sumW) || sumW <= 0) {
+    throw new PosteriorUpdateError("categorical posterior update has invalid mass");
+  }
+  for (let n = 0; n < N; n++) nextW[n] /= sumW;
+  st.w = nextW;
+  st.logLik = nextLogLik;
+  st.history.push({
+    ...observation,
+    sMean: observation.sMean.slice(),
+    sSd: observation.sSd.slice(),
+  });
 }
 
 export function ess(w: Float64Array): number {
@@ -114,11 +176,9 @@ function logLikHistory(
 ): void {
   const { N, K, history } = st;
   out.fill(0);
-  for (const { k, s, y, sSd } of history) {
+  for (const observation of history) {
     for (let n = 0; n < N; n++) {
-      const off = n * K + k;
-      const z = signalZ(lNew[off], tNew[off], s, sSd);
-      out[n] += logPResponse(z, y);
+      out[n] += logObservationProbability(observation, tNew, lNew, n, K);
     }
   }
 }

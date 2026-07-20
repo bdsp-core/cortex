@@ -123,8 +123,8 @@ export function Viewer({
     const onKey = (e: KeyboardEvent) => {
       // 1–N selects the N-th IIIC button (N = iiicOpts.length, typically 6).
       // We submit the *engine task index* (iiicOpts[i].idx), not the button
-      // position, so K=7 bundles where IIIC tasks live at indices 1..6 also
-      // produce y = (pick === chosen.k) correctly.
+      // position, so K=7 bundles retain the exact IIIC category (indices 1..6)
+      // in the native response likelihood and replay log.
       const opts = iiicOptsRef.current;
       if (e.key >= "1" && e.key <= String(opts.length)) {
         e.preventDefault();

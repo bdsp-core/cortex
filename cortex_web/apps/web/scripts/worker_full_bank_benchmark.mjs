@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -20,6 +21,19 @@ if (!fs.existsSync(manifestPath)) {
   );
 }
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+function quantile(values, q) {
+  const ordered = [...values].sort((a, b) => a - b);
+  const position = (ordered.length - 1) * q;
+  const low = Math.floor(position), high = Math.min(low + 1, ordered.length - 1);
+  return ordered[low] + (position - low) * (ordered[high] - ordered[low]);
+}
+const precisionBandEdges = manifest.precisionBandEdges
+  || manifest.taskCodes.map((_code, k) => {
+    const values = manifest.segments
+      .filter((segment) => !segment.applicableTaskIdx || segment.applicableTaskIdx.includes(k))
+      .map((segment) => segment.sMean[k]);
+    return [quantile(values, 1 / 3), quantile(values, 2 / 3)];
+  });
 const inputs = {
   taskCodes: manifest.taskCodes,
   taskLabels: manifest.taskLabels,
@@ -31,9 +45,22 @@ const inputs = {
   nParticles: manifest.nParticles,
   perDomainCap: manifest.perDomainCap,
   terminationPolicy: "precision_v1",
-  precisionBandEdges: manifest.precisionBandEdges,
+  precisionBandEdges,
   ellStar: manifest.ellStar,
-  segments: manifest.segments.map((segment) => ({
+  nwayProfile: {
+    engineProfileId: "precision_nway_f1_ensemble9_fisher_v1",
+    responseModel: "iiic_conditional_f1_v1",
+    responseArtifactId: "iiic-f1-crossfit-ensemble9-rd-20260720",
+    responseArtifactSha256: "0654fc210e67ece152dcaef6b40641fc9c94cb259d100ed3829d90224bc5ef8b",
+    selectorVersion: "categorical_fisher_totalvar_v1",
+    particleProfileVersion: "production_1200p_ess050_30mh_rd",
+    engineAlgorithmVersion: "nway_protocol_0.2.0-rd",
+    candidateBankSha256: createHash("sha256").update(fs.readFileSync(manifestPath)).digest("hex"),
+  },
+  segments: manifest.segments
+    .filter((segment) => process.env.CORTEX_BENCH_IIIC_ONLY !== "1"
+      || segment.testClass !== "spike")
+    .map((segment) => ({
     segId: segment.segId,
     applicableTaskIdx: segment.applicableTaskIdx,
     sMean: segment.sMean,
@@ -101,7 +128,7 @@ try {
   await page.waitForFunction(() => window.workerHarnessReady === true);
   const options = {
     inputs,
-    maxQuestions: Number(process.env.CORTEX_BENCH_QUESTIONS || 28),
+    maxQuestions: Number(process.env.CORTEX_BENCH_QUESTIONS || 4),
     answerDelayMs: Number(process.env.CORTEX_BENCH_ANSWER_DELAY_MS || 750),
     answerPattern: process.env.CORTEX_BENCH_ANSWER_PATTERN || "yes",
   };

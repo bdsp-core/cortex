@@ -12,7 +12,7 @@ export type BranchWorkerRequest =
   | {
       type: "advance";
       jobId: number;
-      y: 0 | 1;
+      pick: number;
       snapshot: SessionCoreSnapshot;
       chosen: Chosen;
       params: AdvanceParams;

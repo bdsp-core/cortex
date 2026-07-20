@@ -80,6 +80,7 @@ _SCHEMA_STATEMENTS = [
         compute_mode       TEXT NOT NULL DEFAULT 'serial',
         candidate_exclusion TEXT,
         candidate_bank_sha256 TEXT,
+        nway_profile      TEXT,
         FOREIGN KEY (code) REFERENCES participants(code)
     )""",
     """CREATE TABLE IF NOT EXISTS trials (
@@ -746,15 +747,24 @@ class Database:
                         termination_policy: str = "ad6",
                         compute_mode: str = "serial",
                         candidate_exclusion: Optional[str] = None,
-                        candidate_bank_sha256: Optional[str] = None) -> None:
+                        candidate_bank_sha256: Optional[str] = None,
+                        nway_profile: Optional[dict] = None) -> None:
+        # A distinct open-state is a rollback interlock. Older releases search
+        # only status='in_progress', so after an application rollback they
+        # cannot resume and reinterpret a native n-way answer stream as binary.
+        # The new release treats both open states normally; result ingest on an
+        # already-open browser remains accepted by either release.
+        open_status = "in_progress_nway" if nway_profile else "in_progress"
         self._write(
             "INSERT INTO sessions(session_id, code, participant, sample_seed, "
             "bundle_version, drawn_seg_ids, termination_policy, "
-            "compute_mode, candidate_exclusion, candidate_bank_sha256, "
-            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'in_progress')",
+            "compute_mode, candidate_exclusion, candidate_bank_sha256, nway_profile, "
+            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (session_id, code, json.dumps(participant), sample_seed,
              bundle_version, drawn_seg_ids, termination_policy, compute_mode,
-             candidate_exclusion, candidate_bank_sha256, utc_now()),
+             candidate_exclusion, candidate_bank_sha256,
+             json.dumps(nway_profile, sort_keys=True) if nway_profile else None,
+             utc_now(), open_status),
         )
 
     def get_session(self, session_id: str) -> Optional[dict]:
@@ -767,7 +777,8 @@ class Database:
         Age-gated: past the window a fresh draw serves them better than a
         test they've lost the context of."""
         row = self._fetchone(
-            "SELECT * FROM sessions WHERE code=? AND status='in_progress' "
+            "SELECT * FROM sessions WHERE code=? "
+            "AND status IN ('in_progress','in_progress_nway') "
             "ORDER BY started_utc DESC LIMIT 1", (code,))
         if row is None:
             return None
@@ -782,7 +793,7 @@ class Database:
         only gate there) — it just stops being resumable."""
         self._write(
             "UPDATE sessions SET status='superseded' "
-            "WHERE code=? AND status='in_progress'", (code,))
+            "WHERE code=? AND status IN ('in_progress','in_progress_nway')", (code,))
 
     def _finalize_session_stmt(self, conn, session_id: str,
                                stop_reason: Optional[str],

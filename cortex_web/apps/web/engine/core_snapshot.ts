@@ -15,7 +15,7 @@ export interface ParticleStateSnapshot {
   w: Float64Array;
   logPrior: Float64Array;
   logLik: Float64Array;
-  history: { k: number; s: number; y: 0 | 1; sSd: number }[];
+  history: ParticleState["history"];
   lastRejuvenation?: RejuvenationTelemetry;
 }
 
@@ -43,7 +43,9 @@ export function snapshotCore(core: SessionCore): SessionCoreSnapshot {
       w: state.w.slice(),
       logPrior: state.logPrior.slice(),
       logLik: state.logLik.slice(),
-      history: state.history.map((x) => ({ ...x })),
+      history: state.history.map((x) => x.kind === "categorical_f1"
+        ? { ...x, sMean: x.sMean.slice(), sSd: x.sSd.slice() }
+        : { ...x }),
       ...(state.lastRejuvenation
         ? { lastRejuvenation: { ...state.lastRejuvenation } }
         : {}),
@@ -81,7 +83,9 @@ export function restoreCore(
     w: raw.w,
     logPrior: raw.logPrior,
     logLik: raw.logLik,
-    history: raw.history.map((x) => ({ ...x })),
+    history: raw.history.map((x) => x.kind === "categorical_f1"
+      ? { ...x, sMean: x.sMean.slice(), sSd: x.sSd.slice() }
+      : { ...x }),
     prior,
     ...(raw.lastRejuvenation
       ? { lastRejuvenation: { ...raw.lastRejuvenation } }

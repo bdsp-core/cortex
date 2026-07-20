@@ -16,8 +16,8 @@ export interface ExecutionProfile {
 
 /**
  * Conservative device adaptation. hardwareConcurrency is only a browser hint;
- * the binary response model has exactly two useful branches, so more than two
- * compute workers can only add contention.
+ * the ranked n-way scheduler deliberately precomputes only the two most likely
+ * outcomes, so more than two compute threads can only add contention.
  */
 export function selectExecutionProfile(args: {
   requested: RequestedComputeMode;

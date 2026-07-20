@@ -6,7 +6,7 @@
 // over the predicted answer y. choose_item picks the (k, s, segId) that
 // minimizes it across the remaining bank.
 
-import { ParticleState } from "./types";
+import { ComputeSegmentMeta, ParticleState } from "./types";
 import { pResponseYes, signalZ } from "./likelihood";
 
 // Expected total posterior variance for ONE candidate (task k, signal s,sSd).
@@ -141,6 +141,9 @@ export interface BankArrays {
   sMean: number[][]; // [K][nRemaining]
   sSd: number[][];
   segId: number[][];
+  // Full signal vector for the same candidate. Required by the native IIIC
+  // response model because a wrong category informs the distractor tasks too.
+  segment?: ComputeSegmentMeta[][];
 }
 
 export interface Chosen {
@@ -149,6 +152,7 @@ export interface Chosen {
   sSd: number;
   segId: number;
   loss: number;
+  segment?: ComputeSegmentMeta;
 }
 
 export interface SelectionOptions {
@@ -156,10 +160,8 @@ export interface SelectionOptions {
   uncertaintyAware?: boolean;
 }
 
-// Posterior-predictive probability for the binary response used by the engine
-// (y=1 iff the participant selects the asked task). Session speculation uses
-// this only to decide which immutable branch to compute first; it never enters
-// stopping, selection, or the adopted posterior calculation.
+// Legacy/spike posterior-predictive yes probability. Native IIIC sessions use
+// nway_selector.predictedOutcomeDistribution instead.
 export function predictedYesProbability(
   st: ParticleState,
   k: number,
@@ -296,7 +298,7 @@ function candidateIndices(
 // Precision's coarse-to-fine scan assumes each domain is stable-mergesorted by
 // signal. Index is the explicit stability tie-break, matching Python.
 export function sortBankBySignalStable(bank: BankArrays): BankArrays {
-  const out: BankArrays = { sMean: [], sSd: [], segId: [] };
+  const out: BankArrays = { sMean: [], sSd: [], segId: [], ...(bank.segment ? { segment: [] } : {}) };
   for (let k = 0; k < bank.sMean.length; k++) {
     const order = bank.sMean[k].map((value, index) => ({ value, index }))
       .sort((a, b) => (a.value - b.value) || (a.index - b.index))
@@ -304,6 +306,7 @@ export function sortBankBySignalStable(bank: BankArrays): BankArrays {
     out.sMean.push(order.map((i) => bank.sMean[k][i]));
     out.sSd.push(order.map((i) => bank.sSd[k][i]));
     out.segId.push(order.map((i) => bank.segId[k][i]));
+    if (bank.segment) out.segment!.push(order.map((i) => bank.segment![k][i]));
   }
   return out;
 }

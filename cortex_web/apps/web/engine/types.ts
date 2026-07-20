@@ -49,6 +49,11 @@ export interface EngineInputs<S extends ComputeSegmentMeta = SegmentMeta> {
   // is created and returned unchanged on resume; clients never choose it.
   // Absent on legacy/local fixtures => AD6 (the public rollback/default path).
   terminationPolicy?: TerminationPolicyName;
+  // Server-authoritative response/selector profile. New production sittings
+  // carry this exact stamp; it is persisted with the sitting and checked on
+  // resume/result ingest so an engine upgrade cannot silently reinterpret an
+  // answer stream.
+  nwayProfile?: NWayProfileStamp;
   // Frozen full-bank signal terciles used by precision_v1's content floor.
   // The API derives these from the complete served manifest before drawing the
   // per-session subset, so a participant's random draw cannot move the floor.
@@ -61,6 +66,41 @@ export interface EngineInputs<S extends ComputeSegmentMeta = SegmentMeta> {
 
 export type ComputeEngineInputs = EngineInputs<ComputeSegmentMeta>;
 
+export const NWAY_RESPONSE_MODEL = "iiic_conditional_f1_v1" as const;
+export const NWAY_SELECTOR_VERSION = "categorical_fisher_totalvar_v1" as const;
+
+export interface NWayProfileStamp {
+  engineProfileId: string;
+  responseModel: typeof NWAY_RESPONSE_MODEL;
+  responseArtifactId: string;
+  responseArtifactSha256: string;
+  selectorVersion: typeof NWAY_SELECTOR_VERSION;
+  particleProfileVersion: string;
+  engineAlgorithmVersion: string;
+  candidateBankSha256: string;
+}
+
+export interface BinaryParticleObservation {
+  kind: "binary";
+  k: number;
+  s: number;
+  sSd: number;
+  y: 0 | 1;
+  rawPick: number;
+}
+
+export interface CategoricalParticleObservation {
+  kind: "categorical_f1";
+  askedK: number;
+  pickK: number;
+  sMean: number[];
+  sSd: number[];
+}
+
+export type ParticleObservation =
+  | BinaryParticleObservation
+  | CategoricalParticleObservation;
+
 // Particle cloud. t,l are row-major Float64Array(N*K).
 export interface ParticleState {
   N: number;
@@ -70,7 +110,7 @@ export interface ParticleState {
   w: Float64Array; // (N) normalized weights
   logPrior: Float64Array; // (N)
   logLik: Float64Array; // (N)
-  history: { k: number; s: number; y: 0 | 1; sSd: number }[];
+  history: ParticleObservation[];
   // Separate prior pieces for the t- and l-blocks. On the frozen-pilot path
   // both are precomputePrior(corrL) and the computation is bit-identical to the
   // single-PriorPieces era; on the v15 path tPieces uses corrT.
@@ -95,6 +135,7 @@ export interface EngineStepTiming {
   kind: "engine_step";
   trialIndex: number;
   y: 0 | 1;
+  pick: number;
   rejuvenated: boolean;
   bankPreparationMs: number;
   updateMs: number;
@@ -152,6 +193,11 @@ export interface TrialDiag {
   s: number;
   sSd: number;
   y: 0 | 1;
+  // Raw task-axis response. For IIIC this is the retained six-way category;
+  // for spike it is task 0 (yes) or the K sentinel (no).
+  pick: number;
+  responseKind: "binary" | "categorical_f1";
+  matchedAskedTask: boolean;
   ess: number;
   rejuv: boolean;
   pi: number[]; // per-task pass-mass

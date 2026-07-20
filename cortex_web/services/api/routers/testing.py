@@ -20,6 +20,7 @@ from ..policy_rollout import (
 )
 from ..deps import require_auth
 from ..models import ProgressIn, ResultsIn, SessionIn
+from ..nway_profile import production_nway_profile
 
 router = APIRouter(prefix="/api")
 
@@ -110,6 +111,10 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                 503, f"precision_v1 bundle profile incomplete: {','.join(missing)}")
         if drawn["nParticles"] != 1200 or drawn["perDomainCap"] != 60:
             raise HTTPException(503, "precision_v1 bundle profile mismatch")
+        nway_profile = production_nway_profile(bank.manifest_sha256)
+        drawn["nwayProfile"] = nway_profile
+    else:
+        nway_profile = None
     drawn["terminationPolicy"] = termination_policy
     session_id = uuid.uuid4().hex
     # A fresh sitting retires any still-open one (at most one resumable
@@ -130,7 +135,8 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                           if termination_policy == PRECISION_POLICY else None),
                       candidate_bank_sha256=(
                           bank.manifest_sha256
-                          if termination_policy == PRECISION_POLICY else None))
+                          if termination_policy == PRECISION_POLICY else None),
+                      nway_profile=nway_profile)
     return {"sessionId": session_id, "sampleSeed": seed,
             "terminationPolicy": termination_policy,
             "computeMode": compute_mode, "bank": drawn}
@@ -169,7 +175,8 @@ def session_status(db, bank, code: str, precision_bank_getter=None) -> dict:
     candidate_replayable = bool(row and (
         (row.get("termination_policy") == PRECISION_POLICY
          and row.get("candidate_exclusion") is not None
-         and row.get("candidate_bank_sha256") == bank.manifest_sha256)
+         and row.get("candidate_bank_sha256") == bank.manifest_sha256
+         and row.get("nway_profile") is not None)
         or row.get("drawn_seg_ids"))) if bank is not None else False
     if (row is not None and bank is not None
             and row.get("bundle_version") == bank.version
@@ -202,7 +209,8 @@ def active_session(req: Request, code: str = Depends(require_auth)):
         return {"active": None, "washout": washout}
     if row.get("termination_policy") == PRECISION_POLICY:
         if (row.get("candidate_exclusion") is None
-                or row.get("candidate_bank_sha256") != bank.manifest_sha256):
+                or row.get("candidate_bank_sha256") != bank.manifest_sha256
+                or row.get("nway_profile") is None):
             return {"active": None, "washout": washout}
         payload = bank.full(
             int(row.get("sample_seed") or 0),
@@ -219,6 +227,14 @@ def active_session(req: Request, code: str = Depends(require_auth)):
         return {"active": None, "washout": washout}
     payload["sampleSeed"] = row.get("sample_seed")
     payload["terminationPolicy"] = row.get("termination_policy") or AD6_POLICY
+    if row.get("nway_profile"):
+        try:
+            stored_nway_profile = json.loads(row["nway_profile"])
+        except (TypeError, ValueError):
+            return {"active": None, "washout": washout}
+        if stored_nway_profile != production_nway_profile(bank.manifest_sha256):
+            return {"active": None, "washout": washout}
+        payload["nwayProfile"] = stored_nway_profile
     return {"active": {
         "sessionId": row["session_id"],
         "startedUtc": row["started_utc"],
@@ -248,6 +264,13 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
     reported_policy = body.result.get("terminationPolicy") or AD6_POLICY
     if reported_policy != expected_policy:
         raise HTTPException(409, "termination policy does not match session stamp")
+    try:
+        stored_nway_profile = (
+            json.loads(sess["nway_profile"]) if sess.get("nway_profile") else None)
+    except (TypeError, ValueError):
+        raise HTTPException(409, "stored n-way profile is invalid")
+    if body.result.get("nwayProfile") != stored_nway_profile:
+        raise HTTPException(409, "n-way profile does not match session stamp")
     # Derive the EVAL operating points (ℓ/θ/σ + median RT per task) BEFORE
     # writing, then store-result + finalize-session + trajectory-replace land
     # as ONE transaction — no half-finalized session can survive a crash

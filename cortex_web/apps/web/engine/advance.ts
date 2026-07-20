@@ -1,8 +1,8 @@
 // Per-trial engine step, factored out of WebCortexSession.run so it can run
 // either INLINE (committed straight onto the live core) or SPECULATIVELY (on a
 // clone of the core during the participant's think-time, then adopted when the
-// real answer arrives). The answer is binary (Y = 1 iff the rater's 6-way pick
-// == the asked task), so either possible branch can be computed independently.
+// real answer arrives). IIIC branches carry the native six-way task-axis pick;
+// spike branches remain binary (task 0 vs the K sentinel).
 //
 // Both paths call the SAME advanceCore on an exact clone, so a speculative
 // session is BIT-IDENTICAL to the inline one — proven in speculative.test.ts.
@@ -10,11 +10,14 @@
 // answer), never WHAT it produces.
 
 import { ComputeEngineInputs, EngineStepTiming, ParticleState, TrialDiag } from "./types";
-import { update, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
+import { updateObservation, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
 import { aurocSummary } from "./auroc";
 import {
   BankArrays, chooseItem, chooseFirstItem, Chosen, sortBankBySignalStable,
 } from "./choose_item";
+import { makeResponseObservation } from "./nway_likelihood";
+import { isNWaySession } from "./nway_profile";
+import { chooseFirstNWayItem, chooseNWayItem } from "./nway_selector";
 import { EngineTerminationPolicy, VERDICT } from "./policy";
 import {
   PRECISION_STATUS, PrecisionDiagnostics, PrecisionPolicy,
@@ -92,6 +95,7 @@ function bankArrays(inputs: ComputeEngineInputs, remaining?: ReadonlySet<number>
   const sMean: number[][] = Array.from({ length: K }, () => []);
   const sSd: number[][] = Array.from({ length: K }, () => []);
   const segId: number[][] = Array.from({ length: K }, () => []);
+  const segment = Array.from({ length: K }, () => [] as typeof inputs.segments);
   for (const seg of inputs.segments) {
     if (remaining && !remaining.has(seg.segId)) continue;
     const applicable = seg.applicableTaskIdx;
@@ -100,16 +104,18 @@ function bankArrays(inputs: ComputeEngineInputs, remaining?: ReadonlySet<number>
         sMean[k].push(seg.sMean[k]);
         sSd[k].push(seg.sSd[k]);
         segId[k].push(seg.segId);
+        segment[k].push(seg);
       }
     } else {
       for (let k = 0; k < K; k++) {
         sMean[k].push(seg.sMean[k]);
         sSd[k].push(seg.sSd[k]);
         segId[k].push(seg.segId);
+        segment[k].push(seg);
       }
     }
   }
-  return { sMean, sSd, segId };
+  return { sMean, sSd, segId, segment };
 }
 
 // Precision always uses the same full, manifest-ordered bank for a session.
@@ -134,21 +140,24 @@ export function precisionRemainingBank(
   additionallyRemove?: number,
 ): BankArrays {
   const full = precisionSortedBank(inputs);
-  const out: BankArrays = { sMean: [], sSd: [], segId: [] };
+  const out: BankArrays = { sMean: [], sSd: [], segId: [], segment: [] };
   for (let k = 0; k < full.sMean.length; k++) {
     const means: number[] = [];
     const sds: number[] = [];
     const ids: number[] = [];
+    const segments = [] as typeof inputs.segments;
     for (let i = 0; i < full.segId[k].length; i++) {
       const id = full.segId[k][i];
       if (id === additionallyRemove || !remaining.has(id)) continue;
       means.push(full.sMean[k][i]);
       sds.push(full.sSd[k][i]);
       ids.push(id);
+      segments.push(full.segment![k][i]);
     }
     out.sMean.push(means);
     out.sSd.push(sds);
     out.segId.push(ids);
+    out.segment!.push(segments);
   }
   return out;
 }
@@ -163,6 +172,7 @@ export function chooseNext(
 ): Chosen {
   const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
   const precisionPolicy = core.policy instanceof PrecisionPolicy ? core.policy : null;
+  const nway = isNWaySession(inputs);
   let bank = precisionPolicy
     ? (preparedPrecisionBank ?? precisionRemainingBank(inputs, core.remaining))
     : bankArrays(inputs, core.remaining);
@@ -211,14 +221,16 @@ export function chooseNext(
     const excluded = new Set<number>();
     for (let k = 0; k < K; k++) if (!allowed.includes(k)) excluded.add(k);
     return trialIndex === 0
-      ? chooseFirstItem(core.state, bank, firstItemTopN, core.rng, excluded, {
+      ? (nway ? chooseFirstNWayItem(
+          core.state, inputs, bank, firstItemTopN, core.rng, excluded,
+        ) : chooseFirstItem(core.state, bank, firstItemTopN, core.rng, excluded, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
-        })
-      : chooseItem(core.state, bank, excluded, {
+        }))
+      : (nway ? chooseNWayItem(core.state, inputs, bank, excluded) : chooseItem(core.state, bank, excluded, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
-        });
+        }));
   }
 
   // Hard exclusions — survive ALL fallbacks. RESOLVED tasks (verdict locked) +
@@ -252,14 +264,16 @@ export function chooseNext(
 
   const pick = (ex: Set<number>): Chosen =>
     trialIndex === 0
-      ? chooseFirstItem(core.state, bank, firstItemTopN, core.rng, ex, {
+      ? (nway ? chooseFirstNWayItem(
+          core.state, inputs, bank, firstItemTopN, core.rng, ex,
+        ) : chooseFirstItem(core.state, bank, firstItemTopN, core.rng, ex, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
-        })
-      : chooseItem(core.state, bank, ex, {
+        }))
+      : (nway ? chooseNWayItem(core.state, inputs, bank, ex) : chooseItem(core.state, bank, ex, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
-        });
+        }));
   // Fallbacks: drop the variety cap, then phase — but NEVER revive a
   // resolved/capped task (hardExcluded is the floor).
   let chosen = pick(excluded);
@@ -272,14 +286,27 @@ export function chooseNext(
 // rejuvenate → bookkeeping → AD6 evaluate + per-domain cap → diag → choose the
 // next item (skipped when the session is done). Returns the per-trial outputs.
 export function advanceCore(
-  core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, y: 0 | 1,
+  core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, rawPick: number,
   params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
 ): AdvanceResult {
   const startedAt = performance.now();
   const { state, rng, policy } = core;
 
-  update(state, chosen.k, chosen.s, y, chosen.sSd);
+  const segment = chosen.segment
+    ?? inputs.segments.find((candidate) => candidate.segId === chosen.segId);
+  if (!segment) throw new Error(`chosen segment ${chosen.segId} is unavailable`);
+  const response = isNWaySession(inputs)
+    ? makeResponseObservation(
+        chosen.k, segment, rawPick,
+        inputs.taskClasses?.[chosen.k] ?? "iiic",
+      )
+    : {
+        kind: "binary" as const, k: chosen.k, s: chosen.s, sSd: chosen.sSd,
+        y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
+      };
+  updateObservation(state, response);
+  const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
   const updatedAt = performance.now();
   let rejuv = false;
   if (ess(state.w) < params.essThresholdFrac * params.nParticles) {
@@ -324,6 +351,9 @@ export function advanceCore(
     s: chosen.s,
     sSd: chosen.sSd,
     y,
+    pick: rawPick,
+    responseKind: response.kind,
+    matchedAskedTask: y === 1,
     ess: res.ess,
     rejuv,
     pi: res.pi,
@@ -375,6 +405,7 @@ export function advanceCore(
       kind: "engine_step",
       trialIndex,
       y,
+      pick: rawPick,
       rejuvenated: rejuv,
       bankPreparationMs: 0,
       updateMs: updatedAt - startedAt,
