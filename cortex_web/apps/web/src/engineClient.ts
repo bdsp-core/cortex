@@ -2,46 +2,57 @@
 // particle filter off the UI thread; the client just relays init/answer/abort
 // and surfaces item/trial/done/error events.
 
-import { EngineInputs, TerminationPolicyName, TrialDiag } from "../engine/types";
+import type { SessionResult } from "../engine/session";
+import type {
+  ComputeEngineInputs, EnginePerformanceEvent, RequestedComputeMode, TrialDiag,
+} from "../engine/types";
+import type {
+  EngineWorkerRequest, EngineWorkerResponse,
+} from "../engine/worker_protocol";
+import {
+  computePayloadTransferables, packComputeInputs,
+} from "../engine/compute_payload";
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
-  onDone: (result: {
-    sessionId: string;
-    nQuestions: number;
-    stopReason: string;
-    verdicts: string[];
-    terminationPolicy: TerminationPolicyName;
-    domainStatuses?: string[];
-    determinations?: string[];
-    terminalReasons?: (string | null)[];
-    skillIntervals?: [number, number][];
-    biasIntervals?: [number, number][];
-    servedSegIds: number[];
-    trials: TrialDiag[];
-    finalAuroc: number[];
-    finalAurocHw: number[];
-    traj: { t: Float32Array; l: Float32Array; w: Float32Array; shape: [number, number, number] };
-  }) => void;
+  onPerformance?: (event: EnginePerformanceEvent) => void;
+  onDone: (result: SessionResult) => void;
   onError?: (message: string) => void;
+}
+
+export interface EngineStartOptions {
+  seed?: number;
+  requestedComputeMode?: RequestedComputeMode;
 }
 
 export class EngineClient {
   private worker: Worker;
+  private answerStartedAt: number | null = null;
 
   constructor(private handlers: EngineClientHandlers) {
     this.worker = new Worker(new URL("../engine/worker.ts", import.meta.url), {
       type: "module",
     });
-    this.worker.onmessage = (ev: MessageEvent) => {
+    this.worker.onmessage = (ev: MessageEvent<EngineWorkerResponse>) => {
       const m = ev.data;
       switch (m.type) {
         case "item":
+          if (this.answerStartedAt !== null) {
+            this.handlers.onPerformance?.({
+              kind: "answer_to_item",
+              trialIndex: m.trialIndex,
+              durationMs: performance.now() - this.answerStartedAt,
+            });
+            this.answerStartedAt = null;
+          }
           this.handlers.onItem({ trialIndex: m.trialIndex, taskK: m.taskK, segId: m.segId });
           break;
         case "trial":
           this.handlers.onTrial?.(m.diag);
+          break;
+        case "performance":
+          this.handlers.onPerformance?.(m.event);
           break;
         case "done":
           this.handlers.onDone(m.result);
@@ -63,19 +74,35 @@ export class EngineClient {
     };
   }
 
-  start(inputs: EngineInputs, sessionId: string, seed?: number): void {
-    this.worker.postMessage({ type: "init", inputs, sessionId, seed });
+  start(
+    inputs: ComputeEngineInputs,
+    sessionId: string,
+    options: EngineStartOptions = {},
+  ): void {
+    const payload = packComputeInputs(inputs);
+    this.post({
+      type: "init",
+      payload,
+      sessionId,
+      seed: options.seed,
+      requestedComputeMode: options.requestedComputeMode ?? "serial",
+    }, computePayloadTransferables(payload));
   }
 
   answer(pick: number): void {
-    this.worker.postMessage({ type: "answer", pick });
+    this.answerStartedAt = performance.now();
+    this.post({ type: "answer", pick });
   }
 
   abort(): void {
-    this.worker.postMessage({ type: "abort" });
+    this.post({ type: "abort" });
   }
 
   dispose(): void {
     this.worker.terminate();
+  }
+
+  private post(message: EngineWorkerRequest, transfer: Transferable[] = []): void {
+    this.worker.postMessage(message, { transfer });
   }
 }

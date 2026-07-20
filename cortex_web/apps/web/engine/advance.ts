@@ -9,7 +9,7 @@
 // Speculation only changes WHEN the work runs (idle think-time vs after the
 // answer), never WHAT it produces.
 
-import { EngineInputs, ParticleState, TrialDiag } from "./types";
+import { ComputeEngineInputs, EngineStepTiming, ParticleState, TrialDiag } from "./types";
 import { update, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
 import { aurocSummary } from "./auroc";
 import {
@@ -63,6 +63,7 @@ export interface AdvanceResult {
   nextChosen: Chosen;         // segId === -1 when the active bank is exhausted
   done: boolean;              // every task resolved or capped → stop
   stopReason: string;         // set when done; "" otherwise
+  timing: EngineStepTiming;   // internal wall-clock attribution; never policy input
 }
 
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
@@ -86,7 +87,7 @@ export function cloneCore(c: SessionCore): SessionCore {
 // Per-task candidate arrays over the remaining (unserved) bank. A segment only
 // contributes to its applicableTaskIdx (IIIC → tasks 1..6, spike → task 0);
 // pre-K=7 bundles omit it and fall back to "all K tasks".
-function bankArrays(inputs: EngineInputs, remaining?: ReadonlySet<number>): BankArrays {
+function bankArrays(inputs: ComputeEngineInputs, remaining?: ReadonlySet<number>): BankArrays {
   const K = inputs.taskCodes.length;
   const sMean: number[][] = Array.from({ length: K }, () => []);
   const sSd: number[][] = Array.from({ length: K }, () => []);
@@ -116,9 +117,9 @@ function bankArrays(inputs: EngineInputs, remaining?: ReadonlySet<number>): Bank
 // every answer was pure repeated work. Cache that immutable expansion once per
 // EngineInputs object, then retain only currently available ids. Filtering a
 // stable full sort is equivalent to stable-sorting the filtered manifest.
-const precisionSortedBankCache = new WeakMap<EngineInputs, BankArrays>();
+const precisionSortedBankCache = new WeakMap<ComputeEngineInputs, BankArrays>();
 
-function precisionSortedBank(inputs: EngineInputs): BankArrays {
+function precisionSortedBank(inputs: ComputeEngineInputs): BankArrays {
   let bank = precisionSortedBankCache.get(inputs);
   if (!bank) {
     bank = sortBankBySignalStable(bankArrays(inputs));
@@ -128,7 +129,7 @@ function precisionSortedBank(inputs: EngineInputs): BankArrays {
 }
 
 export function precisionRemainingBank(
-  inputs: EngineInputs,
+  inputs: ComputeEngineInputs,
   remaining: ReadonlySet<number>,
   additionallyRemove?: number,
 ): BankArrays {
@@ -157,7 +158,7 @@ export function precisionRemainingBank(
 // deterministic A-optimal chooseItem. Identical hard/phase/variety exclusions +
 // defensive fallbacks as the original inline loop.
 export function chooseNext(
-  core: SessionCore, inputs: EngineInputs, params: AdvanceParams, trialIndex: number,
+  core: SessionCore, inputs: ComputeEngineInputs, params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
 ): Chosen {
   const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
@@ -271,13 +272,15 @@ export function chooseNext(
 // rejuvenate → bookkeeping → AD6 evaluate + per-domain cap → diag → choose the
 // next item (skipped when the session is done). Returns the per-trial outputs.
 export function advanceCore(
-  core: SessionCore, inputs: EngineInputs, chosen: Chosen, y: 0 | 1,
+  core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, y: 0 | 1,
   params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
 ): AdvanceResult {
+  const startedAt = performance.now();
   const { state, rng, policy } = core;
 
   update(state, chosen.k, chosen.s, y, chosen.sSd);
+  const updatedAt = performance.now();
   let rejuv = false;
   if (ess(state.w) < params.essThresholdFrac * params.nParticles) {
     resampleAndRejuvenate(
@@ -285,6 +288,7 @@ export function advanceCore(
     );
     rejuv = true;
   }
+  const rejuvenatedAt = performance.now();
 
   core.remaining.delete(chosen.segId);
   core.nPerTask[chosen.k] += 1;
@@ -294,6 +298,7 @@ export function advanceCore(
   // Variety-cap streak.
   if (chosen.k === core.lastTaskK) core.streakCount += 1;
   else { core.lastTaskK = chosen.k; core.streakCount = 1; }
+  const bookkeepingAt = performance.now();
 
   let telemetry: Record<string, unknown> | undefined;
   if (policy instanceof PrecisionPolicy) {
@@ -302,6 +307,7 @@ export function advanceCore(
     telemetry = policy.bankTelemetry(rawBank, state.lastRejuvenation);
   }
   const res = policy.evaluate(state, core.nPerTask, telemetry);
+  const policyAt = performance.now();
   core.lastOutcomes = res.selectionStates;
   if (policy.name === "ad6") {
     for (let k = 0; k < params.K; k++) {
@@ -344,6 +350,7 @@ export function advanceCore(
     diag.guardedPrecisionStatistic = pd.guardedPrecisionStatistic.slice();
     diag.skillTolerance = pd.skillTolerance.slice();
   }
+  const diagnosticsAt = performance.now();
 
   // Adaptive stop: every task resolved OR capped-out (capped → REFER at
   // finalize). Subsumes AD6's all-resolved stop.
@@ -361,5 +368,25 @@ export function advanceCore(
       core, inputs, params, trialIndex + 1, preparedPrecisionBank,
     );
   }
-  return { core, diag, trajSnapshot, servedSegId: chosen.segId, rejuv, nextChosen, done, stopReason };
+  const finishedAt = performance.now();
+  return {
+    core, diag, trajSnapshot, servedSegId: chosen.segId, rejuv, nextChosen, done, stopReason,
+    timing: {
+      kind: "engine_step",
+      trialIndex,
+      y,
+      rejuvenated: rejuv,
+      bankPreparationMs: 0,
+      updateMs: updatedAt - startedAt,
+      rejuvenationMs: rejuvenatedAt - updatedAt,
+      bookkeepingMs: bookkeepingAt - rejuvenatedAt,
+      policyMs: policyAt - bookkeepingAt,
+      diagnosticsMs: diagnosticsAt - policyAt,
+      selectionMs: finishedAt - diagnosticsAt,
+      totalMs: finishedAt - startedAt,
+      executionMode: "serial",
+      speculative: false,
+      requiredBranchReadyAtAnswer: false,
+    },
+  };
 }

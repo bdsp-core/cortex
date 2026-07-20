@@ -28,17 +28,22 @@ export interface EegCanvasProps {
 
 export function EegCanvas(props: EegCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const {
+    rows, fsHz, gainUv, windowS, panStartS, width, height, labeledEpoch,
+    clipTraces,
+  } = props;
+  const labeledEpochStartS = labeledEpoch?.startS;
+  const labeledEpochEndS = labeledEpoch?.endS;
 
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
     const ctx = cv.getContext("2d")!;
     const dpr = window.devicePixelRatio || 1;
-    cv.width = props.width * dpr;
-    cv.height = props.height * dpr;
+    cv.width = width * dpr;
+    cv.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const { rows, fsHz, gainUv, windowS, panStartS, width, height, labeledEpoch } = props;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
@@ -57,9 +62,9 @@ export function EegCanvas(props: EegCanvasProps) {
     // Intersect the labeled span with the visible window and paint a
     // translucent red rectangle + red border. Mirrors the desktop's
     // LinearRegionItem framing the central scored 10 s.
-    if (labeledEpoch) {
-      const visLo = Math.max(labeledEpoch.startS, panStartS);
-      const visHi = Math.min(labeledEpoch.endS, panStartS + windowS);
+    if (labeledEpochStartS !== undefined && labeledEpochEndS !== undefined) {
+      const visLo = Math.max(labeledEpochStartS, panStartS);
+      const visHi = Math.min(labeledEpochEndS, panStartS + windowS);
       if (visHi > visLo) {
         const xL = padL + ((visLo - panStartS) / windowS) * plotW;
         const xR = padL + ((visHi - panStartS) / windowS) * plotW;
@@ -102,7 +107,7 @@ export function EegCanvas(props: EegCanvasProps) {
     }
 
     // keep traces inside the plot so they never paint over the time labels
-    if (props.clipTraces) {
+    if (clipTraces) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(padL, padT, plotW, plotH);
@@ -129,7 +134,7 @@ export function EegCanvas(props: EegCanvasProps) {
       }
       ctx.stroke();
     }
-    if (props.clipTraces) ctx.restore();
+    if (clipTraces) ctx.restore();
 
     // scale bar (1 s + gain µV): placed at the Fz-Cz / Cz-Pz boundary of the
     // bipolar montage, within the second-to-last second of the window. Falls
@@ -155,13 +160,12 @@ export function EegCanvas(props: EegCanvasProps) {
     // channels × samples) on any unrelated re-render. `rows` is memoized in the
     // Viewer, and labeledEpoch's fields are constants, so this only redraws when
     // something it actually paints changes.
-  }, [props.rows, props.fsHz, props.gainUv, props.windowS, props.panStartS,
-      props.width, props.height, props.labeledEpoch?.startS,
-      props.labeledEpoch?.endS, props.clipTraces]);
+  }, [rows, fsHz, gainUv, windowS, panStartS, width, height,
+      labeledEpochStartS, labeledEpochEndS, clipTraces]);
 
   // display:block prevents the inline-baseline descender that lets the
   // canvas's height drift up by a few pixels per ResizeObserver cycle in a
   // column-flex parent (SpikeViewer's "slowly stretching" bug).
   return <canvas ref={ref}
-    style={{ display: "block", width: props.width, height: props.height }} />;
+    style={{ display: "block", width, height }} />;
 }

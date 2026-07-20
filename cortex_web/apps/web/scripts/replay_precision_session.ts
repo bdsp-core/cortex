@@ -161,8 +161,7 @@ async function main(): Promise<void> {
   };
   let cursor = 0;
   let lastDiag: TrialDiag | undefined;
-  let session!: WebCortexSession;
-  session = new WebCortexSession(
+  const session = new WebCortexSession(
     inputs,
     engineSessionId,
     engineSeed,

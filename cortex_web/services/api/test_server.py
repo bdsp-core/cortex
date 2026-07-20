@@ -640,9 +640,12 @@ def test_precision_policy_public_rollout_applies_to_every_account(client):
     assert started.status_code == 200, started.text
     body = started.json()
     assert body["terminationPolicy"] == "precision_v1"
+    assert body["computeMode"] == "serial"  # independent rollout defaults off
     assert body["bank"]["terminationPolicy"] == "precision_v1"
     assert client.app.state.db.get_session(body["sessionId"])[
         "termination_policy"] == "precision_v1"
+    assert client.app.state.db.get_session(body["sessionId"])[
+        "compute_mode"] == "serial"
 
     # Unknown configuration values fail closed to AD6 rather than silently
     # broadening or partially applying the rollout.
@@ -731,6 +734,68 @@ def test_precision_policy_allowlist_canary_and_rollback(client):
     )
     assert rolled_back.status_code == 200, rolled_back.text
     assert rolled_back.json()["terminationPolicy"] == "ad6"
+
+
+def test_precision_compute_rollout_is_server_owned_and_resume_stable(client):
+    """Compute placement is an independent, fail-closed sitting stamp.
+
+    It can accelerate Precision only; neither an AD6 client nor a request body
+    can opt itself into the dual-branch path.
+    """
+    client.app.state.cfg["precision_policy_rollout"] = "all"
+    client.app.state.cfg["precision_compute_rollout"] = "email_allowlist"
+    client.app.state.cfg["precision_compute_emails"] = frozenset({
+        "compute-pilot@example.test",
+    })
+
+    pilot_email, pilot_pw = _make_participant(client)
+    db = client.app.state.db
+    pilot_code = db.get_participant_by_email(pilot_email)["code"]
+    db.update_email(pilot_code, "compute-pilot@example.test")
+    pilot_headers = _auth_header(client, "COMPUTE-PILOT@EXAMPLE.TEST", pilot_pw)
+    started = client.post("/api/session", headers=pilot_headers, json={
+        "participant": {}, "sampleSeed": 501,
+        "computeMode": "dual_branch_auto",
+    })
+    assert started.status_code == 200, started.text
+    body = started.json()
+    assert body["terminationPolicy"] == "precision_v1"
+    assert body["computeMode"] == "dual_branch_auto"
+    assert db.get_session(body["sessionId"])["compute_mode"] == "dual_branch_auto"
+
+    first_seg = body["bank"]["segments"][0]["segId"]
+    assert client.post("/api/progress", headers=pilot_headers, json={
+        "sessionId": body["sessionId"],
+        "trial": {"trialIndex": 0, "segId": first_seg, "taskK": 0, "pick": 0},
+    }).status_code == 200
+
+    # A kill switch changes only future sittings; replay stays on its stamped
+    # execution path. Mathematical replay remains exact either way.
+    client.app.state.cfg["precision_compute_rollout"] = "off"
+    active = client.get("/api/session/active", headers=pilot_headers).json()["active"]
+    assert active["computeMode"] == "dual_branch_auto"
+
+    fresh = client.post("/api/session", headers=pilot_headers, json={
+        "participant": {}, "sampleSeed": 502,
+        "computeMode": "dual_branch_auto",
+    }).json()
+    assert fresh["computeMode"] == "serial"
+    assert db.get_session(fresh["sessionId"])["compute_mode"] == "serial"
+
+    # AD6 cannot enter the parallel path even when the compute rollout is all.
+    client.app.state.cfg["precision_policy_rollout"] = "off"
+    client.app.state.cfg["precision_compute_rollout"] = "all"
+    ad6 = client.post("/api/session", headers=pilot_headers,
+                      json={"participant": {}, "sampleSeed": 503}).json()
+    assert ad6["terminationPolicy"] == "ad6"
+    assert ad6["computeMode"] == "serial"
+
+    # Unknown configuration values also fail closed.
+    client.app.state.cfg["precision_policy_rollout"] = "all"
+    client.app.state.cfg["precision_compute_rollout"] = "unexpected"
+    fallback = client.post("/api/session", headers=pilot_headers,
+                           json={"participant": {}, "sampleSeed": 504}).json()
+    assert fallback["computeMode"] == "serial"
 
 
 def test_progress_rejects_foreign_session(client):
@@ -2521,6 +2586,9 @@ def _finish_session_with_fat_result(client, hdr):
         "trials": [{"trialIndex": i, "segId": i, "diag": {"pi": [0.5] * 7}}
                    for i in range(50)],                      # the heavy key
         "servedSegIds": list(range(700)),                    # the other heavy key
+        "_enginePerformance": {"schemaVersion": 1, "answerToItem": {
+            "count": 50, "p50Ms": 120.0, "p95Ms": 450.0, "maxMs": 700.0,
+        }},                                                   # internal-only
         "participant": {"expertise": "attending"},
         "sampleSeed": 42,
     }
@@ -2533,7 +2601,8 @@ def _finish_session_with_fat_result(client, hdr):
 
 def test_history_and_dashboard_strip_heavy_result_keys(client):
     """Listing surfaces must NOT ship the per-trial bulk (~95% of a stored
-    blob): trials + servedSegIds are stripped, everything the UI reads
+    blob): trials, servedSegIds, and internal engine timing are stripped;
+    everything the UI reads
     (verdicts/roc/perTask + metadata) survives. The admin endpoint keeps the
     FULL blob — it is the export/debug path."""
     email, pw = _make_participant(client)
@@ -2544,6 +2613,7 @@ def test_history_and_dashboard_strip_heavy_result_keys(client):
     assert len(hist) == 1 and hist[0]["session_id"] == sid
     res = hist[0]["result"]
     assert "trials" not in res and "servedSegIds" not in res
+    assert "_enginePerformance" not in res
     assert res["verdicts"] == ["PASS"] * 7
     assert res["roc"][0]["auroc"] == 0.9
     assert len(res["perTask"]) == 7
@@ -2552,6 +2622,7 @@ def test_history_and_dashboard_strip_heavy_result_keys(client):
     dash = client.get("/api/dashboard", headers=hdr).json()
     assert dash["hasResult"] is True
     assert "trials" not in dash["result"] and "servedSegIds" not in dash["result"]
+    assert "_enginePerformance" not in dash["result"]
     assert dash["kpis"]["tasksCertified"] == 7
     assert len(dash["tasks"]) == 7 and dash["tasks"][0]["verdict"] == "PASS"
 
@@ -2560,6 +2631,7 @@ def test_history_and_dashboard_strip_heavy_result_keys(client):
                       headers={"X-Admin-Token": "test-admin"}).json()
     assert len(full["trials"]) == 50
     assert len(full["servedSegIds"]) == 700
+    assert full["_enginePerformance"]["schemaVersion"] == 1
 
 
 # ─────────────── API defense-in-depth headers (2026-07-02) ───────────────

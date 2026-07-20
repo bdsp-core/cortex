@@ -1,45 +1,54 @@
 name: CORTEX Web CI
 
-# Fast, self-contained test gate for the browser port (cortex_web/): the
-# TypeScript engine + frontend unit tests (vitest) and the FastAPI backend
-# tests (pytest). Does NOT run the headless-Chrome UI smoke (needs a browser)
-# or the heavy 282-test Python engine suite — those stay local/manual.
-#
-# Trigger scope is deliberately conservative: pull requests touching
-# cortex_web/, plus manual dispatch. It does NOT run on every push to main, so
-# it won't generate noise on unrelated commits. Flip to `push:` once verified.
-
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - "cortex_web/**"
       - ".github/workflows/cortex-web-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cortex_web/**"
+      - ".github/workflows/cortex-web-ci.yml"
+
+concurrency:
+  group: cortex-web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 defaults:
   run:
     working-directory: cortex_web
 
 jobs:
-  frontend:
+  quality:
+    name: Complete quality and Chromium release gate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"   # ui-smoke is local-only; no browser in CI
+      CORTEX_QUALITY_PYTHON: python
+      CORTEX_PY: python
+      CORTEX_BROWSER_GATES: "1"
+      CORTEX_SMOKE_SYNTHETIC: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - run: npm ci || npm install
-      - run: npm run typecheck
-      - run: npm test
-
-  backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          node-version: "20.20.0"
+          cache: npm
+          cache-dependency-path: cortex_web/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r services/api/requirements.txt
-      - run: python -m pytest services/api/test_server.py research/ -q
+          cache: pip
+          cache-dependency-path: cortex_web/services/api/requirements.lock
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          python -m pip install -r services/api/requirements.lock
+          npx playwright install --with-deps chromium
+      - name: Run complete quality gate
+        run: npm run quality

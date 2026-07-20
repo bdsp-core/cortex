@@ -57,7 +57,7 @@ describe("likelihood vs engine/core_mcmc.py", () => {
 // mathfns.ts). 1e-6 is comfortably above that floor yet far below any real
 // porting bug (wrong formula/sign/index → ≫1e-2), so it's a meaningful
 // agreement check, not a fake-loosened one. Upgrade erfc to the Cody form
-// (PLAN §11) to recover 1e-12 here if exactness is ever required.
+// to recover 1e-12 here if exactness is ever required.
 const LIK_TOL = 1e-6;
 
 describe("update reweighting vs engine update()", () => {

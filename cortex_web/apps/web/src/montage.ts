@@ -81,7 +81,8 @@ export function average(eeg: Float32Array, names: string[], nSamp: number): Mont
 
 // Laplacian placeholder: until the per-channel neighbourhoods are ported,
 // fall back to the average montage so the control still works end-to-end.
-// TODO(PLAN §6): port the exact neighbour sets from eeg_bank_viewer.py L91-103.
+// TODO: port the exact neighbour sets from eeg_bank_viewer.py L91-103 and pin
+// the resulting montage against the Python viewer with a numerical fixture.
 export function laplacian(eeg: Float32Array, names: string[], nSamp: number): MontageRow[] {
   return average(eeg, names, nSamp);
 }

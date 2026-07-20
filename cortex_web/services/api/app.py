@@ -1,6 +1,6 @@
 """CORTEX web backend — FastAPI app factory.
 
-Tiny by design (PLAN §3, §8): the engine runs entirely in the participant's
+Tiny by design: the engine runs entirely in the participant's
 browser, so the server only (a) authenticates, (b) hands out the bundle URL +
 the per-session question draw, and (c) ingests results. No per-question
 compute. A single small instance serves 100 concurrent participants because
@@ -144,6 +144,15 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             for x in os.environ.get(
                 "CORTEX_PRECISION_POLICY_EMAILS",
                 ",".join(sorted(config.PRECISION_POLICY_EMAILS))).split(",")
+            if x.strip()),
+        "precision_compute_rollout": os.environ.get(
+            "CORTEX_PRECISION_COMPUTE_ROLLOUT",
+            config.PRECISION_COMPUTE_ROLLOUT).strip().lower(),
+        "precision_compute_emails": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_PRECISION_COMPUTE_EMAILS",
+                ",".join(sorted(config.PRECISION_COMPUTE_EMAILS))).split(",")
             if x.strip()),
         # Engine-trainer exposure. Default ALL (2026-07-17 integration
         # decision: the learning engine IS the production trainer; the

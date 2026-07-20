@@ -1,44 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { WebCortexSession } from "./session";
-import type { EngineInputs, TrialDiag } from "./types";
-
-function identity(n: number): number[][] {
-  return Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n }, (_, j) => Number(i === j)));
-}
-
-function goldenInputs(): EngineInputs {
-  const codes = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"];
-  const signals = Array.from({ length: 20 }, (_, i) => -2 + 4 * i / 19);
-  return {
-    taskCodes: codes,
-    taskLabels: codes,
-    taskPatternWords: ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"],
-    taskClasses: ["spike", "iiic", "iiic", "iiic", "iiic", "iiic", "iiic"],
-    corrL: identity(7),
-    corrT: identity(7),
-    nParticles: 1200,
-    perDomainCap: 60,
-    terminationPolicy: "precision_v1",
-    precisionBandEdges: Array.from({ length: 7 }, () => [-0.5, 0.5]),
-    ellStar: new Array(7).fill(0),
-    segments: signals.map((signal, i) => ({
-      segId: i + 1,
-      patternClass: "spike",
-      testClass: "spike" as const,
-      applicableTaskIdx: [0],
-      sMean: [signal, 0, 0, 0, 0, 0, 0],
-      sSd: [0.2, 0, 0, 0, 0, 0, 0],
-      fsHz: 200,
-      nCh: 1,
-      nSamp: 1,
-      channelNames: [],
-      eeg: "",
-      spec: "",
-    })),
-  };
-}
+import type { TrialDiag } from "./types";
+import { precisionGoldenInputs } from "./__testdata__/precision_fixture";
 
 function rounded(values: number[] | undefined): number[] | undefined {
   return values?.map((x) => Number(x.toFixed(12)));
@@ -48,7 +12,7 @@ describe("Precision per-engine deterministic golden session", () => {
   it("pins the production profile independently of Python RNG", async () => {
     const items: number[] = [];
     let last: TrialDiag | undefined;
-    const session = new WebCortexSession(goldenInputs(), "precision-golden", 2718, {
+    const session = new WebCortexSession(precisionGoldenInputs(), "precision-golden", 2718, {
       onItem: ({ segId }) => {
         items.push(segId);
         queueMicrotask(() => session.submitAnswer(0));
@@ -103,7 +67,7 @@ describe("Precision per-engine deterministic golden session", () => {
     async function run(speculative: boolean) {
       const items: number[] = [];
       const session = new WebCortexSession(
-        goldenInputs(), `precision-clone-${speculative}`, 31415,
+        precisionGoldenInputs(), `precision-clone-${speculative}`, 31415,
         {
           onItem: ({ segId }) => {
             items.push(segId);

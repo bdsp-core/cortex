@@ -1,4 +1,4 @@
-// Backend API client. The server is tiny (PLAN §8): authenticate once, fetch
+// Backend API client. The server is intentionally small: authenticate once, fetch
 // the bundle URL, ingest results — no per-question round-trips. All gated
 // calls carry the JWT as a Bearer token.
 //
@@ -8,23 +8,68 @@
 // empty base works there too.
 
 import type { SessionBank } from "./bundle";
-import type { TerminationPolicyName } from "../engine/types";
-import { Outbox, transportFetch, type TransportOpts } from "./transport";
+import type {
+  RequestedComputeMode, TerminationPolicyName,
+} from "../engine/types";
+import type { CohortSummary } from "./api/cohorts";
+import { Outbox, transportFetch } from "./transport";
+import {
+  API_BASE,
+  ApiError,
+  EmailNotVerifiedError,
+  authedFetch,
+  getToken,
+  parseResponse as parse,
+  setDisplayName,
+  setToken,
+} from "./api/core";
 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
-const TOKEN_KEY = "cortex_token";
-const DISPLAY_NAME_KEY = "cortex_display_name";
+export {
+  ApiError,
+  EmailNotVerifiedError,
+  clearToken,
+  getDisplayName,
+  getToken,
+  isAuthed,
+  logout,
+  setDisplayName,
+  setToken,
+} from "./api/core";
+
+export {
+  acceptCohortInvite,
+  cancelCohortEmailInvite,
+  createCohort,
+  declineCohortInvite,
+  deleteCohort,
+  getCohort,
+  getCohortPerformance,
+  inviteToCohort,
+  inviteToCohortByEmail,
+  leaveCohort,
+  listCohorts,
+  removeCohortMember,
+  type CohortDetail,
+  type CohortMemberInfo,
+  type CohortMemberSeries,
+  type CohortPerformance,
+  type CohortPoint,
+  type CohortSummary,
+  type CohortTaskSeries,
+} from "./api/cohorts";
 
 export interface StartSessionResult {
   sessionId: string;
   sampleSeed: number;
   bank: SessionBank;        // the server-drawn per-session question subset
   terminationPolicy: TerminationPolicyName;
+  computeMode: RequestedComputeMode;
 }
 
 export interface ActiveSession {
   sessionId: string;
   startedUtc: string;
+  computeMode: RequestedComputeMode;
   bank: SessionBank;        // the sitting's ORIGINAL drawn pool, verbatim order
   trials: { trialIndex: number; segId: number; pick: number }[];
 }
@@ -42,92 +87,6 @@ export interface TrialCheckpoint {
   // stays the authoritative RT delta.
   shownClientUtc?: string;
   answeredClientUtc?: string;
-}
-
-export class ApiError extends Error {
-  // `body` is the parsed error payload: machine-readable 4xx responses can
-  // carry fields beyond `error` (e.g. training_washout's reopensAtUtc).
-  constructor(public status: number, message: string, public body?: unknown) {
-    super(message);
-  }
-}
-
-// Raised by login() when the server says the account exists but the email
-// isn't verified yet (403 {error:"email_not_verified"}). The UI catches this
-// to route to the verify screen rather than show a generic credentials error.
-export class EmailNotVerifiedError extends Error {
-  constructor(public email: string) {
-    super("email_not_verified");
-  }
-}
-
-// The session token lives in sessionStorage, NOT localStorage: it is scoped to
-// the tab and is cleared when the tab/window is closed, so reopening the app
-// requires signing in again (no persistent cached session). One-time cleanup of
-// any token left in localStorage by the previous (persistent) scheme.
-try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(DISPLAY_NAME_KEY); } catch { /* private mode */ }
-
-export function getToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY);
-}
-export function setToken(t: string): void {
-  sessionStorage.setItem(TOKEN_KEY, t);
-}
-export function clearToken(): void {
-  sessionStorage.removeItem(TOKEN_KEY);
-}
-export function isAuthed(): boolean {
-  return !!getToken();
-}
-
-// Logged-in display name, kept alongside the token (same tab-scoped lifetime) so
-// the shell can greet the clinician without an extra round-trip.
-export function getDisplayName(): string | null {
-  return sessionStorage.getItem(DISPLAY_NAME_KEY);
-}
-export function setDisplayName(name: string): void {
-  if (name) sessionStorage.setItem(DISPLAY_NAME_KEY, name);
-}
-
-// Sign out: drop the token AND the display name. Pending results stay queued in
-// localStorage (they belong to the device, not the session) and flush on the
-// next sign-in.
-export function logout(): void {
-  clearToken();
-  sessionStorage.removeItem(DISPLAY_NAME_KEY);
-  try { sessionStorage.removeItem("cortex-welcome-seen"); } catch { /* private mode */ }
-}
-
-async function parse(res: Response): Promise<any> {
-  const text = await res.text();
-  let body: any = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = { error: text };
-  }
-  if (!res.ok) {
-    throw new ApiError(res.status, body?.error || res.statusText, body);
-  }
-  return body;
-}
-
-// All calls go through transportFetch: every request gets a time-to-headers
-// timeout (a hung connection must not stall the test flow), and callers mark
-// IDEMPOTENT requests with `retries` so transient failures — network blips
-// and 502/503/504 from the gateway during a deploy — heal invisibly. 4xx
-// (including 401/429) never retries.
-async function authedFetch(path: string, init: RequestInit = {},
-                           opts: TransportOpts = {}): Promise<any> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init.headers as Record<string, string>),
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await transportFetch(`${API_BASE}${path}`, { ...init, headers }, opts);
-  if (res.status === 401) clearToken();
-  return parse(res);
 }
 
 // ── public ───────────────────────────────────────────────────────
@@ -320,107 +279,6 @@ export function changeEmail(newEmail: string, password: string): Promise<{ ok: b
     method: "POST",
     body: JSON.stringify({ newEmail, password }),
   });
-}
-
-// ── cohorts (peer groups) ─────────────────────────────────────────
-// Server-enforced access model: members are keyed by 9-digit public id;
-// displayName appears ONLY in manager responses; internal account ids never
-// cross this API. GETs retry (idempotent); mutations do not.
-export interface CohortSummary {
-  cohortId: string;
-  name: string;
-  role: "manager" | "member";
-  status: "invited" | "active";
-  memberCount: number;
-  createdUtc: string;
-}
-export interface CohortMemberInfo {
-  publicId: string;
-  status: "invited" | "active";
-  isManager: boolean;
-  isYou: boolean;
-  joinedUtc: string | null;
-  displayName?: string;   // manager responses only
-}
-export interface CohortDetail {
-  cohortId: string;
-  name: string;
-  role: "manager" | "member";
-  status: "invited" | "active";
-  createdUtc: string;
-  members?: CohortMemberInfo[];   // absent while the invite is pending
-  // Outstanding invites to addresses with no account yet (manager only).
-  emailInvites?: { email: string; invitedUtc: string }[];
-}
-export interface CohortPoint {
-  ts: string;
-  skill: number | null;   // posterior mean ℓ
-  bias: number | null;    // posterior mean t (criterion)
-  sd: number | null;
-  phase: string;          // "eval" | "recert" = certification; "train" = training
-}
-export interface CohortTaskSeries { taskK: number; points: CohortPoint[]; }
-export interface CohortMemberSeries extends Omit<CohortMemberInfo, "status"> {
-  status?: string;
-  series: CohortTaskSeries[];
-}
-export interface CohortPerformance {
-  cohortId: string;
-  name: string;
-  from: string;
-  to: string;
-  ellStar?: number[] | null;   // per-task cut score (ℓ*); drives the skill goal line
-  members: CohortMemberSeries[];
-}
-
-export function listCohorts(): Promise<{ cohorts: CohortSummary[] }> {
-  return authedFetch("/api/cohorts", {}, { retries: 2 });
-}
-export function createCohort(name: string): Promise<{ cohortId: string; name: string }> {
-  return authedFetch("/api/cohorts", { method: "POST", body: JSON.stringify({ name }) });
-}
-export function getCohort(cohortId: string): Promise<CohortDetail> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}`, {}, { retries: 2 });
-}
-// `days` selects the lookback window (7 / 30 / 90 / 365); days <= 0 = all time.
-// Omitted → the server's default window.
-export function getCohortPerformance(cohortId: string, days?: number): Promise<CohortPerformance> {
-  const q = days == null ? "" : `?days=${days}`;
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/performance${q}`, {}, { retries: 2 });
-}
-export function inviteToCohort(cohortId: string, publicId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite`, {
-    method: "POST", body: JSON.stringify({ publicId }),
-  });
-}
-// Invite by email (anti-oracle: ok regardless of whether the address has an
-// account; unknown addresses get a signup-link email + attach at signup).
-export function inviteToCohortByEmail(cohortId: string, email: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite-email`, {
-    method: "POST", body: JSON.stringify({ email }),
-  });
-}
-export function cancelCohortEmailInvite(cohortId: string, email: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/invite-email/cancel`, {
-    method: "POST", body: JSON.stringify({ email }),
-  });
-}
-export function acceptCohortInvite(cohortId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/accept`, { method: "POST" });
-}
-export function declineCohortInvite(cohortId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/decline`, { method: "POST" });
-}
-export function leaveCohort(cohortId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/leave`, { method: "POST" });
-}
-export function removeCohortMember(cohortId: string, publicId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}/remove`, {
-    method: "POST", body: JSON.stringify({ publicId }),
-  });
-}
-export function deleteCohort(cohortId: string): Promise<{ ok: boolean }> {
-  return authedFetch(`/api/cohorts/${encodeURIComponent(cohortId)}`, { method: "DELETE" });
 }
 
 // ── dashboard / learning-protocol (Phase 2 backend) ───────────────
@@ -826,7 +684,7 @@ export async function postResults(
   }, { retries: 2, timeoutMs: 60_000 });
 }
 
-// ── result delivery with local persistence + retry (PLAN §8) ──────
+// ── result delivery with local persistence + retry ───────────────
 // The final results upload must survive a flaky network or a tab close. We
 // enqueue the payload in localStorage first, then attempt delivery; anything
 // undelivered is retried by flushPendingResults() on the next authed load.

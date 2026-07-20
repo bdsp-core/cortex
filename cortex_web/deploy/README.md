@@ -41,7 +41,8 @@ deploy/
     cortex-backup.timer        every 6 h
   scripts/
     provision.sh               one-shot setup on a fresh Ubuntu 24.04 box
-    deploy_app.sh              code update after first provision
+    deploy_app.sh              clean staged release after first provision
+    release_switch.sh          atomic activation + one-step rollback
     backup_to_box.sh           DB + admin exports → Box (uses rclone)
     rclone-box-setup.md        one-time rclone↔Box auth walkthrough
 ```
@@ -191,11 +192,45 @@ curl -sS https://cortex.lab.example.org/api/health
 # → {"ok":true,"service":"cortex-web","version":"1.0"}
 ```
 
+## Release model
+
+Run deployments from a clean local checkout whose `HEAD` exactly matches
+`origin/main`:
+
+```bash
+bash cortex_web/deploy/scripts/deploy_app.sh
+```
+
+The deploy refuses dirty or unpushed commits, takes a fresh Box backup, uploads
+to `/tmp`, and builds under `/opt/cortex/releases/<timestamp>-<sha>` before it
+changes the live application. `/opt/cortex/cortex_web` is a stable symlink to
+the active release. The first staged deployment preserves the former physical
+directory as a legacy release.
+
+Activation restarts the API and requires a database-backed loopback health
+check. Public deep health and phone-browser checks run immediately afterward.
+Any failed activation, public health check, Caddy reload, or browser check
+switches the stable path back to the previous release and restarts the API.
+
+Postgres data, `/etc/cortex/cortex.env`, `/opt/cortex/.venv`, and
+`/opt/cortex/bundle` remain outside release directories. Never restore the
+database to roll back application code: additive migrations are intentionally
+backward-compatible, and restoring an older database would discard participant
+activity recorded after the backup.
+
+Manual one-step rollback:
+
+```bash
+ssh cortex-prod \
+  'sudo /opt/cortex/cortex_web/deploy/scripts/release_switch.sh rollback'
+```
+
 ## Day-to-day operations
 
 | Task | Command |
 |---|---|
-| Deploy code update | `ssh … 'sudo bash /opt/cortex/cortex_web/deploy/scripts/deploy_app.sh main'` |
+| Deploy pushed `main` | From a clean local checkout: `bash cortex_web/deploy/scripts/deploy_app.sh` |
+| Roll back one release | `ssh cortex-prod 'sudo /opt/cortex/cortex_web/deploy/scripts/release_switch.sh rollback'` |
 | Service status | `sudo systemctl status cortex.service` |
 | Tail logs | `sudo journalctl -u cortex -f` |
 | Backup now | `sudo systemctl start cortex-backup.service` |

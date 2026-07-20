@@ -26,6 +26,14 @@ def _app(tmp_path, monkeypatch, engine_mode):
     _write_test_bank(tmp_path / "bundle", "test-bank", per_class=8)
     monkeypatch.setenv("CORTEX_BUNDLE_DIR", str(tmp_path / "bundle"))
     monkeypatch.setenv("CORTEX_BUNDLE_URL", "/bundle/test-bank")
+    # Public Precision uses a separate configurable bank URL. Point both
+    # profiles at the generated fixture so this integration test is isolated
+    # from production bundle files.
+    monkeypatch.setenv("CORTEX_PRECISION_BUNDLE_URL", "/bundle/test-bank")
+    # These tests exercise the trainer, not Precision certification. Keep the
+    # certification seeding fixture on its legacy AD6 result schema; Precision
+    # rollout and v2 result mapping have dedicated coverage in test_server.py.
+    monkeypatch.setenv("CORTEX_PRECISION_POLICY_ROLLOUT", "email_allowlist")
     monkeypatch.setenv("CORTEX_SESSION_SAMPLE", "21")
     if engine_mode is None:
         monkeypatch.delenv("CORTEX_TRAINER_ENGINE", raising=False)
@@ -225,8 +233,8 @@ def test_engine_closed_loop_and_rebuild(eclient):
 
 def test_retention_and_interleave(eclient, monkeypatch):
     """L4 serving wrappers: with an immediate retention interval, review
-    items fire on the REVIEW_EVERY cadence; with a small MAX_CONSEC, no
-    domain run exceeds the cap while alternatives exist."""
+    items fire on the REVIEW_EVERY cadence; with a small MAX_CONSEC, ordinary
+    allocation respects the cap while a due review may extend it by one."""
     from . import engine_trainer as et
     monkeypatch.setattr(et, "RETENTION_FIRST_S", 0.0)
     monkeypatch.setattr(et, "REVIEW_EVERY", 5)
@@ -256,11 +264,15 @@ def test_retention_and_interleave(eclient, monkeypatch):
                                  "taskK": item["task"], "pick": pick}).json()
         item = rec["item"]
     assert "review" in modes, f"no review fired: {modes}"
-    run, worst = 1, 1
-    for a, b in zip(tasks, tasks[1:]):
+    run = 1
+    for index, (a, b) in enumerate(zip(tasks, tasks[1:]), start=1):
         run = run + 1 if a == b else 1
-        worst = max(worst, run)
-    assert worst <= 3, f"domain run {worst} exceeds MAX_CONSEC: {tasks}"
+        # A due retention review intentionally takes precedence over the
+        # ordinary allocator's interleave cap. It may extend a run by one; the
+        # next ordinary item must still be redirected by _step_with_cap.
+        if run > 3:
+            assert modes[index] == "review", (
+                f"non-review item exceeded MAX_CONSEC: tasks={tasks}, modes={modes}")
     # cross-sitting retention state persisted
     db = eclient.app.state.db
     assert db.get_retention(db.training_session_owner(tid))

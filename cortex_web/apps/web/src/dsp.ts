@@ -7,7 +7,7 @@
 // notch, all run forward then backward for zero phase.
 //
 // NOTE: visually matches the desktop; exact scipy-coefficient parity is a
-// documented refinement (PLAN §6). The cutoffs, zero-phase property, and
+// documented refinement. The cutoffs, zero-phase property, and
 // roll-off are correct, which is what the clinician sees.
 
 export interface Biquad {
@@ -28,7 +28,7 @@ function applyBiquad(x: Float32Array, q: Biquad, out: Float32Array): void {
 
 // forward-backward (zero-phase) cascade of biquads, in place on a copy.
 export function filtfilt(x: Float32Array, cascade: Biquad[]): Float32Array {
-  let cur = x.slice();
+  const cur = x.slice();
   const tmp = new Float32Array(x.length);
   for (const q of cascade) {
     applyBiquad(cur, q, tmp);

@@ -172,7 +172,7 @@ export function resampleAndRejuvenate(
       }
     }
     // proposal scale matrix from cloud covariance (+1e-6 I); chol or eigh
-    let cov: Mat = covRows(theta, N, D);
+    const cov: Mat = covRows(theta, N, D);
     for (let i = 0; i < D; i++) cov[i][i] += 1e-6;
     let F: Mat;
     try {

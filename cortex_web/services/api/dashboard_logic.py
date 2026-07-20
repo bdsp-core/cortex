@@ -15,13 +15,14 @@ from .session_bank import SessionBank
 
 # Result-blob keys that are NEVER sent to the dashboard/history listing
 # surfaces. A stored result averages ~370 KB (measured in prod, 2026-07-01)
-# and ~95% of it is the raw per-trial array + the ~700-int served-seg list;
+# and ~95% of it is the raw per-trial array + the ~700-int served-seg list.
+# Internal engine timing is also excluded from participant-facing payloads;
 # the listing UIs read only verdicts/roc/perTask + metadata, and per-question
 # detail has its own lazy endpoint backed by the trials TABLE
 # (GET /api/history/{id}/questions). The FULL blob still flows everywhere it
 # is actually needed: the DB row itself, /api/admin/results/{id}, the backfill
 # script, and the research export all bypass this.
-_HEAVY_RESULT_KEYS = ("trials", "servedSegIds")
+_HEAVY_RESULT_KEYS = ("trials", "servedSegIds", "_enginePerformance")
 
 
 def training_enabled(cfg: dict, code: str, participant: Optional[dict]) -> bool:

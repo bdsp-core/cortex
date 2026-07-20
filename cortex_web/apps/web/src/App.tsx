@@ -5,7 +5,7 @@
 //
 // The engine runs in a Web Worker (off the UI thread). The backend is touched
 // exactly twice per sitting — create-session at start, post-results at end —
-// plus fire-and-forget per-trial checkpoints for crash-safety (PLAN §8).
+// plus fire-and-forget per-trial checkpoints for crash-safety.
 
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Bundle, SessionBank } from "./bundle";
@@ -30,6 +30,7 @@ import { Shell } from "./components/Shell";
 import { Stage, Card, Heading, Button } from "./components/ui";
 import { COLORS } from "../ui/theme";
 import type { TrainingState } from "./trainingSetup";
+import { EnginePerformanceCollector } from "./performanceSummary";
 
 // The training surface is trainer-only weight (belief-filter engine, candidate
 // bank, feedback runner) that most visitors — signup, exam — never reach, so
@@ -146,7 +147,7 @@ export function App() {
   const lastDiagRef = useRef<TrialDiag | null>(null);
 
   // Retry any results that failed to upload in a previous sitting, as soon as
-  // we have a token (crash-safety reconnect, PLAN §8).
+  // we have a token (crash-safety reconnect).
   useEffect(() => {
     if (api.isAuthed()) void api.flushPendingResults();
   }, [phase]);
@@ -246,12 +247,12 @@ export function App() {
   // before the user sees their next live question.
   const runSession = useCallback(async (
     sessionId: string, sampleSeed: number, bank: SessionBank,
-    replayTrials: ReplayTrial[],
+    replayTrials: ReplayTrial[], computeMode: api.StartSessionResult["computeMode"],
   ) => {
       const b = Bundle.fromSessionBank(bank);
       bundleRef.current = b;
       setBundle(b);
-      const inputs = b.inputs;
+      const inputs = b.computeInputs;
       sessionIdRef.current = sessionId;
 
       // Precision selects from the full 35k candidate bank but can serve only
@@ -263,6 +264,7 @@ export function App() {
       setProgress({ answered: replayTrials.length, maxQ, resolveConf: null });
 
       const replay = new ReplayDriver(replayTrials);
+      const performanceCollector = new EnginePerformanceCollector();
       let checkpointsToSkip = replayTrials.length;   // already server-logged
 
       const client = new EngineClient({
@@ -305,6 +307,7 @@ export function App() {
             diag,
           });
         },
+        onPerformance: (event) => performanceCollector.record(event),
         onDone: async (r) => {
          try {
           setPhase("computing");
@@ -312,7 +315,7 @@ export function App() {
           // Per-task ROC: posterior-mean AUROC + the examinee's empirical
           // operating point projected onto the binormal curve. Spike truth =
           // sign(s_mean); IIIC truth = segment pattern class.
-          const truth = new Map(inputs.segments.map((s) => [s.segId, s.patternClass]));
+          const truth = new Map(b.manifest.segments.map((s) => [s.segId, s.patternClass]));
           const words = inputs.taskPatternWords;
           const roc = (r.finalAuroc ?? []).map((auroc, k) => {
             const spike = inputs.taskClasses?.[k] === "spike";
@@ -378,7 +381,7 @@ export function App() {
           }));
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
-          // rather than lost (PLAN §8).
+          // rather than lost.
           const delivered = await api.submitResults(sessionId, {
             verdicts: r.verdicts,
             terminationPolicy: r.terminationPolicy,
@@ -391,6 +394,9 @@ export function App() {
             roc,
             servedSegIds: r.servedSegIds,
             trials: r.trials,
+            // Stored for operations/performance review and stripped from every
+            // participant dashboard/history response by the API.
+            _enginePerformance: performanceCollector.summary(replayTrials.length),
             participant: participantRef.current,
             sampleSeed,
           }, r.stopReason, r.nQuestions);
@@ -415,7 +421,9 @@ export function App() {
       });
       disposeClient();         // never leak a prior sitting's worker
       clientRef.current = client;
-      client.start(inputs, `web-${sampleSeed}`);
+      client.start(inputs, `web-${sampleSeed}`, {
+        requestedComputeMode: computeMode,
+      });
       setPhase("running");
   }, [disposeClient]);
 
@@ -426,14 +434,14 @@ export function App() {
       // Server-authoritative candidate profile: AD6 receives its balanced
       // sample; the allowlisted Precision pilot receives the complete
       // exposure-eligible served bank required by its frozen profile.
-      const { sessionId, sampleSeed, bank } = await api.startSession(
+      const { sessionId, sampleSeed, bank, computeMode } = await api.startSession(
         { ...(participantRef.current ?? {}) },
       );
       console.info(
         `[cortex] session bank: ${bank.segments.length} of ${bank.nPool} pool ` +
         `(seed ${sampleSeed})`,
       );
-      await runSession(sessionId, sampleSeed, bank, []);
+      await runSession(sessionId, sampleSeed, bank, [], computeMode);
     } catch (e) {
       if (e instanceof api.ApiError && e.message === "training_washout") {
         const body = e.body as { reopensAtUtc?: string } | undefined;
@@ -460,7 +468,7 @@ export function App() {
       console.info(
         `[cortex] resuming session ${active.sessionId} at trial ${active.trials.length}`);
       await runSession(active.sessionId, active.bank.sampleSeed ?? 0,
-        active.bank, active.trials);
+        active.bank, active.trials, active.computeMode);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
       setPhase("error");

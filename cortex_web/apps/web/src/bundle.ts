@@ -5,15 +5,15 @@
 // session, and persisted to IndexedDB (keyed by bundle version) so a reload
 // or a repeat sitting doesn't re-download the bundle.
 
-import { EngineInputs } from "../engine/types";
+import { ComputeEngineInputs, EngineInputs, SegmentMeta } from "../engine/types";
 import { cachedArrayBuffer } from "./idbcache";
 
-export interface BundleManifest extends EngineInputs {
+export interface BundleManifest extends Omit<EngineInputs, "segments"> {
   version: string;
   eegScale: number;
   specDbRange: [number, number];
   nSegments: number;
-  segments: (EngineInputs["segments"][number] & {
+  segments: (SegmentMeta & {
     specShape: number[] | null;
     specTime?: number[] | null; // [t0,t1] s — spectrogram x-axis extent
     specFreq?: number[] | null; // [f0,f1] Hz — spectrogram y-axis extent
@@ -52,6 +52,7 @@ export class Bundle {
   readonly base: string;
   readonly manifest: BundleManifest;
   private cache = new Map<number, SegmentData>();
+  private computeProfile: ComputeEngineInputs | null = null;
 
   private constructor(base: string, manifest: BundleManifest) {
     this.base = base;
@@ -89,6 +90,30 @@ export class Bundle {
       ellStar: m.ellStar,
       segments: m.segments,
     };
+  }
+
+  /**
+   * Minimal immutable payload sent to the engine worker. The complete manifest
+   * remains owned by Bundle so the selected segId can still resolve its exact
+   * EEG and spectrogram. Keeping UI-only strings and shape metadata out of the
+   * worker prevents the 35k manifest from being duplicated into every compute
+   * isolate.
+   */
+  get computeInputs(): ComputeEngineInputs {
+    if (this.computeProfile) return this.computeProfile;
+    const profile = this.inputs;
+    this.computeProfile = {
+      ...profile,
+      segments: this.manifest.segments.map((segment) => ({
+        segId: segment.segId,
+        ...(segment.applicableTaskIdx
+          ? { applicableTaskIdx: segment.applicableTaskIdx.slice() }
+          : {}),
+        sMean: segment.sMean.slice(),
+        sSd: segment.sSd.slice(),
+      })),
+    };
+    return this.computeProfile;
   }
 
   async segment(segId: number): Promise<SegmentData> {

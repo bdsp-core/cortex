@@ -7,10 +7,11 @@
 // are applied only by finalizeResult() after a domain is DETERMINED.
 
 import type { BankArrays } from "./choose_item";
-import type { EngineInputs, ParticleState, RejuvenationTelemetry } from "./types";
+import type { ComputeEngineInputs, ParticleState, RejuvenationTelemetry } from "./types";
 import { ess } from "./particles";
 import type {
-  EngineTerminationPolicy, FinalPolicyResult, PolicyResult,
+  EngineTerminationPolicy, FinalPolicyResult, PolicyResult, PolicySnapshot,
+  PrecisionPolicySnapshot,
 } from "./policy";
 
 export const PRECISION_STATUS = {
@@ -114,7 +115,7 @@ function linearQuantile(values: number[], q: number): number {
   return ordered[lo] + (h - lo) * (ordered[hi] - ordered[lo]);
 }
 
-function deriveBandEdges(inputs: EngineInputs): number[][] {
+function deriveBandEdges(inputs: ComputeEngineInputs): number[][] {
   const K = inputs.taskCodes.length;
   return Array.from({ length: K }, (_, k) => {
     const values: number[] = [];
@@ -277,7 +278,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     this.bandAdministered = Array.from({ length: varPrior.length }, () => [0, 0, 0]);
   }
 
-  static fromInputs(inputs: EngineInputs): PrecisionPolicy {
+  static fromInputs(inputs: ComputeEngineInputs): PrecisionPolicy {
     if (inputs.taskCodes.join(",") !== PRECISION_TASK_CODES.join(",")) {
       throw new Error(
         `precision_v1 requires task order ${PRECISION_TASK_CODES.join(",")}`,
@@ -305,12 +306,34 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
 
   clone(): PrecisionPolicy {
     const p = new PrecisionPolicy(this.varPrior, this.bandEdges);
-    p.statuses = this.statuses.slice();
-    p.streaks = this.streaks.slice();
-    p.terminalReasons = this.terminalReasons.slice();
-    p.bandAdministered = this.bandAdministered.map((x) => x.slice());
-    p.lastDiag = cloneDiag(this.lastDiag);
+    p.restore(this.snapshot());
     return p;
+  }
+
+  snapshot(): PrecisionPolicySnapshot {
+    return {
+      name: this.name,
+      statuses: this.statuses.slice(),
+      streaks: this.streaks.slice(),
+      terminalReasons: this.terminalReasons.slice(),
+      bandAdministered: this.bandAdministered.map((x) => x.slice()),
+      lastDiag: cloneDiag(this.lastDiag),
+    };
+  }
+
+  restore(snapshot: PolicySnapshot): void {
+    if (snapshot.name !== this.name) throw new Error("Precision policy snapshot mismatch");
+    const K = this.varPrior.length;
+    if (snapshot.statuses.length !== K || snapshot.streaks.length !== K
+      || snapshot.terminalReasons.length !== K || snapshot.bandAdministered.length !== K
+      || snapshot.bandAdministered.some((row) => row.length !== 3)) {
+      throw new Error("Precision policy snapshot domain mismatch");
+    }
+    this.statuses = snapshot.statuses.slice();
+    this.streaks = snapshot.streaks.slice();
+    this.terminalReasons = snapshot.terminalReasons.slice();
+    this.bandAdministered = snapshot.bandAdministered.map((x) => x.slice());
+    this.lastDiag = cloneDiag(snapshot.lastDiag as PrecisionDiagnostics | null);
   }
 
   get domainStatuses(): string[] { return this.statuses.slice(); }

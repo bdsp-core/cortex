@@ -40,7 +40,6 @@ const BUNDLE = {
   inputs: { taskLabels: LABELS, taskClasses:
     ["spike", "iiic", "iiic", "iiic", "iiic", "iiic", "iiic"] },
   seg: async () => null,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 describe("TrainingRunner SSR first frame", () => {
