@@ -49,6 +49,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
+from .persistence import migrations
+
 _DEFAULT_DB = Path(__file__).with_name("cortex.db")
 
 # Statements split so we can execute them one-by-one on Postgres (no
@@ -75,6 +77,7 @@ _SCHEMA_STATEMENTS = [
         stop_reason    TEXT,
         n_questions    INTEGER,
         termination_policy TEXT NOT NULL DEFAULT 'ad6',
+        compute_mode       TEXT NOT NULL DEFAULT 'serial',
         candidate_exclusion TEXT,
         candidate_bank_sha256 TEXT,
         FOREIGN KEY (code) REFERENCES participants(code)
@@ -280,85 +283,6 @@ _SCHEMA_STATEMENTS = [
 
 # Columns added to participants after the original schema. Idempotent
 # ALTERs run at startup so an existing database upgrades in place.
-_PARTICIPANTS_MIGRATION_COLUMNS = [
-    ("email",             "TEXT"),
-    ("display_name",      "TEXT"),
-    ("signup_ip",         "TEXT"),
-    ("email_verified_utc", "TEXT"),
-    ("auth_provider",     "TEXT"),   # NULL/'local' for password accounts, 'google' for OAuth
-    ("google_sub",        "TEXT"),   # Google account id ('sub' claim); unique when set
-    ("signup_expertise",  "TEXT"),   # self-reported role from the signup form (Phase O1)
-    ("profile",           "TEXT"),   # JSON demographic/clinical profile collected at signup, editable in Settings
-    ("public_id",         "TEXT"),   # user-facing 9-digit account id; unique when set (index in _migrate_participants)
-    ("email_undeliverable_utc", "TEXT"),  # set by the SES bounce webhook (routers/ses_events.py); cleared when a code is confirmed
-    ("tz_offset_min",     "INTEGER"),  # device getTimezoneOffset, refreshed at bootstrap; aims the digest at local morning
-    ("digest_opt_out",    "INTEGER"),  # 1 = training-reminder emails off (Settings toggle); NULL/0 = on
-]
-
-# Columns added to the learning tables after their original schema (Phase O2),
-# so an existing DB upgrades in place. Mirror the CREATE TABLE additions above.
-_PARAM_TRAJ_MIGRATION_COLUMNS = [
-    ("training_id",       "TEXT"),
-    ("source_session_id", "TEXT"),
-    ("seq_in_session",    "INTEGER"),
-    ("is_real",           "INTEGER NOT NULL DEFAULT 0"),
-]
-_TRAINING_SESSIONS_MIGRATION_COLUMNS = [
-    ("regimen_id",        "TEXT"),
-    ("source_session_id", "TEXT"),
-]
-# Provenance stamp (O3): which bundle/bank version produced a session, so a
-# 35k/v15 session stays attributable + reproducible after a bundle change.
-# drawn_seg_ids = the exact server-drawn candidate pool (JSON list of seg_ids):
-# the sample_seed alone can't reproduce it later because the exposure exclusion
-# is temporal. Precision uses the complete 35k bank, so persisting every id
-# would be wasteful; candidate_exclusion + candidate_bank_sha256 reconstruct
-# the identical manifest-ordered pool roughly two orders of magnitude smaller.
-_SESSIONS_MIGRATION_COLUMNS = [
-    ("bundle_version",    "TEXT"),
-    ("drawn_seg_ids",     "TEXT"),
-    ("termination_policy", "TEXT NOT NULL DEFAULT 'ad6'"),
-    ("candidate_exclusion", "TEXT"),
-    ("candidate_bank_sha256", "TEXT"),
-]
-# Response record on training exposure rows (Phase L2 instrumentation): what
-# the participant answered, what the feedback reveal displayed, and true
-# client-side timing — the longitudinal per-trial training ledger that the
-# learning-engine dynamics refit consumes (learning handoff contract v1.1).
-# Mirror the CREATE TABLE additions above.
-_TRAINING_TRIALS_MIGRATION_COLUMNS = [
-    ("pick",                "INTEGER"),  # raw response index (binary UI: 1=yes / 0=no; n-way pick later)
-    ("y_star",              "INTEGER"),  # the asked task's one-vs-rest gold label
-    ("is_correct",          "INTEGER"),
-    ("feedback_shown",      "TEXT"),     # the reveal text actually rendered
-    ("rt_ms",               "REAL"),     # client reaction time (performance.now delta)
-    ("shown_client_utc",    "TEXT"),     # client wall-clock when the item rendered
-    ("answered_client_utc", "TEXT"),     # client wall-clock at answer
-    ("seq_in_session",      "INTEGER"),  # answer order within the sitting — the
-    # engine-trainer's deterministic belief-rebuild ordering (Phase L3)
-    ("mode",                "TEXT"),     # serving mode (skill/bias/review; L4)
-    ("link",                "TEXT"),     # observation link: 'binary' one-vs-rest
-    # (pick/y_star in {0,1}) or 'nway' full identification (pick/y_star =
-    # 0-based TASK-axis indices, the exam's coding) — the refit's dispatch key
-    ("quality_flag",        "TEXT"),     # NULL=ok; 'burst'=this and the prior
-    # response were both sub-500 ms (ingest-time data-hygiene rule, L4) —
-    # refit-qualified data excludes flagged runs mechanically
-]
-# Sitting-level engine metadata (Phase L4): written server-side at
-# /training-engine/start (seeding + attainability report + config), so
-# analyses never re-derive it from HTTP logs.
-_TRAINING_SESSIONS_L4_COLUMNS = [
-    ("engine_meta",         "TEXT"),
-]
-# True client display/answer wall times on exam trials (reaction_ms is the
-# delta; these anchor session load, fatigue position, and between-session
-# structure for the learning model).
-_TRIALS_MIGRATION_COLUMNS = [
-    ("shown_client_utc",    "TEXT"),
-    ("answered_client_utc", "TEXT"),
-]
-
-
 def utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -433,12 +357,8 @@ class Database:
             for stmt in _SCHEMA_STATEMENTS:
                 conn.execute(stmt)
             self._migrate_participants(conn)
-            self._add_missing_columns(conn, "param_trajectories", _PARAM_TRAJ_MIGRATION_COLUMNS)
-            self._add_missing_columns(conn, "training_sessions", _TRAINING_SESSIONS_MIGRATION_COLUMNS)
-            self._add_missing_columns(conn, "sessions", _SESSIONS_MIGRATION_COLUMNS)
-            self._add_missing_columns(conn, "training_trials", _TRAINING_TRIALS_MIGRATION_COLUMNS)
-            self._add_missing_columns(conn, "trials", _TRIALS_MIGRATION_COLUMNS)
-            self._add_missing_columns(conn, "training_sessions", _TRAINING_SESSIONS_L4_COLUMNS)
+            for table, columns in migrations.BY_TABLE:
+                self._add_missing_columns(conn, table, columns)
             # Quarantine backfill: every pre-existing trajectory row is synthetic
             # (the only writer before the L1 trainer was the removed Shell.tsx
             # placeholder). NOT NULL DEFAULT 0 already fills new column; this is
@@ -530,12 +450,12 @@ class Database:
         """Add columns to participants that didn't exist in earlier schemas.
         Idempotent on both engines."""
         if self._pg:
-            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+            for col, typ in migrations.PARTICIPANTS:
                 conn.execute(f"ALTER TABLE participants ADD COLUMN IF NOT EXISTS {col} {typ}")
         else:
             existing = {dict(r)["name"] for r in
                         conn.execute("PRAGMA table_info(participants)").fetchall()}
-            for col, typ in _PARTICIPANTS_MIGRATION_COLUMNS:
+            for col, typ in migrations.PARTICIPANTS:
                 if col not in existing:
                     conn.execute(f"ALTER TABLE participants ADD COLUMN {col} {typ}")
         # Now that the email column is guaranteed to exist, the unique-when-
@@ -824,15 +744,16 @@ class Database:
                         bundle_version: Optional[str] = None,
                         drawn_seg_ids: Optional[str] = None,
                         termination_policy: str = "ad6",
+                        compute_mode: str = "serial",
                         candidate_exclusion: Optional[str] = None,
                         candidate_bank_sha256: Optional[str] = None) -> None:
         self._write(
             "INSERT INTO sessions(session_id, code, participant, sample_seed, "
             "bundle_version, drawn_seg_ids, termination_policy, "
-            "candidate_exclusion, candidate_bank_sha256, started_utc, status) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?, 'in_progress')",
+            "compute_mode, candidate_exclusion, candidate_bank_sha256, "
+            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'in_progress')",
             (session_id, code, json.dumps(participant), sample_seed,
-             bundle_version, drawn_seg_ids, termination_policy,
+             bundle_version, drawn_seg_ids, termination_policy, compute_mode,
              candidate_exclusion, candidate_bank_sha256, utc_now()),
         )
 

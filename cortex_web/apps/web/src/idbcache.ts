@@ -1,7 +1,7 @@
 // Tiny IndexedDB blob cache for the EEG/spectrogram bundle. The bundle is
 // large (up to ~1 GB at 500 segments) and immutable per version, so caching
 // the raw ArrayBuffers across reloads avoids re-downloading on every sitting
-// and lets a refreshed tab resume instantly (PLAN §5, §11).
+// and lets a refreshed tab resume instantly (see LOCAL_DEV.md).
 //
 // Keys are namespaced by bundle version so a new bundle doesn't collide with a
 // stale cache. Failures degrade gracefully to network fetches — the cache is

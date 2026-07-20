@@ -11,7 +11,9 @@
 // (proven in speculative.test.ts) — speculation hides the heavy N=1200 selection
 // in otherwise-idle think-time without changing a single result.
 
-import { EngineInputs, TerminationPolicyName, TrialDiag } from "./types";
+import {
+  ComputeEngineInputs, EngineStepTiming, TerminationPolicyName, TrialDiag,
+} from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
@@ -21,6 +23,7 @@ import {
   PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
 } from "./precision_policy";
 import { Rng } from "./rng";
+import type { BranchExecutor } from "./branch_executor";
 import {
   SessionCore, AdvanceParams, AdvanceResult, cloneCore, advanceCore, chooseNext,
   precisionRemainingBank,
@@ -69,6 +72,7 @@ export async function seedFromSessionId(sessionId: string): Promise<number> {
 export interface SessionCallbacks {
   onItem?: (item: { trialIndex: number; taskK: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
+  onPerformance?: (event: EngineStepTiming) => void;
   onDone?: (result: SessionResult) => void;
 }
 
@@ -78,6 +82,7 @@ export interface SessionOptions {
   // adopt. Bit-identical to the inline path; defaults OFF (tests/back-compat
   // opt in explicitly; the worker turns it ON in production).
   speculative?: boolean;
+  branchExecutor?: BranchExecutor;
 }
 
 export interface SessionResult {
@@ -104,7 +109,7 @@ export interface SessionResult {
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
 
 export class WebCortexSession {
-  private inputs: EngineInputs;
+  private inputs: ComputeEngineInputs;
   private sessionId: string;
   private seed: number;
   // All mutable per-trial state lives in one cloneable bag so a speculative
@@ -118,12 +123,13 @@ export class WebCortexSession {
   private wTraj: Float64Array[] = [];
   private proposalScale: number;
   private speculative: boolean;
+  private branchExecutor?: BranchExecutor;
   private cb: SessionCallbacks;
   private answerResolver: ((pick: number) => void) | null = null;
   private aborted = false;
 
   constructor(
-    inputs: EngineInputs, sessionId: string, seed: number,
+    inputs: ComputeEngineInputs, sessionId: string, seed: number,
     cb: SessionCallbacks = {}, opts: SessionOptions = {},
   ) {
     this.inputs = inputs;
@@ -132,6 +138,7 @@ export class WebCortexSession {
     this.cb = cb;
     this.proposalScale = 2.38 / Math.sqrt(2 * inputs.taskCodes.length);
     this.speculative = opts.speculative ?? false;
+    this.branchExecutor = opts.branchExecutor;
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
@@ -249,22 +256,41 @@ export class WebCortexSession {
       });
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
 
-      // The post-answer remaining bank is independent of the answer. Build it
-      // once and share it across both speculative branches instead of
-      // expanding/filtering/sorting the same 35k manifest twice.
-      const preparedPrecisionBank = policyName === "precision_v1"
+      const bankStartedAt = performance.now();
+      let preparedPrecisionBank = policyName === "precision_v1"
         ? precisionRemainingBank(this.inputs, this.core.remaining, chosen.segId)
         : undefined;
+      let bankPreparationMs = performance.now() - bankStartedAt;
 
-      // Speculative precompute: start the predicted answer branch during
-      // think-time. advanceCore is identical to the inline path, so whichever
-      // branch is adopted remains bit-identical to post-answer computation.
+      // Split-branch speculation: the coordinator computes the predicted
+      // response exactly as the serial path always has. On eligible devices a
+      // single helper concurrently computes the alternate response from an
+      // exact snapshot. This keeps the common path free of worker round-trip
+      // overhead while removing the serial misprediction tail.
       let branches: [AdvanceResult | null, AdvanceResult | null] | null = null;
+      let firstY: 0 | 1 | null = null;
+      let helperY: 0 | 1 | null = null;
+      let helperReady = false;
+      let helperJob: Promise<AdvanceResult> | null = null;
       if (this.speculative) {
         branches = [null, null];
-        const firstY: 0 | 1 = predictedYesProbability(
+        firstY = predictedYesProbability(
           this.core.state, chosen.k, chosen.s, chosen.sSd,
         ) >= 0.5 ? 1 : 0;
+        helperY = firstY === 0 ? 1 : 0;
+        if (this.branchExecutor) {
+          try {
+            helperJob = this.branchExecutor.advance(
+              this.core, chosen, params, trialIndex, helperY,
+            ).then((result) => { helperReady = true; return result; });
+            // A predicted response leaves the alternate result unused. Its
+            // failure must never surface as an unhandled rejection.
+            void helperJob.catch(() => undefined);
+          } catch {
+            this.branchExecutor.dispose();
+            this.branchExecutor = undefined;
+          }
+        }
         branches[firstY] = advanceCore(
           cloneCore(this.core), this.inputs, chosen, firstY, params, trialIndex,
           preparedPrecisionBank,
@@ -274,7 +300,8 @@ export class WebCortexSession {
         // message now and compute only the requested branch. Otherwise use the
         // remaining think-time to finish the second branch as before.
         await this.yieldToWorker();
-        if (!this.aborted && observedPick !== undefined && observedPick >= 0) {
+        if (!this.aborted && observedPick !== undefined && observedPick >= 0
+            && !helperJob) {
           const observedY: 0 | 1 = observedPick === chosen.k ? 1 : 0;
           if (!branches[observedY]) {
             branches[observedY] = advanceCore(
@@ -282,7 +309,7 @@ export class WebCortexSession {
               preparedPrecisionBank,
             );
           }
-        } else if (!this.aborted) {
+        } else if (!this.aborted && !helperJob) {
           const secondY: 0 | 1 = firstY === 0 ? 1 : 0;
           branches[secondY] = advanceCore(
             cloneCore(this.core), this.inputs, chosen, secondY, params, trialIndex,
@@ -297,12 +324,41 @@ export class WebCortexSession {
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
       const y: 0 | 1 = pick === chosen.k ? 1 : 0;
 
-      const res = branches
-        ? branches[y]!
-        : advanceCore(
-          this.core, this.inputs, chosen, y, params, trialIndex,
-          preparedPrecisionBank,
-        );
+      let res: AdvanceResult;
+      if (helperJob && y === helperY) {
+        const readyAtAnswer = helperReady;
+        try {
+          res = await helperJob;
+          res.timing.requiredBranchReadyAtAnswer = readyAtAnswer;
+        } catch {
+          // Fail closed to the untouched authoritative core. No helper ever
+          // mutates it, so the existing serial calculation remains exact.
+          this.branchExecutor?.dispose();
+          this.branchExecutor = undefined;
+          const fallbackBankStartedAt = performance.now();
+          preparedPrecisionBank = policyName === "precision_v1"
+            ? precisionRemainingBank(this.inputs, this.core.remaining, chosen.segId)
+            : undefined;
+          bankPreparationMs = performance.now() - fallbackBankStartedAt;
+          res = advanceCore(
+            this.core, this.inputs, chosen, y, params, trialIndex,
+            preparedPrecisionBank,
+          );
+          res.timing.executionMode = "serial_fallback";
+          res.timing.speculative = false;
+        }
+      } else {
+        res = branches?.[y] ?? advanceCore(
+            this.core, this.inputs, chosen, y, params, trialIndex,
+            preparedPrecisionBank,
+          );
+        res.timing.bankPreparationMs = bankPreparationMs;
+        res.timing.speculative = this.speculative;
+        if (helperJob && y === firstY) {
+          res.timing.executionMode = "dual_branch";
+          res.timing.requiredBranchReadyAtAnswer = true;
+        }
+      }
       this.core = res.core; // spec: adopt the matching clone; inline: same ref
 
       this.served.push(res.servedSegId);
@@ -311,6 +367,7 @@ export class WebCortexSession {
       this.lTraj.push(res.trajSnapshot.l);
       this.wTraj.push(res.trajSnapshot.w);
       this.cb.onTrial?.(res.diag);
+      this.cb.onPerformance?.(res.timing);
 
       if (res.done) { stopReason = res.stopReason; break; }
       chosen = res.nextChosen;

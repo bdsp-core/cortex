@@ -79,3 +79,15 @@ PRECISION_POLICY_EMAILS = frozenset(
         "CORTEX_PRECISION_POLICY_EMAILS", "elikeldsen@icloud.com").split(",")
     if x.strip()
 )
+
+# Precision browser-compute rollout. This is deliberately independent of the
+# stopping-policy rollout: it changes execution placement only, is OFF by
+# default, and is stamped per sitting so resume never changes execution mode
+# halfway through an assessment.
+PRECISION_COMPUTE_ROLLOUT = os.environ.get(
+    "CORTEX_PRECISION_COMPUTE_ROLLOUT", "off").strip().lower()
+PRECISION_COMPUTE_EMAILS = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_PRECISION_COMPUTE_EMAILS", "").split(",")
+    if x.strip()
+)

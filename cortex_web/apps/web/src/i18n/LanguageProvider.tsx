@@ -37,9 +37,20 @@ const en: Catalog = enRaw;
 // so switching languages never blanks the UI.
 const LOADED: Partial<Record<Lang, Catalog>> = { en };
 
+type DeferredLang = Exclude<Lang, "en">;
+const CATALOG_LOADERS: Record<DeferredLang, () => Promise<{ default: Catalog }>> = {
+  es: () => import("./locales/es.json"),
+  fr: () => import("./locales/fr.json"),
+  de: () => import("./locales/de.json"),
+  pt: () => import("./locales/pt.json"),
+  it: () => import("./locales/it.json"),
+  "zh-Hans": () => import("./locales/zh-Hans.json"),
+  ja: () => import("./locales/ja.json"),
+};
+
 function loadCatalog(lang: Lang): Promise<Catalog | null> {
   if (lang === "en") return Promise.resolve(en);
-  return import(`./locales/${lang}.json`)
+  return CATALOG_LOADERS[lang]()
     .then((m) => { LOADED[lang] = m.default as Catalog; return LOADED[lang]!; })
     .catch(() => null);   // fall back to English on a failed chunk load
 }

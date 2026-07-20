@@ -53,7 +53,6 @@ describe("N=1200 between-question latency (bench)", () => {
       const r = await session.run();
       gaps.sort((a, b) => a - b);
       const pct = (p: number) => gaps[Math.min(gaps.length - 1, Math.floor(p * gaps.length))];
-      // eslint-disable-next-line no-console
       console.info(
         `[bench N=1200] pool=${inputs.segments.length} questions=${r.nQuestions} ` +
         `stop=${r.stopReason} median=${pct(0.5).toFixed(0)}ms ` +
@@ -82,7 +81,6 @@ describe("N=1200 between-question latency (bench)", () => {
       const r = await session.run();
       gaps.sort((a, b) => a - b);
       const med = gaps[Math.floor(gaps.length / 2)] ?? 0;
-      // eslint-disable-next-line no-console
       console.info(
         `[hide-latency ${speculative ? "spec  " : "inline"}] pool=${inputs.segments.length} ` +
         `questions=${r.nQuestions} answer→next-item median=${med.toFixed(1)}ms`,

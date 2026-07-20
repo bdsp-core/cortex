@@ -3,7 +3,7 @@
 // Reproducibility requirement: a session must replay identically given its
 // seed (derived from the session id, as the desktop does). It does NOT need
 // to bit-match NumPy's PCG64 — the test is statistically defined, not
-// byte-defined (see PLAN.md §9). xoshiro256** + a splitmix64 seeder gives a
+// byte-defined. xoshiro256** + a splitmix64 seeder gives a
 // fast, high-quality, fully-seedable stream.
 
 function splitmix64(seed: bigint): () => bigint {
@@ -114,12 +114,32 @@ export class Rng {
   // (engine/advance.ts). A cloned Rng reproduces the identical stream from this
   // point, so a branch's draws don't disturb the live stream until adopted.
   clone(): Rng {
+    return Rng.fromSnapshot(this.snapshot());
+  }
+
+  /** Exact structured-clone-safe state for branch-worker handoff. */
+  snapshot(): RngSnapshot {
+    return {
+      s0: this.s0, s1: this.s1, s2: this.s2, s3: this.s3,
+      gaussSpare: this.gaussSpare,
+    };
+  }
+
+  static fromSnapshot(snapshot: RngSnapshot): Rng {
     const r = new Rng(0);
-    r.s0 = this.s0;
-    r.s1 = this.s1;
-    r.s2 = this.s2;
-    r.s3 = this.s3;
-    r.gaussSpare = this.gaussSpare;
+    r.s0 = snapshot.s0;
+    r.s1 = snapshot.s1;
+    r.s2 = snapshot.s2;
+    r.s3 = snapshot.s3;
+    r.gaussSpare = snapshot.gaussSpare;
     return r;
   }
+}
+
+export interface RngSnapshot {
+  s0: bigint;
+  s1: bigint;
+  s2: bigint;
+  s3: bigint;
+  gaussSpare: number | null;
 }

@@ -25,6 +25,16 @@ import { GoogleSignInButton } from "./GoogleSignInButton";
 import { PROFILE_SECTIONS } from "../profileFields";
 import { suggestEmail } from "../emailSuggest";
 import type { AuthDeepLink } from "../deepLink";
+import {
+  AuthButton,
+  AuthField as Field,
+  FormError,
+  PasswordStrength as StrengthMeter,
+  SignupSteps as Steps,
+  authInputStyle as inputStyle,
+  authLabelStyle as labelStyle,
+  scorePassword as scorePw,
+} from "../features/auth/AuthControls";
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
@@ -65,26 +75,6 @@ const ledeStyle: CSSProperties = {
   fontSize: 13,
   color: COLORS.textBody,
   margin: "0 0 24px",
-};
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 600,
-  color: COLORS.textBody,
-  marginBottom: 4,
-  letterSpacing: "0.02em",
-};
-const inputStyle: CSSProperties = {
-  width: "100%",
-  padding: "12px 12px",
-  border: `1px solid ${COLORS.borderInactive2}`,
-  borderRadius: "var(--radius-ctl)",
-  background: COLORS.cardAlt,
-  color: COLORS.textPrimary,
-  fontFamily: FONTS.sans,
-  fontSize: 14,
-  lineHeight: 1.3,
-  boxSizing: "border-box",
 };
 const hintStyle: CSSProperties = { fontSize: 11, color: COLORS.textFaint, marginTop: 4 };
 
@@ -129,138 +119,6 @@ function ledeWithEmail(text: string, email: string): ReactNode[] {
     out.push(p);
   });
   return out;
-}
-
-// Hover-aware auth button. `primary` (teal fill) darkens to --teal-hover on
-// hover; `secondary` (white fill) and `accentOutline` (white fill + teal
-// outline + teal label) pick up the --btn-hover grey on hover. Inline styles
-// can't express :hover, so hover is tracked in state.
-type BtnVariant = "primary" | "secondary" | "accentOutline";
-function AuthButton({
-  children, variant = "primary", type = "button", disabled, onClick, style,
-}: {
-  children: ReactNode;
-  variant?: BtnVariant;
-  type?: "button" | "submit";
-  disabled?: boolean;
-  onClick?: () => void;
-  style?: CSSProperties;
-}) {
-  const [hover, setHover] = useState(false);
-  const h = hover && !disabled;
-  const base: CSSProperties = {
-    fontFamily: FONTS.sans, fontSize: 14, fontWeight: 600,
-    padding: "12px 16px", borderRadius: "var(--radius-ctl)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.45 : 1,
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-    boxSizing: "border-box",
-    transition: "background 0.12s, border-color 0.12s, color 0.12s",
-  };
-  const variants: Record<BtnVariant, CSSProperties> = {
-    primary: {
-      background: h ? "var(--teal-hover)" : "var(--teal)",
-      border: `1px solid ${h ? "var(--teal-hover)" : "var(--teal)"}`,
-      color: "#fff",
-    },
-    secondary: {
-      background: h ? "var(--btn-hover)" : COLORS.card,
-      border: `1px solid ${COLORS.borderInactive2}`,
-      color: COLORS.textPrimary,
-    },
-    accentOutline: {
-      background: h ? "var(--btn-hover)" : COLORS.card,
-      border: "1px solid var(--teal)",
-      color: "var(--teal-deep)",
-    },
-  };
-  return (
-    <button type={type} disabled={disabled} onClick={onClick}
-      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{ ...base, ...variants[variant], ...style }}>
-      {children}
-    </button>
-  );
-}
-
-function Field({
-  label, type = "text", value, onChange, placeholder, required, autoFocus,
-  autoComplete, onInput, children, name,
-}: {
-  label?: ReactNode;
-  type?: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  required?: boolean;
-  autoFocus?: boolean;
-  autoComplete?: string;
-  onInput?: (v: string) => void;
-  children?: ReactNode;
-  name?: string;
-}) {
-  return (
-    <label style={{ display: "block", marginBottom: 16 }}>
-      {label && <span style={labelStyle}>{label}</span>}
-      <input
-        type={type}
-        name={name}
-        value={value}
-        placeholder={placeholder}
-        required={required}
-        autoFocus={autoFocus}
-        autoComplete={autoComplete}
-        onChange={(e) => { onChange(e.target.value); onInput?.(e.target.value); }}
-        style={inputStyle}
-      />
-      {children}
-    </label>
-  );
-}
-
-function FormError({ children }: { children: ReactNode }) {
-  if (!children) return null;
-  return <div style={{ fontSize: 13, color: COLORS.fail, marginTop: 12 }}>{children}</div>;
-}
-
-// Step dots (signup → verify): 2 segments.
-function Steps({ on }: { on: 1 | 2 }) {
-  return (
-    <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-      {[1, 2].map((i) => (
-        <i key={i} style={{
-          flex: 1, height: 3, borderRadius: 0,
-          background: i <= on ? "var(--teal)" : COLORS.borderInactive,
-        }} />
-      ))}
-    </div>
-  );
-}
-
-// Password-strength meter (cosmetic; scores 0–4 like the mockup).
-function scorePw(v: string): number {
-  let s = 0;
-  if (v.length >= 8) s++;
-  if (/[A-Z]/.test(v) && /[a-z]/.test(v)) s++;
-  if (/[0-9]/.test(v)) s++;
-  if (/[^A-Za-z0-9]/.test(v)) s++;
-  return s;
-}
-function StrengthMeter({ score }: { score: number }) {
-  const colorFor = (i: number) => {
-    if (i >= score) return COLORS.borderInactive;
-    if (score === 1) return COLORS.fail;
-    if (score === 2) return "var(--refer-b)";
-    if (score === 3) return "var(--teal-mid)";
-    return "var(--teal)";
-  };
-  return (
-    <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-      {[0, 1, 2, 3].map((i) => (
-        <i key={i} style={{ flex: 1, height: 3, background: colorFor(i), transition: "background 0.2s" }} />
-      ))}
-    </div>
-  );
 }
 
 // 6 single-char numeric inputs with auto-advance, backspace-to-prev,

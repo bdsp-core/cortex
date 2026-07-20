@@ -15,23 +15,37 @@ export CORTEX_DB="/tmp/cortex_ui_smoke.db"
 # the headless flow can read it (register → verify). Never enabled in prod.
 export CORTEX_EMAIL_BACKEND="dev"
 export CORTEX_EMAIL_EXPOSE_CODE="1"
+# The tiny smoke bank cannot satisfy Precision's full-bank content contract;
+# Precision worker execution has its own real-browser gate (worker-smoke).
+export CORTEX_PRECISION_POLICY_ROLLOUT="off"
+export CORTEX_PRECISION_COMPUTE_ROLLOUT="off"
 # Single-process smoke: uvicorn serves the SPA + bundle as well as /api.
 export CORTEX_SERVE_STATIC=1
 rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true
 
 [ -d "$WEB/dist" ] || ( cd "$WEB" && npm run build )
 
+# Prefer the repository environment so the smoke uses the same pinned FastAPI,
+# NumPy, and bundle-builder dependencies as the backend suite.
+PY="${CORTEX_PY:-python3}"
+[ -x "$WEB/../../../.venv/bin/python" ] && PY="${CORTEX_PY:-$WEB/../../../.venv/bin/python}"
+
 # Small K=7 smoke bundle: few spike segs so spike-first exhausts quickly and the
 # smoke reaches the IIIC phase fast. Skip with CORTEX_SMOKE_NOBUILD=1 to reuse.
 if [ -z "${CORTEX_SMOKE_NOBUILD:-}" ]; then
-  ( cd "$WEB" && python3 scripts/prepare_web_bundle.py --version _smoke --max 14 --max-spike 6 ) \
+  if [ "${CORTEX_SMOKE_SYNTHETIC:-0}" = "1" ]; then
+    BUILD_COMMAND=("$PY" scripts/build_smoke_bundle.py)
+  else
+    BUILD_COMMAND=("$PY" scripts/prepare_web_bundle.py --version _smoke --max 14 --max-spike 6)
+  fi
+  ( cd "$WEB" && "${BUILD_COMMAND[@]}" ) \
     >/tmp/cortex_smoke_bundle.log 2>&1 \
     && echo "▸ built small K=7 smoke bundle (apps/web/public/bundle/_smoke)" \
     || { echo "smoke bundle build failed:"; tail -5 /tmp/cortex_smoke_bundle.log; exit 1; }
 fi
 export CORTEX_BUNDLE_URL="/bundle/_smoke"
 
-( cd "$SERVICES" && python3 -m uvicorn api.app:app --port "$PORT" --log-level warning ) \
+( cd "$SERVICES" && "$PY" -m uvicorn api.app:app --port "$PORT" --log-level warning ) \
     >/tmp/cortex_ui_smoke.log 2>&1 &
 UV=$!
 cleanup() { kill $UV 2>/dev/null || true; rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true; }

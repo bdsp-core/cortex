@@ -1,5 +1,5 @@
 """Dump ground-truth values from the REAL Python engine for the TS port to
-match (PLAN.md §9). Imports engine/core_mcmc.py + scripts/cortex_policy.py so
+match. Imports engine/core_mcmc.py + scripts/cortex_policy.py so
 the reference is the actual desktop numerics, not a re-derivation.
 
     python cortex_web/engine/__testdata__/gen_reference.py

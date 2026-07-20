@@ -8,7 +8,7 @@ Reads the same artifacts the desktop K=7 engine uses
   calibration/cert_config_v15.yaml          ell_star_unified_v15 cut-scores (default)
 
 Writes (default: cortex_web/public/bundle/<version>/):
-  manifest.json     engine inputs + per-segment metadata (PLAN.md §5)
+  manifest.json     engine inputs + per-segment metadata
   seg/<id>.eeg      int16 LE, (nCh × nSamp), µV × EEG_SCALE
   seg/<id>.spec     uint8, sdata quantized to the fixed [-10,25] dB range
                     (only when the segment carries precomputed sdata)
@@ -41,6 +41,7 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[4]  # repo root (…/cortex_web/apps/web/scripts/ → up 4 after the monorepo move)
+WEB_ROOT = Path(__file__).resolve().parents[1]
 BANK = REPO / "data" / "eeg_bank.h5"
 # K=7 unified signals (spike + 6 IIIC; NaN where not applicable). The pre-K=7
 # iiic_segment_signals.csv only had the 6 IIIC columns.
@@ -238,7 +239,9 @@ def _update_registry(bundle_root: Path, version: str, manifest: dict,
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="v1.5-k7")
-    ap.add_argument("--out", type=Path, default=REPO / "cortex_web" / "apps" / "web" / "public" / "bundle")
+    # Resolve against the script's own app tree so an isolated candidate can
+    # never overwrite a sibling production bundle by default.
+    ap.add_argument("--out", type=Path, default=WEB_ROOT / "public" / "bundle")
     ap.add_argument("--bank", type=Path, default=BANK,
                     help=f"source h5 bank with /iiic and /spike groups (default {BANK}).")
     ap.add_argument("--cert-block", default="ell_star_unified_v15",

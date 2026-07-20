@@ -1,15 +1,20 @@
 // Shared engine types.
 
-export interface SegmentMeta {
+/** The only per-question fields consumed by adaptive engine mathematics. */
+export interface ComputeSegmentMeta {
   segId: number;
+  // Indices of tasks this segment can serve as a candidate for. IIIC segments
+  // → [1..6]; spike segments → [0]. Pre-K=7 bundles omit this and the
+  // engine falls back to all K tasks.
+  applicableTaskIdx?: number[];
+  sMean: number[];
+  sSd: number[];
+}
+
+/** Full participant-facing metadata retained by Bundle for rendering. */
+export interface SegmentMeta extends ComputeSegmentMeta {
   patternClass: string; // "spike" | "seizure" | "lpd" | "gpd" | "lrda" | "grda" | "other"
   testClass?: "iiic" | "spike"; // K=7 manifests carry this; pre-K=7 bundles omit it
-  // Indices of tasks this segment can serve as a candidate for. IIIC segments
-  // → [1..6]; spike segments → [0]. Pre-K=7 bundles omit this — the engine
-  // falls back to "applies to all K tasks" for backward compat.
-  applicableTaskIdx?: number[];
-  sMean: number[]; // length K, per-task signal mean (sentinel 0 at inapplicable idx)
-  sSd: number[]; // length K, per-task signal posterior SD (sentinel 0 at inapplicable idx)
   fsHz: number;
   nCh: number;
   nSamp: number;
@@ -18,7 +23,7 @@ export interface SegmentMeta {
   spec: string; // relative path / key of the spectrogram blob
 }
 
-export interface EngineInputs {
+export interface EngineInputs<S extends ComputeSegmentMeta = SegmentMeta> {
   taskCodes: string[]; // K=7: ["spike","sz","lpd","gpd","lrda","grda","iic"]
   taskLabels: string[]; // K=7: ["Spike","Seizure","LPD","GPD","LRDA","GRDA","Other"]
   taskPatternWords: string[]; // K=7: ["spike","seizure","lpd","gpd","lrda","grda","other"]
@@ -49,8 +54,12 @@ export interface EngineInputs {
   // per-session subset, so a participant's random draw cannot move the floor.
   precisionBandEdges?: number[][];
   ellStar: number[]; // (K) Youden cut-scores from the cert_config block
-  segments: SegmentMeta[];
+  // Computation-only metadata. The UI's Bundle retains the corresponding full
+  // SegmentMeta records (EEG/spec paths, rendering shape, labels) by segId.
+  segments: S[];
 }
+
+export type ComputeEngineInputs = EngineInputs<ComputeSegmentMeta>;
 
 // Particle cloud. t,l are row-major Float64Array(N*K).
 export interface ParticleState {
@@ -80,6 +89,47 @@ export interface RejuvenationTelemetry {
   distinctAncestors: number;
   distinctAncestorFraction: number;
 }
+
+/** Non-deterministic wall-clock attribution, never part of policy state. */
+export interface EngineStepTiming {
+  kind: "engine_step";
+  trialIndex: number;
+  y: 0 | 1;
+  rejuvenated: boolean;
+  bankPreparationMs: number;
+  updateMs: number;
+  rejuvenationMs: number;
+  bookkeepingMs: number;
+  policyMs: number;
+  diagnosticsMs: number;
+  selectionMs: number;
+  totalMs: number;
+  executionMode: ComputeExecutionMode;
+  speculative: boolean;
+  requiredBranchReadyAtAnswer: boolean;
+}
+
+export interface AnswerToItemTiming {
+  kind: "answer_to_item";
+  trialIndex: number;
+  durationMs: number;
+}
+
+export interface ExecutionProfileEvent {
+  kind: "execution_profile";
+  requested: RequestedComputeMode;
+  executionMode: Exclude<ComputeExecutionMode, "serial_fallback">;
+  reason: string;
+  hardwareConcurrency: number | null;
+}
+
+export type EnginePerformanceEvent =
+  | EngineStepTiming
+  | AnswerToItemTiming
+  | ExecutionProfileEvent;
+
+export type RequestedComputeMode = "serial" | "dual_branch_auto";
+export type ComputeExecutionMode = "serial" | "dual_branch" | "serial_fallback";
 
 export interface PriorPieces {
   K: number;

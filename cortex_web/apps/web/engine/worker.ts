@@ -3,7 +3,7 @@
 // structured-clone messages.
 //
 // Protocol (main → worker):
-//   { type: "init", inputs, sessionId, seed }      start a session
+//   { type: "init", payload, sessionId, seed }     start a session
 //   { type: "answer", pick }                       submit a 0-based 6-way pick
 //   { type: "abort" }
 // Worker → main:
@@ -13,34 +13,87 @@
 //   { type: "error", message }
 
 import { WebCortexSession, seedFromSessionId } from "./session";
-import { EngineInputs } from "./types";
+import type { ComputeEngineInputs } from "./types";
+import type { EngineWorkerRequest, EngineWorkerResponse } from "./worker_protocol";
+import { BranchWorkerExecutor } from "./branch_worker_executor";
+import { selectExecutionProfile } from "./execution_profile";
+import { unpackComputeInputs } from "./compute_payload";
 
 let session: WebCortexSession | null = null;
+let branchExecutor: BranchWorkerExecutor | null = null;
 
-self.onmessage = async (ev: MessageEvent) => {
+self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
   const msg = ev.data;
+  const post = (message: EngineWorkerResponse, transfer: Transferable[] = []) =>
+    self.postMessage(message, { transfer });
   try {
     if (msg.type === "init") {
-      const inputs: EngineInputs = msg.inputs;
+      const inputs: ComputeEngineInputs = unpackComputeInputs(msg.payload);
       const seed: number =
         typeof msg.seed === "number" ? msg.seed : await seedFromSessionId(msg.sessionId);
+      branchExecutor?.dispose();
+      branchExecutor = null;
+      const hardwareConcurrency = self.navigator.hardwareConcurrency || undefined;
+      let profile = selectExecutionProfile({
+        requested: msg.requestedComputeMode ?? "serial",
+        policy: inputs.terminationPolicy ?? "ad6",
+        hardwareConcurrency,
+        workerAvailable: typeof Worker !== "undefined",
+      });
+      if (profile.mode === "dual_branch") {
+        const candidate = new BranchWorkerExecutor(inputs);
+        try {
+          await candidate.ready();
+          branchExecutor = candidate;
+        } catch {
+          candidate.dispose();
+          profile = {
+            mode: "serial", computeWorkers: 1, reason: "worker_unavailable",
+          };
+        }
+      }
+      post({ type: "performance", event: {
+        kind: "execution_profile",
+        requested: msg.requestedComputeMode ?? "serial",
+        executionMode: profile.mode,
+        reason: profile.reason,
+        hardwareConcurrency: hardwareConcurrency ?? null,
+      } });
       session = new WebCortexSession(inputs, msg.sessionId, seed, {
-        onItem: (item) => (self as any).postMessage({ type: "item", ...item }),
-        onTrial: (diag) => (self as any).postMessage({ type: "trial", diag }),
-        onDone: (result) => (self as any).postMessage({ type: "done", result }),
+        onItem: (item) => post({ type: "item", ...item }),
+        onTrial: (diag) => post({ type: "trial", diag }),
+        onPerformance: (event) => post({ type: "performance", event }),
+        onDone: (result) => {
+          branchExecutor?.dispose();
+          branchExecutor = null;
+          post({ type: "done", result }, [
+            result.traj.t.buffer, result.traj.l.buffer, result.traj.w.buffer,
+          ]);
+        },
         // Speculative precompute ON by default in production (bit-identical to
         // inline; hides the N=1200 selection in think-time). An init message may
         // set speculative:false to fall back to inline compute.
-      }, { speculative: msg.speculative ?? true });
+      }, {
+        speculative: msg.speculative ?? true,
+        ...(branchExecutor ? { branchExecutor } : {}),
+      });
       session.run().catch((e) =>
-        (self as any).postMessage({ type: "error", message: String(e?.stack || e) }),
+        {
+          branchExecutor?.dispose();
+          branchExecutor = null;
+          post({ type: "error", message: String(e?.stack || e) });
+        },
       );
     } else if (msg.type === "answer") {
       session?.submitAnswer(msg.pick);
     } else if (msg.type === "abort") {
+      branchExecutor?.dispose();
+      branchExecutor = null;
       session?.abort();
     }
   } catch (e: any) {
-    (self as any).postMessage({ type: "error", message: String(e?.stack || e) });
+    branchExecutor?.dispose();
+    branchExecutor = null;
+    post({ type: "error", message: String(e?.stack || e) });
   }
 };

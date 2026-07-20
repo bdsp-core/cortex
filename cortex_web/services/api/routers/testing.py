@@ -12,6 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .. import awards, dashboard_logic
+from ..compute_rollout import compute_mode_for
+from ..policy_rollout import (
+    AD6_POLICY,
+    PRECISION_POLICY,
+    termination_policy_for,
+)
 from ..deps import require_auth
 from ..models import ProgressIn, ResultsIn, SessionIn
 
@@ -51,26 +57,6 @@ def tutorial_example(req: Request, _code: str = Depends(require_auth)):
 # new_session. A rolling window (not a calendar day) closes the
 # train-at-23:59, test-at-00:05 hole.
 WASHOUT_HOURS = 12
-AD6_POLICY = "ad6"
-PRECISION_POLICY = "precision_v1"
-
-
-def _termination_policy_for(db, cfg: dict, code: str) -> str:
-    """Server-authoritative rollout; clients cannot request a policy.
-
-    Unknown values deliberately take the AD6 rollback path.
-    """
-    mode = cfg.get("precision_policy_rollout")
-    if mode == "all":
-        return PRECISION_POLICY
-    if mode != "email_allowlist":
-        return AD6_POLICY
-    participant = db.get_participant(code)
-    email = str((participant or {}).get("email") or "").strip().lower()
-    allowlist = cfg.get("precision_policy_emails") or frozenset()
-    return PRECISION_POLICY if email in allowlist else AD6_POLICY
-
-
 def _iso_plus_hours(iso: str, hours: int) -> str:
     t = calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ"))
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t + hours * 3600))
@@ -95,7 +81,8 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
     # receives the full validated 35k candidate bank.
     # Both exclude recently-seen segments and stamp exact provenance.
     db, cfg = req.app.state.db, req.app.state.cfg
-    termination_policy = _termination_policy_for(db, cfg, code)
+    termination_policy = termination_policy_for(db, cfg, code)
+    compute_mode = compute_mode_for(db, cfg, code, termination_policy)
     bank = (req.app.state.get_precision_bank()
             if termination_policy == PRECISION_POLICY
             else req.app.state.get_bank())
@@ -137,6 +124,7 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                           None if termination_policy == PRECISION_POLICY
                           else json.dumps([s["segId"] for s in drawn["segments"]])),
                       termination_policy=termination_policy,
+                      compute_mode=compute_mode,
                       candidate_exclusion=(
                           json.dumps(sorted(exclude))
                           if termination_policy == PRECISION_POLICY else None),
@@ -144,7 +132,8 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                           bank.manifest_sha256
                           if termination_policy == PRECISION_POLICY else None))
     return {"sessionId": session_id, "sampleSeed": seed,
-            "terminationPolicy": termination_policy, "bank": drawn}
+            "terminationPolicy": termination_policy,
+            "computeMode": compute_mode, "bank": drawn}
 
 
 # Sessions older than this aren't offered for resume — the participant's
@@ -233,6 +222,7 @@ def active_session(req: Request, code: str = Depends(require_auth)):
     return {"active": {
         "sessionId": row["session_id"],
         "startedUtc": row["started_utc"],
+        "computeMode": row.get("compute_mode") or "serial",
         "bank": payload,
         "trials": replay,
     }, "washout": washout}

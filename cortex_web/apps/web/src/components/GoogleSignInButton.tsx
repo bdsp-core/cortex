@@ -14,7 +14,7 @@ const GIS_SRC = "https://accounts.google.com/gsi/client";
 
 declare global {
   // GIS injects window.google; typed loosely (no official types bundled).
-  interface Window { google?: any } // eslint-disable-line @typescript-eslint/no-explicit-any
+  interface Window { google?: any }
 }
 
 // Load the GIS script once, shared across mounts.

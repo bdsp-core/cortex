@@ -9,7 +9,18 @@
   "scripts": {
     "build": "npm run -w cortex-web build",
     "test": "npm run -w cortex-web test",
+    "test:backend": "python3 -m pytest -q",
+    "lint": "eslint apps/web --max-warnings=0",
     "typecheck": "npm run -w cortex-web typecheck",
+    "quality": "bash scripts/quality_gate.sh",
+    "quality:browser": "CORTEX_BROWSER_GATES=1 bash scripts/quality_gate.sh",
     "dev": "npm run -w cortex-web dev"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "typescript-eslint": "^8.64.0"
   }
 }

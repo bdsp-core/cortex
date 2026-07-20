@@ -12,7 +12,10 @@ export default defineConfig({
   worker: { format: "es" },
   build: {
     target: "es2022",
-    sourcemap: true,
+    // Public production hosts do not expose source maps. A release pipeline
+    // may emit hidden maps for private error-symbolication storage by setting
+    // CORTEX_BUILD_SOURCEMAP=1; hidden maps are never referenced by bundles.
+    sourcemap: process.env.CORTEX_BUILD_SOURCEMAP === "1" ? "hidden" : false,
   },
   // In `vite dev` (port 5173) proxy /api to the FastAPI backend (port 8000) so
   // the SPA's same-origin /api calls work without CORS gymnastics. The EEG

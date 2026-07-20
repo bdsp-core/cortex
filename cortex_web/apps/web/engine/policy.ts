@@ -69,7 +69,28 @@ export interface EngineTerminationPolicy {
   ): PolicyResult;
   finalizeResult(ellStar: number[]): FinalPolicyResult;
   clone(): EngineTerminationPolicy;
+  snapshot(): PolicySnapshot;
+  restore(snapshot: PolicySnapshot): void;
 }
+
+export interface AD6PolicySnapshot {
+  name: "ad6";
+  verdicts: string[];
+  lastR: number[];
+}
+
+export interface PrecisionPolicySnapshot {
+  name: "precision_v1";
+  statuses: string[];
+  streaks: number[];
+  terminalReasons: (string | null)[];
+  bandAdministered: number[][];
+  // Kept structurally typed at the policy boundary to avoid making the generic
+  // policy interface depend on Precision's diagnostic implementation module.
+  lastDiag: Record<string, unknown> | null;
+}
+
+export type PolicySnapshot = AD6PolicySnapshot | PrecisionPolicySnapshot;
 
 export class AD6Policy implements EngineTerminationPolicy {
   readonly name = "ad6" as const;
@@ -185,5 +206,23 @@ export class AD6Policy implements EngineTerminationPolicy {
     p.verdicts = this.verdicts.slice();
     p.lastR = this.lastR.slice();
     return p;
+  }
+
+  snapshot(): AD6PolicySnapshot {
+    return {
+      name: this.name,
+      verdicts: this.verdicts.slice(),
+      lastR: this.lastR.slice(),
+    };
+  }
+
+  restore(snapshot: PolicySnapshot): void {
+    if (snapshot.name !== this.name) throw new Error("AD6 policy snapshot mismatch");
+    if (snapshot.verdicts.length !== this.ellStar.length
+      || snapshot.lastR.length !== this.ellStar.length) {
+      throw new Error("AD6 policy snapshot domain mismatch");
+    }
+    this.verdicts = snapshot.verdicts.slice();
+    this.lastR = snapshot.lastR.slice();
   }
 }

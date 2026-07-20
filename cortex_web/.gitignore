@@ -1,6 +1,15 @@
 node_modules/
 dist/
 *.tsbuildinfo
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+playwright-report/
+test-results/
+*.log
+*.pid
 
 # Emitted JS from any stray `tsc` build — sources are .ts/.tsx only; vite/
 # vitest transpile directly, nothing hand-written is .js in these trees.

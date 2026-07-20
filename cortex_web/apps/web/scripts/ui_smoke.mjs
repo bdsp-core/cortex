@@ -15,10 +15,11 @@ if (!baseUrl) { console.error("usage: ui_smoke.mjs <baseUrl>"); process.exit(2);
 
 const log = (m) => console.log(`  ${m}`);
 let browser;
+let page;
 
 try {
   browser = await chromium.launch({ channel: "chrome", headless: true });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+  page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
   page.on("pageerror", (e) => console.error("  [pageerror]", e.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
@@ -37,24 +38,26 @@ try {
     }
   });
 
-  await page.getByText("Create an account").click();
-  await page.getByRole("button", { name: "Create account" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /Create (?:an |new )?account/i }).click();
+  await page.getByRole("button", { name: "Continue" }).waitFor({ timeout: 10000 });
   // required-field labels carry a " *", so select by input type / placeholder.
   await page.locator('input[type="email"]').fill(email);
   const pw = page.locator('input[type="password"]');
   await pw.nth(0).fill(password);   // Password
   await pw.nth(1).fill(password);   // Confirm password
   await page.getByPlaceholder("e.g. J. Doe, MD").fill("QA Bot");
+  await page.locator("select").first().selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Create account" }).waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "Create account" }).click();
   log("signup (email/password) ✓");
 
-  // Verify email: fill the 6 single-char inputs with the dev code, then submit.
+  // Verify email: the current UI auto-submits when the sixth digit lands.
   await page.getByRole("button", { name: "Verify & continue" }).waitFor({ timeout: 10000 });
   for (let i = 0; i < 40 && devCode == null; i++) await page.waitForTimeout(100);
   if (!devCode || !/^\d{6}$/.test(devCode)) throw new Error(`no 6-digit devCode from /api/register (got ${devCode})`);
   const codeInputs = page.locator('input[inputmode="numeric"][maxlength="1"]');
   for (let i = 0; i < 6; i++) await codeInputs.nth(i).fill(devCode[i]);
-  await page.getByRole("button", { name: "Verify & continue" }).click();
   log("verify email (6-digit code) ✓");
 
   // Success → sign in with the same credentials (no auto-login after verify).
@@ -68,23 +71,44 @@ try {
 
   // Post-verify sign-in now lands on the DASHBOARD shell, not consent. Launch
   // the certification test from the rail CTA to reach the consent screen.
-  await page.getByRole("button", { name: "Re-take certification test" }).waitFor({ timeout: 10000 });
-  await page.getByRole("button", { name: "Re-take certification test" }).click();
-  log("dashboard → re-take certification test ✓");
+  // The account-created milestone is rendered asynchronously after the shell.
+  // Wait briefly for the optional dialog instead of racing the CTA beneath it.
+  const milestoneDialog = page.getByRole("dialog", { name: "Milestone reached" });
+  if (await milestoneDialog.waitFor({ state: "visible", timeout: 10000 }).then(() => true).catch(() => false)) {
+    await milestoneDialog.getByRole("button", { name: "Noted" }).click();
+    await milestoneDialog.waitFor({ state: "hidden", timeout: 10000 });
+  }
+  const testName = /^(?:Re-)?[Tt]ake (?:the )?certification test$/;
+  const welcomeDialog = page.getByRole("dialog").filter({ hasText: "Welcome to the CORTEX protocol" });
+  const testCta = await welcomeDialog.isVisible().catch(() => false)
+    ? welcomeDialog.getByRole("button", { name: testName })
+    : page.getByRole("button", { name: testName }).first();
+  await testCta.waitFor({ timeout: 10000 });
+  await testCta.click();
+  log("dashboard → certification test ✓");
 
   // Consent
   await page.getByRole("button", { name: "I Accept" }).waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "I Accept" }).click();
   log("consent ✓");
 
-  // Registration (3-page wizard; page 0 requires name + expertise + institution)
-  await page.getByPlaceholder("e.g. J.D.").fill("QA Bot");
-  await page.locator("select").first().selectOption({ index: 1 });   // expertise
-  await page.locator('input[type="text"]:not([placeholder])').first().fill("Test Institution");
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Continue to tutorial" }).click();
-  log("registration ✓");
+  // Older accounts may still enter the three-page registration wizard here;
+  // current signup captures the required profile and proceeds to the tutorial.
+  const registrationName = page.getByPlaceholder("e.g. J.D.");
+  const hasRegistration = await registrationName.waitFor({ state: "visible", timeout: 3000 })
+    .then(() => true)
+    .catch(() => false);
+  if (hasRegistration) {
+    await registrationName.fill("QA Bot");
+    await page.locator("select").first().selectOption({ index: 1 });   // expertise
+    await page.locator('input[type="text"]:not([placeholder])').first().fill("Test Institution");
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Continue to tutorial" }).click();
+    log("registration ✓");
+  } else {
+    log("registration already captured at signup ✓");
+  }
 
   // In-context tutorial overlay (over an example IIIC segment): walk the 5
   // coach-marks (NEXT ×4 → BEGIN), which then starts the real test.
@@ -97,9 +121,9 @@ try {
   await page.getByRole("button", { name: "BEGIN" }).click();
   log("tutorial walkthrough → begin ✓");
 
-  // ── SPIKE phase (served first): SpikeViewer Yes/No, EEG only (no spectrogram)
-  await page.getByRole("button", { name: /YES — spike/ }).waitFor({ timeout: 30000 });
-  log("spike phase: Yes/No panel ✓");
+  // ── SPIKE phase (served first): Spike/No spike, EEG only (no spectrogram)
+  await page.getByRole("button", { name: /^(?:1 · )?Spike$/i }).waitFor({ timeout: 30000 });
+  log("spike phase: Spike/No spike panel ✓");
   await page.waitForTimeout(700);
   if ((await page.locator("canvas").count()) !== 1) {
     throw new Error("spike phase should show ONLY the EEG canvas (no spectrogram)");
@@ -159,6 +183,10 @@ try {
   process.exit(0);
 } catch (e) {
   console.error("UI SMOKE: FAIL —", e.message);
+  if (page) {
+    const text = await page.locator("body").innerText().catch(() => "<body unavailable>");
+    console.error("UI SMOKE: page text at failure:\n", text.slice(0, 4000));
+  }
   if (browser) await browser.close();
   process.exit(1);
 }
