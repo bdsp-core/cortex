@@ -41,6 +41,7 @@ describe("internal engine performance summary", () => {
       kind: "runtime_pool_adjustment", trialIndex: 10,
       previousWorkerCount: 6, selectedWorkerCount: 4,
       reason: "main_realm_load", sampleCount: 8,
+      trigger: "sustained_mean", evidenceWindowCount: 1,
       meanDelayMs: 25, maxDelayMs: 75,
     });
     const result = collector.summary(3);

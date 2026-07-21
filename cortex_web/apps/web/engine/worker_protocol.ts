@@ -3,6 +3,7 @@ import type {
   EnginePerformanceEvent, TrialDiag, RequestedComputeMode,
 } from "./types";
 import type { PackedComputeInputs } from "./compute_payload";
+import type { RuntimeLoadReductionRequest } from "./execution_profile";
 
 /** Main-thread → certification-engine worker protocol. */
 export type EngineWorkerRequest =
@@ -24,12 +25,7 @@ export type EngineWorkerRequest =
       /** Main-realm high-resolution epoch. Telemetry/scheduling only. */
       submittedAtEpochMs?: number;
     }
-  | {
-      type: "runtime_load";
-      sampleCount: number;
-      meanDelayMs: number;
-      maxDelayMs: number;
-    }
+  | ({ type: "runtime_load" } & RuntimeLoadReductionRequest)
   | { type: "abort" };
 
 /** Certification-engine worker → main-thread protocol. */

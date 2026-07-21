@@ -13,7 +13,8 @@ import {
   computePayloadTransferables, packComputeInputs,
 } from "../engine/compute_payload";
 import {
-  RUNTIME_LOAD_PROFILE, runtimeLoadExceedsLimit, type RuntimeLoadSample,
+  initialRuntimeLoadGuardState, observeRuntimeLoadWindow, RUNTIME_LOAD_PROFILE,
+  type RuntimeLoadGuardState, type RuntimeLoadSample,
 } from "../engine/execution_profile";
 
 export interface EngineClientHandlers {
@@ -42,6 +43,7 @@ export class EngineClient {
   private heartbeatWindowSamples = 0;
   private heartbeatWindowDelayTotal = 0;
   private heartbeatWindowDelayMax = 0;
+  private runtimeLoadGuardState: RuntimeLoadGuardState = initialRuntimeLoadGuardState();
 
   constructor(private handlers: EngineClientHandlers) {
     this.worker = new Worker(new URL("../engine/worker.ts", import.meta.url), {
@@ -124,7 +126,7 @@ export class EngineClient {
   /** Qualification hook for deterministic protocol/lifecycle tests. Runtime
    * application feedback is generated automatically by the heartbeat window. */
   reportRuntimeLoadForQualification(sample: RuntimeLoadSample): void {
-    this.post({ type: "runtime_load", ...sample });
+    this.observeRuntimeLoadWindow(sample);
   }
 
   dispose(): void {
@@ -138,6 +140,7 @@ export class EngineClient {
     this.heartbeatSamples = 0;
     this.heartbeatDelayTotal = 0;
     this.heartbeatDelayMax = 0;
+    this.runtimeLoadGuardState = initialRuntimeLoadGuardState();
     this.resetHeartbeatWindow();
     this.heartbeatExpectedAt = performance.now() + intervalMs;
     this.heartbeatTimer = window.setInterval(() => {
@@ -156,9 +159,7 @@ export class EngineClient {
           meanDelayMs: this.heartbeatWindowDelayTotal / this.heartbeatWindowSamples,
           maxDelayMs: this.heartbeatWindowDelayMax,
         };
-        if (runtimeLoadExceedsLimit(sample)) {
-          this.post({ type: "runtime_load", ...sample });
-        }
+        this.observeRuntimeLoadWindow(sample);
         this.resetHeartbeatWindow();
       }
     }, intervalMs);
@@ -180,7 +181,16 @@ export class EngineClient {
     this.heartbeatSamples = 0;
     this.heartbeatDelayTotal = 0;
     this.heartbeatDelayMax = 0;
+    this.runtimeLoadGuardState = initialRuntimeLoadGuardState();
     this.resetHeartbeatWindow();
+  }
+
+  private observeRuntimeLoadWindow(sample: RuntimeLoadSample): void {
+    const decision = observeRuntimeLoadWindow(this.runtimeLoadGuardState, sample);
+    this.runtimeLoadGuardState = decision.state;
+    if (decision.reduction) {
+      this.post({ type: "runtime_load", ...decision.reduction });
+    }
   }
 
   private resetHeartbeatWindow(): void {

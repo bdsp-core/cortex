@@ -252,6 +252,8 @@ export interface RuntimePoolAdjustmentEvent {
   previousWorkerCount: number;
   selectedWorkerCount: number;
   reason: "main_realm_load";
+  trigger: "sustained_mean" | "repeated_max";
+  evidenceWindowCount: number;
   sampleCount: number;
   meanDelayMs: number;
   maxDelayMs: number;

@@ -29,7 +29,8 @@ import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import {
-  nextLowerWorkerCount, runtimeLoadExceedsLimit, type RuntimeLoadSample,
+  nextLowerWorkerCount, runtimeLoadExceedsLimit,
+  type RuntimeLoadReductionRequest,
 } from "./execution_profile";
 import {
   SessionCore, AdvanceParams, AdvanceResult, advanceCore,
@@ -157,7 +158,8 @@ export class WebCortexSession {
   private rankedSpeculation: boolean;
   private cb: SessionCallbacks;
   private answerResolver: ((answer: SubmittedAnswer) => void) | null = null;
-  private pendingRuntimePoolAdjustment: (RuntimeLoadSample & { target: number }) | null = null;
+  private pendingRuntimePoolAdjustment:
+    (RuntimeLoadReductionRequest & { target: number }) | null = null;
   private selectionRecovery: Promise<void> | null = null;
   private aborted = false;
 
@@ -198,7 +200,7 @@ export class WebCortexSession {
 
   /** Main-realm timing feedback only. The reduction is deferred until the
    * next between-question boundary, when no selector or MH shard is active. */
-  reportRuntimeLoad(sample: RuntimeLoadSample): void {
+  reportRuntimeLoad(sample: RuntimeLoadReductionRequest): void {
     const current = this.selectionExecutor?.workerCount ?? 1;
     if (current <= 1 || !runtimeLoadExceedsLimit(sample)) return;
     const target = nextLowerWorkerCount(current);
@@ -223,6 +225,8 @@ export class WebCortexSession {
       previousWorkerCount,
       selectedWorkerCount,
       reason: "main_realm_load",
+      trigger: pending.trigger,
+      evidenceWindowCount: pending.evidenceWindowCount,
       sampleCount: pending.sampleCount,
       meanDelayMs: pending.meanDelayMs,
       maxDelayMs: pending.maxDelayMs,

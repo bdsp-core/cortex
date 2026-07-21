@@ -57,6 +57,17 @@ try {
   const options = { maxQuestions: 2, answerPattern: "no" };
   const serial = await page.evaluate(
     (runOptions) => window.runWorkerHarness("serial", runOptions), options);
+  const transientSpikes = await page.evaluate(
+    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), {
+      ...options,
+      qualificationRuntimeLoads: [
+        { trialIndex: 0, sampleCount: 8, meanDelayMs: 11.46, maxDelayMs: 85.4 },
+        { trialIndex: 0, sampleCount: 8, meanDelayMs: 0.5, maxDelayMs: 4 },
+        { trialIndex: 0, sampleCount: 8, meanDelayMs: 9.55, maxDelayMs: 59.9 },
+        { trialIndex: 0, sampleCount: 8, meanDelayMs: 0.4, maxDelayMs: 3 },
+        { trialIndex: 0, sampleCount: 8, meanDelayMs: 7, maxDelayMs: 55.9 },
+      ],
+    });
   const adaptive = await page.evaluate(
     (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), {
       ...options,
@@ -66,13 +77,21 @@ try {
     });
   assert.deepStrictEqual(adaptive.result, serial.result,
     "adaptive-pool execution changed the authoritative session result");
+  assert.deepStrictEqual(transientSpikes.result, serial.result,
+    "transient-spike execution changed the authoritative session result");
   assert.equal(pageErrors.length, 0, pageErrors.join("\n"));
 
   const serialProfile = serial.events.find((event) => event.kind === "execution_profile");
   const adaptiveProfile = adaptive.events.find(
     (event) => event.kind === "execution_profile");
+  const transientProfile = transientSpikes.events.find(
+    (event) => event.kind === "execution_profile");
   assert.equal(serialProfile?.executionMode, "serial");
   assert.equal(adaptiveProfile?.executionMode, "adaptive_pool");
+  assert.equal(transientProfile?.executionMode, "adaptive_pool");
+  assert.equal(transientSpikes.events.some(
+    (event) => event.kind === "runtime_pool_adjustment"), false,
+  "isolated max-only heartbeat spikes reduced the worker pool");
   assert.ok(Number.isInteger(adaptiveProfile?.selectedWorkerCount));
   assert.ok(adaptiveProfile.selectedWorkerCount >= 2);
   const calibration = JSON.parse(adaptiveProfile.calibrationResult);
@@ -94,6 +113,8 @@ try {
     (event) => event.kind === "runtime_pool_adjustment");
   assert.equal(runtimeAdjustment?.trialIndex, 1);
   assert.equal(runtimeAdjustment?.reason, "main_realm_load");
+  assert.equal(runtimeAdjustment?.trigger, "sustained_mean");
+  assert.equal(runtimeAdjustment?.evidenceWindowCount, 1);
   assert.equal(runtimeAdjustment?.previousWorkerCount, adaptiveProfile.selectedWorkerCount);
   assert.ok(runtimeAdjustment.selectedWorkerCount < runtimeAdjustment.previousWorkerCount);
   process.stdout.write(
