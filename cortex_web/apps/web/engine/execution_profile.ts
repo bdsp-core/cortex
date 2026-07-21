@@ -21,6 +21,37 @@ export interface WorkerCalibrationSample {
   heartbeatMaxDelayMs: number;
 }
 
+export interface RuntimeLoadSample {
+  sampleCount: number;
+  meanDelayMs: number;
+  maxDelayMs: number;
+}
+
+/** Centralized, timing-only runtime guard. Eight 250 ms main-realm samples
+ * represent a two-second window; either a severe frame/task stall or sustained
+ * mean delay requests one conservative downward pool step. */
+export const RUNTIME_LOAD_PROFILE = {
+  windowSamples: 8,
+  meanDelayLimitMs: 20,
+  maxDelayLimitMs: 50,
+} as const;
+
+export function runtimeLoadExceedsLimit(sample: RuntimeLoadSample): boolean {
+  return Number.isFinite(sample.sampleCount) && sample.sampleCount >= 1
+    && Number.isFinite(sample.meanDelayMs) && sample.meanDelayMs >= 0
+    && Number.isFinite(sample.maxDelayMs) && sample.maxDelayMs >= 0
+    && (sample.meanDelayMs > RUNTIME_LOAD_PROFILE.meanDelayLimitMs
+      || sample.maxDelayMs > RUNTIME_LOAD_PROFILE.maxDelayLimitMs);
+}
+
+/** Downward-only staircase for pools that may also have calibrated to 3 or 5. */
+export function nextLowerWorkerCount(current: number): number {
+  if (!Number.isInteger(current) || current <= 1) return 1;
+  if (current > 4) return 4;
+  if (current > 2) return 2;
+  return 1;
+}
+
 /** Choose the smallest pool within 5% of the fastest responsive sample. This
  * preserves CPU/memory headroom when an additional worker has only a marginal
  * throughput benefit. Timing is device configuration only and never enters

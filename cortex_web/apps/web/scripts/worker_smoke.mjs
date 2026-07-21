@@ -54,11 +54,16 @@ try {
   await page.goto(url);
   await page.waitForFunction(() => window.workerHarnessReady === true);
 
-  const options = { maxQuestions: 1, answerPattern: "yes" };
+  const options = { maxQuestions: 2, answerPattern: "no" };
   const serial = await page.evaluate(
     (runOptions) => window.runWorkerHarness("serial", runOptions), options);
   const adaptive = await page.evaluate(
-    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), options);
+    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), {
+      ...options,
+      qualificationRuntimeLoad: {
+        trialIndex: 0, sampleCount: 8, meanDelayMs: 25, maxDelayMs: 75,
+      },
+    });
   assert.deepStrictEqual(adaptive.result, serial.result,
     "adaptive-pool execution changed the authoritative session result");
   assert.equal(pageErrors.length, 0, pageErrors.join("\n"));
@@ -71,10 +76,26 @@ try {
   assert.ok(Number.isInteger(adaptiveProfile?.selectedWorkerCount));
   assert.ok(adaptiveProfile.selectedWorkerCount >= 2);
   const calibration = JSON.parse(adaptiveProfile.calibrationResult);
-  assert.equal(calibration.result, "measured_v1");
+  assert.equal(calibration.version, 2);
+  assert.equal(calibration.result, "measured_v2");
+  assert.ok(calibration.sampleCandidates > 24);
+  assert.ok(calibration.sampleScreenCandidates > 0);
+  assert.ok(calibration.sampleHistoryObservations > 0);
   assert.equal(calibration.selectedWorkerCount, adaptiveProfile.selectedWorkerCount);
   assert.ok(adaptive.events.some((event) =>
     event.kind === "engine_step" && event.executionMode === "adaptive_pool"));
+  const cancelledSpeculation = adaptive.events.some((event) => event.kind === "engine_step"
+    && event.phaseV2?.branches.some((branch) => branch.cancelled));
+  const observedRanks = adaptive.events.flatMap((event) => event.kind === "engine_step"
+    ? [event.phaseV2?.observedOutcomeRank] : []);
+  assert.ok(cancelledSpeculation,
+    `immediate non-rank-one answer did not cancel speculative work; ranks=${observedRanks}`);
+  const runtimeAdjustment = adaptive.events.find(
+    (event) => event.kind === "runtime_pool_adjustment");
+  assert.equal(runtimeAdjustment?.trialIndex, 1);
+  assert.equal(runtimeAdjustment?.reason, "main_realm_load");
+  assert.equal(runtimeAdjustment?.previousWorkerCount, adaptiveProfile.selectedWorkerCount);
+  assert.ok(runtimeAdjustment.selectedWorkerCount < runtimeAdjustment.previousWorkerCount);
   process.stdout.write(
     `worker-smoke: exact native-IIIC serial/adaptive result parity (${serial.result.nQuestions} questions); `
     + `browser reported ${adaptiveProfile?.hardwareConcurrency} logical cores; `

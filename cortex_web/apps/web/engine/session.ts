@@ -12,7 +12,8 @@
 // in otherwise-idle think-time without changing a single result.
 
 import {
-  BranchLifecycleV2, ComputeEngineInputs, EngineStepTiming, TerminationPolicyName, TrialDiag,
+  BranchLifecycleV2, ComputeEngineInputs, EngineStepTiming, RuntimePoolAdjustmentEvent,
+  TerminationPolicyName, TrialDiag,
 } from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
@@ -28,9 +29,19 @@ import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import {
+  nextLowerWorkerCount, runtimeLoadExceedsLimit, type RuntimeLoadSample,
+} from "./execution_profile";
+import {
   SessionCore, AdvanceParams, AdvanceResult, advanceCore,
   advanceCoreWithSelectionExecutor, cloneCore, chooseNext, precisionRemainingBank,
 } from "./advance";
+import {
+  isSpeculationCancelled, type SpeculationCancellationPhase,
+} from "./speculation_cancellation";
+import {
+  isRankedSpeculationRejuvenationDeferred, RANKED_SPECULATION_PROFILE,
+  shouldExpandRankedSpeculation,
+} from "./ranked_speculation";
 
 // Default particle count (frozen-pilot instrument). v15 staging (OPT-IN) lets a
 // manifest override this via EngineInputs.nParticles (1200); when absent the
@@ -76,6 +87,7 @@ export interface SessionCallbacks {
   onItem?: (item: { trialIndex: number; taskK: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
   onPerformance?: (event: EngineStepTiming) => void;
+  onRuntimePoolAdjustment?: (event: RuntimePoolAdjustmentEvent) => void;
   onDone?: (result: SessionResult) => void;
 }
 
@@ -87,6 +99,8 @@ export interface SessionOptions {
   speculative?: boolean;
   branchExecutor?: BranchExecutor;
   selectionExecutor?: NWaySelectionExecutor;
+  /** Qualification control; production defaults to bounded rank-two expansion. */
+  rankedSpeculation?: boolean;
 }
 
 export interface SessionResult {
@@ -113,6 +127,16 @@ export interface SessionResult {
 
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
 
+interface SubmittedAnswer {
+  pick: number;
+  submittedAtEpochMs: number;
+  processedAtEpochMs: number;
+}
+
+function highResolutionEpochMs(): number {
+  return performance.timeOrigin + performance.now();
+}
+
 export class WebCortexSession {
   private inputs: ComputeEngineInputs;
   private sessionId: string;
@@ -130,8 +154,11 @@ export class WebCortexSession {
   private speculative: boolean;
   private branchExecutor?: BranchExecutor;
   private selectionExecutor?: NWaySelectionExecutor;
+  private rankedSpeculation: boolean;
   private cb: SessionCallbacks;
-  private answerResolver: ((pick: number) => void) | null = null;
+  private answerResolver: ((answer: SubmittedAnswer) => void) | null = null;
+  private pendingRuntimePoolAdjustment: (RuntimeLoadSample & { target: number }) | null = null;
+  private selectionRecovery: Promise<void> | null = null;
   private aborted = false;
 
   constructor(
@@ -146,14 +173,21 @@ export class WebCortexSession {
     this.speculative = opts.speculative ?? false;
     this.branchExecutor = opts.branchExecutor;
     this.selectionExecutor = opts.selectionExecutor;
+    this.rankedSpeculation = opts.rankedSpeculation ?? true;
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
-  submitAnswer(pick: number): void {
+  submitAnswer(pick: number, submittedAtEpochMs = highResolutionEpochMs()): void {
     if (this.answerResolver) {
       const r = this.answerResolver;
       this.answerResolver = null;
-      r(pick);
+      const processedAtEpochMs = highResolutionEpochMs();
+      r({
+        pick,
+        submittedAtEpochMs: Number.isFinite(submittedAtEpochMs)
+          ? submittedAtEpochMs : processedAtEpochMs,
+        processedAtEpochMs,
+      });
     }
   }
 
@@ -162,7 +196,57 @@ export class WebCortexSession {
     if (this.answerResolver) this.submitAnswer(-1);
   }
 
-  private awaitAnswer(): Promise<number> {
+  /** Main-realm timing feedback only. The reduction is deferred until the
+   * next between-question boundary, when no selector or MH shard is active. */
+  reportRuntimeLoad(sample: RuntimeLoadSample): void {
+    const current = this.selectionExecutor?.workerCount ?? 1;
+    if (current <= 1 || !runtimeLoadExceedsLimit(sample)) return;
+    const target = nextLowerWorkerCount(current);
+    if (target >= current) return;
+    if (!this.pendingRuntimePoolAdjustment
+        || target < this.pendingRuntimePoolAdjustment.target) {
+      this.pendingRuntimePoolAdjustment = { ...sample, target };
+    }
+  }
+
+  private applyRuntimePoolAdjustment(trialIndex: number): void {
+    const pending = this.pendingRuntimePoolAdjustment;
+    this.pendingRuntimePoolAdjustment = null;
+    const executor = this.selectionExecutor;
+    if (!pending || !executor?.reduceWorkerCount) return;
+    const previousWorkerCount = executor.workerCount;
+    const selectedWorkerCount = executor.reduceWorkerCount(pending.target);
+    if (selectedWorkerCount >= previousWorkerCount) return;
+    this.cb.onRuntimePoolAdjustment?.({
+      kind: "runtime_pool_adjustment",
+      trialIndex,
+      previousWorkerCount,
+      selectedWorkerCount,
+      reason: "main_realm_load",
+      sampleCount: pending.sampleCount,
+      meanDelayMs: pending.meanDelayMs,
+      maxDelayMs: pending.maxDelayMs,
+    });
+  }
+
+  private deferSelectionRecovery(
+    executor: NWaySelectionExecutor, recovery: Promise<void>,
+  ): void {
+    let tracked!: Promise<void>;
+    tracked = recovery.catch(() => {
+      executor.dispose();
+      if (this.selectionExecutor === executor) this.selectionExecutor = undefined;
+    }).finally(() => {
+      if (this.selectionRecovery === tracked) this.selectionRecovery = null;
+    });
+    this.selectionRecovery = tracked;
+  }
+
+  private async waitForSelectionRecovery(): Promise<void> {
+    await this.selectionRecovery;
+  }
+
+  private awaitAnswer(): Promise<SubmittedAnswer> {
     return new Promise((resolve) => (this.answerResolver = resolve));
   }
 
@@ -177,11 +261,14 @@ export class WebCortexSession {
     core: SessionCore, chosen: Chosen, rawPick: number,
     params: AdvanceParams, trialIndex: number,
     preparedPrecisionBank?: BankArrays,
+    cancellationSignal?: AbortSignal,
+    deferMhRejuvenation = false,
   ): Promise<AdvanceResult> {
     if (this.selectionExecutor) {
       return advanceCoreWithSelectionExecutor(
         core, this.inputs, chosen, rawPick, params, trialIndex,
-        this.selectionExecutor, preparedPrecisionBank,
+        this.selectionExecutor, preparedPrecisionBank, cancellationSignal,
+        deferMhRejuvenation,
       );
     }
     return Promise.resolve(advanceCore(
@@ -274,12 +361,16 @@ export class WebCortexSession {
     while (chosen.segId !== -1 && trialIndex < maxQ && !this.aborted) {
       // Arm the resolver before exposing the item. This also makes synchronous
       // test/demo callbacks safe; production answers arrive as Worker messages.
-      let observedPick: number | undefined;
-      const answerPromise = this.awaitAnswer().then((pick) => {
-        observedPick = pick;
-        return pick;
+      let observedAnswer: SubmittedAnswer | undefined;
+      const answerPromise = this.awaitAnswer().then((answer) => {
+        observedAnswer = answer;
+        return answer;
       });
       this.cb.onItem?.({ trialIndex, taskK: chosen.k, segId: chosen.segId });
+      // A cached prior branch may already have exposed this item while a
+      // cancelled expansion rebuilds the pool in the background.
+      await this.waitForSelectionRecovery();
+      this.applyRuntimePoolAdjustment(trialIndex);
 
       const bankStartedAt = performance.now();
       let preparedPrecisionBank = policyName === "precision_v1"
@@ -293,8 +384,11 @@ export class WebCortexSession {
       // calculated from untouched authoritative state.
       let branches: Map<number, AdvanceResult> | null = null;
       let firstPick: number | null = null;
+      let firstReadyAtEpochMs: number | null = null;
+      const expandedReadyAtEpochMs = new Map<number, number>();
       const helperJobs = new Map<number, {
         ready: boolean;
+        readyAtEpochMs: number | null;
         readyAtAnswer: boolean;
         job: Promise<AdvanceResult>;
         lifecycle: BranchLifecycleV2;
@@ -337,6 +431,7 @@ export class WebCortexSession {
           try {
             const helper = {
               ready: false,
+              readyAtEpochMs: null as number | null,
               readyAtAnswer: false,
               lifecycle: helperLifecycle,
               job: Promise.resolve(null as unknown as AdvanceResult),
@@ -345,6 +440,7 @@ export class WebCortexSession {
               this.core, chosen, params, trialIndex, helperRanked.outcome,
             ).then((result) => {
               helper.ready = true;
+              helper.readyAtEpochMs = highResolutionEpochMs();
               helperLifecycle.durationMs = result.timing.totalMs;
               return result;
             });
@@ -366,31 +462,186 @@ export class WebCortexSession {
           role: "coordinator",
           queued: true,
           started: true,
-          readyAtAnswer: true,
+          readyAtAnswer: false,
           adopted: false,
           cancelled: false,
           discarded: false,
           durationMs: null,
         };
         branchLifecycle.push(firstLifecycle);
-        const firstResult = await this.advance(
+        const cancellation = new AbortController();
+        const firstStartedAt = performance.now();
+        const firstJob = this.advance(
           cloneCore(this.core), chosen, firstPick, params, trialIndex,
-          preparedPrecisionBank,
+          preparedPrecisionBank, cancellation.signal,
         );
-        firstLifecycle.durationMs = firstResult.timing.totalMs;
-        branches.set(firstPick, firstResult);
+        const firstCompletion = firstJob.then(
+          (result) => ({ kind: "result" as const, result }),
+          (error: unknown) => ({ kind: "error" as const, error }),
+        );
+        const canPreempt = Boolean(this.selectionExecutor?.restartAfterCancellation);
+        const firstRace = canPreempt
+          ? await Promise.race([
+              firstCompletion,
+              answerPromise.then((answer) => ({ kind: "answer" as const, answer })),
+            ])
+          : await firstCompletion;
+        if (firstRace.kind === "answer" && firstRace.answer.pick !== firstPick) {
+          cancellation.abort();
+          let cancellationPhase: SpeculationCancellationPhase = "between_phases";
+          const executorAtCancellation = this.selectionExecutor;
+          try {
+            const restart = executorAtCancellation?.restartAfterCancellation?.();
+            cancellationPhase = restart?.report.phases[0] ?? cancellationPhase;
+            await restart?.ready;
+          } catch {
+            executorAtCancellation?.dispose();
+            if (this.selectionExecutor === executorAtCancellation) {
+              this.selectionExecutor = undefined;
+            }
+          }
+          const completion = await firstCompletion;
+          if (completion.kind === "error"
+              && !isSpeculationCancelled(completion.error)) {
+            throw completion.error;
+          }
+          firstLifecycle.cancelled = true;
+          firstLifecycle.cancellationPhase = cancellationPhase;
+          firstLifecycle.durationMs = performance.now() - firstStartedAt;
+        } else {
+          const completion = firstRace.kind === "answer"
+            ? await firstCompletion : firstRace;
+          if (completion.kind === "error") throw completion.error;
+          const firstResult = completion.result;
+          firstReadyAtEpochMs = highResolutionEpochMs();
+          firstLifecycle.durationMs = firstResult.timing.totalMs;
+          branches.set(firstPick, firstResult);
 
-        // Process an answer/abort message that arrived during synchronous rank
-        // one computation. Helpers continue independently.
-        await this.yieldToWorker();
+          const secondRanked = rankedOutcomes[1];
+          const expansionEligible = secondRanked !== undefined
+            && this.rankedSpeculation
+            && shouldExpandRankedSpeculation({
+              rank: secondRanked.rank,
+              probability: secondRanked.probability,
+              workerCount: this.selectionExecutor?.workerCount ?? 1,
+              separateBranchExecutorActive: Boolean(this.branchExecutor),
+            });
+          if (expansionEligible && !observedAnswer) {
+            const grace = await Promise.race([
+              answerPromise.then((answer) => ({ kind: "answer" as const, answer })),
+              new Promise<{ kind: "grace" }>((resolve) => globalThis.setTimeout(
+                () => resolve({ kind: "grace" }),
+                RANKED_SPECULATION_PROFILE.expansionGraceMs,
+              )),
+            ]);
+            if (grace.kind === "grace") {
+              const secondLifecycle: BranchLifecycleV2 = {
+                outcome: secondRanked.outcome,
+                rank: secondRanked.rank,
+                probability: secondRanked.probability,
+                role: "coordinator_expansion",
+                queued: true,
+                started: true,
+                readyAtAnswer: false,
+                adopted: false,
+                cancelled: false,
+                discarded: false,
+                durationMs: null,
+              };
+              branchLifecycle.push(secondLifecycle);
+              const secondCancellation = new AbortController();
+              const secondStartedAt = performance.now();
+              const secondJob = this.advance(
+                cloneCore(this.core), chosen, secondRanked.outcome, params, trialIndex,
+                preparedPrecisionBank, secondCancellation.signal,
+                !RANKED_SPECULATION_PROFILE.allowMhRejuvenation,
+              );
+              const secondCompletion = secondJob.then(
+                (result) => ({ kind: "result" as const, result }),
+                (error: unknown) => ({ kind: "error" as const, error }),
+              );
+              const secondRace = await Promise.race([
+                secondCompletion,
+                answerPromise.then((answer) => ({ kind: "answer" as const, answer })),
+              ]);
+              if (secondRace.kind === "answer"
+                  && secondRace.answer.pick !== secondRanked.outcome) {
+                secondCancellation.abort();
+                let cancellationPhase: SpeculationCancellationPhase = "between_phases";
+                const executorAtCancellation = this.selectionExecutor;
+                try {
+                  const restart = executorAtCancellation?.restartAfterCancellation?.();
+                  cancellationPhase = restart?.report.phases[0] ?? cancellationPhase;
+                  if (restart && branches?.has(secondRace.answer.pick)) {
+                    this.deferSelectionRecovery(executorAtCancellation!, restart.ready);
+                  } else {
+                    await restart?.ready;
+                  }
+                } catch {
+                  executorAtCancellation?.dispose();
+                  if (this.selectionExecutor === executorAtCancellation) {
+                    this.selectionExecutor = undefined;
+                  }
+                }
+                const cancelledCompletion = await secondCompletion;
+                if (cancelledCompletion.kind === "error"
+                    && !isSpeculationCancelled(cancelledCompletion.error)
+                    && !isRankedSpeculationRejuvenationDeferred(
+                      cancelledCompletion.error,
+                    )) {
+                  throw cancelledCompletion.error;
+                }
+                secondLifecycle.cancelled = true;
+                secondLifecycle.cancellationPhase = cancellationPhase;
+                secondLifecycle.durationMs = performance.now() - secondStartedAt;
+              } else {
+                const expandedCompletion = secondRace.kind === "answer"
+                  ? await secondCompletion : secondRace;
+                if (expandedCompletion.kind === "error") {
+                  if (!isRankedSpeculationRejuvenationDeferred(
+                    expandedCompletion.error,
+                  )) {
+                    throw expandedCompletion.error;
+                  }
+                  secondLifecycle.deferredForRejuvenation = true;
+                  secondLifecycle.durationMs = performance.now() - secondStartedAt;
+                } else {
+                  const secondResult = expandedCompletion.result;
+                  const readyAtEpochMs = highResolutionEpochMs();
+                  expandedReadyAtEpochMs.set(secondRanked.outcome, readyAtEpochMs);
+                  secondLifecycle.durationMs = secondResult.timing.totalMs;
+                  branches?.set(secondRanked.outcome, secondResult);
+                }
+              }
+            }
+          }
+
+          // Process an answer/abort message that arrived during a final
+          // synchronous phase or completed expansion. Helpers continue independently.
+          await this.yieldToWorker();
+        }
       }
       // An abort that arrived during the (synchronous) speculation above.
       if (this.aborted) { stopReason = "aborted"; break; }
 
-      const pick = observedPick ?? await answerPromise;
+      const answer = observedAnswer ?? await answerPromise;
+      const pick = answer.pick;
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
+      const firstLifecycle = branchLifecycle.find((branch) => branch.role === "coordinator");
+      if (firstLifecycle && firstReadyAtEpochMs !== null) {
+        // The result exists by this point, but it counts as a cache hit only if
+        // it finished before the participant's main-realm submission time.
+        firstLifecycle.readyAtAnswer = firstReadyAtEpochMs <= answer.submittedAtEpochMs;
+      }
+      for (const branch of branchLifecycle) {
+        if (branch.role !== "coordinator_expansion") continue;
+        const readyAtEpochMs = expandedReadyAtEpochMs.get(branch.outcome);
+        branch.readyAtAnswer = readyAtEpochMs !== undefined
+          && readyAtEpochMs <= answer.submittedAtEpochMs;
+      }
       for (const helper of helperJobs.values()) {
-        helper.readyAtAnswer = helper.ready;
+        helper.readyAtAnswer = helper.readyAtEpochMs !== null
+          && helper.readyAtEpochMs <= answer.submittedAtEpochMs;
       }
 
       let res: AdvanceResult;
@@ -440,11 +691,15 @@ export class WebCortexSession {
         res.timing.speculative = this.speculative;
         if (helperJobs.size > 0 && pick === firstPick) {
           res.timing.executionMode = "dual_branch";
-          res.timing.requiredBranchReadyAtAnswer = true;
         }
+        const cachedLifecycle = cachedBranch
+          ? branchLifecycle.find((branch) => branch.outcome === pick && !branch.cancelled)
+          : undefined;
+        res.timing.requiredBranchReadyAtAnswer = cachedLifecycle?.readyAtAnswer ?? false;
       }
       if (rankedOutcomes.length > 0
-          && !branchLifecycle.some((branch) => branch.outcome === pick)) {
+          && !branchLifecycle.some((branch) => branch.outcome === pick
+            && !branch.cancelled && !branch.deferredForRejuvenation)) {
         const requiredRanked = rankedOutcomes.find((entry) => entry.outcome === pick);
         branchLifecycle.push({
           outcome: pick,
@@ -465,6 +720,8 @@ export class WebCortexSession {
           branch.readyAtAnswer = helperJobs.get(branch.outcome)?.readyAtAnswer ?? false;
         }
         branch.adopted = branch.outcome === pick
+          && !branch.cancelled
+          && !branch.deferredForRejuvenation
           && (branch.role !== "helper" || res.timing.executionMode !== "serial_fallback");
         branch.discarded = !branch.adopted;
       }
@@ -472,6 +729,9 @@ export class WebCortexSession {
       if (res.timing.phaseV2) {
         res.timing.phaseV2.observedOutcomeRank = observedOutcome?.rank ?? null;
         res.timing.phaseV2.observedOutcomeProbability = observedOutcome?.probability ?? null;
+        res.timing.phaseV2.answerDispatchDelayMs = Math.max(
+          0, answer.processedAtEpochMs - answer.submittedAtEpochMs,
+        );
         res.timing.phaseV2.cachedProbabilityMass = branchLifecycle.reduce(
           (sum, branch) => sum + (branch.readyAtAnswer ? branch.probability : 0), 0,
         );

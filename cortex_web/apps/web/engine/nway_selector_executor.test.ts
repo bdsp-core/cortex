@@ -6,6 +6,7 @@ import type {
 } from "./nway_selector_protocol";
 import { precisionGoldenInputs } from "./__testdata__/precision_fixture";
 import type { PackedParticleHistory } from "./types";
+import { SpeculationCancelledError } from "./speculation_cancellation";
 
 type FailureMode = "error" | "malformed" | "timeout";
 
@@ -88,4 +89,44 @@ describe("n-way selector pool failure containment", () => {
       expect(fake.terminated).toBe(true);
     });
   }
+
+  it("reduces a pool downward without recreating or increasing workers", async () => {
+    const workers = Array.from({ length: 4 }, () => new InjectedWorker("timeout"));
+    let nextWorker = 0;
+    const executor = new NWaySelectorWorkerExecutor(precisionGoldenInputs(), 4, {
+      workerFactory: () => workers[nextWorker++] as unknown as Worker,
+    });
+    await executor.ready();
+    expect(executor.workerCount).toBe(4);
+    expect(executor.reduceWorkerCount(2)).toBe(2);
+    expect(workers.map((worker) => worker.terminated)).toEqual([false, false, true, true]);
+    expect(executor.reduceWorkerCount(4)).toBe(2);
+    expect(() => executor.reduceWorkerCount(0)).toThrow(/invalid/);
+    executor.dispose();
+    expect(workers.every((worker) => worker.terminated)).toBe(true);
+  });
+
+  it("cancels active shards and recreates the same pool before reuse", async () => {
+    const workers = Array.from({ length: 4 }, () => new InjectedWorker("timeout"));
+    let nextWorker = 0;
+    const inputs = precisionGoldenInputs();
+    const executor = new NWaySelectorWorkerExecutor(inputs, 2, {
+      workerFactory: () => workers[nextWorker++] as unknown as Worker,
+    });
+    await executor.ready();
+    const K = inputs.taskCodes.length;
+    const active = executor.historyLikelihood(
+      emptyHistory(K), 2, K,
+      new Float64Array(2 * K), new Float64Array(2 * K),
+    );
+    const restart = executor.restartAfterCancellation();
+    await restart.ready;
+    await expect(active).rejects.toBeInstanceOf(SpeculationCancelledError);
+    expect(restart.report).toEqual({ cancelledJobs: 2, phases: ["mh_history"] });
+    expect(workers.map((worker) => worker.terminated))
+      .toEqual([true, true, false, false]);
+    expect(executor.workerCount).toBe(2);
+    executor.dispose();
+    expect(workers.every((worker) => worker.terminated)).toBe(true);
+  });
 });

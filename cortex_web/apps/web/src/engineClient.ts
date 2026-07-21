@@ -12,6 +12,9 @@ import type {
 import {
   computePayloadTransferables, packComputeInputs,
 } from "../engine/compute_payload";
+import {
+  RUNTIME_LOAD_PROFILE, runtimeLoadExceedsLimit, type RuntimeLoadSample,
+} from "../engine/execution_profile";
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;
@@ -25,6 +28,7 @@ export interface EngineStartOptions {
   seed?: number;
   requestedComputeMode?: RequestedComputeMode;
   qualificationHardwareConcurrency?: number;
+  qualificationRankedSpeculation?: boolean;
 }
 
 export class EngineClient {
@@ -35,6 +39,9 @@ export class EngineClient {
   private heartbeatSamples = 0;
   private heartbeatDelayTotal = 0;
   private heartbeatDelayMax = 0;
+  private heartbeatWindowSamples = 0;
+  private heartbeatWindowDelayTotal = 0;
+  private heartbeatWindowDelayMax = 0;
 
   constructor(private handlers: EngineClientHandlers) {
     this.worker = new Worker(new URL("../engine/worker.ts", import.meta.url), {
@@ -97,17 +104,27 @@ export class EngineClient {
       seed: options.seed,
       requestedComputeMode: options.requestedComputeMode ?? "serial",
       qualificationHardwareConcurrency: options.qualificationHardwareConcurrency,
+      qualificationRankedSpeculation: options.qualificationRankedSpeculation,
     }, computePayloadTransferables(payload));
     this.startHeartbeat();
   }
 
   answer(pick: number): void {
     this.answerStartedAt = performance.now();
-    this.post({ type: "answer", pick });
+    this.post({
+      type: "answer", pick,
+      submittedAtEpochMs: performance.timeOrigin + this.answerStartedAt,
+    });
   }
 
   abort(): void {
     this.post({ type: "abort" });
+  }
+
+  /** Qualification hook for deterministic protocol/lifecycle tests. Runtime
+   * application feedback is generated automatically by the heartbeat window. */
+  reportRuntimeLoadForQualification(sample: RuntimeLoadSample): void {
+    this.post({ type: "runtime_load", ...sample });
   }
 
   dispose(): void {
@@ -121,6 +138,7 @@ export class EngineClient {
     this.heartbeatSamples = 0;
     this.heartbeatDelayTotal = 0;
     this.heartbeatDelayMax = 0;
+    this.resetHeartbeatWindow();
     this.heartbeatExpectedAt = performance.now() + intervalMs;
     this.heartbeatTimer = window.setInterval(() => {
       const now = performance.now();
@@ -128,7 +146,21 @@ export class EngineClient {
       this.heartbeatSamples += 1;
       this.heartbeatDelayTotal += delay;
       this.heartbeatDelayMax = Math.max(this.heartbeatDelayMax, delay);
+      this.heartbeatWindowSamples += 1;
+      this.heartbeatWindowDelayTotal += delay;
+      this.heartbeatWindowDelayMax = Math.max(this.heartbeatWindowDelayMax, delay);
       this.heartbeatExpectedAt = now + intervalMs;
+      if (this.heartbeatWindowSamples >= RUNTIME_LOAD_PROFILE.windowSamples) {
+        const sample = {
+          sampleCount: this.heartbeatWindowSamples,
+          meanDelayMs: this.heartbeatWindowDelayTotal / this.heartbeatWindowSamples,
+          maxDelayMs: this.heartbeatWindowDelayMax,
+        };
+        if (runtimeLoadExceedsLimit(sample)) {
+          this.post({ type: "runtime_load", ...sample });
+        }
+        this.resetHeartbeatWindow();
+      }
     }, intervalMs);
   }
 
@@ -148,6 +180,13 @@ export class EngineClient {
     this.heartbeatSamples = 0;
     this.heartbeatDelayTotal = 0;
     this.heartbeatDelayMax = 0;
+    this.resetHeartbeatWindow();
+  }
+
+  private resetHeartbeatWindow(): void {
+    this.heartbeatWindowSamples = 0;
+    this.heartbeatWindowDelayTotal = 0;
+    this.heartbeatWindowDelayMax = 0;
   }
 
   private post(message: EngineWorkerRequest, transfer: Transferable[] = []): void {

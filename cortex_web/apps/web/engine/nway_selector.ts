@@ -8,6 +8,7 @@ import type {
   ComputeEngineInputs, ComputeSegmentMeta, ParticleState, SelectionPhaseTimingV2,
 } from "./types";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
+import { speculationCancellationCheckpoint } from "./speculation_cancellation";
 
 export interface NWayCandidate {
   k: number;
@@ -355,6 +356,7 @@ export async function prepareNWayShortlistWithExecutor(
   st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
   executor: NWaySelectionExecutor,
   excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+  cancellationSignal?: AbortSignal,
 ): Promise<NWayCandidate[]> {
   void inputs; // executor workers own the immutable configured task registry
   const candidatesStartedAt = performance.now();
@@ -400,6 +402,7 @@ export async function prepareNWayShortlistWithExecutor(
     });
   }
   const screens = await executor.screen(moments, activeDomains);
+  await speculationCancellationCheckpoint(cancellationSignal);
   for (const screen of screens) {
     const domain = domains[screen.taskK];
     const byId = new Map(domain.map((candidate) => [candidate.segment.segId, candidate]));
@@ -476,12 +479,14 @@ export async function chooseNWayItemWithExecutor(
   st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
   executor: NWaySelectionExecutor,
   excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+  cancellationSignal?: AbortSignal,
 ): Promise<Chosen> {
   const shortlisted = await prepareNWayShortlistWithExecutor(
-    st, inputs, bank, executor, excludedTasks, timing,
+    st, inputs, bank, executor, excludedTasks, timing, cancellationSignal,
   );
   const refinementStartedAt = performance.now();
   const losses = await executor.score(st, shortlisted);
+  await speculationCancellationCheckpoint(cancellationSignal);
   const scored = chosenFromNWayLosses(shortlisted, losses);
   if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
   return scored[0] ?? NO_ITEM;
@@ -492,12 +497,14 @@ export async function chooseFirstNWayItemWithExecutor(
   topN: number, rng: { int: (n: number) => number },
   executor: NWaySelectionExecutor,
   excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+  cancellationSignal?: AbortSignal,
 ): Promise<Chosen> {
   const shortlisted = await prepareNWayShortlistWithExecutor(
-    st, inputs, bank, executor, excludedTasks, timing,
+    st, inputs, bank, executor, excludedTasks, timing, cancellationSignal,
   );
   const refinementStartedAt = performance.now();
   const losses = await executor.score(st, shortlisted);
+  await speculationCancellationCheckpoint(cancellationSignal);
   const scored = chosenFromNWayLosses(shortlisted, losses);
   if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
   const count = Math.min(topN, scored.length);

@@ -175,12 +175,16 @@ export interface BranchLifecycleV2 {
   outcome: number;
   rank: number;
   probability: number;
-  role: "coordinator" | "helper" | "serial_required";
+  role: "coordinator" | "coordinator_expansion" | "helper" | "serial_required";
   queued: boolean;
   started: boolean;
   readyAtAnswer: boolean;
   adopted: boolean;
   cancelled: boolean;
+  cancellationPhase?: import("./speculation_cancellation").SpeculationCancellationPhase;
+  /** The exact update crossed the frozen ESS threshold, so optional ranked
+   * work stopped before MH and the observed branch retained all 30 steps. */
+  deferredForRejuvenation?: boolean;
   discarded: boolean;
   durationMs: number | null;
 }
@@ -190,6 +194,9 @@ export interface EngineStepPhaseTimingV2 {
   particle: ParticlePhaseTimingV2;
   observedOutcomeRank: number | null;
   observedOutcomeProbability: number | null;
+  /** Time from the participant's main-realm submission until the coordinator
+   * could service the answer message. Telemetry only. */
+  answerDispatchDelayMs: number;
   cachedProbabilityMass: number;
   branches: BranchLifecycleV2[];
 }
@@ -239,11 +246,23 @@ export interface EventLoopHeartbeatEvent {
   maxDelayMs: number;
 }
 
+export interface RuntimePoolAdjustmentEvent {
+  kind: "runtime_pool_adjustment";
+  trialIndex: number;
+  previousWorkerCount: number;
+  selectedWorkerCount: number;
+  reason: "main_realm_load";
+  sampleCount: number;
+  meanDelayMs: number;
+  maxDelayMs: number;
+}
+
 export type EnginePerformanceEvent =
   | EngineStepTiming
   | AnswerToItemTiming
   | ExecutionProfileEvent
-  | EventLoopHeartbeatEvent;
+  | EventLoopHeartbeatEvent
+  | RuntimePoolAdjustmentEvent;
 
 export type RequestedComputeMode = "serial" | "dual_branch_auto";
 export type ComputeExecutionMode =

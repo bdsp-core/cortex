@@ -5,6 +5,7 @@
 // Protocol (main → worker):
 //   { type: "init", payload, sessionId, seed }     start a session
 //   { type: "answer", pick }                       submit a 0-based 6-way pick
+//   { type: "runtime_load", ... }                  main-realm load feedback
 //   { type: "abort" }
 // Worker → main:
 //   { type: "item", trialIndex, taskK, segId }     next question is chosen
@@ -62,9 +63,11 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
           await candidate.ready();
           const calibration = await candidate.calibrate();
           calibrationResult = JSON.stringify({
-            version: 1,
+            version: 2,
             result: calibration.result,
             sampleCandidates: calibration.sampleCandidates,
+            sampleScreenCandidates: calibration.sampleScreenCandidates,
+            sampleHistoryObservations: calibration.sampleHistoryObservations,
             selectedWorkerCount: calibration.selectedWorkerCount,
             totalDurationMs: Math.round(calibration.totalDurationMs * 10) / 10,
             samples: calibration.samples.map((sample) => ({
@@ -108,6 +111,7 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         onItem: (item) => post({ type: "item", ...item }),
         onTrial: (diag) => post({ type: "trial", diag }),
         onPerformance: (event) => post({ type: "performance", event }),
+        onRuntimePoolAdjustment: (event) => post({ type: "performance", event }),
         onDone: (result) => {
           branchExecutor?.dispose();
           branchExecutor = null;
@@ -124,6 +128,7 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         speculative: msg.speculative ?? true,
         ...(branchExecutor ? { branchExecutor } : {}),
         ...(selectionExecutor ? { selectionExecutor } : {}),
+        rankedSpeculation: msg.qualificationRankedSpeculation ?? true,
       });
       session.run().catch((e) =>
         {
@@ -135,7 +140,9 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         },
       );
     } else if (msg.type === "answer") {
-      session?.submitAnswer(msg.pick);
+      session?.submitAnswer(msg.pick, msg.submittedAtEpochMs);
+    } else if (msg.type === "runtime_load") {
+      session?.reportRuntimeLoad(msg);
     } else if (msg.type === "abort") {
       branchExecutor?.dispose();
       branchExecutor = null;

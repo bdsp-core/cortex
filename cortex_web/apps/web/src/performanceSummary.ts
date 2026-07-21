@@ -1,5 +1,6 @@
 import type {
   EnginePerformanceEvent, EngineStepTiming, ExecutionProfileEvent,
+  RuntimePoolAdjustmentEvent,
 } from "../engine/types";
 
 export interface TimingDistribution {
@@ -63,6 +64,7 @@ export interface EnginePerformanceSummaryV2
     outcomes: {
       observedRankCounts: number[];
       observedProbability: ScalarDistribution;
+      answerDispatchDelay: TimingDistribution;
       cachedProbabilityMass: ScalarDistribution;
     };
     branches: {
@@ -72,6 +74,7 @@ export interface EnginePerformanceSummaryV2
       adoptedCount: number;
       cancelledCount: number;
       discardedCount: number;
+      cancellationPhaseCounts: Record<string, number>;
       adoptedWork: TimingDistribution;
       discardedWork: TimingDistribution;
     };
@@ -79,6 +82,11 @@ export interface EnginePerformanceSummaryV2
       sampleCount: number;
       meanDelayMs: number | null;
       maxDelayMs: number | null;
+    };
+    runtimePool: {
+      adjustmentCount: number;
+      finalWorkerCount: number | null;
+      adjustments: Array<Omit<RuntimePoolAdjustmentEvent, "kind">>;
     };
   };
 }
@@ -117,18 +125,19 @@ export class EnginePerformanceCollector {
   private answerToItem: number[] = [];
   private steps: EngineStepTiming[] = [];
   private heartbeat = { sampleCount: 0, weightedDelay: 0, maxDelayMs: 0 };
+  private runtimePoolAdjustments: RuntimePoolAdjustmentEvent[] = [];
 
   record(event: EnginePerformanceEvent): void {
     if (event.kind === "execution_profile") this.profile = event;
     else if (event.kind === "answer_to_item") this.answerToItem.push(event.durationMs);
     else if (event.kind === "engine_step") this.steps.push(event);
-    else {
+    else if (event.kind === "event_loop_heartbeat") {
       this.heartbeat.sampleCount += event.sampleCount;
       this.heartbeat.weightedDelay += event.meanDelayMs * event.sampleCount;
       this.heartbeat.maxDelayMs = Math.max(
         this.heartbeat.maxDelayMs, event.maxDelayMs,
       );
-    }
+    } else this.runtimePoolAdjustments.push(event);
   }
 
   summary(replayedTrials = 0): EnginePerformanceSummaryV2 {
@@ -231,6 +240,9 @@ export class EnginePerformanceCollector {
           observedProbability: scalarDistribution(phases.flatMap((phase) =>
             phase.observedOutcomeProbability === null
               ? [] : [phase.observedOutcomeProbability])),
+          answerDispatchDelay: distribution(
+            phases.map((phase) => phase.answerDispatchDelayMs),
+          ),
           cachedProbabilityMass: scalarDistribution(
             phases.map((phase) => phase.cachedProbabilityMass),
           ),
@@ -242,6 +254,16 @@ export class EnginePerformanceCollector {
           adoptedCount: branches.filter((branch) => branch.adopted).length,
           cancelledCount: branches.filter((branch) => branch.cancelled).length,
           discardedCount: branches.filter((branch) => branch.discarded).length,
+          cancellationPhaseCounts: branches.reduce<Record<string, number>>(
+            (counts, branch) => {
+              if (branch.cancelled) {
+                const phase = branch.cancellationPhase ?? "between_phases";
+                counts[phase] = (counts[phase] ?? 0) + 1;
+              }
+              return counts;
+            },
+            {},
+          ),
           adoptedWork: distribution(branches.flatMap((branch) =>
             branch.adopted && branch.durationMs !== null ? [branch.durationMs] : [])),
           discardedWork: distribution(branches.flatMap((branch) =>
@@ -253,6 +275,12 @@ export class EnginePerformanceCollector {
             ? rounded(this.heartbeat.weightedDelay / this.heartbeat.sampleCount) : null,
           maxDelayMs: this.heartbeat.sampleCount > 0
             ? rounded(this.heartbeat.maxDelayMs) : null,
+        },
+        runtimePool: {
+          adjustmentCount: this.runtimePoolAdjustments.length,
+          finalWorkerCount: this.runtimePoolAdjustments.at(-1)?.selectedWorkerCount
+            ?? this.profile?.selectedWorkerCount ?? null,
+          adjustments: this.runtimePoolAdjustments.map(({ kind: _kind, ...event }) => event),
         },
       },
     };

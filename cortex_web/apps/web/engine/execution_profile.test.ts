@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  nextLowerWorkerCount, runtimeLoadExceedsLimit,
   selectCalibratedWorkerCount, selectExecutionProfile,
 } from "./execution_profile";
 
@@ -104,5 +105,24 @@ describe("selectCalibratedWorkerCount", () => {
       { workers: 2, durationMs: 80, heartbeatMaxDelayMs: 51 },
     ])).toBe(1);
     expect(selectCalibratedWorkerCount([])).toBe(1);
+  });
+});
+
+describe("runtime pool load guard", () => {
+  it("recognizes bounded heartbeat windows and only steps downward", () => {
+    expect(runtimeLoadExceedsLimit({
+      sampleCount: 8, meanDelayMs: 5, maxDelayMs: 49,
+    })).toBe(false);
+    expect(runtimeLoadExceedsLimit({
+      sampleCount: 8, meanDelayMs: 21, maxDelayMs: 30,
+    })).toBe(true);
+    expect(runtimeLoadExceedsLimit({
+      sampleCount: 8, meanDelayMs: 1, maxDelayMs: 51,
+    })).toBe(true);
+    expect(runtimeLoadExceedsLimit({
+      sampleCount: 0, meanDelayMs: 99, maxDelayMs: 99,
+    })).toBe(false);
+    expect([1, 2, 3, 4, 5, 6].map(nextLowerWorkerCount))
+      .toEqual([1, 1, 2, 2, 4, 4]);
   });
 });

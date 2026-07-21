@@ -33,6 +33,10 @@ import {
   PRECISION_STATUS, PrecisionDiagnostics, PrecisionPolicy,
 } from "./precision_policy";
 import { Rng } from "./rng";
+import {
+  isSpeculationCancelled, speculationCancellationCheckpoint,
+} from "./speculation_cancellation";
+import { RankedSpeculationRejuvenationDeferredError } from "./ranked_speculation";
 
 // The full MUTABLE per-trial session state — everything the next item's
 // selection depends on. Append-only OUTPUTS (trials/traj/served) live on the
@@ -109,6 +113,7 @@ function emptyStepPhaseTiming(): EngineStepPhaseTimingV2 {
     },
     observedOutcomeRank: null,
     observedOutcomeProbability: null,
+    answerDispatchDelayMs: 0,
     cachedProbabilityMass: 0,
     branches: [],
   };
@@ -334,6 +339,7 @@ export async function chooseNextWithExecutor(
   trialIndex: number, executor: NWaySelectionExecutor,
   preparedPrecisionBank?: BankArrays,
   selectionTiming?: SelectionPhaseTimingV2,
+  cancellationSignal?: AbortSignal,
 ): Promise<Chosen> {
   if (!isNWaySession(inputs) || !(core.policy instanceof PrecisionPolicy)) {
     return chooseNext(
@@ -382,10 +388,11 @@ export async function chooseNextWithExecutor(
   return trialIndex === 0
     ? chooseFirstNWayItemWithExecutor(
         core.state, inputs, bank, firstItemTopN, core.rng,
-        executor, excluded, selectionTiming,
+        executor, excluded, selectionTiming, cancellationSignal,
       )
     : chooseNWayItemWithExecutor(
         core.state, inputs, bank, executor, excluded, selectionTiming,
+        cancellationSignal,
       );
 }
 
@@ -539,8 +546,11 @@ export async function advanceCoreWithSelectionExecutor(
   core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, rawPick: number,
   params: AdvanceParams, trialIndex: number, executor: NWaySelectionExecutor,
   preparedPrecisionBank?: BankArrays,
+  cancellationSignal?: AbortSignal,
+  deferMhRejuvenation = false,
 ): Promise<AdvanceResult> {
   const startedAt = performance.now();
+  await speculationCancellationCheckpoint(cancellationSignal);
   const { state, rng, policy } = core;
   const phaseV2 = emptyStepPhaseTiming();
   const segment = chosen.segment
@@ -556,6 +566,7 @@ export async function advanceCoreWithSelectionExecutor(
         y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
       };
   updateObservation(state, response, phaseV2.particle);
+  await speculationCancellationCheckpoint(cancellationSignal);
   const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
   const updatedAt = performance.now();
   let rejuv = false;
@@ -563,9 +574,12 @@ export async function advanceCoreWithSelectionExecutor(
   const currentEss = ess(state.w);
   phaseV2.particle.essMs += performance.now() - essStartedAt;
   if (currentEss < params.essThresholdFrac * params.nParticles) {
+    if (deferMhRejuvenation) {
+      throw new RankedSpeculationRejuvenationDeferredError();
+    }
     await resampleAndRejuvenateWithExecutor(
       state, rng, params.nMhSteps, params.proposalScale,
-      executor, trialIndex, phaseV2.particle,
+      executor, trialIndex, phaseV2.particle, cancellationSignal,
     );
     rejuv = true;
   }
@@ -680,14 +694,16 @@ export async function advanceCoreWithSelectionExecutor(
     },
   };
   if (result.done) return result;
+  await speculationCancellationCheckpoint(cancellationSignal);
   const selectionStartedAt = performance.now();
   try {
     result.nextChosen = await chooseNextWithExecutor(
       result.core, inputs, params, trialIndex + 1, executor,
-      preparedPrecisionBank, result.timing.phaseV2?.selection,
+      preparedPrecisionBank, result.timing.phaseV2?.selection, cancellationSignal,
     );
     result.timing.executionMode = "adaptive_pool";
-  } catch {
+  } catch (error) {
+    if (isSpeculationCancelled(error)) throw error;
     result.nextChosen = chooseNext(
       result.core, inputs, params, trialIndex + 1,
       preparedPrecisionBank, result.timing.phaseV2?.selection,

@@ -23,6 +23,13 @@ interface HarnessOptions {
   sessionId?: string;
   deriveSeedFromSessionId?: boolean;
   qualificationHardwareConcurrency?: number;
+  qualificationRankedSpeculation?: boolean;
+  qualificationRuntimeLoad?: {
+    trialIndex: number;
+    sampleCount: number;
+    meanDelayMs: number;
+    maxDelayMs: number;
+  };
 }
 
 declare global {
@@ -49,6 +56,10 @@ window.runWorkerHarness = (mode, options = {}) => new Promise((resolve, reject) 
   const events: EnginePerformanceEvent[] = [];
   const client = new EngineClient({
     onItem: ({ trialIndex, taskK, segId }) => {
+      if (options.qualificationRuntimeLoad?.trialIndex === trialIndex) {
+        const { trialIndex: _trialIndex, ...sample } = options.qualificationRuntimeLoad;
+        client.reportRuntimeLoadForQualification(sample);
+      }
       if (options.maxQuestions !== undefined && trialIndex >= options.maxQuestions) {
         queueMicrotask(() => client.abort());
         return;
@@ -92,6 +103,7 @@ window.runWorkerHarness = (mode, options = {}) => new Promise((resolve, reject) 
     ...(!options.deriveSeedFromSessionId ? { seed: options.seed ?? 31415 } : {}),
     requestedComputeMode: mode,
     qualificationHardwareConcurrency: options.qualificationHardwareConcurrency,
+    qualificationRankedSpeculation: options.qualificationRankedSpeculation,
   });
 });
 

@@ -15,8 +15,21 @@ export type EngineWorkerRequest =
       requestedComputeMode?: RequestedComputeMode;
       /** Qualification-only device-tier override; omitted by the application. */
       qualificationHardwareConcurrency?: number;
+      /** Qualification-only rank-expansion override; omitted by the application. */
+      qualificationRankedSpeculation?: boolean;
     }
-  | { type: "answer"; pick: number }
+  | {
+      type: "answer";
+      pick: number;
+      /** Main-realm high-resolution epoch. Telemetry/scheduling only. */
+      submittedAtEpochMs?: number;
+    }
+  | {
+      type: "runtime_load";
+      sampleCount: number;
+      meanDelayMs: number;
+      maxDelayMs: number;
+    }
   | { type: "abort" };
 
 /** Certification-engine worker → main-thread protocol. */

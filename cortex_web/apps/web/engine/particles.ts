@@ -14,6 +14,10 @@ import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
 import { Rng } from "./rng";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
+import {
+  isSpeculationCancelled, speculationCancellationCheckpoint,
+  throwIfSpeculationCancelled,
+} from "./speculation_cancellation";
 
 export function makeState(
   N: number,
@@ -462,7 +466,9 @@ export async function resampleAndRejuvenateWithExecutor(
   executor: NWaySelectionExecutor,
   qIndex = -1,
   timing?: ParticlePhaseTimingV2,
+  cancellationSignal?: AbortSignal,
 ): Promise<number> {
+  await speculationCancellationCheckpoint(cancellationSignal);
   const { N, K } = st;
   const resamplingStartedAt = performance.now();
   const idx = rng.resampleIndices(st.w, N);
@@ -535,7 +541,8 @@ export async function resampleAndRejuvenateWithExecutor(
     if (parallelAvailable) {
       try {
         llNew.set(await executor.historyLikelihood(history, N, K, tNew, lNew));
-      } catch {
+      } catch (error) {
+        if (isSpeculationCancelled(error)) throw error;
         executor.dispose();
         parallelAvailable = false;
         logLikPackedHistory(history, N, K, tNew, lNew, llNew);
@@ -544,6 +551,7 @@ export async function resampleAndRejuvenateWithExecutor(
       logLikPackedHistory(history, N, K, tNew, lNew, llNew);
     }
     if (timing) timing.mhHistoryLikelihoodMs += performance.now() - historyStartedAt;
+    await speculationCancellationCheckpoint(cancellationSignal);
     const acceptanceStartedAt = performance.now();
     let nAcc = 0;
     for (let n = 0; n < N; n++) {
@@ -566,6 +574,7 @@ export async function resampleAndRejuvenateWithExecutor(
     }
     if (timing) timing.mhCopyingMs += performance.now() - copyingStartedAt;
     accepts.push(nAcc / N);
+    throwIfSpeculationCancelled(cancellationSignal);
   }
   const acceptanceRate = accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);
   st.lastRejuvenation = {

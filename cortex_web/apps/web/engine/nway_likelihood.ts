@@ -42,7 +42,8 @@ function logDistractorProbability(
   let maximum = -Infinity;
   let pickedLogit = -Infinity;
   let distractorIndex = 0;
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     if (k === askedK) continue;
     const signalK = signalOffset + k;
     const logit = draw.beta * signalZ(
@@ -215,34 +216,43 @@ export function fillResponseProbabilities(
   }
   output.fill(0);
   workspace.wrong.fill(0);
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     workspace.z[k] = zFor(
       k, segment.sMean, segment.sSd, t, l, offset, skillScale,
     );
   }
   const own = pResponseYes(workspace.z[askedK]);
   const draws = screening ? SCREEN_DRAW : NWAY_ARTIFACT.draws;
-  for (const draw of draws) {
+  for (let drawIndex = 0; drawIndex < draws.length; drawIndex++) {
+    const draw = draws[drawIndex];
+    const beta = draw.beta;
+    const weight = draw.weight;
+    const distractorLapse = draw.distractorLapse;
+    const uniformShare = distractorLapse / 5;
+    const directedShare = 1 - distractorLapse;
     let maximum = -Infinity;
-    for (const k of IIIC_TASK_INDICES) {
-      if (k !== askedK) maximum = Math.max(maximum, draw.beta * workspace.z[k]);
+    for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+      const k = IIIC_TASK_INDICES[taskIndex];
+      if (k !== askedK) maximum = Math.max(maximum, beta * workspace.z[k]);
     }
     let denominator = 0;
-    for (const k of IIIC_TASK_INDICES) {
+    for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+      const k = IIIC_TASK_INDICES[taskIndex];
       if (k === askedK) continue;
-      const exponential = Math.exp(draw.beta * workspace.z[k] - maximum);
+      const exponential = Math.exp(beta * workspace.z[k] - maximum);
       workspace.distractorExponentials[k] = exponential;
       denominator += exponential;
     }
-    for (const k of IIIC_TASK_INDICES) {
+    for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+      const k = IIIC_TASK_INDICES[taskIndex];
       if (k === askedK) continue;
       const directed = workspace.distractorExponentials[k] / denominator;
-      workspace.wrong[k] += draw.weight * (
-        draw.distractorLapse / 5 + (1 - draw.distractorLapse) * directed
-      );
+      workspace.wrong[k] += weight * (uniformShare + directedShare * directed);
     }
   }
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     output[k - 1] = k === askedK ? own : (1 - own) * workspace.wrong[k];
   }
 }
@@ -310,23 +320,27 @@ export function fillScreeningProbabilitiesAndJacobians(
     return;
   }
 
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     fillSignalAndDerivatives(k, segment, t, l, offset, workspace);
   }
   const ownProbability = output[askedK - 1];
   const draw = SCREEN_DRAW[0];
   let maximum = -Infinity;
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     if (k !== askedK) maximum = Math.max(maximum, draw.beta * workspace.z[k]);
   }
   let denominator = 0;
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     if (k === askedK) continue;
     const softmax = Math.exp(draw.beta * workspace.z[k] - maximum);
     workspace.wrong[k] = softmax;
     denominator += softmax;
   }
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     if (k !== askedK) workspace.wrong[k] /= denominator;
   }
 
@@ -339,7 +353,8 @@ export function fillScreeningProbabilitiesAndJacobians(
   const askedRow = askedK * outcomeCount;
   workspace.biasJacobian[askedRow + askedK - 1] = ownBiasDerivative;
   workspace.skillJacobian[askedRow + askedK - 1] = ownSkillDerivative;
-  for (const k of IIIC_TASK_INDICES) {
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
     if (k === askedK) continue;
     const outcome = k - 1;
     const wrongGivenIncorrect = output[outcome] / (1 - ownProbability);
@@ -350,7 +365,9 @@ export function fillScreeningProbabilitiesAndJacobians(
   }
 
   const directedScale = (1 - ownProbability) * (1 - draw.distractorLapse) * draw.beta;
-  for (const parameterK of IIIC_TASK_INDICES) {
+  for (let parameterIndex = 0; parameterIndex < IIIC_TASK_INDICES.length;
+    parameterIndex++) {
+    const parameterK = IIIC_TASK_INDICES[parameterIndex];
     if (parameterK === askedK) continue;
     const parameterSoftmax = workspace.wrong[parameterK];
     const biasScale = directedScale * workspace.signalBiasDerivative[parameterK]
@@ -358,7 +375,9 @@ export function fillScreeningProbabilitiesAndJacobians(
     const skillScale = directedScale * workspace.signalSkillDerivative[parameterK]
       * parameterSoftmax;
     const row = parameterK * outcomeCount;
-    for (const outcomeK of IIIC_TASK_INDICES) {
+    for (let outcomeIndex = 0; outcomeIndex < IIIC_TASK_INDICES.length;
+      outcomeIndex++) {
+      const outcomeK = IIIC_TASK_INDICES[outcomeIndex];
       if (outcomeK === askedK) continue;
       const contrast = outcomeK === parameterK
         ? 1 - parameterSoftmax : -workspace.wrong[outcomeK];
