@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { logPResponse, signalZ } from "./likelihood";
+import { logPResponse, pResponseYes, signalZ } from "./likelihood";
 import { logSumExp, logSumExp2 } from "./mathfns";
 import {
   fillResponseProbabilities, IIIC_TASK_INDICES, logObservationProbability,
@@ -43,6 +43,43 @@ function baselineProbability(
     Math.log(draw.weight) + baselineDistractor(observation, t, l, offset, draw)
   ));
   return logPResponse(ownZ, 0) + logSumExp(mixture);
+}
+
+function baselineResponseProbabilities(
+  askedK: number, segment: ComputeSegmentMeta,
+  t: Float64Array, l: Float64Array, particleIndex: number, K: number,
+): Float64Array {
+  const offset = particleIndex * K;
+  const z = new Float64Array(K);
+  const wrong = new Float64Array(K);
+  for (const k of IIIC_TASK_INDICES) {
+    z[k] = signalZ(
+      l[offset + k], t[offset + k], segment.sMean[k], segment.sSd[k],
+    );
+  }
+  const own = pResponseYes(z[askedK]);
+  for (const draw of NWAY_ARTIFACT.draws) {
+    let maximum = -Infinity;
+    for (const k of IIIC_TASK_INDICES) {
+      if (k !== askedK) maximum = Math.max(maximum, draw.beta * z[k]);
+    }
+    let denominator = 0;
+    for (const k of IIIC_TASK_INDICES) {
+      if (k !== askedK) denominator += Math.exp(draw.beta * z[k] - maximum);
+    }
+    for (const k of IIIC_TASK_INDICES) {
+      if (k === askedK) continue;
+      const directed = Math.exp(draw.beta * z[k] - maximum) / denominator;
+      wrong[k] += draw.weight * (
+        draw.distractorLapse / 5 + (1 - draw.distractorLapse) * directed
+      );
+    }
+  }
+  const output = new Float64Array(IIIC_TASK_INDICES.length);
+  for (const k of IIIC_TASK_INDICES) {
+    output[k - 1] = k === askedK ? own : (1 - own) * wrong[k];
+  }
+  return output;
 }
 
 describe("allocation-free categorical likelihood", () => {
@@ -97,6 +134,9 @@ describe("allocation-free categorical likelihood", () => {
           "iiic", askedK, segment, t, l, particle, K,
           cached, cachedWorkspace, false, skillScale,
         );
+        expect(Array.from(cached)).toEqual(Array.from(
+          baselineResponseProbabilities(askedK, segment, t, l, particle, K),
+        ));
         expect(Array.from(cached)).toEqual(Array.from(reference));
       }
     }

@@ -157,10 +157,15 @@ export function makeResponseObservation(
 export interface ResponseProbabilityWorkspace {
   z: Float64Array;
   wrong: Float64Array;
+  distractorExponentials: Float64Array;
 }
 
 export function makeResponseProbabilityWorkspace(K: number): ResponseProbabilityWorkspace {
-  return { z: new Float64Array(K), wrong: new Float64Array(K) };
+  return {
+    z: new Float64Array(K),
+    wrong: new Float64Array(K),
+    distractorExponentials: new Float64Array(K),
+  };
 }
 
 export interface ScreeningJacobianWorkspace extends ResponseProbabilityWorkspace {
@@ -224,11 +229,14 @@ export function fillResponseProbabilities(
     }
     let denominator = 0;
     for (const k of IIIC_TASK_INDICES) {
-      if (k !== askedK) denominator += Math.exp(draw.beta * workspace.z[k] - maximum);
+      if (k === askedK) continue;
+      const exponential = Math.exp(draw.beta * workspace.z[k] - maximum);
+      workspace.distractorExponentials[k] = exponential;
+      denominator += exponential;
     }
     for (const k of IIIC_TASK_INDICES) {
       if (k === askedK) continue;
-      const directed = Math.exp(draw.beta * workspace.z[k] - maximum) / denominator;
+      const directed = workspace.distractorExponentials[k] / denominator;
       workspace.wrong[k] += draw.weight * (
         draw.distractorLapse / 5 + (1 - draw.distractorLapse) * directed
       );
