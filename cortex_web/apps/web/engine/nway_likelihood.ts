@@ -22,6 +22,7 @@ function logDistractorProbability(
   observation: CategoricalParticleObservation,
   t: Float64Array, l: Float64Array, particleOffset: number,
   draw: ArtifactDraw,
+  workspace: ObservationLikelihoodWorkspace,
 ): number {
   if (observation.pickK === observation.askedK
       || observation.pickK < IIIC_TASK_INDICES[0]
@@ -30,21 +31,19 @@ function logDistractorProbability(
   }
   let maximum = -Infinity;
   let pickedLogit = -Infinity;
+  let distractorIndex = 0;
   for (const k of IIIC_TASK_INDICES) {
     if (k === observation.askedK) continue;
     const logit = draw.beta * zFor(
       k, observation.sMean, observation.sSd, t, l, particleOffset,
     );
+    workspace.distractorLogits[distractorIndex++] = logit;
     if (logit > maximum) maximum = logit;
     if (k === observation.pickK) pickedLogit = logit;
   }
   let denominator = 0;
-  for (const k of IIIC_TASK_INDICES) {
-    if (k === observation.askedK) continue;
-    const logit = draw.beta * zFor(
-      k, observation.sMean, observation.sSd, t, l, particleOffset,
-    );
-    denominator += Math.exp(logit - maximum);
+  for (let i = 0; i < workspace.distractorLogits.length; i++) {
+    denominator += Math.exp(workspace.distractorLogits[i] - maximum);
   }
   const logSoftmax = pickedLogit - (maximum + Math.log(denominator));
   const uniform = draw.distractorLapse === 0
@@ -58,10 +57,14 @@ function logDistractorProbability(
 
 export interface ObservationLikelihoodWorkspace {
   mixture: Float64Array;
+  distractorLogits: Float64Array;
 }
 
 export function makeObservationLikelihoodWorkspace(): ObservationLikelihoodWorkspace {
-  return { mixture: new Float64Array(NWAY_ARTIFACT.draws.length) };
+  return {
+    mixture: new Float64Array(NWAY_ARTIFACT.draws.length),
+    distractorLogits: new Float64Array(IIIC_TASK_INDICES.length - 1),
+  };
 }
 
 function logSumExpMixture(values: Float64Array): number {
@@ -95,7 +98,7 @@ export function logObservationProbability(
   for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
     const draw = NWAY_ARTIFACT.draws[i];
     workspace.mixture[i] = Math.log(draw.weight)
-      + logDistractorProbability(observation, t, l, offset, draw);
+      + logDistractorProbability(observation, t, l, offset, draw, workspace);
   }
   return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);
 }
