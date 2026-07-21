@@ -6,9 +6,13 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const browserName = process.env.CORTEX_BENCH_BROWSER || "chromium";
+const browserTypes = { chromium, firefox, webkit };
+const browserType = browserTypes[browserName];
+if (!browserType) throw new Error(`unsupported CORTEX_BENCH_BROWSER: ${browserName}`);
 const defaultManifest = path.resolve(
   appDir, "../../../cortex_web/apps/web/public/bundle/v1.6-k7-35k/manifest.json",
 );
@@ -164,7 +168,7 @@ function metrics(run) {
 let browser;
 try {
   const url = await waitForServer();
-  browser = await chromium.launch({ headless: true });
+  browser = await browserType.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(url);
   await page.waitForFunction(() => window.workerHarnessReady === true);
@@ -192,6 +196,7 @@ try {
   const packedBytes = inputs.segments.length * (8 + 4 + 16 * K);
   process.stdout.write(`${JSON.stringify({
     manifestPath,
+    browserName,
     manifestBytes: fs.statSync(manifestPath).size,
     segments: inputs.segments.length,
     packedBytes,

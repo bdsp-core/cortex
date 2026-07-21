@@ -6,9 +6,13 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const browserName = process.env.CORTEX_REPLAY_BROWSER || "chromium";
+const browserTypes = { chromium, firefox, webkit };
+const browserType = browserTypes[browserName];
+if (!browserType) throw new Error(`unsupported CORTEX_REPLAY_BROWSER: ${browserName}`);
 const manifestPath = path.resolve(process.env.CORTEX_FULL_BANK_MANIFEST || "");
 if (!manifestPath || !fs.existsSync(manifestPath)) {
   throw new Error("set CORTEX_FULL_BANK_MANIFEST to the served v1.6 manifest");
@@ -118,7 +122,7 @@ function distribution(values) {
 let browser;
 try {
   const url = await waitForServer();
-  browser = await chromium.launch({ headless: true });
+  browser = await browserType.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(url);
   await page.waitForFunction(() => window.workerHarnessReady === true);
@@ -167,6 +171,7 @@ try {
   const output = {
     schemaVersion: 1,
     benchmarkKind: "privacy_safe_native_live_replay",
+    browserName,
     requestedComputeMode,
     manifestSha256,
     fixtureSha256: createHash("sha256")

@@ -202,6 +202,37 @@ describe("production native n-way integration", () => {
     expect(parallelRng.snapshot()).toEqual(serialRng.snapshot());
   });
 
+  it("fails closed to exact local MH history evaluation after a helper error", async () => {
+    const baseline = state();
+    updateObservation(baseline, makeResponseObservation(2, segment(), 6, "iiic"));
+    baseline.w = Float64Array.from([0.97, 0.01, 0.01, 0.01]);
+    const serial = cloneState(baseline);
+    const failed = cloneState(baseline);
+    const serialRng = new Rng(9901);
+    const failedRng = new Rng(9901);
+    let disposed = 0;
+    const executor: NWaySelectionExecutor = {
+      workerCount: 2,
+      ready: () => Promise.resolve(),
+      score: () => Promise.reject(new Error("not used")),
+      screen: () => Promise.reject(new Error("not used")),
+      historyLikelihood: () => Promise.reject(new Error("injected helper failure")),
+      dispose: () => { disposed += 1; },
+    };
+    resampleAndRejuvenate(serial, serialRng, 2, 0.1, 4);
+    await resampleAndRejuvenateWithExecutor(
+      failed, failedRng, 2, 0.1, executor, 4,
+    );
+    expect(disposed).toBe(1);
+    expect(failed.t).toEqual(serial.t);
+    expect(failed.l).toEqual(serial.l);
+    expect(failed.w).toEqual(serial.w);
+    expect(failed.logPrior).toEqual(serial.logPrior);
+    expect(failed.logLik).toEqual(serial.logLik);
+    expect(failed.lastRejuvenation).toEqual(serial.lastRejuvenation);
+    expect(failedRng.snapshot()).toEqual(serialRng.snapshot());
+  });
+
   it("keeps spike as the only binary response group", () => {
     const spike = { ...segment(), applicableTaskIdx: [0] };
     const yes = makeResponseObservation(0, spike, 0, "spike");

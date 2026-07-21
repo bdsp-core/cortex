@@ -43,6 +43,12 @@ export interface NWayWorkerCalibration {
   result: "measured_v1" | "no_candidates";
 }
 
+export interface NWaySelectorExecutorOptions {
+  /** Qualification injection only; production uses the same-origin module worker. */
+  workerFactory?: () => Worker;
+  jobTimeoutMs?: number;
+}
+
 /** Persistent deterministic candidate-shard pool. Workers return only indexed
  * loss vectors; ordering, tie behavior, and selection remain centralized. */
 export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
@@ -52,11 +58,18 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   private nextJobId = 1;
   private disposed = false;
   private calibration: NWayWorkerCalibration | null = null;
+  private readonly workerFactory?: () => Worker;
+  private readonly jobTimeoutMs: number;
 
-  constructor(private readonly inputs: ComputeEngineInputs, workerCount: number) {
+  constructor(
+    private readonly inputs: ComputeEngineInputs, workerCount: number,
+    options: NWaySelectorExecutorOptions = {},
+  ) {
     if (!Number.isInteger(workerCount) || workerCount < 1 || workerCount > 12) {
       throw new Error(`invalid n-way selector worker count: ${workerCount}`);
     }
+    this.workerFactory = options.workerFactory;
+    this.jobTimeoutMs = options.jobTimeoutMs ?? NWaySelectorWorkerExecutor.JOB_TIMEOUT_MS;
     this.slots = Array.from({ length: workerCount }, () => this.createSlot());
   }
 
@@ -65,16 +78,16 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   }
 
   async ready(): Promise<void> {
-    let timeoutId = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
-      timeoutId = self.setTimeout(() => reject(
+      timeoutId = globalThis.setTimeout(() => reject(
         new Error("n-way selector worker initialization timed out"),
       ), NWaySelectorWorkerExecutor.READY_TIMEOUT_MS);
     });
     try {
       await Promise.race([Promise.all(this.slots.map((slot) => slot.ready)), timeout]);
     } finally {
-      self.clearTimeout(timeoutId);
+      if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
     }
   }
 
@@ -145,7 +158,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const heartbeatIntervalMs = 10;
       let heartbeatExpectedAt = startedAt + heartbeatIntervalMs;
       let heartbeatMaxDelayMs = 0;
-      const heartbeatId = self.setInterval(() => {
+      const heartbeatId = globalThis.setInterval(() => {
         const now = performance.now();
         heartbeatMaxDelayMs = Math.max(
           heartbeatMaxDelayMs, Math.max(0, now - heartbeatExpectedAt),
@@ -156,7 +169,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       try {
         losses = await this.scoreWithWorkerCount(state, candidates, workers);
       } finally {
-        self.clearInterval(heartbeatId);
+        globalThis.clearInterval(heartbeatId);
       }
       const durationMs = performance.now() - startedAt;
       if (reference === null) reference = losses;
@@ -242,12 +255,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         slot.worker.removeEventListener("message", onMessage);
         slot.worker.removeEventListener("error", onError);
         slot.worker.removeEventListener("messageerror", onMessageError);
-        self.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       };
-      const timeoutId = self.setTimeout(() => {
+      const timeoutId = globalThis.setTimeout(() => {
         cleanup();
         reject(new Error(`n-way selector worker job ${jobId} timed out`));
-      }, NWaySelectorWorkerExecutor.JOB_TIMEOUT_MS);
+      }, this.jobTimeoutMs);
       const onMessage = (event: MessageEvent<NWaySelectorWorkerResponse>) => {
         const message = event.data;
         if (message.type === "ready" || message.jobId !== jobId) return;
@@ -342,12 +355,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         slot.worker.removeEventListener("message", onMessage);
         slot.worker.removeEventListener("error", onError);
         slot.worker.removeEventListener("messageerror", onMessageError);
-        self.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       };
-      const timeoutId = self.setTimeout(() => {
+      const timeoutId = globalThis.setTimeout(() => {
         cleanup();
         reject(new Error(`n-way selector screen job ${jobId} timed out`));
-      }, NWaySelectorWorkerExecutor.JOB_TIMEOUT_MS);
+      }, this.jobTimeoutMs);
       const onMessage = (event: MessageEvent<NWaySelectorWorkerResponse>) => {
         const message = event.data;
         if (message.type === "ready" || message.jobId !== jobId) return;
@@ -394,12 +407,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         slot.worker.removeEventListener("message", onMessage);
         slot.worker.removeEventListener("error", onError);
         slot.worker.removeEventListener("messageerror", onMessageError);
-        self.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       };
-      const timeoutId = self.setTimeout(() => {
+      const timeoutId = globalThis.setTimeout(() => {
         cleanup();
         reject(new Error(`n-way history worker job ${jobId} timed out`));
-      }, NWaySelectorWorkerExecutor.JOB_TIMEOUT_MS);
+      }, this.jobTimeoutMs);
       const onMessage = (event: MessageEvent<NWaySelectorWorkerResponse>) => {
         const message = event.data;
         if (message.type === "ready" || message.jobId !== jobId) return;
@@ -429,9 +442,9 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   }
 
   private createSlot(): SelectorSlot {
-    const worker = new Worker(new URL("./nway_selector_worker.ts", import.meta.url), {
-      type: "module",
-    });
+    const worker = this.workerFactory?.() ?? new Worker(
+      new URL("./nway_selector_worker.ts", import.meta.url), { type: "module" },
+    );
     let markReady!: () => void;
     let rejectReady!: (error: Error) => void;
     const ready = new Promise<void>((resolve, reject) => {
