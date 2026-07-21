@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { logPResponse, pResponseYes, signalZ } from "./likelihood";
 import { logSumExp, logSumExp2 } from "./mathfns";
 import {
-  fillResponseProbabilities, IIIC_TASK_INDICES, logObservationProbability,
+  fillResponseProbabilities, IIIC_TASK_INDICES,
+  logCategoricalObservationProbability, logObservationProbability,
   makeObservationLikelihoodWorkspace, makeResponseProbabilityWorkspace,
 } from "./nway_likelihood";
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
@@ -100,6 +101,32 @@ describe("allocation-free categorical likelihood", () => {
           };
           expect(logObservationProbability(
             observation, t, l, particle, K, workspace,
+          )).toBe(baselineProbability(observation, t, l, particle, K));
+        }
+      }
+    }
+  });
+
+  it("keeps exact log probabilities with cached particle skill scales", () => {
+    const K = 7;
+    const particles = 6;
+    const t = Float64Array.from({ length: particles * K }, (_, index) =>
+      Math.sin(index * 1.731) * (index % 5 === 0 ? 4.5 : 1.2));
+    const l = Float64Array.from({ length: particles * K }, (_, index) =>
+      Math.cos(index * 0.917) * (index % 7 === 0 ? 5.1 : 1.4));
+    const skillScale = Float64Array.from(l, Math.exp);
+    const sMean = [-0.7, -1.9, -0.4, 0.1, 0.8, 1.7, 2.6];
+    const sSd = [0.03, 0.04, 0.08, 0.12, 0.2, 0.35, 0.6];
+    const workspace = makeObservationLikelihoodWorkspace();
+    for (let particle = 0; particle < particles; particle++) {
+      for (const askedK of IIIC_TASK_INDICES) {
+        for (const pickK of IIIC_TASK_INDICES) {
+          const observation: CategoricalParticleObservation = {
+            kind: "categorical_f1", askedK, pickK, sMean, sSd,
+          };
+          expect(logCategoricalObservationProbability(
+            askedK, pickK, sMean, sSd, 0,
+            t, l, particle, K, workspace, skillScale,
           )).toBe(baselineProbability(observation, t, l, particle, K));
         }
       }

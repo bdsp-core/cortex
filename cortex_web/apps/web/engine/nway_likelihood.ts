@@ -1,5 +1,7 @@
 import { logSumExp2 } from "./mathfns";
-import { LAPSE_RATE, logPResponse, pResponseYes, signalZ } from "./likelihood";
+import {
+  LAPSE_RATE, logPResponse, pResponseYes, signalZ, signalZFromScale,
+} from "./likelihood";
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
 import type {
   BinaryParticleObservation, CategoricalParticleObservation,
@@ -29,8 +31,6 @@ function zFor(
 
 function logDistractorProbability(
   askedK: number, pickK: number,
-  sMean: ArrayLike<number>, sSd: ArrayLike<number>, signalOffset: number,
-  t: Float64Array, l: Float64Array, particleOffset: number,
   draw: ArtifactDraw,
   workspace: ObservationLikelihoodWorkspace,
 ): number {
@@ -45,10 +45,7 @@ function logDistractorProbability(
   for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
     const k = IIIC_TASK_INDICES[taskIndex];
     if (k === askedK) continue;
-    const signalK = signalOffset + k;
-    const logit = draw.beta * signalZ(
-      l[particleOffset + k], t[particleOffset + k], sMean[signalK], sSd[signalK],
-    );
+    const logit = draw.beta * workspace.distractorSignals[distractorIndex];
     workspace.distractorLogits[distractorIndex++] = logit;
     if (logit > maximum) maximum = logit;
     if (k === pickK) pickedLogit = logit;
@@ -69,14 +66,34 @@ function logDistractorProbability(
 
 export interface ObservationLikelihoodWorkspace {
   mixture: Float64Array;
+  distractorSignals: Float64Array;
   distractorLogits: Float64Array;
 }
 
 export function makeObservationLikelihoodWorkspace(): ObservationLikelihoodWorkspace {
   return {
     mixture: new Float64Array(NWAY_ARTIFACT.draws.length),
+    distractorSignals: new Float64Array(IIIC_TASK_INDICES.length - 1),
     distractorLogits: new Float64Array(IIIC_TASK_INDICES.length - 1),
   };
+}
+
+function historySignalZ(
+  taskK: number,
+  sMean: ArrayLike<number>, sSd: ArrayLike<number>, signalOffset: number,
+  t: Float64Array, l: Float64Array, particleOffset: number,
+  skillScale?: Float64Array,
+): number {
+  const signalK = signalOffset + taskK;
+  return skillScale
+    ? signalZFromScale(
+        skillScale[particleOffset + taskK], t[particleOffset + taskK],
+        sMean[signalK], sSd[signalK],
+      )
+    : signalZ(
+        l[particleOffset + taskK], t[particleOffset + taskK],
+        sMean[signalK], sSd[signalK],
+      );
 }
 
 function logSumExpMixture(values: Float64Array): number {
@@ -95,19 +112,25 @@ export function logCategoricalObservationProbability(
   sMean: ArrayLike<number>, sSd: ArrayLike<number>, signalOffset: number,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
   workspace = makeObservationLikelihoodWorkspace(),
+  skillScale?: Float64Array,
 ): number {
   const particleOffset = particleIndex * K;
-  const ownSignalK = signalOffset + askedK;
-  const ownZ = signalZ(
-    l[particleOffset + askedK], t[particleOffset + askedK],
-    sMean[ownSignalK], sSd[ownSignalK],
+  const ownZ = historySignalZ(
+    askedK, sMean, sSd, signalOffset, t, l, particleOffset, skillScale,
   );
   if (pickK === askedK) return logPResponse(ownZ, 1);
+  let distractorIndex = 0;
+  for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
+    const k = IIIC_TASK_INDICES[taskIndex];
+    if (k === askedK) continue;
+    workspace.distractorSignals[distractorIndex++] = historySignalZ(
+      k, sMean, sSd, signalOffset, t, l, particleOffset, skillScale,
+    );
+  }
   for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
     const draw = NWAY_ARTIFACT.draws[i];
     workspace.mixture[i] = Math.log(draw.weight) + logDistractorProbability(
-      askedK, pickK, sMean, sSd, signalOffset,
-      t, l, particleOffset, draw, workspace,
+      askedK, pickK, draw, workspace,
     );
   }
   return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);

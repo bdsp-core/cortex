@@ -34,3 +34,13 @@ export function signalZ(l: number, t: number, s: number, sSd = 0): number {
   if (sSd !== 0) z = z / Math.sqrt(1.0 + (el * sSd) ** 2);
   return z;
 }
+
+// Exact signal path for callers that reuse exp(l) across many observations.
+// Operation order after the cached exponential is identical to signalZ.
+export function signalZFromScale(
+  scale: number, t: number, s: number, sSd = 0,
+): number {
+  let z = scale * (s + t);
+  if (sSd !== 0) z = z / Math.sqrt(1.0 + (scale * sSd) ** 2);
+  return z;
+}

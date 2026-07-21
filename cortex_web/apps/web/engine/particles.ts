@@ -5,7 +5,7 @@
 import type {
   PackedParticleHistory, ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
 } from "./types";
-import { logPResponse, signalZ } from "./likelihood";
+import { logPResponse, signalZ, signalZFromScale } from "./likelihood";
 import {
   logCategoricalObservationProbability, logObservationProbability,
   makeObservationLikelihoodWorkspace,
@@ -301,29 +301,35 @@ export function logLikPackedHistory(
   }
   out.fill(0);
   const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
-  for (let historyIndex = 0; historyIndex < history.length; historyIndex++) {
-    const taskK = history.taskK[historyIndex];
-    if (history.kind[historyIndex] === 0) {
-      const s = history.binaryS[historyIndex];
-      const sSd = history.binarySd[historyIndex];
-      const y = history.pick[historyIndex] as 0 | 1;
-      for (let n = 0; n < N; n++) {
+  const skillScale = new Float64Array(lNew.length);
+  for (let index = 0; index < lNew.length; index++) {
+    skillScale[index] = Math.exp(lNew[index]);
+  }
+  // Particle-major traversal keeps every particle's original history-addition
+  // order while reusing proposal-invariant exp(l) and categorical signals.
+  for (let n = 0; n < N; n++) {
+    let logLikelihood = 0;
+    for (let historyIndex = 0; historyIndex < history.length; historyIndex++) {
+      const taskK = history.taskK[historyIndex];
+      if (history.kind[historyIndex] === 0) {
+        const s = history.binaryS[historyIndex];
+        const sSd = history.binarySd[historyIndex];
+        const y = history.pick[historyIndex] as 0 | 1;
         const offset = n * K + taskK;
-        out[n] += logPResponse(signalZ(
-          lNew[offset], tNew[offset], s, sSd,
+        logLikelihood += logPResponse(signalZFromScale(
+          skillScale[offset], tNew[offset], s, sSd,
         ), y);
-      }
-    } else {
-      const signalOffset = historyIndex * K;
-      const pickK = history.pick[historyIndex];
-      for (let n = 0; n < N; n++) {
-        out[n] += logCategoricalObservationProbability(
+      } else {
+        const signalOffset = historyIndex * K;
+        const pickK = history.pick[historyIndex];
+        logLikelihood += logCategoricalObservationProbability(
           taskK, pickK,
           history.signalMean, history.signalSd, signalOffset,
-          tNew, lNew, n, K, likelihoodWorkspace,
+          tNew, lNew, n, K, likelihoodWorkspace, skillScale,
         );
       }
     }
+    out[n] = logLikelihood;
   }
 }
 
