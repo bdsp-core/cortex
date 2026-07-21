@@ -7,6 +7,7 @@ import type {
   NWaySelectorWorkerRequest, NWaySelectorWorkerResponse,
 } from "./nway_selector_protocol";
 import type { ComputeEngineInputs } from "./types";
+import { logLikPackedHistory } from "./particles";
 
 let inputs: ComputeEngineInputs | null = null;
 let segmentsById: Map<number, ComputeEngineInputs["segments"][number]> | null = null;
@@ -35,6 +36,16 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
         inputs, message.taskK, candidates, message.moments,
       );
       post({ type: "screen_result", jobId: message.jobId, ...result });
+    } else if (message.type === "history_likelihood") {
+      const logLikelihood = new Float64Array(message.N);
+      logLikPackedHistory(
+        message.history, message.N, message.K,
+        message.t, message.l, logLikelihood,
+      );
+      post({
+        type: "history_result", jobId: message.jobId,
+        startIndex: message.startIndex, logLikelihood,
+      }, [logLikelihood.buffer]);
     } else {
       const losses = scoreNWayCandidateLosses(
         message.state, inputs, message.candidates,

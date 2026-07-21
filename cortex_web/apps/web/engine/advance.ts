@@ -13,7 +13,10 @@ import type {
   ComputeEngineInputs, EngineStepPhaseTimingV2, EngineStepTiming, ParticleState,
   SelectionPhaseTimingV2, TrialDiag,
 } from "./types";
-import { updateObservation, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
+import {
+  updateObservation, ess, resampleAndRejuvenate,
+  resampleAndRejuvenateWithExecutor, posteriorMeans, cloneState,
+} from "./particles";
 import { aurocSummary } from "./auroc";
 import {
   BankArrays, chooseItem, chooseFirstItem, Chosen, sortBankBySignalStable,
@@ -537,9 +540,145 @@ export async function advanceCoreWithSelectionExecutor(
   params: AdvanceParams, trialIndex: number, executor: NWaySelectionExecutor,
   preparedPrecisionBank?: BankArrays,
 ): Promise<AdvanceResult> {
-  const result = advanceCore(
-    core, inputs, chosen, rawPick, params, trialIndex, preparedPrecisionBank, true,
-  );
+  const startedAt = performance.now();
+  const { state, rng, policy } = core;
+  const phaseV2 = emptyStepPhaseTiming();
+  const segment = chosen.segment
+    ?? inputs.segments.find((candidate) => candidate.segId === chosen.segId);
+  if (!segment) throw new Error(`chosen segment ${chosen.segId} is unavailable`);
+  const response = isNWaySession(inputs)
+    ? makeResponseObservation(
+        chosen.k, segment, rawPick,
+        inputs.taskClasses?.[chosen.k] ?? "iiic",
+      )
+    : {
+        kind: "binary" as const, k: chosen.k, s: chosen.s, sSd: chosen.sSd,
+        y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
+      };
+  updateObservation(state, response, phaseV2.particle);
+  const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
+  const updatedAt = performance.now();
+  let rejuv = false;
+  const essStartedAt = performance.now();
+  const currentEss = ess(state.w);
+  phaseV2.particle.essMs += performance.now() - essStartedAt;
+  if (currentEss < params.essThresholdFrac * params.nParticles) {
+    await resampleAndRejuvenateWithExecutor(
+      state, rng, params.nMhSteps, params.proposalScale,
+      executor, trialIndex, phaseV2.particle,
+    );
+    rejuv = true;
+  }
+  const rejuvenatedAt = performance.now();
+
+  core.remaining.delete(chosen.segId);
+  core.nPerTask[chosen.k] += 1;
+  if (policy instanceof PrecisionPolicy) policy.recordAdministered(chosen.k, chosen.s);
+  const trajSnapshot = { t: state.t.slice(), l: state.l.slice(), w: state.w.slice() };
+  if (chosen.k === core.lastTaskK) core.streakCount += 1;
+  else { core.lastTaskK = chosen.k; core.streakCount = 1; }
+  const bookkeepingAt = performance.now();
+
+  let telemetry: Record<string, unknown> | undefined;
+  if (policy instanceof PrecisionPolicy) {
+    const rawBank = preparedPrecisionBank
+      ?? precisionRemainingBank(inputs, core.remaining);
+    telemetry = policy.bankTelemetry(rawBank, state.lastRejuvenation);
+  }
+  const evaluation = policy.evaluate(state, core.nPerTask, telemetry);
+  const policyAt = performance.now();
+  core.lastOutcomes = evaluation.selectionStates;
+  if (policy.name === "ad6") {
+    for (let k = 0; k < params.K; k++) {
+      if (evaluation.verdicts[k] === VERDICT.PENDING
+          && core.nPerTask[k] >= params.perDomainCap) {
+        core.cappedTasks.add(k);
+      }
+    }
+  }
+  const { tMean, lMean } = posteriorMeans(state);
+  const diag: TrialDiag = {
+    trialIndex,
+    taskK: chosen.k,
+    segId: chosen.segId,
+    s: chosen.s,
+    sSd: chosen.sSd,
+    y,
+    pick: rawPick,
+    responseKind: response.kind,
+    matchedAskedTask: y === 1,
+    ess: evaluation.ess,
+    rejuv,
+    pi: evaluation.pi,
+    mcse: evaluation.mcse,
+    R: evaluation.R,
+    verdicts: evaluation.verdicts,
+    nPerTask: core.nPerTask.slice(),
+    tMean,
+    lMean,
+    aurocHw: aurocSummary(state.l, state.w, state.N, params.K).hw,
+    terminationPolicy: evaluation.policyName,
+    ...(evaluation.domainStatuses
+      ? { domainStatuses: evaluation.domainStatuses } : {}),
+    ...(evaluation.determinations
+      ? { determinations: evaluation.determinations } : {}),
+    ...(evaluation.terminalReasons
+      ? { terminalReasons: evaluation.terminalReasons } : {}),
+    ...(evaluation.streakCounts
+      ? { precisionStreakCounts: evaluation.streakCounts } : {}),
+    ...(state.lastRejuvenation
+      ? { lastRejuvenation: { ...state.lastRejuvenation } } : {}),
+  };
+  const precisionDiagnostics = evaluation.diagnostics as PrecisionDiagnostics | undefined;
+  if (precisionDiagnostics) {
+    diag.skillIntervals = precisionDiagnostics.skillIntervals.map(
+      (value) => [...value] as [number, number],
+    );
+    diag.biasIntervals = precisionDiagnostics.biasIntervals.map(
+      (value) => [...value] as [number, number],
+    );
+    diag.skillPointCenteredRadius =
+      precisionDiagnostics.skillPointCenteredRadius.slice();
+    diag.skillPointCenteredRadiusMcse =
+      precisionDiagnostics.skillPointCenteredRadiusMcse.slice();
+    diag.guardedPrecisionStatistic =
+      precisionDiagnostics.guardedPrecisionStatistic.slice();
+    diag.skillTolerance = precisionDiagnostics.skillTolerance.slice();
+  }
+  const diagnosticsAt = performance.now();
+  const done = policy.name === "precision_v1"
+    ? evaluation.stop
+    : evaluation.verdicts.every(
+        (verdict, k) => verdict !== VERDICT.PENDING || core.cappedTasks.has(k),
+      );
+  const stopReason = done
+    ? (policy.name === "precision_v1"
+        ? evaluation.stopReason
+        : evaluation.stop ? "all_resolved" : "resolved_or_referred")
+    : "";
+  const result: AdvanceResult = {
+    core, diag, trajSnapshot, servedSegId: chosen.segId, rejuv,
+    nextChosen: NO_ITEM, done, stopReason,
+    timing: {
+      kind: "engine_step",
+      trialIndex,
+      y,
+      pick: rawPick,
+      rejuvenated: rejuv,
+      bankPreparationMs: 0,
+      updateMs: updatedAt - startedAt,
+      rejuvenationMs: rejuvenatedAt - updatedAt,
+      bookkeepingMs: bookkeepingAt - rejuvenatedAt,
+      policyMs: policyAt - bookkeepingAt,
+      diagnosticsMs: diagnosticsAt - policyAt,
+      selectionMs: 0,
+      totalMs: diagnosticsAt - startedAt,
+      executionMode: "adaptive_pool",
+      speculative: false,
+      requiredBranchReadyAtAnswer: false,
+      phaseV2,
+    },
+  };
   if (result.done) return result;
   const selectionStartedAt = performance.now();
   try {

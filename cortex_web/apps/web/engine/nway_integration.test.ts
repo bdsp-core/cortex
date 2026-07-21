@@ -4,7 +4,11 @@ import type { BankArrays } from "./choose_item";
 import { makeResponseObservation, responseProbabilities } from "./nway_likelihood";
 import { NWAY_ARTIFACT, expectedNWayProfile, validateNWayInputs } from "./nway_profile";
 import { chooseNWayItem, expectedNWayLoss, rankOutcomes } from "./nway_selector";
-import { cloneState, resampleAndRejuvenate, updateObservation } from "./particles";
+import {
+  cloneState, logLikPackedHistory, resampleAndRejuvenate,
+  resampleAndRejuvenateWithExecutor, updateObservation,
+} from "./particles";
+import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import { Rng } from "./rng";
 import { WebCortexSession } from "./session";
 import type {
@@ -164,6 +168,38 @@ describe("production native n-way integration", () => {
     expect(Array.from(st.logLik).every(Number.isFinite)).toBe(true);
     expect(Array.from(st.w).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 14);
     expect(st.lastRejuvenation?.qIndex).toBe(4);
+  });
+
+  it("keeps exact particle and RNG state when history likelihood is asynchronous", async () => {
+    const serial = state();
+    updateObservation(serial, makeResponseObservation(2, segment(), 6, "iiic"));
+    serial.w = Float64Array.from([0.97, 0.01, 0.01, 0.01]);
+    const parallel = cloneState(serial);
+    const serialRng = new Rng(9901);
+    const parallelRng = new Rng(9901);
+    const executor: NWaySelectionExecutor = {
+      workerCount: 2,
+      ready: () => Promise.resolve(),
+      score: () => Promise.reject(new Error("not used")),
+      screen: () => Promise.reject(new Error("not used")),
+      historyLikelihood: (history, N, particleK, t, l) => {
+        const result = new Float64Array(N);
+        logLikPackedHistory(history, N, particleK, t, l, result);
+        return Promise.resolve(result);
+      },
+      dispose: () => undefined,
+    };
+    resampleAndRejuvenate(serial, serialRng, 2, 0.1, 4);
+    await resampleAndRejuvenateWithExecutor(
+      parallel, parallelRng, 2, 0.1, executor, 4,
+    );
+    expect(parallel.t).toEqual(serial.t);
+    expect(parallel.l).toEqual(serial.l);
+    expect(parallel.w).toEqual(serial.w);
+    expect(parallel.logPrior).toEqual(serial.logPrior);
+    expect(parallel.logLik).toEqual(serial.logLik);
+    expect(parallel.lastRejuvenation).toEqual(serial.lastRejuvenation);
+    expect(parallelRng.snapshot()).toEqual(serialRng.snapshot());
   });
 
   it("keeps spike as the only binary response group", () => {

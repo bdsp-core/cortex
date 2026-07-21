@@ -13,6 +13,7 @@ import {
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
 import { Rng } from "./rng";
+import type { NWaySelectionExecutor } from "./nway_selector_executor";
 
 export function makeState(
   N: number,
@@ -283,16 +284,19 @@ export function ess(w: Float64Array): number {
 
 // cumulative log-likelihood of the full history for a proposed (t',l') cloud.
 // Vectorized over particles; mirrors _log_lik_history.
-function logLikHistory(
-  st: ParticleState,
+export function logLikPackedHistory(
+  history: PackedParticleHistory,
+  N: number,
+  K: number,
   tNew: Float64Array,
   lNew: Float64Array,
   out: Float64Array,
 ): void {
-  const { N, K } = st;
+  if (tNew.length !== N * K || lNew.length !== N * K || out.length !== N) {
+    throw new Error("packed history likelihood shard dimensions are invalid");
+  }
   out.fill(0);
   const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
-  const history = ensurePackedHistory(st);
   for (let historyIndex = 0; historyIndex < history.length; historyIndex++) {
     const taskK = history.taskK[historyIndex];
     if (history.kind[historyIndex] === 0) {
@@ -317,6 +321,15 @@ function logLikHistory(
       }
     }
   }
+}
+
+function logLikHistory(
+  st: ParticleState,
+  tNew: Float64Array,
+  lNew: Float64Array,
+  out: Float64Array,
+): void {
+  logLikPackedHistory(ensurePackedHistory(st), st.N, st.K, tNew, lNew, out);
 }
 
 // Multinomial resample, then n MH-rejuvenation steps. proposalScale =
@@ -404,6 +417,133 @@ export function resampleAndRejuvenate(
     logLikHistory(st, tNew, lNew, llNew);
     if (timing) timing.mhHistoryLikelihoodMs += performance.now() - historyStartedAt;
     // accept
+    const acceptanceStartedAt = performance.now();
+    let nAcc = 0;
+    for (let n = 0; n < N; n++) {
+      const logAlpha = lpNew[n] + llNew[n] - (st.logPrior[n] + st.logLik[n]);
+      if (Math.log(rng.random()) < logAlpha) {
+        accepted[n] = 1;
+        nAcc++;
+      } else accepted[n] = 0;
+    }
+    if (timing) timing.mhAcceptanceMs += performance.now() - acceptanceStartedAt;
+    const copyingStartedAt = performance.now();
+    for (let n = 0; n < N; n++) {
+      if (!accepted[n]) continue;
+      for (let i = 0; i < K; i++) {
+        st.t[n * K + i] = tNew[n * K + i];
+        st.l[n * K + i] = lNew[n * K + i];
+      }
+      st.logPrior[n] = lpNew[n];
+      st.logLik[n] = llNew[n];
+    }
+    if (timing) timing.mhCopyingMs += performance.now() - copyingStartedAt;
+    accepts.push(nAcc / N);
+  }
+  const acceptanceRate = accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);
+  st.lastRejuvenation = {
+    qIndex,
+    acceptanceRate,
+    distinctAncestors,
+    distinctAncestorFraction: distinctAncestors / N,
+  };
+  return acceptanceRate;
+}
+
+/** Exact asynchronous counterpart used by the adaptive pool. RNG consumption,
+ * proposal construction, priors, acceptance order, and copying are identical
+ * to resampleAndRejuvenate. Only per-particle full-history likelihoods are
+ * delegated; each worker retains original history order. */
+export async function resampleAndRejuvenateWithExecutor(
+  st: ParticleState,
+  rng: Rng,
+  nMhSteps: number,
+  proposalScale: number,
+  executor: NWaySelectionExecutor,
+  qIndex = -1,
+  timing?: ParticlePhaseTimingV2,
+): Promise<number> {
+  const { N, K } = st;
+  const resamplingStartedAt = performance.now();
+  const idx = rng.resampleIndices(st.w, N);
+  const distinctAncestors = new Set(idx).size;
+  const t2 = new Float64Array(N * K);
+  const l2 = new Float64Array(N * K);
+  const lp2 = new Float64Array(N);
+  const ll2 = new Float64Array(N);
+  for (let n = 0; n < N; n++) {
+    const src = idx[n];
+    t2.set(st.t.subarray(src * K, src * K + K), n * K);
+    l2.set(st.l.subarray(src * K, src * K + K), n * K);
+    lp2[n] = st.logPrior[src];
+    ll2[n] = st.logLik[src];
+  }
+  st.t = t2;
+  st.l = l2;
+  st.logPrior = lp2;
+  st.logLik = ll2;
+  st.w.fill(1 / N);
+  if (timing) timing.resamplingMs += performance.now() - resamplingStartedAt;
+
+  const D = 2 * K;
+  const theta = new Float64Array(N * D);
+  const accepts: number[] = [];
+  const tNew = new Float64Array(N * K);
+  const lNew = new Float64Array(N * K);
+  const lpNew = new Float64Array(N);
+  const llNew = new Float64Array(N);
+  const eps = new Float64Array(D);
+  const accepted = new Uint8Array(N);
+  const history = ensurePackedHistory(st);
+  let parallelAvailable = true;
+
+  for (let step = 0; step < nMhSteps; step++) {
+    const proposalStartedAt = performance.now();
+    for (let n = 0; n < N; n++) {
+      for (let i = 0; i < K; i++) {
+        theta[n * D + i] = st.t[n * K + i];
+        theta[n * D + K + i] = st.l[n * K + i];
+      }
+    }
+    const cov: Mat = covRows(theta, N, D);
+    for (let i = 0; i < D; i++) cov[i][i] += 1e-6;
+    let F: Mat;
+    try {
+      F = cholesky(cov);
+    } catch {
+      F = symSqrtClipped(cov, 1e-6);
+    }
+    for (let n = 0; n < N; n++) {
+      rng.fillGaussian(eps);
+      for (let i = 0; i < D; i++) {
+        let acc = 0;
+        for (let j = 0; j < D; j++) acc += eps[j] * F[i][j];
+        const value = theta[n * D + i] + proposalScale * acc;
+        if (i < K) tNew[n * K + i] = value;
+        else lNew[n * K + (i - K)] = value;
+      }
+    }
+    if (timing) {
+      timing.mhProposalGenerationMs += performance.now() - proposalStartedAt;
+    }
+    const priorStartedAt = performance.now();
+    for (let n = 0; n < N; n++) {
+      lpNew[n] = logPriorOne(tNew, lNew, n, st.prior.tPieces, st.prior.lPieces);
+    }
+    if (timing) timing.mhPriorMs += performance.now() - priorStartedAt;
+    const historyStartedAt = performance.now();
+    if (parallelAvailable) {
+      try {
+        llNew.set(await executor.historyLikelihood(history, N, K, tNew, lNew));
+      } catch {
+        executor.dispose();
+        parallelAvailable = false;
+        logLikPackedHistory(history, N, K, tNew, lNew, llNew);
+      }
+    } else {
+      logLikPackedHistory(history, N, K, tNew, lNew, llNew);
+    }
+    if (timing) timing.mhHistoryLikelihoodMs += performance.now() - historyStartedAt;
     const acceptanceStartedAt = performance.now();
     let nAcc = 0;
     for (let n = 0; n < N; n++) {

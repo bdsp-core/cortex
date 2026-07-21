@@ -8,7 +8,7 @@ import type {
 import type {
   NWaySelectorWorkerRequest, NWaySelectorWorkerResponse,
 } from "./nway_selector_protocol";
-import type { ComputeEngineInputs } from "./types";
+import type { ComputeEngineInputs, PackedParticleHistory } from "./types";
 import {
   selectCalibratedWorkerCount, type WorkerCalibrationSample,
 } from "./execution_profile";
@@ -28,6 +28,10 @@ export interface NWaySelectionExecutor {
     moments: NWayScreeningMoments,
     domains: readonly { taskK: number; segIds: readonly number[] }[],
   ): Promise<NWayDomainScreenResult[]>;
+  historyLikelihood(
+    history: PackedParticleHistory, N: number, K: number,
+    t: Float64Array, l: Float64Array,
+  ): Promise<Float64Array>;
   dispose(): void;
 }
 
@@ -192,6 +196,36 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     return results;
   }
 
+  /** Particle-index sharding preserves each particle's original history order;
+   * no floating-point reduction crosses a worker boundary. */
+  async historyLikelihood(
+    history: PackedParticleHistory, N: number, K: number,
+    t: Float64Array, l: Float64Array,
+  ): Promise<Float64Array> {
+    if (this.disposed) throw new Error("n-way selector worker executor is disposed");
+    if (t.length !== N * K || l.length !== N * K) {
+      throw new Error("n-way history likelihood dimensions are invalid");
+    }
+    const shardCount = Math.min(this.slots.length, N);
+    const shardSize = Math.ceil(N / shardCount);
+    const logLikelihood = new Float64Array(N);
+    await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
+      const startIndex = shardIndex * shardSize;
+      const endIndex = Math.min(N, startIndex + shardSize);
+      const response = await this.runHistoryShard(
+        this.slots[shardIndex], history, K,
+        t.slice(startIndex * K, endIndex * K),
+        l.slice(startIndex * K, endIndex * K), startIndex,
+      );
+      if (response.startIndex !== startIndex
+          || response.logLikelihood.length !== endIndex - startIndex) {
+        throw new Error("n-way history worker returned a misaligned shard");
+      }
+      logLikelihood.set(response.logLikelihood, startIndex);
+    }));
+    return logLikelihood;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -347,6 +381,50 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         type: "screen", jobId, moments, taskK, segIds: packedSegIds,
       };
       slot.worker.postMessage(request, { transfer: [packedSegIds.buffer] });
+    });
+  }
+
+  private runHistoryShard(
+    slot: SelectorSlot, history: PackedParticleHistory, K: number,
+    t: Float64Array, l: Float64Array, startIndex: number,
+  ): Promise<Extract<NWaySelectorWorkerResponse, { type: "history_result" }>> {
+    const jobId = this.nextJobId++;
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        slot.worker.removeEventListener("message", onMessage);
+        slot.worker.removeEventListener("error", onError);
+        slot.worker.removeEventListener("messageerror", onMessageError);
+        self.clearTimeout(timeoutId);
+      };
+      const timeoutId = self.setTimeout(() => {
+        cleanup();
+        reject(new Error(`n-way history worker job ${jobId} timed out`));
+      }, NWaySelectorWorkerExecutor.JOB_TIMEOUT_MS);
+      const onMessage = (event: MessageEvent<NWaySelectorWorkerResponse>) => {
+        const message = event.data;
+        if (message.type === "ready" || message.jobId !== jobId) return;
+        cleanup();
+        if (message.type === "error") reject(new Error(message.message));
+        else if (message.type !== "history_result") {
+          reject(new Error("n-way history worker returned the wrong job kind"));
+        } else resolve(message);
+      };
+      const onError = (event: ErrorEvent) => {
+        cleanup();
+        reject(new Error(event.message || `n-way history worker job ${jobId} crashed`));
+      };
+      const onMessageError = () => {
+        cleanup();
+        reject(new Error(`n-way history worker job ${jobId} returned malformed data`));
+      };
+      slot.worker.addEventListener("message", onMessage);
+      slot.worker.addEventListener("error", onError);
+      slot.worker.addEventListener("messageerror", onMessageError);
+      const request: NWaySelectorWorkerRequest = {
+        type: "history_likelihood", jobId, startIndex,
+        N: t.length / K, K, history, t, l,
+      };
+      slot.worker.postMessage(request, { transfer: [t.buffer, l.buffer] });
     });
   }
 
