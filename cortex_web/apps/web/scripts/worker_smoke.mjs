@@ -1,4 +1,4 @@
-/** Real-Chromium qualification for the coordinator + nested branch workers. */
+/** Real-Chromium qualification for the coordinator + adaptive n-way pool. */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -37,7 +37,7 @@ try {
   const url = await waitForServer();
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  // Exercise the nested worker under the production-relevant restriction,
+  // Exercise the nested pool under the production-relevant restriction,
   // not Vite's header-free default.
   await page.route("**/test/browser/worker_harness.html", async (route) => {
     const response = await route.fetch();
@@ -57,22 +57,28 @@ try {
   const options = { maxQuestions: 1, answerPattern: "yes" };
   const serial = await page.evaluate(
     (runOptions) => window.runWorkerHarness("serial", runOptions), options);
-  const dual = await page.evaluate(
+  const adaptive = await page.evaluate(
     (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), options);
-  assert.deepStrictEqual(dual.result, serial.result,
-    "nested-worker execution changed the authoritative session result");
+  assert.deepStrictEqual(adaptive.result, serial.result,
+    "adaptive-pool execution changed the authoritative session result");
   assert.equal(pageErrors.length, 0, pageErrors.join("\n"));
 
   const serialProfile = serial.events.find((event) => event.kind === "execution_profile");
-  const dualProfile = dual.events.find((event) => event.kind === "execution_profile");
+  const adaptiveProfile = adaptive.events.find(
+    (event) => event.kind === "execution_profile");
   assert.equal(serialProfile?.executionMode, "serial");
-  assert.equal(dualProfile?.executionMode, "dual_branch");
-  assert.ok(dual.events.some((event) =>
-    event.kind === "engine_step" && event.executionMode === "dual_branch"));
+  assert.equal(adaptiveProfile?.executionMode, "adaptive_pool");
+  assert.ok(Number.isInteger(adaptiveProfile?.selectedWorkerCount));
+  assert.ok(adaptiveProfile.selectedWorkerCount >= 2);
+  const calibration = JSON.parse(adaptiveProfile.calibrationResult);
+  assert.equal(calibration.result, "measured_v1");
+  assert.equal(calibration.selectedWorkerCount, adaptiveProfile.selectedWorkerCount);
+  assert.ok(adaptive.events.some((event) =>
+    event.kind === "engine_step" && event.executionMode === "adaptive_pool"));
   process.stdout.write(
-    `worker-smoke: exact native-IIIC serial/dual result parity (${serial.result.nQuestions} questions); `
-    + `browser reported ${dualProfile?.hardwareConcurrency} logical cores; `
-    + `2 compute threads used under worker-src 'self'\n`,
+    `worker-smoke: exact native-IIIC serial/adaptive result parity (${serial.result.nQuestions} questions); `
+    + `browser reported ${adaptiveProfile?.hardwareConcurrency} logical cores; `
+    + `${adaptiveProfile.selectedWorkerCount} calibrated pool workers used under worker-src 'self'\n`,
   );
 } finally {
   await browser?.close();
