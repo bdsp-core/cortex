@@ -232,8 +232,7 @@ export class WebCortexSession {
   private deferSelectionRecovery(
     executor: NWaySelectionExecutor, recovery: Promise<void>,
   ): void {
-    let tracked!: Promise<void>;
-    tracked = recovery.catch(() => {
+    const tracked = recovery.catch(() => {
       executor.dispose();
       if (this.selectionExecutor === executor) this.selectionExecutor = undefined;
     }).finally(() => {
