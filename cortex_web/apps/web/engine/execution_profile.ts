@@ -41,9 +41,9 @@ export function selectCalibratedWorkerCount(
 }
 
 /**
- * Conservative startup bounds. The coordinator is one compute worker and the
- * remainder are immutable ranked-outcome helpers. At least one reported core
- * is reserved, and two are reserved on devices reporting eight or more.
+ * Conservative startup bounds for the persistent selector/MH shard pool.
+ * The authoritative coordinator is separate. At least one reported core is
+ * reserved, and two are reserved on devices reporting eight or more.
  */
 export function selectExecutionProfile(args: {
   requested: RequestedComputeMode;

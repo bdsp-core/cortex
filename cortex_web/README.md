@@ -5,8 +5,10 @@ The React UI, TypeScript testing engine, FastAPI service, deployment assets,
 and regression harnesses live together so one versioned release can be tested,
 deployed, and rolled back as a unit.
 
-The browser-compute rollout is disabled by default and must pass an
-account-scoped pilot before public enablement.
+The browser-compute rollout is server-owned and disabled by application
+default. Eligible native n-way sessions can use a bounded, calibrated worker
+pool when the production rollout stamp enables it; every failure path remains
+exact and fail-closed.
 
 ## Architecture
 
@@ -27,10 +29,11 @@ account-scoped pilot before public enablement.
 - `docs/README.md` — authoritative documentation index.
 
 The full 35k manifest remains in the main-thread `Bundle` for exact EEG and
-spectrogram rendering. Only a 4.16 MiB typed numerical index crosses into the
-engine coordinator. On eligible devices, the coordinator calculates the
-predicted response while one persistent helper calculates the alternate
-response; only the participant's actual branch is adopted. AD6 and low-core
+spectrogram rendering. Only a packed numerical index crosses into the engine
+coordinator. On eligible native n-way devices, a bounded startup calibration
+selects a conservative persistent pool for deterministic selector and MH
+history shards. The coordinator owns state and RNG, speculates the most likely
+response, and adopts only the participant's actual response. AD6 and low-core
 devices stay serial. See
 [WEB_WORKER_ARCHITECTURE.md](docs/WEB_WORKER_ARCHITECTURE.md).
 
@@ -83,9 +86,9 @@ CORTEX_QUALITY_PYTHON=.venv/bin/python npm run quality
 CORTEX_QUALITY_PYTHON=.venv/bin/python npm run quality:browser
 ```
 
-`worker-smoke` runs the coordinator and nested helper in real Chromium and
-requires exact serial/parallel result equality. The benchmark also asserts
-exact equality before reporting timings.
+`worker-smoke` runs the coordinator and nested workers in real Chromium and
+requires exact serial/parallel result equality. The native replay and
+full-bank benchmarks also assert exact equality before reporting timings.
 
 ## Runtime controls
 
@@ -100,8 +103,11 @@ CORTEX_PRECISION_COMPUTE_EMAILS=...
 ```
 
 The compute default is `off`. Unknown values, AD6 sessions, unsupported
-browsers, and devices reporting fewer than four logical cores use serial
-execution. Existing sessions retain their persisted stamps across resume.
+browsers, failed calibration, and devices reporting fewer than four logical
+cores use serial execution. Eligible ceilings are two workers at four reported
+cores, three at five through seven, five at eight through eleven, and six at
+twelve or more; calibration may choose fewer. Existing sessions retain their
+persisted stamps across resume.
 
 ## Accuracy boundary
 

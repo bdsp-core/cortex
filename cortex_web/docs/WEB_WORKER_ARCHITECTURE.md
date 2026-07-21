@@ -1,43 +1,62 @@
 # Certification Web Worker architecture
 
-Status: implemented and qualification-gated in `cortex_web_optimized`; not
-deployed. The server-side compute rollout defaults to `off`.
+Status: production architecture for the native n-way performance release,
+qualified on 2026-07-20 and promoted on 2026-07-21. The server owns rollout;
+the application default remains fail-closed `off`.
 
 ## Non-negotiable invariants
 
-- PrecisionPolicy, AD6, particle count, MH steps, selector, tie ordering,
-  stopping statuses, and downstream cut classification are unchanged.
-- AD6 always uses the established serial path.
-- The authoritative session state exists in one coordinator worker. Helper
-  workers receive snapshots and can never mutate that state.
-- Only the result for the participant's actual response is adopted.
-- Any helper initialization, computation, timeout, deserialization, or runtime
-  failure recomputes from the untouched authoritative state through the serial
-  path.
-- The complete question-bank manifest remains in the UI `Bundle`, including
-  EEG and spectrogram locations. Compute workers receive only the numerical
-  fields used by the algorithm.
+- The native six-way response model, 1,200 particles, ESS threshold 0.5,
+  30-step MH rejuvenation, selector objective, tie ordering, stopping statuses,
+  coverage rules, and downstream cut classification are unchanged.
+- AD6 and devices below the n-way pool threshold use the established exact
+  serial path.
+- The authoritative session state and RNG exist in one coordinator worker.
+  Pool workers receive immutable inputs and return indexed numerical shards;
+  they never mutate authoritative state.
+- Only the participant's actual raw outcome is adopted. Timing, calibration,
+  and device information never enter statistical state or policy decisions.
+- Worker initialization, calibration, timeout, malformed-response, or runtime
+  failure falls back to the exact coordinator calculation from untouched
+  authoritative state.
+- The complete question-bank manifest remains in the UI `Bundle`. Compute
+  workers receive only numerical fields used by the algorithm.
 
 ## Runtime flow
 
 ```text
 authenticated API session
-  └─ persisted computeMode (server-owned; default serial)
-      └─ browser Bundle
-          ├─ full manifest → selected segId → exact EEG/spectrogram rendering
-          └─ 4.16 MiB packed numerical index → coordinator Web Worker
-                ├─ predicted response → unchanged advanceCore()
-                └─ alternate response → one persistent helper Web Worker
-                         ↓
-                  adopt actual response only
-                         ↓
-                 next segId + fresh policy status
+  `- persisted computeMode (server-owned)
+      `- browser Bundle
+          |- full manifest -> selected segId -> EEG/spectrogram rendering
+          `- packed numerical index -> authoritative coordinator Web Worker
+                |- conservative core ceiling
+                |- bounded real-work startup calibration
+                `- persistent same-origin n-way pool
+                     |- domain Fisher-screen shards
+                     |- exact candidate-score shards
+                     `- per-particle MH history-likelihood shards
+                            |
+                 coordinator merges by original index/order
+                            |
+                 adopt actual raw response only
+                            |
+                    next segId + policy status
 ```
 
-The split-branch arrangement uses the coordinator for the predicted branch and
-one helper for the alternate branch. This preserves the common path's existing
-latency and removes the serial misprediction tail without maintaining two
-extra 35k-bank copies. There are at most two simultaneous compute threads.
+The coordinator speculates the most probable raw outcome during participant
+think time. If that exact outcome is observed, its completed result is adopted.
+Otherwise the coordinator computes the observed outcome from the untouched
+state. Selection and MH history work may use the calibrated pool in either
+case. The release deliberately does not start six simultaneous full outcome
+branches: measurement showed that unused rejuvenation work creates contention
+and worsens the common path.
+
+Candidate shards preserve the frozen candidate order and return indexed loss
+vectors. The coordinator applies the existing `(loss, segId)` ordering.
+Particle shards preserve each particle's original categorical-history order;
+there is no floating-point reduction across workers, and RNG generation and
+acceptance remain centralized.
 
 ## Module boundaries
 
@@ -45,63 +64,81 @@ extra 35k-bank copies. There are at most two simultaneous compute threads.
 |---|---|
 | `engine/worker_protocol.ts` | Typed main-thread/coordinator messages |
 | `engine/compute_payload.ts` | Validated structure-of-arrays wire format and transfer list |
-| `engine/worker.ts` | Authoritative coordinator lifecycle |
-| `engine/execution_profile.ts` | Pure device/policy eligibility decision |
-| `engine/branch_executor.ts` | Browser-independent scheduling interface |
-| `engine/branch_worker_executor.ts` | Persistent helper, timeouts, failure propagation |
-| `engine/branch_protocol.ts` | Typed helper request/result serialization |
-| `engine/branch_worker.ts` | Alternate-branch calculation only |
+| `engine/worker.ts` | Authoritative coordinator, calibration, pool ownership, and lifecycle |
+| `engine/execution_profile.ts` | Pure eligibility, safe worker ceilings, and calibration choice |
+| `engine/nway_selector_protocol.ts` | Typed selector and history-shard messages |
+| `engine/nway_selector_executor.ts` | Persistent deterministic pool, sharding, validation, and timeouts |
+| `engine/nway_selector_worker.ts` | Immutable screen, score, and history-likelihood jobs |
+| `engine/nway_selector.ts` | Analytical Fisher screen and exact total-variance refinement |
+| `engine/nway_likelihood.ts` | Allocation-free categorical response likelihood |
+| `engine/particles.ts` | Packed history and exact coordinator/worker MH mechanics |
 | `engine/core_snapshot.ts` | Exact RNG, particles, policy, status, and telemetry snapshot |
-| `engine/session.ts` | Predicted/alternate scheduling and atomic result adoption |
-| `src/performanceSummary.ts` | Bounded non-policy timing aggregation |
+| `engine/session.ts` | Rank-one speculation and atomic observed-result adoption |
+| `src/performanceSummary.ts` | Bounded schema-v2 non-policy timing aggregation |
 | `services/api/compute_rollout.py` | Authenticated server-side rollout decision |
+
+The earlier branch-worker modules remain available as exact, tested
+infrastructure, but native n-way production does not blindly allocate helper
+workers for every response outcome.
 
 ## Device adaptation
 
-`navigator.hardwareConcurrency` is a hint, not a command to allocate that many
-workers. The rule is deliberately small:
+`navigator.hardwareConcurrency` establishes a conservative ceiling, not the
+final allocation:
 
-- requested mode `serial`: serial;
-- AD6: serial;
-- unavailable Worker API or unknown concurrency: serial;
+- requested serial, non-Precision policy, unavailable workers, or unknown
+  concurrency: serial;
 - fewer than four reported logical cores: serial;
-- four or more: coordinator plus one helper (`dual_branch`).
+- four cores: at most two pool workers;
+- five through seven: at most three;
+- eight through eleven: at most five;
+- twelve or more: at most six.
 
-No worker pool scales with core count. SharedArrayBuffer, particle sharding,
-SharedWorker, ServiceWorker, and cross-origin isolation are not required.
+This reserves at least one reported core, and at least two on devices reporting
+eight or more. At startup, a bounded 24-candidate real-bank probe compares
+eligible pool sizes. It chooses the smallest pool within 5% of the fastest
+responsive result, subject to a 50 ms heartbeat-delay limit, and terminates
+unused workers. A failed probe selects exact serial execution.
+
+These tuning points are intentionally isolated in `execution_profile.ts`.
+Calibration candidates are assembled from the runtime domain arrays, while
+candidate, particle, and history jobs derive their dimensions from runtime
+domain count, `N`, `K`, and history length. Adding an approved domain therefore
+requires statistical/content and device requalification, but not a worker
+topology rewrite.
+
+SharedArrayBuffer, SharedWorker, ServiceWorker, WebGPU, cross-origin isolation,
+and device-memory APIs are not required.
 
 ## Full-bank and media boundary
 
-The 35,193-item production manifest is 34,865,653 bytes. Its compute payload is
-4,363,932 bytes (4.16 MiB): Float64 segment ids, Uint32 task masks, and Float64
-`sMean`/`sSd`. Typed-array buffers are transferred rather than cloned.
-
-The rendering manifest never leaves `Bundle`. After the engine selects a
+The full rendering manifest never leaves `Bundle`. After the engine selects a
 `segId`, `Bundle.segment(segId)` resolves and lazily fetches that exact item's
-EEG and spectrogram. The optimization therefore changes neither available
-questions nor participant media.
+EEG and spectrogram. Typed calculation buffers cross same-origin module-worker
+boundaries. No optimization changes available questions, media, response
+categories, or content/exposure eligibility.
 
-## Failure and security posture
+## Failure, privacy, and telemetry posture
 
-- Helper startup is bounded at 10 seconds; a branch job is bounded at 30
-  seconds. Either failure disables the helper and invokes exact serial
-  recomputation.
-- Worker messages are same-origin module-worker traffic under the existing CSP
-  (`worker-src 'self'`). No blob workers, eval, shared memory, or new external
+- Worker startup is bounded at 10 seconds and a shard job at 30 seconds.
+- Messages are same-origin module-worker traffic under the existing CSP
+  (`worker-src 'self'`). No blob workers, eval, shared memory, or external
   origins are introduced.
-- Packed payload dimensions and task indices are validated before execution.
-- Workers are terminated on completion, abort, replacement, error, and idle
-  sign-out. Pending jobs are rejected and timers cleared.
-- Execution timing never enters policy state, selection, stopping, reporting
-  intervals, or cuts.
-- Bounded timing summaries are stored under `_enginePerformance` for admin
-  review and stripped from participant dashboard/history responses.
+- Payload dimensions, job kinds, shard offsets, and output lengths are
+  validated before results can be merged.
+- Workers terminate on completion, abort, replacement, startup failure, and
+  sign-out. Pending jobs reject and timers are cleared.
+- Schema-v2 `_enginePerformance` stores bounded phase distributions, outcome
+  ranks, branch lifecycle counts, heartbeat delay, selected worker count,
+  calibration summary, and a memory estimate. It records no new EEG or
+  participant content, is excluded from statistical state, and is stripped
+  from participant dashboard/history responses.
 
 ## Rollout and rollback
 
-The API persists `sessions.compute_mode` with an additive SQLite/PostgreSQL
-migration. Resume uses the persisted value, so an in-flight sitting never
-changes execution mode.
+The API persists `sessions.compute_mode` through the existing additive
+SQLite/PostgreSQL migration. Resume uses the persisted value, so an in-flight
+sitting never changes its compute profile.
 
 ```text
 CORTEX_PRECISION_COMPUTE_ROLLOUT=off|email_allowlist|all
@@ -109,7 +146,7 @@ CORTEX_PRECISION_COMPUTE_EMAILS=comma,separated,normalized@example.org
 ```
 
 Unknown values, non-Precision policies, and non-allowlisted accounts select
-`serial`. A request body cannot opt in. Rollback is an environment change plus
-service restart and affects new sessions only; already-stamped sessions remain
-reproducible.
-
+serial. A request body cannot opt in. Configuration rollback affects newly
+created sessions; application rollback uses the atomic release procedure in
+`deploy/README.md`. The previous n-way release remains compatible with the
+additive database state.
