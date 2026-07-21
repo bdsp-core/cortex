@@ -6,7 +6,9 @@ import type {
   ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
 } from "./types";
 import { logPResponse, signalZ } from "./likelihood";
-import { logObservationProbability } from "./nway_likelihood";
+import {
+  logObservationProbability, makeObservationLikelihoodWorkspace,
+} from "./nway_likelihood";
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
 import { Rng } from "./rng";
@@ -126,11 +128,14 @@ export function updateObservation(
   let maximumLogWeight = -Infinity;
   const likelihood = new Float64Array(N);
   const nextLogLik = new Float64Array(N);
+  const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
   for (let n = 0; n < N; n++) {
     if (!Number.isFinite(w[n]) || w[n] < 0 || !Number.isFinite(logLik[n])) {
       throw new PosteriorUpdateError("pre-update particle state is invalid");
     }
-    const lp = logObservationProbability(observation, st.t, st.l, n, K);
+    const lp = logObservationProbability(
+      observation, st.t, st.l, n, K, likelihoodWorkspace,
+    );
     const cumulative = logLik[n] + lp;
     if (!Number.isFinite(lp) || !Number.isFinite(cumulative)) {
       throw new PosteriorUpdateError("categorical posterior update is non-finite");
@@ -183,9 +188,12 @@ function logLikHistory(
 ): void {
   const { N, K, history } = st;
   out.fill(0);
+  const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
   for (const observation of history) {
     for (let n = 0; n < N; n++) {
-      out[n] += logObservationProbability(observation, tNew, lNew, n, K);
+      out[n] += logObservationProbability(
+        observation, tNew, lNew, n, K, likelihoodWorkspace,
+      );
     }
   }
 }

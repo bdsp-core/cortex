@@ -1,4 +1,4 @@
-import { logSumExp, logSumExp2 } from "./mathfns";
+import { logSumExp2 } from "./mathfns";
 import { logPResponse, pResponseYes, signalZ } from "./likelihood";
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
 import type {
@@ -23,25 +23,62 @@ function logDistractorProbability(
   t: Float64Array, l: Float64Array, particleOffset: number,
   draw: ArtifactDraw,
 ): number {
-  const distractors = IIIC_TASK_INDICES.filter((k) => k !== observation.askedK);
-  const logits = distractors.map(
-    (k) => draw.beta * zFor(k, observation.sMean, observation.sSd, t, l, particleOffset),
-  );
-  const pickIndex = distractors.indexOf(observation.pickK);
-  if (pickIndex < 0) throw new Error("categorical pick is not a valid IIIC distractor");
-  const logSoftmax = logits[pickIndex] - logSumExp(logits);
+  if (observation.pickK === observation.askedK
+      || observation.pickK < IIIC_TASK_INDICES[0]
+      || observation.pickK > IIIC_TASK_INDICES[IIIC_TASK_INDICES.length - 1]) {
+    throw new Error("categorical pick is not a valid IIIC distractor");
+  }
+  let maximum = -Infinity;
+  let pickedLogit = -Infinity;
+  for (const k of IIIC_TASK_INDICES) {
+    if (k === observation.askedK) continue;
+    const logit = draw.beta * zFor(
+      k, observation.sMean, observation.sSd, t, l, particleOffset,
+    );
+    if (logit > maximum) maximum = logit;
+    if (k === observation.pickK) pickedLogit = logit;
+  }
+  let denominator = 0;
+  for (const k of IIIC_TASK_INDICES) {
+    if (k === observation.askedK) continue;
+    const logit = draw.beta * zFor(
+      k, observation.sMean, observation.sSd, t, l, particleOffset,
+    );
+    denominator += Math.exp(logit - maximum);
+  }
+  const logSoftmax = pickedLogit - (maximum + Math.log(denominator));
   const uniform = draw.distractorLapse === 0
     ? -Infinity
-    : Math.log(draw.distractorLapse) - Math.log(distractors.length);
+    : Math.log(draw.distractorLapse) - Math.log(IIIC_TASK_INDICES.length - 1);
   const directed = draw.distractorLapse === 1
     ? -Infinity
     : Math.log1p(-draw.distractorLapse) + logSoftmax;
   return logSumExp2(uniform, directed);
 }
 
+export interface ObservationLikelihoodWorkspace {
+  mixture: Float64Array;
+}
+
+export function makeObservationLikelihoodWorkspace(): ObservationLikelihoodWorkspace {
+  return { mixture: new Float64Array(NWAY_ARTIFACT.draws.length) };
+}
+
+function logSumExpMixture(values: Float64Array): number {
+  let maximum = -Infinity;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] > maximum) maximum = values[i];
+  }
+  if (maximum === -Infinity) return -Infinity;
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) sum += Math.exp(values[i] - maximum);
+  return maximum + Math.log(sum);
+}
+
 export function logObservationProbability(
   observation: ParticleObservation,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
+  workspace = makeObservationLikelihoodWorkspace(),
 ): number {
   const offset = particleIndex * K;
   if (observation.kind === "binary") {
@@ -55,11 +92,12 @@ export function logObservationProbability(
     observation.askedK, observation.sMean, observation.sSd, t, l, offset,
   );
   if (observation.pickK === observation.askedK) return logPResponse(ownZ, 1);
-  const mixture = NWAY_ARTIFACT.draws.map((draw) => (
-    Math.log(draw.weight)
-      + logDistractorProbability(observation, t, l, offset, draw)
-  ));
-  return logPResponse(ownZ, 0) + logSumExp(mixture);
+  for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
+    const draw = NWAY_ARTIFACT.draws[i];
+    workspace.mixture[i] = Math.log(draw.weight)
+      + logDistractorProbability(observation, t, l, offset, draw);
+  }
+  return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);
 }
 
 export function makeResponseObservation(
