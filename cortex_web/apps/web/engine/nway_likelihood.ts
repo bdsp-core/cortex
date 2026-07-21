@@ -19,27 +19,29 @@ function zFor(
 }
 
 function logDistractorProbability(
-  observation: CategoricalParticleObservation,
+  askedK: number, pickK: number,
+  sMean: ArrayLike<number>, sSd: ArrayLike<number>, signalOffset: number,
   t: Float64Array, l: Float64Array, particleOffset: number,
   draw: ArtifactDraw,
   workspace: ObservationLikelihoodWorkspace,
 ): number {
-  if (observation.pickK === observation.askedK
-      || observation.pickK < IIIC_TASK_INDICES[0]
-      || observation.pickK > IIIC_TASK_INDICES[IIIC_TASK_INDICES.length - 1]) {
+  if (pickK === askedK
+      || pickK < IIIC_TASK_INDICES[0]
+      || pickK > IIIC_TASK_INDICES[IIIC_TASK_INDICES.length - 1]) {
     throw new Error("categorical pick is not a valid IIIC distractor");
   }
   let maximum = -Infinity;
   let pickedLogit = -Infinity;
   let distractorIndex = 0;
   for (const k of IIIC_TASK_INDICES) {
-    if (k === observation.askedK) continue;
-    const logit = draw.beta * zFor(
-      k, observation.sMean, observation.sSd, t, l, particleOffset,
+    if (k === askedK) continue;
+    const signalK = signalOffset + k;
+    const logit = draw.beta * signalZ(
+      l[particleOffset + k], t[particleOffset + k], sMean[signalK], sSd[signalK],
     );
     workspace.distractorLogits[distractorIndex++] = logit;
     if (logit > maximum) maximum = logit;
-    if (k === observation.pickK) pickedLogit = logit;
+    if (k === pickK) pickedLogit = logit;
   }
   let denominator = 0;
   for (let i = 0; i < workspace.distractorLogits.length; i++) {
@@ -78,6 +80,29 @@ function logSumExpMixture(values: Float64Array): number {
   return maximum + Math.log(sum);
 }
 
+export function logCategoricalObservationProbability(
+  askedK: number, pickK: number,
+  sMean: ArrayLike<number>, sSd: ArrayLike<number>, signalOffset: number,
+  t: Float64Array, l: Float64Array, particleIndex: number, K: number,
+  workspace = makeObservationLikelihoodWorkspace(),
+): number {
+  const particleOffset = particleIndex * K;
+  const ownSignalK = signalOffset + askedK;
+  const ownZ = signalZ(
+    l[particleOffset + askedK], t[particleOffset + askedK],
+    sMean[ownSignalK], sSd[ownSignalK],
+  );
+  if (pickK === askedK) return logPResponse(ownZ, 1);
+  for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
+    const draw = NWAY_ARTIFACT.draws[i];
+    workspace.mixture[i] = Math.log(draw.weight) + logDistractorProbability(
+      askedK, pickK, sMean, sSd, signalOffset,
+      t, l, particleOffset, draw, workspace,
+    );
+  }
+  return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);
+}
+
 export function logObservationProbability(
   observation: ParticleObservation,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
@@ -91,16 +116,11 @@ export function logObservationProbability(
       observation.y,
     );
   }
-  const ownZ = zFor(
-    observation.askedK, observation.sMean, observation.sSd, t, l, offset,
+  return logCategoricalObservationProbability(
+    observation.askedK, observation.pickK,
+    observation.sMean, observation.sSd, 0,
+    t, l, particleIndex, K, workspace,
   );
-  if (observation.pickK === observation.askedK) return logPResponse(ownZ, 1);
-  for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
-    const draw = NWAY_ARTIFACT.draws[i];
-    workspace.mixture[i] = Math.log(draw.weight)
-      + logDistractorProbability(observation, t, l, offset, draw, workspace);
-  }
-  return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);
 }
 
 export function makeResponseObservation(

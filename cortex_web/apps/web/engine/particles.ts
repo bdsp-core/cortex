@@ -3,11 +3,12 @@
 // mh_rejuvenate from engine/core_mcmc.py.
 
 import type {
-  ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
+  PackedParticleHistory, ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
 } from "./types";
 import { logPResponse, signalZ } from "./likelihood";
 import {
-  logObservationProbability, makeObservationLikelihoodWorkspace,
+  logCategoricalObservationProbability, logObservationProbability,
+  makeObservationLikelihoodWorkspace,
 } from "./nway_likelihood";
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
@@ -25,7 +26,100 @@ export function makeState(
   const logPrior = new Float64Array(N);
   const logLik = new Float64Array(N);
   samplePrior(N, prior.tPieces, prior.lPieces, rng, t, l, logPrior);
-  return { N, K, t, l, w, logPrior, logLik, history: [], prior };
+  return {
+    N, K, t, l, w, logPrior, logLik, history: [],
+    packedHistory: makePackedHistory(K), prior,
+  };
+}
+
+function makePackedHistory(K: number, capacity = 16): PackedParticleHistory {
+  return {
+    K,
+    length: 0,
+    capacity,
+    kind: new Uint8Array(capacity),
+    taskK: new Int8Array(capacity),
+    pick: new Int8Array(capacity),
+    binaryS: new Float64Array(capacity),
+    binarySd: new Float64Array(capacity),
+    signalMean: new Float64Array(capacity * K),
+    signalSd: new Float64Array(capacity * K),
+  };
+}
+
+function clonePackedHistory(history: PackedParticleHistory): PackedParticleHistory {
+  return {
+    K: history.K,
+    length: history.length,
+    capacity: history.capacity,
+    kind: history.kind.slice(),
+    taskK: history.taskK.slice(),
+    pick: history.pick.slice(),
+    binaryS: history.binaryS.slice(),
+    binarySd: history.binarySd.slice(),
+    signalMean: history.signalMean.slice(),
+    signalSd: history.signalSd.slice(),
+  };
+}
+
+function growPackedHistory(history: PackedParticleHistory): void {
+  const capacity = history.capacity * 2;
+  const grow = <T extends Uint8Array | Int8Array | Float64Array>(
+    source: T, next: T,
+  ): T => {
+    next.set(source);
+    return next;
+  };
+  history.kind = grow(history.kind, new Uint8Array(capacity));
+  history.taskK = grow(history.taskK, new Int8Array(capacity));
+  history.pick = grow(history.pick, new Int8Array(capacity));
+  history.binaryS = grow(history.binaryS, new Float64Array(capacity));
+  history.binarySd = grow(history.binarySd, new Float64Array(capacity));
+  history.signalMean = grow(history.signalMean, new Float64Array(capacity * history.K));
+  history.signalSd = grow(history.signalSd, new Float64Array(capacity * history.K));
+  history.capacity = capacity;
+}
+
+function appendPackedObservation(
+  history: PackedParticleHistory, observation: ParticleObservation,
+): void {
+  if (history.length === history.capacity) growPackedHistory(history);
+  const index = history.length;
+  if (observation.kind === "binary") {
+    history.kind[index] = 0;
+    history.taskK[index] = observation.k;
+    history.pick[index] = observation.y;
+    history.binaryS[index] = observation.s;
+    history.binarySd[index] = observation.sSd;
+  } else {
+    history.kind[index] = 1;
+    history.taskK[index] = observation.askedK;
+    history.pick[index] = observation.pickK;
+    const offset = index * history.K;
+    for (let k = 0; k < history.K; k++) {
+      history.signalMean[offset + k] = observation.sMean[k];
+      history.signalSd[offset + k] = observation.sSd[k];
+    }
+  }
+  history.length += 1;
+}
+
+export function packParticleHistory(
+  observations: readonly ParticleObservation[], K: number,
+): PackedParticleHistory {
+  let capacity = 16;
+  while (capacity < observations.length) capacity *= 2;
+  const packed = makePackedHistory(K, capacity);
+  for (const observation of observations) appendPackedObservation(packed, observation);
+  return packed;
+}
+
+function ensurePackedHistory(st: ParticleState): PackedParticleHistory {
+  if (!st.packedHistory || st.packedHistory.K !== st.K
+      || st.packedHistory.length !== st.history.length) {
+    st.packedHistory = packParticleHistory(st.history, st.K);
+  }
+  return st.packedHistory;
 }
 
 // Exact deep copy of a particle cloud — for speculative branch isolation
@@ -44,6 +138,9 @@ export function cloneState(st: ParticleState): ParticleState {
     history: st.history.map((observation) => observation.kind === "categorical_f1"
       ? { ...observation, sMean: observation.sMean.slice(), sSd: observation.sSd.slice() }
       : { ...observation }),
+    ...(st.packedHistory
+      ? { packedHistory: clonePackedHistory(st.packedHistory) }
+      : {}),
     prior: st.prior,
     ...(st.lastRejuvenation ? { lastRejuvenation: { ...st.lastRejuvenation } } : {}),
   };
@@ -102,7 +199,10 @@ export function update(
   for (let n = 0; n < N; n++) nextW[n] /= sumW;
   st.w = nextW;
   st.logLik = nextLogLik;
-  st.history.push({ kind: "binary", k, s, y, sSd, rawPick: y === 1 ? k : st.K });
+  const observation = { kind: "binary", k, s, y, sSd, rawPick: y === 1 ? k : st.K } as const;
+  const packedHistory = ensurePackedHistory(st);
+  st.history.push(observation);
+  appendPackedObservation(packedHistory, observation);
 }
 
 // Production response update. IIIC observations retain the raw category and
@@ -164,11 +264,14 @@ export function updateObservation(
   for (let n = 0; n < N; n++) nextW[n] /= sumW;
   st.w = nextW;
   st.logLik = nextLogLik;
-  st.history.push({
+  const storedObservation = {
     ...observation,
     sMean: observation.sMean.slice(),
     sSd: observation.sSd.slice(),
-  });
+  };
+  const packedHistory = ensurePackedHistory(st);
+  st.history.push(storedObservation);
+  appendPackedObservation(packedHistory, storedObservation);
   if (timing) timing.categoricalUpdateMs += performance.now() - categoricalStartedAt;
 }
 
@@ -186,14 +289,32 @@ function logLikHistory(
   lNew: Float64Array,
   out: Float64Array,
 ): void {
-  const { N, K, history } = st;
+  const { N, K } = st;
   out.fill(0);
   const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
-  for (const observation of history) {
-    for (let n = 0; n < N; n++) {
-      out[n] += logObservationProbability(
-        observation, tNew, lNew, n, K, likelihoodWorkspace,
-      );
+  const history = ensurePackedHistory(st);
+  for (let historyIndex = 0; historyIndex < history.length; historyIndex++) {
+    const taskK = history.taskK[historyIndex];
+    if (history.kind[historyIndex] === 0) {
+      const s = history.binaryS[historyIndex];
+      const sSd = history.binarySd[historyIndex];
+      const y = history.pick[historyIndex] as 0 | 1;
+      for (let n = 0; n < N; n++) {
+        const offset = n * K + taskK;
+        out[n] += logPResponse(signalZ(
+          lNew[offset], tNew[offset], s, sSd,
+        ), y);
+      }
+    } else {
+      const signalOffset = historyIndex * K;
+      const pickK = history.pick[historyIndex];
+      for (let n = 0; n < N; n++) {
+        out[n] += logCategoricalObservationProbability(
+          taskK, pickK,
+          history.signalMean, history.signalSd, signalOffset,
+          tNew, lNew, n, K, likelihoodWorkspace,
+        );
+      }
     }
   }
 }

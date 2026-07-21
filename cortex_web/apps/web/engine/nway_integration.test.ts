@@ -155,6 +155,12 @@ describe("production native n-way integration", () => {
     resampleAndRejuvenate(st, new Rng(9901), 2, 0.1, 4);
     expect(st.history).toHaveLength(1);
     expect(st.history[0]).toMatchObject({ kind: "categorical_f1", askedK: 2, pickK: 6 });
+    expect(st.packedHistory?.length).toBe(1);
+    expect(Array.from(st.packedHistory?.signalMean.slice(0, K) ?? []))
+      .toEqual(segment().sMean);
+    const cloned = cloneState(st);
+    expect(cloned.packedHistory).toEqual(st.packedHistory);
+    expect(cloned.packedHistory?.signalMean).not.toBe(st.packedHistory?.signalMean);
     expect(Array.from(st.logLik).every(Number.isFinite)).toBe(true);
     expect(Array.from(st.w).reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 14);
     expect(st.lastRejuvenation?.qIndex).toBe(4);

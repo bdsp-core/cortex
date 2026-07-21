@@ -101,6 +101,22 @@ export type ParticleObservation =
   | BinaryParticleObservation
   | CategoricalParticleObservation;
 
+/** Derived structure-of-arrays cache for allocation-free history replay.
+ * `history` remains authoritative and snapshot-safe; this cache is rebuilt
+ * after restore and never changes observation order or arithmetic. */
+export interface PackedParticleHistory {
+  K: number;
+  length: number;
+  capacity: number;
+  kind: Uint8Array;
+  taskK: Int8Array;
+  pick: Int8Array;
+  binaryS: Float64Array;
+  binarySd: Float64Array;
+  signalMean: Float64Array;
+  signalSd: Float64Array;
+}
+
 // Particle cloud. t,l are row-major Float64Array(N*K).
 export interface ParticleState {
   N: number;
@@ -111,6 +127,7 @@ export interface ParticleState {
   logPrior: Float64Array; // (N)
   logLik: Float64Array; // (N)
   history: ParticleObservation[];
+  packedHistory?: PackedParticleHistory;
   // Separate prior pieces for the t- and l-blocks. On the frozen-pilot path
   // both are precomputePrior(corrL) and the computation is bit-identical to the
   // single-PriorPieces era; on the v15 path tPieces uses corrT.
