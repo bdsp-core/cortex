@@ -68,7 +68,7 @@ const inputs = {
   })),
 };
 
-const appPort = 41974;
+const appPort = Number(process.env.CORTEX_BENCH_PORT || 41974);
 const require = createRequire(import.meta.url);
 const viteBin = path.resolve(path.dirname(require.resolve("vite/package.json")), "bin/vite.js");
 const server = spawn(process.execPath, [
@@ -167,6 +167,10 @@ try {
     maxQuestions: Number(process.env.CORTEX_BENCH_QUESTIONS || 4),
     answerDelayMs: Number(process.env.CORTEX_BENCH_ANSWER_DELAY_MS || 750),
     answerPattern: process.env.CORTEX_BENCH_ANSWER_PATTERN || "yes",
+    ...(process.env.CORTEX_BENCH_HARDWARE_CONCURRENCY ? {
+      qualificationHardwareConcurrency: Number(
+        process.env.CORTEX_BENCH_HARDWARE_CONCURRENCY),
+    } : {}),
   };
   const serial = await page.evaluate(
     ({ options: runOptions }) => window.runWorkerHarness("serial", runOptions),

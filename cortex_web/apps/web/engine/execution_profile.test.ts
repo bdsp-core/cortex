@@ -60,17 +60,27 @@ describe("selectExecutionProfile", () => {
     }
   });
 
-  it("uses exactly two workers on eligible devices, regardless of extra cores", () => {
-    for (const hardwareConcurrency of [4, 8, 48, 256]) {
+  it("scales ranked outcome workers while reserving device headroom", () => {
+    const cases = [
+      { hardwareConcurrency: 4, computeWorkers: 2 },
+      { hardwareConcurrency: 5, computeWorkers: 3 },
+      { hardwareConcurrency: 7, computeWorkers: 3 },
+      { hardwareConcurrency: 8, computeWorkers: 5 },
+      { hardwareConcurrency: 11, computeWorkers: 5 },
+      { hardwareConcurrency: 12, computeWorkers: 6 },
+      { hardwareConcurrency: 48, computeWorkers: 6 },
+      { hardwareConcurrency: 256, computeWorkers: 6 },
+    ];
+    for (const { hardwareConcurrency, computeWorkers } of cases) {
       expect(selectExecutionProfile({
         requested: "dual_branch_auto",
         policy: "precision_v1",
         hardwareConcurrency,
         workerAvailable: true,
       })).toEqual({
-        mode: "dual_branch",
-        computeWorkers: 2,
-        reason: "dual_branch_eligible",
+        mode: "adaptive_pool",
+        computeWorkers,
+        reason: "adaptive_pool_eligible",
       });
     }
   });

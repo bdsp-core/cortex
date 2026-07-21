@@ -24,6 +24,7 @@ export interface EngineClientHandlers {
 export interface EngineStartOptions {
   seed?: number;
   requestedComputeMode?: RequestedComputeMode;
+  qualificationHardwareConcurrency?: number;
 }
 
 export class EngineClient {
@@ -95,6 +96,7 @@ export class EngineClient {
       sessionId,
       seed: options.seed,
       requestedComputeMode: options.requestedComputeMode ?? "serial",
+      qualificationHardwareConcurrency: options.qualificationHardwareConcurrency,
     }, computePayloadTransferables(payload));
     this.startHeartbeat();
   }

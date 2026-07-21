@@ -7,7 +7,7 @@ describe("internal engine performance summary", () => {
     const collector = new EnginePerformanceCollector();
     collector.record({
       kind: "execution_profile", requested: "dual_branch_auto",
-      executionMode: "dual_branch", reason: "dual_branch_eligible",
+      executionMode: "adaptive_pool", reason: "adaptive_pool_eligible",
       hardwareConcurrency: 8,
     });
     for (let i = 1; i <= 20; i += 1) {

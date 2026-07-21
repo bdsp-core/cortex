@@ -4,20 +4,20 @@ import type {
 
 export interface ExecutionProfile {
   mode: Exclude<ComputeExecutionMode, "serial_fallback">;
-  computeWorkers: 1 | 2;
+  computeWorkers: number;
   reason:
     | "rollout_disabled"
     | "policy_not_parallelized"
     | "worker_unavailable"
     | "concurrency_unknown"
     | "low_concurrency"
-    | "dual_branch_eligible";
+    | "adaptive_pool_eligible";
 }
 
 /**
- * Conservative device adaptation. hardwareConcurrency is only a browser hint;
- * the ranked n-way scheduler deliberately precomputes only the two most likely
- * outcomes, so more than two compute threads can only add contention.
+ * Conservative startup bounds. The coordinator is one compute worker and the
+ * remainder are immutable ranked-outcome helpers. At least one reported core
+ * is reserved, and two are reserved on devices reporting eight or more.
  */
 export function selectExecutionProfile(args: {
   requested: RequestedComputeMode;
@@ -41,5 +41,8 @@ export function selectExecutionProfile(args: {
   if (cores < 4) {
     return { mode: "serial", computeWorkers: 1, reason: "low_concurrency" };
   }
-  return { mode: "dual_branch", computeWorkers: 2, reason: "dual_branch_eligible" };
+  const computeWorkers = cores >= 12 ? 6
+    : cores >= 8 ? 5
+      : cores >= 5 ? 3 : 2;
+  return { mode: "adaptive_pool", computeWorkers, reason: "adaptive_pool_eligible" };
 }

@@ -7,17 +7,36 @@ import { posteriorMeans } from "./particles";
 import type {
   ComputeEngineInputs, ComputeSegmentMeta, ParticleState, SelectionPhaseTimingV2,
 } from "./types";
+import type { NWaySelectionExecutor } from "./nway_selector_executor";
 
-interface Candidate {
+export interface NWayCandidate {
   k: number;
   segment: ComputeSegmentMeta;
 }
 
-interface LossWorkspace {
+export type NWaySelectionState = Pick<ParticleState, "N" | "K" | "t" | "l" | "w">;
+
+export interface NWayLossWorkspace {
   baselineVariance: number;
   meanT: Float64Array;
   meanL: Float64Array;
   skillScale: Float64Array;
+}
+
+export interface NWayScreeningMoments {
+  K: number;
+  tMean: number[];
+  lMean: number[];
+  tSd: number[];
+  lSd: number[];
+}
+
+export interface NWayDomainScreenResult {
+  taskK: number;
+  entropySegIds: number[];
+  fisherSegIds: number[];
+  entropyMs: number;
+  fisherMs: number;
 }
 
 const FULL_SCAN_LIMIT = 512;
@@ -35,9 +54,9 @@ function taskClass(inputs: ComputeEngineInputs, k: number): "iiic" | "spike" {
 
 function candidates(
   bank: BankArrays, excludedTasks?: ReadonlySet<number>,
-): Candidate[] {
+): NWayCandidate[] {
   if (!bank.segment) throw new Error("n-way selector requires full segment signals");
-  const result: Candidate[] = [];
+  const result: NWayCandidate[] = [];
   for (let k = 0; k < bank.segId.length; k++) {
     if (excludedTasks?.has(k)) continue;
     for (let index = 0; index < bank.segId[k].length; index++) {
@@ -51,7 +70,7 @@ function candidates(
   return result;
 }
 
-function workspace(st: ParticleState): LossWorkspace {
+export function makeNWayLossWorkspace(st: NWaySelectionState): NWayLossWorkspace {
   const moments = posteriorMeans(st);
   let baselineVariance = 0;
   for (let k = 0; k < st.K; k++) {
@@ -70,8 +89,8 @@ function workspace(st: ParticleState): LossWorkspace {
 }
 
 export function expectedNWayLoss(
-  st: ParticleState, inputs: ComputeEngineInputs,
-  candidate: Candidate, cached = workspace(st),
+  st: NWaySelectionState, inputs: ComputeEngineInputs,
+  candidate: NWayCandidate, cached = makeNWayLossWorkspace(st),
 ): number {
   const kind = taskClass(inputs, candidate.k);
   const outcomeCount = kind === "spike" ? 2 : 6;
@@ -125,10 +144,10 @@ function evenlySpaced(length: number, count: number): number[] {
 }
 
 function highestScoring(
-  domain: readonly Candidate[], count: number,
-  score: (candidate: Candidate) => number,
-): Candidate[] {
-  const best: { candidate: Candidate; value: number }[] = [];
+  domain: readonly NWayCandidate[], count: number,
+  score: (candidate: NWayCandidate) => number,
+): NWayCandidate[] {
+  const best: { candidate: NWayCandidate; value: number }[] = [];
   for (const candidate of domain) {
     const entry = { candidate, value: score(candidate) };
     let position = best.length;
@@ -149,7 +168,8 @@ function highestScoring(
 }
 
 function fisherUtility(
-  st: ParticleState, inputs: ComputeEngineInputs, candidate: Candidate,
+  st: Pick<NWaySelectionState, "K">,
+  inputs: ComputeEngineInputs, candidate: NWayCandidate,
   moments: ReturnType<typeof posteriorMeans>, workspace: {
     meanT: Float64Array;
     meanL: Float64Array;
@@ -185,15 +205,52 @@ function fisherUtility(
   return utility;
 }
 
+export function screenNWayDomain(
+  inputs: ComputeEngineInputs, taskK: number,
+  domain: readonly NWayCandidate[], moments: NWayScreeningMoments,
+): NWayDomainScreenResult {
+  const kind = taskClass(inputs, taskK);
+  const meanT = Float64Array.from(moments.tMean);
+  const meanL = Float64Array.from(moments.lMean);
+  const probabilities = new Float64Array(kind === "spike" ? 2 : 6);
+  const probabilityWorkspace = makeResponseProbabilityWorkspace(moments.K);
+  const entropyStartedAt = performance.now();
+  const byEntropy = highestScoring(domain, ENTROPY_PER_TASK, (candidate) => {
+    fillResponseProbabilities(
+      kind, taskK, candidate.segment, meanT, meanL, 0, moments.K,
+      probabilities, probabilityWorkspace,
+    );
+    return entropy(probabilities);
+  });
+  const entropyMs = performance.now() - entropyStartedAt;
+  const fisherWorkspace = {
+    meanT: Float64Array.from(moments.tMean),
+    meanL: Float64Array.from(moments.lMean),
+    jacobian: makeScreeningJacobianWorkspace(moments.K),
+    base2: new Float64Array(2),
+    base6: new Float64Array(6),
+  };
+  const fisherStartedAt = performance.now();
+  const byFisher = highestScoring(domain, FISHER_PER_TASK, (candidate) =>
+    fisherUtility({ K: moments.K }, inputs, candidate, moments, fisherWorkspace));
+  return {
+    taskK,
+    entropySegIds: byEntropy.map((candidate) => candidate.segment.segId),
+    fisherSegIds: byFisher.map((candidate) => candidate.segment.segId),
+    entropyMs,
+    fisherMs: performance.now() - fisherStartedAt,
+  };
+}
+
 function shortlist(
-  st: ParticleState, inputs: ComputeEngineInputs, all: Candidate[],
+  st: NWaySelectionState, inputs: ComputeEngineInputs, all: NWayCandidate[],
   timing?: SelectionPhaseTimingV2,
-): Candidate[] {
+): NWayCandidate[] {
   if (all.length <= FULL_SCAN_LIMIT) {
     if (timing) timing.shortlistCount += all.length;
     return all.slice();
   }
-  const selected = new Set<Candidate>();
+  const selected = new Set<NWayCandidate>();
   const momentsStartedAt = performance.now();
   const moments = posteriorMeans(st);
   const meanT = Float64Array.from(moments.tMean);
@@ -209,7 +266,7 @@ function shortlist(
     base6: new Float64Array(6),
   };
   if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
-  const domains = Array.from({ length: st.K }, () => [] as Candidate[]);
+  const domains = Array.from({ length: st.K }, () => [] as NWayCandidate[]);
   for (const candidate of all) domains[candidate.k].push(candidate);
   for (let askedK = 0; askedK < st.K; askedK++) {
     const domain = domains[askedK];
@@ -259,7 +316,7 @@ function score(
   timing?: SelectionPhaseTimingV2,
 ): Chosen[] {
   const momentsStartedAt = performance.now();
-  const cached = workspace(st);
+  const cached = makeNWayLossWorkspace(st);
   if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
   const candidatesStartedAt = performance.now();
   const all = candidates(bank, excludedTasks);
@@ -281,6 +338,119 @@ function score(
   return scored;
 }
 
+export function prepareNWayShortlist(
+  st: NWaySelectionState, inputs: ComputeEngineInputs, bank: BankArrays,
+  excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+): NWayCandidate[] {
+  const candidatesStartedAt = performance.now();
+  const all = candidates(bank, excludedTasks);
+  if (timing) {
+    timing.candidatePreparationMs += performance.now() - candidatesStartedAt;
+    timing.candidateCount += all.length;
+  }
+  return shortlist(st, inputs, all, timing);
+}
+
+export async function prepareNWayShortlistWithExecutor(
+  st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
+  executor: NWaySelectionExecutor,
+  excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+): Promise<NWayCandidate[]> {
+  void inputs; // executor workers own the immutable configured task registry
+  const candidatesStartedAt = performance.now();
+  const all = candidates(bank, excludedTasks);
+  if (timing) {
+    timing.candidatePreparationMs += performance.now() - candidatesStartedAt;
+    timing.candidateCount += all.length;
+  }
+  if (all.length <= FULL_SCAN_LIMIT) {
+    if (timing) timing.shortlistCount += all.length;
+    return all.slice();
+  }
+  const momentsStartedAt = performance.now();
+  const rawMoments = posteriorMeans(st);
+  const moments: NWayScreeningMoments = { K: st.K, ...rawMoments };
+  if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
+  const domains = Array.from({ length: st.K }, () => [] as NWayCandidate[]);
+  for (const candidate of all) domains[candidate.k].push(candidate);
+  const selected = new Set<NWayCandidate>();
+  const activeDomains: { taskK: number; segIds: number[] }[] = [];
+  for (let taskK = 0; taskK < domains.length; taskK++) {
+    const domain = domains[taskK];
+    if (domain.length === 0) continue;
+    const coarseStartedAt = performance.now();
+    for (const index of evenlySpaced(domain.length, COARSE_PER_TASK)) {
+      selected.add(domain[index]);
+    }
+    const binWidth = Math.max(1, Math.ceil(domain.length / COARSE_PER_TASK));
+    for (let start = 0; start < domain.length; start += binWidth) {
+      const end = Math.min(domain.length, start + binWidth);
+      let best = domain[start];
+      for (let index = start + 1; index < end; index++) {
+        if (domain[index].segment.sSd[taskK] < best.segment.sSd[taskK]) {
+          best = domain[index];
+        }
+      }
+      if (best) selected.add(best);
+    }
+    if (timing) timing.coarseMinSdScanMs += performance.now() - coarseStartedAt;
+    activeDomains.push({
+      taskK,
+      segIds: domain.map((candidate) => candidate.segment.segId),
+    });
+  }
+  const screens = await executor.screen(moments, activeDomains);
+  for (const screen of screens) {
+    const domain = domains[screen.taskK];
+    const byId = new Map(domain.map((candidate) => [candidate.segment.segId, candidate]));
+    for (const segId of screen.entropySegIds) {
+      const candidate = byId.get(segId);
+      if (!candidate) throw new Error("entropy screen returned an ineligible segment");
+      selected.add(candidate);
+    }
+    for (const segId of screen.fisherSegIds) {
+      const candidate = byId.get(segId);
+      if (!candidate) throw new Error("Fisher screen returned an ineligible segment");
+      selected.add(candidate);
+    }
+  }
+  if (timing && screens.length > 0) {
+    timing.entropyScanMs += Math.max(...screens.map((screen) => screen.entropyMs));
+    timing.fisherScanMs += Math.max(...screens.map((screen) => screen.fisherMs));
+  }
+  const result = all.filter((candidate) => selected.has(candidate));
+  if (timing) timing.shortlistCount += result.length;
+  return result;
+}
+
+export function scoreNWayCandidateLosses(
+  st: NWaySelectionState, inputs: ComputeEngineInputs,
+  candidateList: readonly NWayCandidate[],
+): Float64Array {
+  const cached = makeNWayLossWorkspace(st);
+  const losses = new Float64Array(candidateList.length);
+  for (let index = 0; index < candidateList.length; index++) {
+    losses[index] = expectedNWayLoss(st, inputs, candidateList[index], cached);
+  }
+  return losses;
+}
+
+export function chosenFromNWayLosses(
+  candidateList: readonly NWayCandidate[], losses: ArrayLike<number>,
+): Chosen[] {
+  if (losses.length !== candidateList.length) {
+    throw new Error("n-way candidate loss vector is misaligned");
+  }
+  return candidateList.map((candidate, index) => ({
+    k: candidate.k,
+    s: candidate.segment.sMean[candidate.k],
+    sSd: candidate.segment.sSd[candidate.k],
+    segId: candidate.segment.segId,
+    segment: candidate.segment,
+    loss: losses[index],
+  })).sort((a, b) => a.loss - b.loss);
+}
+
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
 
 export function chooseNWayItem(
@@ -298,6 +468,38 @@ export function chooseFirstNWayItem(
   timing?: SelectionPhaseTimingV2,
 ): Chosen {
   const scored = score(st, inputs, bank, excludedTasks, timing);
+  const count = Math.min(topN, scored.length);
+  return count ? scored[rng.int(count)] : NO_ITEM;
+}
+
+export async function chooseNWayItemWithExecutor(
+  st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
+  executor: NWaySelectionExecutor,
+  excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+): Promise<Chosen> {
+  const shortlisted = await prepareNWayShortlistWithExecutor(
+    st, inputs, bank, executor, excludedTasks, timing,
+  );
+  const refinementStartedAt = performance.now();
+  const losses = await executor.score(st, shortlisted);
+  const scored = chosenFromNWayLosses(shortlisted, losses);
+  if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
+  return scored[0] ?? NO_ITEM;
+}
+
+export async function chooseFirstNWayItemWithExecutor(
+  st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
+  topN: number, rng: { int: (n: number) => number },
+  executor: NWaySelectionExecutor,
+  excludedTasks?: ReadonlySet<number>, timing?: SelectionPhaseTimingV2,
+): Promise<Chosen> {
+  const shortlisted = await prepareNWayShortlistWithExecutor(
+    st, inputs, bank, executor, excludedTasks, timing,
+  );
+  const refinementStartedAt = performance.now();
+  const losses = await executor.score(st, shortlisted);
+  const scored = chosenFromNWayLosses(shortlisted, losses);
+  if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
   const count = Math.min(topN, scored.length);
   return count ? scored[rng.int(count)] : NO_ITEM;
 }

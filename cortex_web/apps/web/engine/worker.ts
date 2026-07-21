@@ -16,11 +16,13 @@ import { WebCortexSession, seedFromSessionId } from "./session";
 import type { ComputeEngineInputs } from "./types";
 import type { EngineWorkerRequest, EngineWorkerResponse } from "./worker_protocol";
 import { BranchWorkerExecutor } from "./branch_worker_executor";
+import { NWaySelectorWorkerExecutor } from "./nway_selector_executor";
 import { selectExecutionProfile } from "./execution_profile";
 import { unpackComputeInputs } from "./compute_payload";
 
 let session: WebCortexSession | null = null;
 let branchExecutor: BranchWorkerExecutor | null = null;
+let selectionExecutor: NWaySelectorWorkerExecutor | null = null;
 
 function estimatedWorkerMemoryBytes(inputs: ComputeEngineInputs, workers: number): number {
   const K = inputs.taskCodes.length;
@@ -41,18 +43,23 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         typeof msg.seed === "number" ? msg.seed : await seedFromSessionId(msg.sessionId);
       branchExecutor?.dispose();
       branchExecutor = null;
-      const hardwareConcurrency = self.navigator.hardwareConcurrency || undefined;
+      selectionExecutor?.dispose();
+      selectionExecutor = null;
+      const qualifiedOverride = msg.qualificationHardwareConcurrency;
+      const hardwareConcurrency = Number.isFinite(qualifiedOverride)
+        && qualifiedOverride !== undefined && qualifiedOverride >= 1
+        ? qualifiedOverride : self.navigator.hardwareConcurrency || undefined;
       let profile = selectExecutionProfile({
         requested: msg.requestedComputeMode ?? "serial",
         policy: inputs.terminationPolicy ?? "ad6",
         hardwareConcurrency,
         workerAvailable: typeof Worker !== "undefined",
       });
-      if (profile.mode === "dual_branch") {
-        const candidate = new BranchWorkerExecutor(inputs);
+      if (profile.mode === "adaptive_pool") {
+        const candidate = new NWaySelectorWorkerExecutor(inputs, profile.computeWorkers);
         try {
           await candidate.ready();
-          branchExecutor = candidate;
+          selectionExecutor = candidate;
         } catch {
           candidate.dispose();
           profile = {
@@ -79,6 +86,8 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         onDone: (result) => {
           branchExecutor?.dispose();
           branchExecutor = null;
+          selectionExecutor?.dispose();
+          selectionExecutor = null;
           post({ type: "done", result }, [
             result.traj.t.buffer, result.traj.l.buffer, result.traj.w.buffer,
           ]);
@@ -89,11 +98,14 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
       }, {
         speculative: msg.speculative ?? true,
         ...(branchExecutor ? { branchExecutor } : {}),
+        ...(selectionExecutor ? { selectionExecutor } : {}),
       });
       session.run().catch((e) =>
         {
           branchExecutor?.dispose();
           branchExecutor = null;
+          selectionExecutor?.dispose();
+          selectionExecutor = null;
           post({ type: "error", message: String(e?.stack || e) });
         },
       );
@@ -102,11 +114,15 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
     } else if (msg.type === "abort") {
       branchExecutor?.dispose();
       branchExecutor = null;
+      selectionExecutor?.dispose();
+      selectionExecutor = null;
       session?.abort();
     }
   } catch (e: any) {
     branchExecutor?.dispose();
     branchExecutor = null;
+    selectionExecutor?.dispose();
+    selectionExecutor = null;
     post({ type: "error", message: String(e?.stack || e) });
   }
 };

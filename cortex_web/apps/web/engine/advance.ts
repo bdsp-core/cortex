@@ -20,7 +20,11 @@ import {
 } from "./choose_item";
 import { makeResponseObservation } from "./nway_likelihood";
 import { isNWaySession } from "./nway_profile";
-import { chooseFirstNWayItem, chooseNWayItem } from "./nway_selector";
+import {
+  chooseFirstNWayItem, chooseFirstNWayItemWithExecutor,
+  chooseNWayItem, chooseNWayItemWithExecutor,
+} from "./nway_selector";
+import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import { EngineTerminationPolicy, VERDICT } from "./policy";
 import {
   PRECISION_STATUS, PrecisionDiagnostics, PrecisionPolicy,
@@ -319,6 +323,69 @@ export function chooseNext(
   return chosen;
 }
 
+/** Async exact selector path used only by native Precision sessions. Policy,
+ * eligibility, variety, and opener RNG semantics are identical to chooseNext;
+ * only exact shortlisted candidate losses are delegated. */
+export async function chooseNextWithExecutor(
+  core: SessionCore, inputs: ComputeEngineInputs, params: AdvanceParams,
+  trialIndex: number, executor: NWaySelectionExecutor,
+  preparedPrecisionBank?: BankArrays,
+  selectionTiming?: SelectionPhaseTimingV2,
+): Promise<Chosen> {
+  if (!isNWaySession(inputs) || !(core.policy instanceof PrecisionPolicy)) {
+    return chooseNext(
+      core, inputs, params, trialIndex, preparedPrecisionBank, selectionTiming,
+    );
+  }
+  const precisionPolicy = core.policy;
+  const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
+  let bank = preparedPrecisionBank
+    ?? precisionRemainingBank(inputs, core.remaining);
+  bank = precisionPolicy.prepareCandidates(bank, core.nPerTask);
+  core.lastOutcomes = precisionPolicy.domainStatuses;
+  const statuses = precisionPolicy.domainStatuses;
+  let allowed: number[];
+  const spikeActive = k7Spike
+    && statuses[spikeIdx] === PRECISION_STATUS.ACTIVE
+    && core.nPerTask[spikeIdx] < precisionPolicy.perDomainCap
+    && bank.sMean[spikeIdx].length > 0;
+  if (spikeActive) {
+    allowed = [spikeIdx];
+  } else {
+    const active = Array.from({ length: K }, (_, k) => k).filter(
+      (k) => statuses[k] === PRECISION_STATUS.ACTIVE
+        && core.nPerTask[k] < precisionPolicy.perDomainCap
+        && bank.sMean[k].length > 0,
+    );
+    allowed = active;
+    if (trialIndex > 0 && core.streakCount >= maxConsecutiveSameDomain
+        && active.includes(core.lastTaskK)) {
+      const others = active.filter((k) => k !== core.lastTaskK);
+      if (others.length) {
+        allowed = others;
+      } else {
+        const variety = Array.from({ length: K }, (_, k) => k).filter(
+          (k) => k >= 1 && k !== core.lastTaskK
+            && statuses[k] === PRECISION_STATUS.ESTIMATE_COMPLETE
+            && core.nPerTask[k] < precisionPolicy.perDomainCap
+            && bank.sMean[k].length > 0,
+        );
+        if (variety.length) allowed = variety;
+      }
+    }
+  }
+  const excluded = new Set<number>();
+  for (let k = 0; k < K; k++) if (!allowed.includes(k)) excluded.add(k);
+  return trialIndex === 0
+    ? chooseFirstNWayItemWithExecutor(
+        core.state, inputs, bank, firstItemTopN, core.rng,
+        executor, excluded, selectionTiming,
+      )
+    : chooseNWayItemWithExecutor(
+        core.state, inputs, bank, executor, excluded, selectionTiming,
+      );
+}
+
 // Process one answer on `core` (MUTATES it): reweight → maybe resample +
 // rejuvenate → bookkeeping → AD6 evaluate + per-domain cap → diag → choose the
 // next item (skipped when the session is done). Returns the per-trial outputs.
@@ -326,6 +393,7 @@ export function advanceCore(
   core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, rawPick: number,
   params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
+  deferSelection = false,
 ): AdvanceResult {
   const startedAt = performance.now();
   const { state, rng, policy } = core;
@@ -434,7 +502,7 @@ export function advanceCore(
     stopReason = policy.name === "precision_v1"
       ? res.stopReason
       : res.stop ? "all_resolved" : "resolved_or_referred";
-  } else {
+  } else if (!deferSelection) {
     nextChosen = chooseNext(
       core, inputs, params, trialIndex + 1, preparedPrecisionBank, phaseV2.selection,
     );
@@ -462,4 +530,33 @@ export function advanceCore(
       phaseV2,
     },
   };
+}
+
+export async function advanceCoreWithSelectionExecutor(
+  core: SessionCore, inputs: ComputeEngineInputs, chosen: Chosen, rawPick: number,
+  params: AdvanceParams, trialIndex: number, executor: NWaySelectionExecutor,
+  preparedPrecisionBank?: BankArrays,
+): Promise<AdvanceResult> {
+  const result = advanceCore(
+    core, inputs, chosen, rawPick, params, trialIndex, preparedPrecisionBank, true,
+  );
+  if (result.done) return result;
+  const selectionStartedAt = performance.now();
+  try {
+    result.nextChosen = await chooseNextWithExecutor(
+      result.core, inputs, params, trialIndex + 1, executor,
+      preparedPrecisionBank, result.timing.phaseV2?.selection,
+    );
+    result.timing.executionMode = "adaptive_pool";
+  } catch {
+    result.nextChosen = chooseNext(
+      result.core, inputs, params, trialIndex + 1,
+      preparedPrecisionBank, result.timing.phaseV2?.selection,
+    );
+    result.timing.executionMode = "serial_fallback";
+  }
+  const duration = performance.now() - selectionStartedAt;
+  result.timing.selectionMs += duration;
+  result.timing.totalMs += duration;
+  return result;
 }

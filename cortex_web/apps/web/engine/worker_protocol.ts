@@ -13,6 +13,8 @@ export type EngineWorkerRequest =
       seed?: number;
       speculative?: boolean;
       requestedComputeMode?: RequestedComputeMode;
+      /** Qualification-only device-tier override; omitted by the application. */
+      qualificationHardwareConcurrency?: number;
     }
   | { type: "answer"; pick: number }
   | { type: "abort" };

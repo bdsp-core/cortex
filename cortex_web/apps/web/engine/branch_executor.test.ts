@@ -12,6 +12,7 @@ import { precisionGoldenInputs } from "./__testdata__/precision_fixture";
 
 /** Structured-clone semantics without browser globals; real workers are gated separately. */
 class SnapshotBranchExecutor implements BranchExecutor {
+  readonly capacity = 1;
   private readonly prior;
 
   constructor(private readonly inputs: ComputeEngineInputs) {
@@ -44,6 +45,7 @@ class SnapshotBranchExecutor implements BranchExecutor {
 }
 
 class RejectingBranchExecutor implements BranchExecutor {
+  readonly capacity = 1;
   advance(): Promise<AdvanceResult> {
     return Promise.reject(new Error("injected worker failure"));
   }

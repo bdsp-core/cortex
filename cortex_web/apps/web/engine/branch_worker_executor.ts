@@ -16,30 +16,37 @@ interface PendingJob {
   resolve: (result: AdvanceResult) => void;
   reject: (error: Error) => void;
   timeoutId: number;
+  slot: BranchSlot;
 }
 
 interface BranchSlot {
   worker: Worker;
   ready: Promise<void>;
+  busy: boolean;
 }
 
 /**
- * One persistent helper for the second-ranked response branch. The coordinator
- * computes the most likely branch concurrently, so total compute concurrency
- * is two without paying for two helper-worker copies of the full bank.
+ * Persistent bounded pool for ranked immutable response branches. The
+ * coordinator computes rank one; these helpers compute the next outcomes up
+ * to measured device capacity. Only the observed branch may be adopted.
  */
 export class BranchWorkerExecutor implements BranchExecutor {
   private static readonly READY_TIMEOUT_MS = 10_000;
   private static readonly JOB_TIMEOUT_MS = 30_000;
-  private readonly slot: BranchSlot;
+  readonly capacity: number;
+  private readonly slots: BranchSlot[];
   private readonly pending = new Map<number, PendingJob>();
   private readonly prior;
   private nextJobId = 1;
   private disposed = false;
 
-  constructor(private readonly inputs: ComputeEngineInputs) {
+  constructor(private readonly inputs: ComputeEngineInputs, helperCount = 1) {
+    if (!Number.isInteger(helperCount) || helperCount < 1 || helperCount > 5) {
+      throw new Error(`invalid branch helper count: ${helperCount}`);
+    }
+    this.capacity = helperCount;
     this.prior = precomputePriorPair(inputs.corrL, inputs.corrT);
-    this.slot = this.createSlot();
+    this.slots = Array.from({ length: helperCount }, () => this.createSlot());
   }
 
   async ready(): Promise<void> {
@@ -50,7 +57,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
       ), BranchWorkerExecutor.READY_TIMEOUT_MS);
     });
     try {
-      await Promise.race([this.slot.ready, timeout]);
+      await Promise.race([Promise.all(this.slots.map((slot) => slot.ready)), timeout]);
     } finally {
       self.clearTimeout(timeoutId);
     }
@@ -64,6 +71,9 @@ export class BranchWorkerExecutor implements BranchExecutor {
     pick: number,
   ): Promise<AdvanceResult> {
     if (this.disposed) throw new Error("branch worker executor is disposed");
+    const slot = this.slots.find((candidate) => !candidate.busy);
+    if (!slot) throw new Error("branch worker pool has no idle slot");
+    slot.busy = true;
     const jobId = this.nextJobId++;
     const request: Extract<BranchWorkerRequest, { type: "advance" }> = {
       type: "advance",
@@ -77,11 +87,12 @@ export class BranchWorkerExecutor implements BranchExecutor {
     const result = new Promise<AdvanceResult>((resolve, reject) => {
       const timeoutId = self.setTimeout(() => {
         this.pending.delete(jobId);
+        slot.busy = false;
         reject(new Error(`branch worker job ${jobId} timed out`));
       }, BranchWorkerExecutor.JOB_TIMEOUT_MS);
-      this.pending.set(jobId, { resolve, reject, timeoutId });
+      this.pending.set(jobId, { resolve, reject, timeoutId, slot });
     });
-    this.slot.worker.postMessage(
+    slot.worker.postMessage(
       request, { transfer: branchRequestTransferables(request) },
     );
     return result;
@@ -90,7 +101,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.slot.worker.terminate();
+    for (const slot of this.slots) slot.worker.terminate();
     const error = new Error("branch worker executor disposed");
     for (const pending of this.pending.values()) {
       self.clearTimeout(pending.timeoutId);
@@ -101,6 +112,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
 
   private createSlot(): BranchSlot {
     const worker = new Worker(new URL("./branch_worker.ts", import.meta.url), { type: "module" });
+    const slot: BranchSlot = { worker, ready: Promise.resolve(), busy: false };
     let markReady!: () => void;
     let rejectReady!: (error: Error) => void;
     const ready = new Promise<void>((resolve, reject) => {
@@ -117,6 +129,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
           const pending = this.pending.get(message.jobId);
           this.pending.delete(message.jobId);
           if (pending) self.clearTimeout(pending.timeoutId);
+          if (pending) pending.slot.busy = false;
           pending?.reject(error);
         }
         return;
@@ -124,6 +137,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
       const pending = this.pending.get(message.jobId);
       this.pending.delete(message.jobId);
       if (pending) self.clearTimeout(pending.timeoutId);
+      if (pending) pending.slot.busy = false;
       pending?.resolve(restoreAdvanceResult(message.payload, this.inputs, this.prior));
     };
     worker.onerror = (event) => {
@@ -132,6 +146,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
       rejectReady(error);
       for (const pending of this.pending.values()) {
         self.clearTimeout(pending.timeoutId);
+        pending.slot.busy = false;
         pending.reject(error);
       }
       this.pending.clear();
@@ -139,6 +154,7 @@ export class BranchWorkerExecutor implements BranchExecutor {
     const payload = packComputeInputs(this.inputs);
     const init: BranchWorkerRequest = { type: "init", payload };
     worker.postMessage(init, { transfer: computePayloadTransferables(payload) });
-    return { worker, ready };
+    slot.ready = ready;
+    return slot;
   }
 }

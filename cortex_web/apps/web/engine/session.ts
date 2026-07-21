@@ -17,7 +17,7 @@ import {
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
-import { Chosen, predictedYesProbability } from "./choose_item";
+import { BankArrays, Chosen, predictedYesProbability } from "./choose_item";
 import { isNWaySession, validateNWayInputs } from "./nway_profile";
 import { predictedOutcomeDistribution, rankOutcomes } from "./nway_selector";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
@@ -26,9 +26,10 @@ import {
 } from "./precision_policy";
 import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
+import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import {
-  SessionCore, AdvanceParams, AdvanceResult, cloneCore, advanceCore, chooseNext,
-  precisionRemainingBank,
+  SessionCore, AdvanceParams, AdvanceResult, advanceCore,
+  advanceCoreWithSelectionExecutor, cloneCore, chooseNext, precisionRemainingBank,
 } from "./advance";
 
 // Default particle count (frozen-pilot instrument). v15 staging (OPT-IN) lets a
@@ -85,6 +86,7 @@ export interface SessionOptions {
   // (tests/back-compat opt in explicitly; the worker enables it in production).
   speculative?: boolean;
   branchExecutor?: BranchExecutor;
+  selectionExecutor?: NWaySelectionExecutor;
 }
 
 export interface SessionResult {
@@ -127,6 +129,7 @@ export class WebCortexSession {
   private proposalScale: number;
   private speculative: boolean;
   private branchExecutor?: BranchExecutor;
+  private selectionExecutor?: NWaySelectionExecutor;
   private cb: SessionCallbacks;
   private answerResolver: ((pick: number) => void) | null = null;
   private aborted = false;
@@ -142,6 +145,7 @@ export class WebCortexSession {
     this.proposalScale = 2.38 / Math.sqrt(2 * inputs.taskCodes.length);
     this.speculative = opts.speculative ?? false;
     this.branchExecutor = opts.branchExecutor;
+    this.selectionExecutor = opts.selectionExecutor;
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
@@ -167,6 +171,22 @@ export class WebCortexSession {
   // microtask because Worker message delivery itself is a task.
   private yieldToWorker(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  private advance(
+    core: SessionCore, chosen: Chosen, rawPick: number,
+    params: AdvanceParams, trialIndex: number,
+    preparedPrecisionBank?: BankArrays,
+  ): Promise<AdvanceResult> {
+    if (this.selectionExecutor) {
+      return advanceCoreWithSelectionExecutor(
+        core, this.inputs, chosen, rawPick, params, trialIndex,
+        this.selectionExecutor, preparedPrecisionBank,
+      );
+    }
+    return Promise.resolve(advanceCore(
+      core, this.inputs, chosen, rawPick, params, trialIndex, preparedPrecisionBank,
+    ));
   }
 
   async run(): Promise<SessionResult> {
@@ -268,15 +288,17 @@ export class WebCortexSession {
       let bankPreparationMs = performance.now() - bankStartedAt;
 
       // Bounded ranked speculation: compute the most probable raw outcome on
-      // the coordinator and, when available, the second-ranked outcome on one
-      // helper. The other four IIIC outcomes remain deferred; an observed miss
-      // is calculated from an untouched authoritative clone.
+      // the coordinator and the next outcomes on immutable helper snapshots up
+      // to the measured pool capacity. An uncached observed outcome is always
+      // calculated from untouched authoritative state.
       let branches: Map<number, AdvanceResult> | null = null;
       let firstPick: number | null = null;
-      let helperPick: number | null = null;
-      let helperReady = false;
-      let helperReadyAtAnswer = false;
-      let helperJob: Promise<AdvanceResult> | null = null;
+      const helperJobs = new Map<number, {
+        ready: boolean;
+        readyAtAnswer: boolean;
+        job: Promise<AdvanceResult>;
+        lifecycle: BranchLifecycleV2;
+      }>();
       let rankedOutcomes: { outcome: number; probability: number; rank: number }[] = [];
       const branchLifecycle: BranchLifecycleV2[] = [];
       if (this.speculative) {
@@ -294,9 +316,10 @@ export class WebCortexSession {
             })();
         rankedOutcomes = rankOutcomes(distribution);
         firstPick = rankedOutcomes[0].outcome;
-        helperPick = rankedOutcomes[1]?.outcome ?? null;
-        if (this.branchExecutor && helperPick !== null) {
-          const helperRanked = rankedOutcomes[1];
+        const executor = this.branchExecutor;
+        const helperRankedOutcomes = executor
+          ? rankedOutcomes.slice(1, 1 + executor.capacity) : [];
+        for (const helperRanked of helperRankedOutcomes) {
           const helperLifecycle: BranchLifecycleV2 = {
             outcome: helperRanked.outcome,
             rank: helperRanked.rank,
@@ -312,19 +335,27 @@ export class WebCortexSession {
           };
           branchLifecycle.push(helperLifecycle);
           try {
-            helperJob = this.branchExecutor.advance(
-              this.core, chosen, params, trialIndex, helperPick,
+            const helper = {
+              ready: false,
+              readyAtAnswer: false,
+              lifecycle: helperLifecycle,
+              job: Promise.resolve(null as unknown as AdvanceResult),
+            };
+            helper.job = executor!.advance(
+              this.core, chosen, params, trialIndex, helperRanked.outcome,
             ).then((result) => {
-              helperReady = true;
+              helper.ready = true;
               helperLifecycle.durationMs = result.timing.totalMs;
               return result;
             });
             // A predicted response leaves the alternate result unused. Its
             // failure must never surface as an unhandled rejection.
-            void helperJob.catch(() => undefined);
+            void helper.job.catch(() => undefined);
+            helperJobs.set(helperRanked.outcome, helper);
           } catch {
-            this.branchExecutor.dispose();
+            executor!.dispose();
             this.branchExecutor = undefined;
+            break;
           }
         }
         const firstRanked = rankedOutcomes[0];
@@ -342,56 +373,32 @@ export class WebCortexSession {
           durationMs: null,
         };
         branchLifecycle.push(firstLifecycle);
-        const firstResult = advanceCore(
-          cloneCore(this.core), this.inputs, chosen, firstPick, params, trialIndex,
+        const firstResult = await this.advance(
+          cloneCore(this.core), chosen, firstPick, params, trialIndex,
           preparedPrecisionBank,
         );
         firstLifecycle.durationMs = firstResult.timing.totalMs;
         branches.set(firstPick, firstResult);
 
-        // If the participant answered during the first branch, process that
-        // message now and compute only the requested branch. Otherwise use the
-        // remaining think-time to finish the second branch as before.
+        // Process an answer/abort message that arrived during synchronous rank
+        // one computation. Helpers continue independently.
         await this.yieldToWorker();
-        if (!this.aborted && observedPick !== undefined && observedPick >= 0
-            && !helperJob) {
-          if (!branches.has(observedPick)) {
-            const requiredResult = advanceCore(
-              cloneCore(this.core), this.inputs, chosen, observedPick, params, trialIndex,
-              preparedPrecisionBank,
-            );
-            const requiredRanked = rankedOutcomes.find(
-              (entry) => entry.outcome === observedPick,
-            );
-            branchLifecycle.push({
-              outcome: observedPick,
-              rank: requiredRanked?.rank ?? -1,
-              probability: requiredRanked?.probability ?? 0,
-              role: "serial_required",
-              queued: true,
-              started: true,
-              readyAtAnswer: false,
-              adopted: false,
-              cancelled: false,
-              discarded: false,
-              durationMs: requiredResult.timing.totalMs,
-            });
-            branches.set(observedPick, requiredResult);
-          }
-        }
       }
       // An abort that arrived during the (synchronous) speculation above.
       if (this.aborted) { stopReason = "aborted"; break; }
 
       const pick = observedPick ?? await answerPromise;
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
-      helperReadyAtAnswer = helperReady;
+      for (const helper of helperJobs.values()) {
+        helper.readyAtAnswer = helper.ready;
+      }
 
       let res: AdvanceResult;
-      if (helperJob && pick === helperPick) {
-        const readyAtAnswer = helperReadyAtAnswer;
+      const selectedHelper = helperJobs.get(pick);
+      if (selectedHelper) {
+        const readyAtAnswer = selectedHelper.readyAtAnswer;
         try {
-          res = await helperJob;
+          res = await selectedHelper.job;
           res.timing.requiredBranchReadyAtAnswer = readyAtAnswer;
         } catch {
           // Fail closed to the untouched authoritative core. No helper ever
@@ -403,8 +410,8 @@ export class WebCortexSession {
             ? precisionRemainingBank(this.inputs, this.core.remaining, chosen.segId)
             : undefined;
           bankPreparationMs = performance.now() - fallbackBankStartedAt;
-          res = advanceCore(
-            this.core, this.inputs, chosen, pick, params, trialIndex,
+          res = await this.advance(
+            this.core, chosen, pick, params, trialIndex,
             preparedPrecisionBank,
           );
           const requiredRanked = rankedOutcomes.find((entry) => entry.outcome === pick);
@@ -425,13 +432,13 @@ export class WebCortexSession {
           res.timing.speculative = false;
         }
       } else {
-        res = branches?.get(pick) ?? advanceCore(
-            this.core, this.inputs, chosen, pick, params, trialIndex,
-            preparedPrecisionBank,
-          );
+        const cachedBranch = branches?.get(pick);
+        res = cachedBranch ?? await this.advance(
+          this.core, chosen, pick, params, trialIndex, preparedPrecisionBank,
+        );
         res.timing.bankPreparationMs = bankPreparationMs;
         res.timing.speculative = this.speculative;
-        if (helperJob && pick === firstPick) {
+        if (helperJobs.size > 0 && pick === firstPick) {
           res.timing.executionMode = "dual_branch";
           res.timing.requiredBranchReadyAtAnswer = true;
         }
@@ -454,7 +461,9 @@ export class WebCortexSession {
         });
       }
       for (const branch of branchLifecycle) {
-        if (branch.role === "helper") branch.readyAtAnswer = helperReadyAtAnswer;
+        if (branch.role === "helper") {
+          branch.readyAtAnswer = helperJobs.get(branch.outcome)?.readyAtAnswer ?? false;
+        }
         branch.adopted = branch.outcome === pick
           && (branch.role !== "helper" || res.timing.executionMode !== "serial_fallback");
         branch.discarded = !branch.adopted;

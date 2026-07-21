@@ -439,7 +439,7 @@ export function resampleAndRejuvenate(
 
 // weighted per-task posterior means + standard deviations (telemetry).
 // Single pass: accumulates first and second moments simultaneously.
-export function posteriorMeans(st: ParticleState): {
+export function posteriorMeans(st: Pick<ParticleState, "N" | "K" | "t" | "l" | "w">): {
   tMean: number[]; lMean: number[]; tSd: number[]; lSd: number[];
 } {
   const { N, K, t, l, w } = st;

@@ -22,6 +22,7 @@ interface HarnessOptions {
   seed?: number;
   sessionId?: string;
   deriveSeedFromSessionId?: boolean;
+  qualificationHardwareConcurrency?: number;
 }
 
 declare global {
@@ -90,6 +91,7 @@ window.runWorkerHarness = (mode, options = {}) => new Promise((resolve, reject) 
   client.start(options.inputs ?? nwayWorkerInputs(), options.sessionId ?? "browser-worker-parity", {
     ...(!options.deriveSeedFromSessionId ? { seed: options.seed ?? 31415 } : {}),
     requestedComputeMode: mode,
+    qualificationHardwareConcurrency: options.qualificationHardwareConcurrency,
   });
 });
 

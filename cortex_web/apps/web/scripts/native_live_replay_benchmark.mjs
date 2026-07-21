@@ -24,6 +24,10 @@ const replayQuestions = Math.min(
   fixture.trials.length,
   Math.max(1, Number(process.env.CORTEX_REPLAY_QUESTIONS || fixture.trials.length)),
 );
+const requestedComputeMode = process.env.CORTEX_REPLAY_COMPUTE_MODE || "serial";
+if (requestedComputeMode !== "serial" && requestedComputeMode !== "dual_branch_auto") {
+  throw new Error("CORTEX_REPLAY_COMPUTE_MODE must be serial or dual_branch_auto");
+}
 const replayTrials = fixture.trials.slice(0, replayQuestions);
 assert.equal(fixture.schemaVersion, 1);
 assert.equal(fixture.fixtureKind, "privacy_safe_native_live_replay");
@@ -128,9 +132,13 @@ try {
     )),
     sessionId: `web-${fixture.sampleSeed}`,
     deriveSeedFromSessionId: true,
+    ...(process.env.CORTEX_REPLAY_HARDWARE_CONCURRENCY ? {
+      qualificationHardwareConcurrency: Number(
+        process.env.CORTEX_REPLAY_HARDWARE_CONCURRENCY),
+    } : {}),
   };
-  const run = await page.evaluate(async ({ runOptions }) => {
-    const replay = await window.runWorkerHarness("serial", runOptions);
+  const run = await page.evaluate(async ({ runOptions, computeMode }) => {
+    const replay = await window.runWorkerHarness(computeMode, runOptions);
     const hash = async (value) => {
       const bytes = new TextEncoder().encode(JSON.stringify(value));
       const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -150,7 +158,7 @@ try {
       },
       events: replay.events,
     };
-  }, { runOptions: options });
+  }, { runOptions: options, computeMode: requestedComputeMode });
   assert.equal(run.nQuestions, replayTrials.length);
   const steps = run.events.filter((event) => event.kind === "engine_step");
   assert.equal(steps.length, replayTrials.length);
@@ -159,6 +167,7 @@ try {
   const output = {
     schemaVersion: 1,
     benchmarkKind: "privacy_safe_native_live_replay",
+    requestedComputeMode,
     manifestSha256,
     fixtureSha256: createHash("sha256")
       .update(fs.readFileSync(fixturePath)).digest("hex"),

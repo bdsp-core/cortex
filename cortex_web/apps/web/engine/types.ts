@@ -246,7 +246,8 @@ export type EnginePerformanceEvent =
   | EventLoopHeartbeatEvent;
 
 export type RequestedComputeMode = "serial" | "dual_branch_auto";
-export type ComputeExecutionMode = "serial" | "dual_branch" | "serial_fallback";
+export type ComputeExecutionMode =
+  | "serial" | "dual_branch" | "adaptive_pool" | "serial_fallback";
 
 export interface PriorPieces {
   K: number;
