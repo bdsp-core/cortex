@@ -14,6 +14,7 @@
     "phone-smoke": "node scripts/phone_smoke.mjs",
     "worker-smoke": "node scripts/worker_smoke.mjs",
     "worker-benchmark": "node scripts/worker_full_bank_benchmark.mjs",
+    "native-replay-benchmark": "node scripts/native_live_replay_benchmark.mjs",
     "visual-smoke": "bash scripts/visual_smoke.sh",
     "visual-smoke:update": "bash scripts/visual_smoke.sh --update"
   },
