@@ -1,6 +1,6 @@
-// Shared trainer-facing types (2026-07-17): extracted from the removed
-// incumbent client trainer (trainer/policy.ts, trainer/session.ts) when the
-// server-side learning engine became the sole trainer. The engine adapter
+// Shared trainer-facing types (2026-07-17): retained when the former
+// browser-local learning model was removed and the server-side learning engine
+// became the sole trainer. The engine adapter
 // (serverSession.ts), the controller, and the reveal consume these shapes;
 // the values are produced by the engine service.
 

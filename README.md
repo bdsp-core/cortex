@@ -217,21 +217,12 @@ please cite the repository and the forthcoming manuscript.
 | What are the reference truth invariants? | [`docs/INVARIANT_AUDIT.md`](docs/INVARIANT_AUDIT.md) |
 | Reviewer grade architecture notes | [`CLAUDE.md`](CLAUDE.md) |
 | The full change history | [`CHANGELOG.md`](CHANGELOG.md) |
-| The adaptive-trainer R&D subproject | [`trainer_rd/README.md`](trainer_rd/README.md) |
+| How does the live adaptive trainer work? | [`docs/LIVE_TRAINER.md`](docs/LIVE_TRAINER.md) |
 
-## The `trainer_rd/` subproject
+## Live adaptive trainer
 
-`trainer_rd/` is a self-contained R&D subproject: the adaptive-trainer
-learning-algorithm prototype — an eval→training→re-certification pipeline that
-measures a reader's skill and bias with a sequential Monte Carlo filter, drives
-a POMDP training protocol until each task reaches mastery, and hands off to a
-re-certification layer. It was developed separately and relocated into the repo
-verbatim on 2026-07-06; it is frozen for advisor review.
-
-It is **not part of the shipped distribution**: it carries its own script-style
-test suite and its own interpreter (system `python3`, run from inside
-`trainer_rd/` — see its README), it is absent from the `pyproject.toml` package
-list, and the repo's `pytest` (`testpaths = ["tests"]`) never collects it. Like
-`methodology_rd/` and `discrimination_rd/`, it is a compartmentalized sibling of
-the shipped packages. Repo-wide invariant scans / tree-walk tests must exclude
-it (it vendors frozen copies of the engine and data banks by design).
+The active trainer is the self-contained server-side learning engine under
+`cortex_web/learning-engine-cleaned/`. The browser uses a thin authenticated
+session adapter and has no local model fallback. Historical root-level trainer
+prototypes and ports have been retired; see [`docs/LIVE_TRAINER.md`](docs/LIVE_TRAINER.md)
+for the runtime path and reviewer entry points.

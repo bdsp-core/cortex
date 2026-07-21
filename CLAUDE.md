@@ -108,17 +108,6 @@ Four signed-off deviations from the merge plan §"Phase 6" checklist
   * **Never** vendor `SN1_combined_v2.h5` (D9). It stays in the
     external sibling repo. The unified repo's `data/curated_banks/`
     holds *derived* per-segment signal banks (s_probit), not raw EEG.
-  * **Never** sweep `trainer_rd/` into a repo-wide invariant scan,
-    tree-walk test, or grep/license audit. It is a frozen, verbatim
-    R&D subproject (relocated 2026-07-06) that deliberately vendors its
-    own copies of the engine, `auroc.py`, and the `*_general` data
-    banks; convergence with the production engines is the future port,
-    not a defect to flag. Its script-style suite runs from inside the
-    directory with the system interpreter, NOT pytest — a `conftest.py`
-    guard makes `pytest trainer_rd/` collect 0 items. See
-    `trainer_rd/README.md`. (Same compartmentalization contract as
-    `methodology_rd/` and `discrimination_rd/`.)
-
 ## Engine reproducibility contract
 
 Bit-exact SMC + MCMC reproducibility requires single-thread BLAS:

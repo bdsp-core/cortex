@@ -1198,7 +1198,7 @@ class Database:
         trainer declared a domain mastered, but the participant's next fresh
         retest did NOT pass it) — is cross-referenced in Python by linking each
         training session's final per-task ℓ against ℓ* and the subsequent cert
-        verdict. See docs/TRAINER_PILOT_SAP.md for the endpoint definitions."""
+        verdict. See docs/LIVE_TRAINER.md for the active trainer architecture."""
         def _n(sql: str) -> int:
             row = self._fetchone(sql)
             return int((row["n"] if row else 0) or 0)

@@ -9,8 +9,7 @@ Each gate was landed independently and gated on the existing test suites:
 backend `python -m pytest api/test_server.py` (from `services/`), frontend
 `npx vitest run` + `npx tsc --noEmit` + `npm run build`, research
 `pytest research`. No production behavior changed except where noted; all
-constants and the validated engine/trainer code were left untouched (the
-`engine/` and `trainer/` drift-guards still pass byte-identically).
+constants and validated certification engine were left untouched.
 
 ## Baseline
 

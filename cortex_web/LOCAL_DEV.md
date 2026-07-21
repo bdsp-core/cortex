@@ -137,7 +137,7 @@ cortex_web/
     engine/       The adaptive engine — particle filter, Φ/logΦ numerics,
                   AD6 stopping, item selection. Drift-guarded against the
                   Python reference (engine/core_mcmc.py up the repo).
-    trainer/      The client-side adaptive trainer engine.
+    trainer/      Thin browser adapter and shared types for the server trainer.
     src/          React SPA: App.tsx flow state machine, components/*,
                   api.ts (backend client), transport.ts (retry/outbox).
     ui/theme.ts   Single source of truth for colors, fonts, geometry.
