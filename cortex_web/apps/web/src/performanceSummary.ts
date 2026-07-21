@@ -28,6 +28,61 @@ export interface EnginePerformanceSummaryV1 {
   }>;
 }
 
+export interface ScalarDistribution {
+  count: number;
+  p50: number | null;
+  p95: number | null;
+  max: number | null;
+}
+
+export interface EnginePerformanceSummaryV2
+  extends Omit<EnginePerformanceSummaryV1, "schemaVersion"> {
+  schemaVersion: 2;
+  phaseV2: {
+    candidateBankPreparation: TimingDistribution;
+    selector: {
+      candidatePreparation: TimingDistribution;
+      posteriorMoments: TimingDistribution;
+      coarseMinSdScan: TimingDistribution;
+      entropyScan: TimingDistribution;
+      fisherScan: TimingDistribution;
+      exactRefinement: TimingDistribution;
+      candidateCount: ScalarDistribution;
+      shortlistCount: ScalarDistribution;
+    };
+    particle: {
+      categoricalUpdate: TimingDistribution;
+      ess: TimingDistribution;
+      resampling: TimingDistribution;
+      mhProposalGeneration: TimingDistribution;
+      mhPrior: TimingDistribution;
+      mhHistoryLikelihood: TimingDistribution;
+      mhAcceptance: TimingDistribution;
+      mhCopying: TimingDistribution;
+    };
+    outcomes: {
+      observedRankCounts: number[];
+      observedProbability: ScalarDistribution;
+      cachedProbabilityMass: ScalarDistribution;
+    };
+    branches: {
+      queuedCount: number;
+      startedCount: number;
+      readyAtAnswerCount: number;
+      adoptedCount: number;
+      cancelledCount: number;
+      discardedCount: number;
+      adoptedWork: TimingDistribution;
+      discardedWork: TimingDistribution;
+    };
+    eventLoopHeartbeat: {
+      sampleCount: number;
+      meanDelayMs: number | null;
+      maxDelayMs: number | null;
+    };
+  };
+}
+
 function rounded(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -46,19 +101,37 @@ function distribution(values: number[]): TimingDistribution {
   };
 }
 
+function scalarDistribution(values: number[]): ScalarDistribution {
+  const timing = distribution(values);
+  return {
+    count: timing.count,
+    p50: timing.p50Ms,
+    p95: timing.p95Ms,
+    max: timing.maxMs,
+  };
+}
+
 /** Bounded, internal-only aggregate; raw timing never enters engine state. */
 export class EnginePerformanceCollector {
   private profile: ExecutionProfileEvent | null = null;
   private answerToItem: number[] = [];
   private steps: EngineStepTiming[] = [];
+  private heartbeat = { sampleCount: 0, weightedDelay: 0, maxDelayMs: 0 };
 
   record(event: EnginePerformanceEvent): void {
     if (event.kind === "execution_profile") this.profile = event;
     else if (event.kind === "answer_to_item") this.answerToItem.push(event.durationMs);
-    else this.steps.push(event);
+    else if (event.kind === "engine_step") this.steps.push(event);
+    else {
+      this.heartbeat.sampleCount += event.sampleCount;
+      this.heartbeat.weightedDelay += event.meanDelayMs * event.sampleCount;
+      this.heartbeat.maxDelayMs = Math.max(
+        this.heartbeat.maxDelayMs, event.maxDelayMs,
+      );
+    }
   }
 
-  summary(replayedTrials = 0): EnginePerformanceSummaryV1 {
+  summary(replayedTrials = 0): EnginePerformanceSummaryV2 {
     const slowestSteps = [...this.steps]
       .sort((a, b) => b.totalMs - a.totalMs)
       .slice(0, 10)
@@ -69,13 +142,25 @@ export class EnginePerformanceCollector {
         rejuvenationMs: rounded(step.rejuvenationMs),
         executionMode: step.executionMode,
       }));
+    const phases = this.steps.flatMap((step) => step.phaseV2 ? [step.phaseV2] : []);
+    const branches = phases.flatMap((phase) => phase.branches);
+    const observedRanks = new Array(6).fill(0);
+    for (const phase of phases) {
+      if (phase.observedOutcomeRank !== null && phase.observedOutcomeRank >= 1) {
+        while (observedRanks.length < phase.observedOutcomeRank) observedRanks.push(0);
+        observedRanks[phase.observedOutcomeRank - 1] += 1;
+      }
+    }
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       profile: this.profile ? {
         requested: this.profile.requested,
         executionMode: this.profile.executionMode,
         reason: this.profile.reason,
         hardwareConcurrency: this.profile.hardwareConcurrency,
+        selectedWorkerCount: this.profile.selectedWorkerCount,
+        calibrationResult: this.profile.calibrationResult,
+        estimatedWorkerMemoryBytes: this.profile.estimatedWorkerMemoryBytes,
       } : null,
       replayedTrials,
       answerToItem: distribution(this.answerToItem),
@@ -89,6 +174,87 @@ export class EnginePerformanceCollector {
         (step) => step.executionMode === "serial_fallback",
       ).length,
       slowestSteps,
+      phaseV2: {
+        candidateBankPreparation: distribution(
+          this.steps.map((step) => step.bankPreparationMs),
+        ),
+        selector: {
+          candidatePreparation: distribution(
+            phases.map((phase) => phase.selection.candidatePreparationMs),
+          ),
+          posteriorMoments: distribution(
+            phases.map((phase) => phase.selection.posteriorMomentsMs),
+          ),
+          coarseMinSdScan: distribution(
+            phases.map((phase) => phase.selection.coarseMinSdScanMs),
+          ),
+          entropyScan: distribution(
+            phases.map((phase) => phase.selection.entropyScanMs),
+          ),
+          fisherScan: distribution(
+            phases.map((phase) => phase.selection.fisherScanMs),
+          ),
+          exactRefinement: distribution(
+            phases.map((phase) => phase.selection.exactRefinementMs),
+          ),
+          candidateCount: scalarDistribution(
+            phases.map((phase) => phase.selection.candidateCount),
+          ),
+          shortlistCount: scalarDistribution(
+            phases.map((phase) => phase.selection.shortlistCount),
+          ),
+        },
+        particle: {
+          categoricalUpdate: distribution(
+            phases.map((phase) => phase.particle.categoricalUpdateMs),
+          ),
+          ess: distribution(phases.map((phase) => phase.particle.essMs)),
+          resampling: distribution(
+            phases.map((phase) => phase.particle.resamplingMs),
+          ),
+          mhProposalGeneration: distribution(
+            phases.map((phase) => phase.particle.mhProposalGenerationMs),
+          ),
+          mhPrior: distribution(phases.map((phase) => phase.particle.mhPriorMs)),
+          mhHistoryLikelihood: distribution(
+            phases.map((phase) => phase.particle.mhHistoryLikelihoodMs),
+          ),
+          mhAcceptance: distribution(
+            phases.map((phase) => phase.particle.mhAcceptanceMs),
+          ),
+          mhCopying: distribution(
+            phases.map((phase) => phase.particle.mhCopyingMs),
+          ),
+        },
+        outcomes: {
+          observedRankCounts: observedRanks,
+          observedProbability: scalarDistribution(phases.flatMap((phase) =>
+            phase.observedOutcomeProbability === null
+              ? [] : [phase.observedOutcomeProbability])),
+          cachedProbabilityMass: scalarDistribution(
+            phases.map((phase) => phase.cachedProbabilityMass),
+          ),
+        },
+        branches: {
+          queuedCount: branches.filter((branch) => branch.queued).length,
+          startedCount: branches.filter((branch) => branch.started).length,
+          readyAtAnswerCount: branches.filter((branch) => branch.readyAtAnswer).length,
+          adoptedCount: branches.filter((branch) => branch.adopted).length,
+          cancelledCount: branches.filter((branch) => branch.cancelled).length,
+          discardedCount: branches.filter((branch) => branch.discarded).length,
+          adoptedWork: distribution(branches.flatMap((branch) =>
+            branch.adopted && branch.durationMs !== null ? [branch.durationMs] : [])),
+          discardedWork: distribution(branches.flatMap((branch) =>
+            branch.discarded && branch.durationMs !== null ? [branch.durationMs] : [])),
+        },
+        eventLoopHeartbeat: {
+          sampleCount: this.heartbeat.sampleCount,
+          meanDelayMs: this.heartbeat.sampleCount > 0
+            ? rounded(this.heartbeat.weightedDelay / this.heartbeat.sampleCount) : null,
+          maxDelayMs: this.heartbeat.sampleCount > 0
+            ? rounded(this.heartbeat.maxDelayMs) : null,
+        },
+      },
     };
   }
 }

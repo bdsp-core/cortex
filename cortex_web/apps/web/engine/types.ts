@@ -130,6 +130,53 @@ export interface RejuvenationTelemetry {
   distinctAncestorFraction: number;
 }
 
+/** Schema-v2 wall-clock attribution. These values are observational only and
+ * must never be read by inference, selection, stopping, or RNG code. */
+export interface SelectionPhaseTimingV2 {
+  candidatePreparationMs: number;
+  posteriorMomentsMs: number;
+  coarseMinSdScanMs: number;
+  entropyScanMs: number;
+  fisherScanMs: number;
+  exactRefinementMs: number;
+  candidateCount: number;
+  shortlistCount: number;
+}
+
+export interface ParticlePhaseTimingV2 {
+  categoricalUpdateMs: number;
+  essMs: number;
+  resamplingMs: number;
+  mhProposalGenerationMs: number;
+  mhPriorMs: number;
+  mhHistoryLikelihoodMs: number;
+  mhAcceptanceMs: number;
+  mhCopyingMs: number;
+}
+
+export interface BranchLifecycleV2 {
+  outcome: number;
+  rank: number;
+  probability: number;
+  role: "coordinator" | "helper" | "serial_required";
+  queued: boolean;
+  started: boolean;
+  readyAtAnswer: boolean;
+  adopted: boolean;
+  cancelled: boolean;
+  discarded: boolean;
+  durationMs: number | null;
+}
+
+export interface EngineStepPhaseTimingV2 {
+  selection: SelectionPhaseTimingV2;
+  particle: ParticlePhaseTimingV2;
+  observedOutcomeRank: number | null;
+  observedOutcomeProbability: number | null;
+  cachedProbabilityMass: number;
+  branches: BranchLifecycleV2[];
+}
+
 /** Non-deterministic wall-clock attribution, never part of policy state. */
 export interface EngineStepTiming {
   kind: "engine_step";
@@ -148,6 +195,7 @@ export interface EngineStepTiming {
   executionMode: ComputeExecutionMode;
   speculative: boolean;
   requiredBranchReadyAtAnswer: boolean;
+  phaseV2?: EngineStepPhaseTimingV2;
 }
 
 export interface AnswerToItemTiming {
@@ -162,12 +210,23 @@ export interface ExecutionProfileEvent {
   executionMode: Exclude<ComputeExecutionMode, "serial_fallback">;
   reason: string;
   hardwareConcurrency: number | null;
+  selectedWorkerCount?: number;
+  calibrationResult?: string;
+  estimatedWorkerMemoryBytes?: number;
+}
+
+export interface EventLoopHeartbeatEvent {
+  kind: "event_loop_heartbeat";
+  sampleCount: number;
+  meanDelayMs: number;
+  maxDelayMs: number;
 }
 
 export type EnginePerformanceEvent =
   | EngineStepTiming
   | AnswerToItemTiming
-  | ExecutionProfileEvent;
+  | ExecutionProfileEvent
+  | EventLoopHeartbeatEvent;
 
 export type RequestedComputeMode = "serial" | "dual_branch_auto";
 export type ComputeExecutionMode = "serial" | "dual_branch" | "serial_fallback";

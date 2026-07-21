@@ -9,7 +9,10 @@
 // Speculation only changes WHEN the work runs (idle think-time vs after the
 // answer), never WHAT it produces.
 
-import { ComputeEngineInputs, EngineStepTiming, ParticleState, TrialDiag } from "./types";
+import type {
+  ComputeEngineInputs, EngineStepPhaseTimingV2, EngineStepTiming, ParticleState,
+  SelectionPhaseTimingV2, TrialDiag,
+} from "./types";
 import { updateObservation, ess, resampleAndRejuvenate, posteriorMeans, cloneState } from "./particles";
 import { aurocSummary } from "./auroc";
 import {
@@ -70,6 +73,39 @@ export interface AdvanceResult {
 }
 
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
+
+function emptySelectionTiming(): SelectionPhaseTimingV2 {
+  return {
+    candidatePreparationMs: 0,
+    posteriorMomentsMs: 0,
+    coarseMinSdScanMs: 0,
+    entropyScanMs: 0,
+    fisherScanMs: 0,
+    exactRefinementMs: 0,
+    candidateCount: 0,
+    shortlistCount: 0,
+  };
+}
+
+function emptyStepPhaseTiming(): EngineStepPhaseTimingV2 {
+  return {
+    selection: emptySelectionTiming(),
+    particle: {
+      categoricalUpdateMs: 0,
+      essMs: 0,
+      resamplingMs: 0,
+      mhProposalGenerationMs: 0,
+      mhPriorMs: 0,
+      mhHistoryLikelihoodMs: 0,
+      mhAcceptanceMs: 0,
+      mhCopyingMs: 0,
+    },
+    observedOutcomeRank: null,
+    observedOutcomeProbability: null,
+    cachedProbabilityMass: 0,
+    branches: [],
+  };
+}
 
 // Deep clone of the branchable core. state/rng/policy cloned; the immutable
 // prior is shared; Sets/arrays copied.
@@ -169,6 +205,7 @@ export function precisionRemainingBank(
 export function chooseNext(
   core: SessionCore, inputs: ComputeEngineInputs, params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
+  selectionTiming?: SelectionPhaseTimingV2,
 ): Chosen {
   const { K, k7Spike, spikeIdx, maxConsecutiveSameDomain, firstItemTopN } = params;
   const precisionPolicy = core.policy instanceof PrecisionPolicy ? core.policy : null;
@@ -222,12 +259,12 @@ export function chooseNext(
     for (let k = 0; k < K; k++) if (!allowed.includes(k)) excluded.add(k);
     return trialIndex === 0
       ? (nway ? chooseFirstNWayItem(
-          core.state, inputs, bank, firstItemTopN, core.rng, excluded,
+          core.state, inputs, bank, firstItemTopN, core.rng, excluded, selectionTiming,
         ) : chooseFirstItem(core.state, bank, firstItemTopN, core.rng, excluded, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
         }))
-      : (nway ? chooseNWayItem(core.state, inputs, bank, excluded) : chooseItem(core.state, bank, excluded, {
+      : (nway ? chooseNWayItem(core.state, inputs, bank, excluded, selectionTiming) : chooseItem(core.state, bank, excluded, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
         }));
@@ -265,12 +302,12 @@ export function chooseNext(
   const pick = (ex: Set<number>): Chosen =>
     trialIndex === 0
       ? (nway ? chooseFirstNWayItem(
-          core.state, inputs, bank, firstItemTopN, core.rng, ex,
+          core.state, inputs, bank, firstItemTopN, core.rng, ex, selectionTiming,
         ) : chooseFirstItem(core.state, bank, firstItemTopN, core.rng, ex, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
         }))
-      : (nway ? chooseNWayItem(core.state, inputs, bank, ex) : chooseItem(core.state, bank, ex, {
+      : (nway ? chooseNWayItem(core.state, inputs, bank, ex, selectionTiming) : chooseItem(core.state, bank, ex, {
           nSubsample: params.nSubsample,
           uncertaintyAware: params.uncertaintyAwareSubsample,
         }));
@@ -292,6 +329,7 @@ export function advanceCore(
 ): AdvanceResult {
   const startedAt = performance.now();
   const { state, rng, policy } = core;
+  const phaseV2 = emptyStepPhaseTiming();
 
   const segment = chosen.segment
     ?? inputs.segments.find((candidate) => candidate.segId === chosen.segId);
@@ -305,13 +343,16 @@ export function advanceCore(
         kind: "binary" as const, k: chosen.k, s: chosen.s, sSd: chosen.sSd,
         y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
       };
-  updateObservation(state, response);
+  updateObservation(state, response, phaseV2.particle);
   const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
   const updatedAt = performance.now();
   let rejuv = false;
-  if (ess(state.w) < params.essThresholdFrac * params.nParticles) {
+  const essStartedAt = performance.now();
+  const currentEss = ess(state.w);
+  phaseV2.particle.essMs += performance.now() - essStartedAt;
+  if (currentEss < params.essThresholdFrac * params.nParticles) {
     resampleAndRejuvenate(
-      state, rng, params.nMhSteps, params.proposalScale, trialIndex,
+      state, rng, params.nMhSteps, params.proposalScale, trialIndex, phaseV2.particle,
     );
     rejuv = true;
   }
@@ -395,7 +436,7 @@ export function advanceCore(
       : res.stop ? "all_resolved" : "resolved_or_referred";
   } else {
     nextChosen = chooseNext(
-      core, inputs, params, trialIndex + 1, preparedPrecisionBank,
+      core, inputs, params, trialIndex + 1, preparedPrecisionBank, phaseV2.selection,
     );
   }
   const finishedAt = performance.now();
@@ -418,6 +459,7 @@ export function advanceCore(
       executionMode: "serial",
       speculative: false,
       requiredBranchReadyAtAnswer: false,
+      phaseV2,
     },
   };
 }

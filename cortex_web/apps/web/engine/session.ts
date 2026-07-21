@@ -12,7 +12,7 @@
 // in otherwise-idle think-time without changing a single result.
 
 import {
-  ComputeEngineInputs, EngineStepTiming, TerminationPolicyName, TrialDiag,
+  BranchLifecycleV2, ComputeEngineInputs, EngineStepTiming, TerminationPolicyName, TrialDiag,
 } from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
@@ -275,7 +275,10 @@ export class WebCortexSession {
       let firstPick: number | null = null;
       let helperPick: number | null = null;
       let helperReady = false;
+      let helperReadyAtAnswer = false;
       let helperJob: Promise<AdvanceResult> | null = null;
+      let rankedOutcomes: { outcome: number; probability: number; rank: number }[] = [];
+      const branchLifecycle: BranchLifecycleV2[] = [];
       if (this.speculative) {
         branches = new Map<number, AdvanceResult>();
         const distribution = nway
@@ -289,14 +292,33 @@ export class WebCortexSession {
                 { outcome: K, probability: 1 - yes },
               ];
             })();
-        const ranked = rankOutcomes(distribution);
-        firstPick = ranked[0].outcome;
-        helperPick = ranked[1]?.outcome ?? null;
+        rankedOutcomes = rankOutcomes(distribution);
+        firstPick = rankedOutcomes[0].outcome;
+        helperPick = rankedOutcomes[1]?.outcome ?? null;
         if (this.branchExecutor && helperPick !== null) {
+          const helperRanked = rankedOutcomes[1];
+          const helperLifecycle: BranchLifecycleV2 = {
+            outcome: helperRanked.outcome,
+            rank: helperRanked.rank,
+            probability: helperRanked.probability,
+            role: "helper",
+            queued: true,
+            started: true,
+            readyAtAnswer: false,
+            adopted: false,
+            cancelled: false,
+            discarded: false,
+            durationMs: null,
+          };
+          branchLifecycle.push(helperLifecycle);
           try {
             helperJob = this.branchExecutor.advance(
               this.core, chosen, params, trialIndex, helperPick,
-            ).then((result) => { helperReady = true; return result; });
+            ).then((result) => {
+              helperReady = true;
+              helperLifecycle.durationMs = result.timing.totalMs;
+              return result;
+            });
             // A predicted response leaves the alternate result unused. Its
             // failure must never surface as an unhandled rejection.
             void helperJob.catch(() => undefined);
@@ -305,10 +327,27 @@ export class WebCortexSession {
             this.branchExecutor = undefined;
           }
         }
-        branches.set(firstPick, advanceCore(
+        const firstRanked = rankedOutcomes[0];
+        const firstLifecycle: BranchLifecycleV2 = {
+          outcome: firstRanked.outcome,
+          rank: firstRanked.rank,
+          probability: firstRanked.probability,
+          role: "coordinator",
+          queued: true,
+          started: true,
+          readyAtAnswer: true,
+          adopted: false,
+          cancelled: false,
+          discarded: false,
+          durationMs: null,
+        };
+        branchLifecycle.push(firstLifecycle);
+        const firstResult = advanceCore(
           cloneCore(this.core), this.inputs, chosen, firstPick, params, trialIndex,
           preparedPrecisionBank,
-        ));
+        );
+        firstLifecycle.durationMs = firstResult.timing.totalMs;
+        branches.set(firstPick, firstResult);
 
         // If the participant answered during the first branch, process that
         // message now and compute only the requested branch. Otherwise use the
@@ -317,10 +356,27 @@ export class WebCortexSession {
         if (!this.aborted && observedPick !== undefined && observedPick >= 0
             && !helperJob) {
           if (!branches.has(observedPick)) {
-            branches.set(observedPick, advanceCore(
+            const requiredResult = advanceCore(
               cloneCore(this.core), this.inputs, chosen, observedPick, params, trialIndex,
               preparedPrecisionBank,
-            ));
+            );
+            const requiredRanked = rankedOutcomes.find(
+              (entry) => entry.outcome === observedPick,
+            );
+            branchLifecycle.push({
+              outcome: observedPick,
+              rank: requiredRanked?.rank ?? -1,
+              probability: requiredRanked?.probability ?? 0,
+              role: "serial_required",
+              queued: true,
+              started: true,
+              readyAtAnswer: false,
+              adopted: false,
+              cancelled: false,
+              discarded: false,
+              durationMs: requiredResult.timing.totalMs,
+            });
+            branches.set(observedPick, requiredResult);
           }
         }
       }
@@ -329,10 +385,11 @@ export class WebCortexSession {
 
       const pick = observedPick ?? await answerPromise;
       if (this.aborted || pick < 0) { stopReason = "aborted"; break; }
+      helperReadyAtAnswer = helperReady;
 
       let res: AdvanceResult;
       if (helperJob && pick === helperPick) {
-        const readyAtAnswer = helperReady;
+        const readyAtAnswer = helperReadyAtAnswer;
         try {
           res = await helperJob;
           res.timing.requiredBranchReadyAtAnswer = readyAtAnswer;
@@ -350,6 +407,20 @@ export class WebCortexSession {
             this.core, this.inputs, chosen, pick, params, trialIndex,
             preparedPrecisionBank,
           );
+          const requiredRanked = rankedOutcomes.find((entry) => entry.outcome === pick);
+          branchLifecycle.push({
+            outcome: pick,
+            rank: requiredRanked?.rank ?? -1,
+            probability: requiredRanked?.probability ?? 0,
+            role: "serial_required",
+            queued: true,
+            started: true,
+            readyAtAnswer: false,
+            adopted: false,
+            cancelled: false,
+            discarded: false,
+            durationMs: res.timing.totalMs,
+          });
           res.timing.executionMode = "serial_fallback";
           res.timing.speculative = false;
         }
@@ -364,6 +435,38 @@ export class WebCortexSession {
           res.timing.executionMode = "dual_branch";
           res.timing.requiredBranchReadyAtAnswer = true;
         }
+      }
+      if (rankedOutcomes.length > 0
+          && !branchLifecycle.some((branch) => branch.outcome === pick)) {
+        const requiredRanked = rankedOutcomes.find((entry) => entry.outcome === pick);
+        branchLifecycle.push({
+          outcome: pick,
+          rank: requiredRanked?.rank ?? -1,
+          probability: requiredRanked?.probability ?? 0,
+          role: "serial_required",
+          queued: true,
+          started: true,
+          readyAtAnswer: false,
+          adopted: false,
+          cancelled: false,
+          discarded: false,
+          durationMs: res.timing.totalMs,
+        });
+      }
+      for (const branch of branchLifecycle) {
+        if (branch.role === "helper") branch.readyAtAnswer = helperReadyAtAnswer;
+        branch.adopted = branch.outcome === pick
+          && (branch.role !== "helper" || res.timing.executionMode !== "serial_fallback");
+        branch.discarded = !branch.adopted;
+      }
+      const observedOutcome = rankedOutcomes.find((entry) => entry.outcome === pick);
+      if (res.timing.phaseV2) {
+        res.timing.phaseV2.observedOutcomeRank = observedOutcome?.rank ?? null;
+        res.timing.phaseV2.observedOutcomeProbability = observedOutcome?.probability ?? null;
+        res.timing.phaseV2.cachedProbabilityMass = branchLifecycle.reduce(
+          (sum, branch) => sum + (branch.readyAtAnswer ? branch.probability : 0), 0,
+        );
+        res.timing.phaseV2.branches = branchLifecycle;
       }
       this.core = res.core; // spec: adopt the matching clone; inline: same ref
 

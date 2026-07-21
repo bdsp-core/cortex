@@ -21,11 +21,14 @@ describe("internal engine performance summary", () => {
       });
     }
     const result = collector.summary(3);
+    expect(result.schemaVersion).toBe(2);
     expect(result.answerToItem).toEqual({ count: 20, p50Ms: 10, p95Ms: 19, maxMs: 20 });
     expect(result.engineTotal).toEqual({ count: 20, p50Ms: 20, p95Ms: 38, maxMs: 40 });
     expect(result.requiredBranchReadyCount).toBe(15);
     expect(result.replayedTrials).toBe(3);
     expect(result.slowestSteps).toHaveLength(10);
     expect(result.slowestSteps[0].trialIndex).toBe(20);
+    expect(result.phaseV2.selector.fisherScan.count).toBe(0);
+    expect(result.phaseV2.eventLoopHeartbeat.sampleCount).toBe(0);
   });
 });

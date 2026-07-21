@@ -2,7 +2,9 @@
 // Port of make_state_hier / update / ess / resample_and_rejuvenate /
 // mh_rejuvenate from engine/core_mcmc.py.
 
-import { ParticleObservation, ParticleState, PriorPair } from "./types";
+import type {
+  ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
+} from "./types";
 import { logPResponse, signalZ } from "./likelihood";
 import { logObservationProbability } from "./nway_likelihood";
 import { logPriorOne, samplePrior } from "./prior";
@@ -105,12 +107,16 @@ export function update(
 // normalize in log space; spike observations preserve the original binary
 // multiply/normalize order. All arrays commit transactionally only after every
 // particle and the normalizer validate.
-export function updateObservation(st: ParticleState, observation: ParticleObservation): void {
+export function updateObservation(
+  st: ParticleState, observation: ParticleObservation,
+  timing?: ParticlePhaseTimingV2,
+): void {
   if (observation.kind === "binary") {
     update(st, observation.k, observation.s, observation.y, observation.sSd);
     st.history[st.history.length - 1] = { ...observation };
     return;
   }
+  const categoricalStartedAt = performance.now();
   const { N, K, w, logLik } = st;
   if (observation.sMean.length !== K || observation.sSd.length !== K
       || observation.sMean.some((value) => !Number.isFinite(value))
@@ -158,6 +164,7 @@ export function updateObservation(st: ParticleState, observation: ParticleObserv
     sMean: observation.sMean.slice(),
     sSd: observation.sSd.slice(),
   });
+  if (timing) timing.categoricalUpdateMs += performance.now() - categoricalStartedAt;
 }
 
 export function ess(w: Float64Array): number {
@@ -191,8 +198,10 @@ export function resampleAndRejuvenate(
   nMhSteps: number,
   proposalScale: number,
   qIndex = -1,
+  timing?: ParticlePhaseTimingV2,
 ): number {
   const { N, K } = st;
+  const resamplingStartedAt = performance.now();
   // --- multinomial resample ---
   const idx = rng.resampleIndices(st.w, N);
   const distinctAncestors = new Set(idx).size;
@@ -212,6 +221,7 @@ export function resampleAndRejuvenate(
   st.logPrior = lp2;
   st.logLik = ll2;
   st.w.fill(1 / N);
+  if (timing) timing.resamplingMs += performance.now() - resamplingStartedAt;
 
   // --- MH rejuvenation ---
   const D = 2 * K;
@@ -222,8 +232,10 @@ export function resampleAndRejuvenate(
   const lpNew = new Float64Array(N);
   const llNew = new Float64Array(N);
   const eps = new Float64Array(D);
+  const accepted = new Uint8Array(N);
 
   for (let step = 0; step < nMhSteps; step++) {
+    const proposalStartedAt = performance.now();
     // pack theta = [t, l]
     for (let n = 0; n < N; n++) {
       for (let i = 0; i < K; i++) {
@@ -251,24 +263,39 @@ export function resampleAndRejuvenate(
         else lNew[n * K + (i - K)] = v;
       }
     }
+    if (timing) {
+      timing.mhProposalGenerationMs += performance.now() - proposalStartedAt;
+    }
     // log posterior at proposal
+    const priorStartedAt = performance.now();
     for (let n = 0; n < N; n++)
       lpNew[n] = logPriorOne(tNew, lNew, n, st.prior.tPieces, st.prior.lPieces);
+    if (timing) timing.mhPriorMs += performance.now() - priorStartedAt;
+    const historyStartedAt = performance.now();
     logLikHistory(st, tNew, lNew, llNew);
+    if (timing) timing.mhHistoryLikelihoodMs += performance.now() - historyStartedAt;
     // accept
+    const acceptanceStartedAt = performance.now();
     let nAcc = 0;
     for (let n = 0; n < N; n++) {
       const logAlpha = lpNew[n] + llNew[n] - (st.logPrior[n] + st.logLik[n]);
       if (Math.log(rng.random()) < logAlpha) {
-        for (let i = 0; i < K; i++) {
-          st.t[n * K + i] = tNew[n * K + i];
-          st.l[n * K + i] = lNew[n * K + i];
-        }
-        st.logPrior[n] = lpNew[n];
-        st.logLik[n] = llNew[n];
+        accepted[n] = 1;
         nAcc++;
-      }
+      } else accepted[n] = 0;
     }
+    if (timing) timing.mhAcceptanceMs += performance.now() - acceptanceStartedAt;
+    const copyingStartedAt = performance.now();
+    for (let n = 0; n < N; n++) {
+      if (!accepted[n]) continue;
+      for (let i = 0; i < K; i++) {
+        st.t[n * K + i] = tNew[n * K + i];
+        st.l[n * K + i] = lNew[n * K + i];
+      }
+      st.logPrior[n] = lpNew[n];
+      st.logLik[n] = llNew[n];
+    }
+    if (timing) timing.mhCopyingMs += performance.now() - copyingStartedAt;
     accepts.push(nAcc / N);
   }
   const acceptanceRate = accepts.reduce((a, b) => a + b, 0) / (accepts.length || 1);

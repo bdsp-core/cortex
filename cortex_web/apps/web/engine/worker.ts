@@ -22,6 +22,14 @@ import { unpackComputeInputs } from "./compute_payload";
 let session: WebCortexSession | null = null;
 let branchExecutor: BranchWorkerExecutor | null = null;
 
+function estimatedWorkerMemoryBytes(inputs: ComputeEngineInputs, workers: number): number {
+  const K = inputs.taskCodes.length;
+  const N = inputs.nParticles ?? 600;
+  const bankBytes = inputs.segments.length * (8 + 4 + 16 * K);
+  const particleBytes = N * K * 16 + N * 24;
+  return workers * (bankBytes + particleBytes);
+}
+
 self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
   const msg = ev.data;
   const post = (message: EngineWorkerResponse, transfer: Transferable[] = []) =>
@@ -58,6 +66,11 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         executionMode: profile.mode,
         reason: profile.reason,
         hardwareConcurrency: hardwareConcurrency ?? null,
+        selectedWorkerCount: profile.computeWorkers,
+        calibrationResult: "fixed_v1_profile",
+        estimatedWorkerMemoryBytes: estimatedWorkerMemoryBytes(
+          inputs, profile.computeWorkers,
+        ),
       } });
       session = new WebCortexSession(inputs, msg.sessionId, seed, {
         onItem: (item) => post({ type: "item", ...item }),

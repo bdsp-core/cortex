@@ -29,6 +29,11 @@ export interface EngineStartOptions {
 export class EngineClient {
   private worker: Worker;
   private answerStartedAt: number | null = null;
+  private heartbeatTimer: number | null = null;
+  private heartbeatExpectedAt = 0;
+  private heartbeatSamples = 0;
+  private heartbeatDelayTotal = 0;
+  private heartbeatDelayMax = 0;
 
   constructor(private handlers: EngineClientHandlers) {
     this.worker = new Worker(new URL("../engine/worker.ts", import.meta.url), {
@@ -55,9 +60,11 @@ export class EngineClient {
           this.handlers.onPerformance?.(m.event);
           break;
         case "done":
+          this.stopHeartbeat(true);
           this.handlers.onDone(m.result);
           break;
         case "error":
+          this.stopHeartbeat(true);
           this.handlers.onError?.(m.message);
           break;
       }
@@ -67,9 +74,11 @@ export class EngineClient {
     // signal. Route both to onError so the UI can surface it.
     this.worker.onerror = (e: ErrorEvent) => {
       e.preventDefault();
+      this.stopHeartbeat(true);
       this.handlers.onError?.(e.message || "engine worker crashed");
     };
     this.worker.onmessageerror = () => {
+      this.stopHeartbeat(true);
       this.handlers.onError?.("engine worker message error");
     };
   }
@@ -87,6 +96,7 @@ export class EngineClient {
       seed: options.seed,
       requestedComputeMode: options.requestedComputeMode ?? "serial",
     }, computePayloadTransferables(payload));
+    this.startHeartbeat();
   }
 
   answer(pick: number): void {
@@ -99,7 +109,43 @@ export class EngineClient {
   }
 
   dispose(): void {
+    this.stopHeartbeat(false);
     this.worker.terminate();
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat(false);
+    const intervalMs = 250;
+    this.heartbeatSamples = 0;
+    this.heartbeatDelayTotal = 0;
+    this.heartbeatDelayMax = 0;
+    this.heartbeatExpectedAt = performance.now() + intervalMs;
+    this.heartbeatTimer = window.setInterval(() => {
+      const now = performance.now();
+      const delay = Math.max(0, now - this.heartbeatExpectedAt);
+      this.heartbeatSamples += 1;
+      this.heartbeatDelayTotal += delay;
+      this.heartbeatDelayMax = Math.max(this.heartbeatDelayMax, delay);
+      this.heartbeatExpectedAt = now + intervalMs;
+    }, intervalMs);
+  }
+
+  private stopHeartbeat(emit: boolean): void {
+    if (this.heartbeatTimer !== null) {
+      window.clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (emit && this.heartbeatSamples > 0) {
+      this.handlers.onPerformance?.({
+        kind: "event_loop_heartbeat",
+        sampleCount: this.heartbeatSamples,
+        meanDelayMs: this.heartbeatDelayTotal / this.heartbeatSamples,
+        maxDelayMs: this.heartbeatDelayMax,
+      });
+    }
+    this.heartbeatSamples = 0;
+    this.heartbeatDelayTotal = 0;
+    this.heartbeatDelayMax = 0;
   }
 
   private post(message: EngineWorkerRequest, transfer: Transferable[] = []): void {

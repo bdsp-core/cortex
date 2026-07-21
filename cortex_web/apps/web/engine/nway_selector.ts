@@ -3,7 +3,9 @@ import {
   fillResponseProbabilities, makeResponseProbabilityWorkspace,
 } from "./nway_likelihood";
 import { posteriorMeans } from "./particles";
-import type { ComputeEngineInputs, ComputeSegmentMeta, ParticleState } from "./types";
+import type {
+  ComputeEngineInputs, ComputeSegmentMeta, ParticleState, SelectionPhaseTimingV2,
+} from "./types";
 
 interface Candidate {
   k: number;
@@ -190,9 +192,14 @@ function fisherUtility(
 
 function shortlist(
   st: ParticleState, inputs: ComputeEngineInputs, all: Candidate[],
+  timing?: SelectionPhaseTimingV2,
 ): Candidate[] {
-  if (all.length <= FULL_SCAN_LIMIT) return all.slice();
+  if (all.length <= FULL_SCAN_LIMIT) {
+    if (timing) timing.shortlistCount += all.length;
+    return all.slice();
+  }
   const selected = new Set<Candidate>();
+  const momentsStartedAt = performance.now();
   const moments = posteriorMeans(st);
   const meanT = Float64Array.from(moments.tMean);
   const meanL = Float64Array.from(moments.lMean);
@@ -206,10 +213,12 @@ function shortlist(
     base2: new Float64Array(2), plus2: new Float64Array(2), minus2: new Float64Array(2),
     base6: new Float64Array(6), plus6: new Float64Array(6), minus6: new Float64Array(6),
   };
+  if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
   const domains = Array.from({ length: st.K }, () => [] as Candidate[]);
   for (const candidate of all) domains[candidate.k].push(candidate);
   for (let askedK = 0; askedK < st.K; askedK++) {
     const domain = domains[askedK];
+    const coarseStartedAt = performance.now();
     for (const index of evenlySpaced(domain.length, COARSE_PER_TASK)) {
       selected.add(domain[index]);
     }
@@ -224,7 +233,9 @@ function shortlist(
       }
       if (best) selected.add(best);
     }
+    if (timing) timing.coarseMinSdScanMs += performance.now() - coarseStartedAt;
     const kind = taskClass(inputs, askedK);
+    const entropyStartedAt = performance.now();
     const byEntropy = highestScoring(domain, ENTROPY_PER_TASK, (candidate) => {
         const output = kind === "spike" ? binaryProbabilities : probabilities;
         fillResponseProbabilities(
@@ -234,20 +245,36 @@ function shortlist(
         return entropy(output);
       });
     for (const candidate of byEntropy) selected.add(candidate);
+    if (timing) timing.entropyScanMs += performance.now() - entropyStartedAt;
 
+    const fisherStartedAt = performance.now();
     const byFisher = highestScoring(domain, FISHER_PER_TASK, (candidate) =>
       fisherUtility(st, inputs, candidate, moments, fisherWorkspace));
     for (const candidate of byFisher) selected.add(candidate);
+    if (timing) timing.fisherScanMs += performance.now() - fisherStartedAt;
   }
-  return all.filter((candidate) => selected.has(candidate));
+  const result = all.filter((candidate) => selected.has(candidate));
+  if (timing) timing.shortlistCount += result.length;
+  return result;
 }
 
 function score(
   st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
   excludedTasks?: ReadonlySet<number>,
+  timing?: SelectionPhaseTimingV2,
 ): Chosen[] {
+  const momentsStartedAt = performance.now();
   const cached = workspace(st);
-  return shortlist(st, inputs, candidates(bank, excludedTasks)).map((candidate) => ({
+  if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
+  const candidatesStartedAt = performance.now();
+  const all = candidates(bank, excludedTasks);
+  if (timing) {
+    timing.candidatePreparationMs += performance.now() - candidatesStartedAt;
+    timing.candidateCount += all.length;
+  }
+  const shortlisted = shortlist(st, inputs, all, timing);
+  const refinementStartedAt = performance.now();
+  const scored = shortlisted.map((candidate) => ({
     k: candidate.k,
     s: candidate.segment.sMean[candidate.k],
     sSd: candidate.segment.sSd[candidate.k],
@@ -255,6 +282,8 @@ function score(
     segment: candidate.segment,
     loss: expectedNWayLoss(st, inputs, candidate, cached),
   })).sort((a, b) => a.loss - b.loss);
+  if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
+  return scored;
 }
 
 const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
@@ -262,16 +291,18 @@ const NO_ITEM: Chosen = { k: 0, s: 0, sSd: 0, segId: -1, loss: Infinity };
 export function chooseNWayItem(
   st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
   excludedTasks?: ReadonlySet<number>,
+  timing?: SelectionPhaseTimingV2,
 ): Chosen {
-  return score(st, inputs, bank, excludedTasks)[0] ?? NO_ITEM;
+  return score(st, inputs, bank, excludedTasks, timing)[0] ?? NO_ITEM;
 }
 
 export function chooseFirstNWayItem(
   st: ParticleState, inputs: ComputeEngineInputs, bank: BankArrays,
   topN: number, rng: { int: (n: number) => number },
   excludedTasks?: ReadonlySet<number>,
+  timing?: SelectionPhaseTimingV2,
 ): Chosen {
-  const scored = score(st, inputs, bank, excludedTasks);
+  const scored = score(st, inputs, bank, excludedTasks, timing);
   const count = Math.min(topN, scored.length);
   return count ? scored[rng.int(count)] : NO_ITEM;
 }

@@ -100,6 +100,15 @@ function metrics(run) {
   const answer = run.events.filter((event) => event.kind === "answer_to_item")
     .map((event) => event.durationMs);
   const steps = run.events.filter((event) => event.kind === "engine_step");
+  const phases = steps.flatMap((step) => step.phaseV2 ? [step.phaseV2] : []);
+  const phaseDistribution = (read) => {
+    const values = phases.map(read);
+    return {
+      p50: percentile(values, 0.5),
+      p95: percentile(values, 0.95),
+      max: values.length ? Math.max(...values) : null,
+    };
+  };
   return {
     nQuestions: run.result.nQuestions,
     answerToItemMs: {
@@ -116,6 +125,33 @@ function metrics(run) {
     },
     requiredBranchReady: steps.filter((step) => step.requiredBranchReadyAtAnswer).length,
     serialFallbacks: steps.filter((step) => step.executionMode === "serial_fallback").length,
+    phaseV2: phases.length ? {
+      candidateBankPreparationMs: {
+        p50: percentile(steps.map((step) => step.bankPreparationMs), 0.5),
+        p95: percentile(steps.map((step) => step.bankPreparationMs), 0.95),
+      },
+      candidatePreparationMs: phaseDistribution(
+        (phase) => phase.selection.candidatePreparationMs),
+      posteriorMomentsMs: phaseDistribution(
+        (phase) => phase.selection.posteriorMomentsMs),
+      coarseMinSdScanMs: phaseDistribution(
+        (phase) => phase.selection.coarseMinSdScanMs),
+      entropyScanMs: phaseDistribution((phase) => phase.selection.entropyScanMs),
+      fisherScanMs: phaseDistribution((phase) => phase.selection.fisherScanMs),
+      exactRefinementMs: phaseDistribution(
+        (phase) => phase.selection.exactRefinementMs),
+      categoricalUpdateMs: phaseDistribution(
+        (phase) => phase.particle.categoricalUpdateMs),
+      essMs: phaseDistribution((phase) => phase.particle.essMs),
+      resamplingMs: phaseDistribution((phase) => phase.particle.resamplingMs),
+      mhProposalGenerationMs: phaseDistribution(
+        (phase) => phase.particle.mhProposalGenerationMs),
+      mhPriorMs: phaseDistribution((phase) => phase.particle.mhPriorMs),
+      mhHistoryLikelihoodMs: phaseDistribution(
+        (phase) => phase.particle.mhHistoryLikelihoodMs),
+      mhAcceptanceMs: phaseDistribution((phase) => phase.particle.mhAcceptanceMs),
+      mhCopyingMs: phaseDistribution((phase) => phase.particle.mhCopyingMs),
+    } : null,
   };
 }
 
