@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { logPResponse, signalZ } from "./likelihood";
 import { logSumExp, logSumExp2 } from "./mathfns";
 import {
-  IIIC_TASK_INDICES, logObservationProbability, makeObservationLikelihoodWorkspace,
+  fillResponseProbabilities, IIIC_TASK_INDICES, logObservationProbability,
+  makeObservationLikelihoodWorkspace, makeResponseProbabilityWorkspace,
 } from "./nway_likelihood";
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
-import type { CategoricalParticleObservation } from "./types";
+import type { CategoricalParticleObservation, ComputeSegmentMeta } from "./types";
 
 function baselineDistractor(
   observation: CategoricalParticleObservation,
@@ -64,6 +65,39 @@ describe("allocation-free categorical likelihood", () => {
             observation, t, l, particle, K, workspace,
           )).toBe(baselineProbability(observation, t, l, particle, K));
         }
+      }
+    }
+  });
+
+  it("keeps exact response probabilities with cached particle skill scales", () => {
+    const K = 7;
+    const particles = 5;
+    const t = Float64Array.from({ length: particles * K }, (_, index) =>
+      Math.sin(index * 0.731) * 2.4);
+    const l = Float64Array.from({ length: particles * K }, (_, index) =>
+      Math.cos(index * 1.117) * 1.9);
+    const skillScale = Float64Array.from(l, Math.exp);
+    const segment: ComputeSegmentMeta = {
+      segId: 8123,
+      applicableTaskIdx: IIIC_TASK_INDICES.slice(),
+      sMean: [-0.7, -1.9, -0.4, 0.1, 0.8, 1.7, 2.6],
+      sSd: [0.03, 0.04, 0.08, 0.12, 0.2, 0.35, 0.6],
+    };
+    const reference = new Float64Array(IIIC_TASK_INDICES.length);
+    const cached = new Float64Array(IIIC_TASK_INDICES.length);
+    const referenceWorkspace = makeResponseProbabilityWorkspace(K);
+    const cachedWorkspace = makeResponseProbabilityWorkspace(K);
+    for (let particle = 0; particle < particles; particle++) {
+      for (const askedK of IIIC_TASK_INDICES) {
+        fillResponseProbabilities(
+          "iiic", askedK, segment, t, l, particle, K,
+          reference, referenceWorkspace, false,
+        );
+        fillResponseProbabilities(
+          "iiic", askedK, segment, t, l, particle, K,
+          cached, cachedWorkspace, false, skillScale,
+        );
+        expect(Array.from(cached)).toEqual(Array.from(reference));
       }
     }
   });

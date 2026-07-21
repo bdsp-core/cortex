@@ -17,6 +17,7 @@ interface LossWorkspace {
   baselineVariance: number;
   meanT: Float64Array;
   meanL: Float64Array;
+  skillScale: Float64Array;
 }
 
 const FULL_SCAN_LIMIT = 512;
@@ -56,10 +57,15 @@ function workspace(st: ParticleState): LossWorkspace {
   for (let k = 0; k < st.K; k++) {
     baselineVariance += moments.tSd[k] ** 2 + moments.lSd[k] ** 2;
   }
+  const skillScale = new Float64Array(st.l.length);
+  for (let index = 0; index < st.l.length; index++) {
+    skillScale[index] = Math.exp(st.l[index]);
+  }
   return {
     baselineVariance,
     meanT: Float64Array.from(moments.tMean),
     meanL: Float64Array.from(moments.lMean),
+    skillScale,
   };
 }
 
@@ -80,7 +86,7 @@ export function expectedNWayLoss(
     const weight = st.w[n] / weightSum;
     fillResponseProbabilities(
       kind, candidate.k, candidate.segment, st.t, st.l, n, st.K,
-      probabilities, probabilityWorkspace,
+      probabilities, probabilityWorkspace, false, cached.skillScale,
     );
     for (let r = 0; r < outcomeCount; r++) {
       const joint = weight * probabilities[r];

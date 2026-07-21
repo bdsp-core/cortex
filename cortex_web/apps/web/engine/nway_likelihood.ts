@@ -11,7 +11,16 @@ export const IIIC_TASK_INDICES = Object.freeze([1, 2, 3, 4, 5, 6]);
 function zFor(
   taskK: number, sMean: readonly number[], sSd: readonly number[],
   t: Float64Array, l: Float64Array, particleOffset: number,
+  skillScale?: Float64Array,
 ): number {
+  if (skillScale) {
+    const scale = skillScale[particleOffset + taskK];
+    let z = scale * (sMean[taskK] + t[particleOffset + taskK]);
+    if (sSd[taskK] !== 0) {
+      z /= Math.sqrt(1 + (scale * sSd[taskK]) ** 2);
+    }
+    return z;
+  }
   return signalZ(
     l[particleOffset + taskK], t[particleOffset + taskK],
     sMean[taskK], sSd[taskK],
@@ -184,13 +193,13 @@ export function fillResponseProbabilities(
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
   output: Float64Array, workspace: ResponseProbabilityWorkspace,
   screening = false,
+  skillScale?: Float64Array,
 ): void {
   const offset = particleIndex * K;
   if (taskClass === "spike") {
     if (output.length !== 2) throw new Error("spike response output must have length two");
-    const yes = pResponseYes(signalZ(
-      l[offset + askedK], t[offset + askedK],
-      segment.sMean[askedK], segment.sSd[askedK],
+    const yes = pResponseYes(zFor(
+      askedK, segment.sMean, segment.sSd, t, l, offset, skillScale,
     ));
     output[0] = yes;
     output[1] = 1 - yes;
@@ -202,7 +211,9 @@ export function fillResponseProbabilities(
   output.fill(0);
   workspace.wrong.fill(0);
   for (const k of IIIC_TASK_INDICES) {
-    workspace.z[k] = zFor(k, segment.sMean, segment.sSd, t, l, offset);
+    workspace.z[k] = zFor(
+      k, segment.sMean, segment.sSd, t, l, offset, skillScale,
+    );
   }
   const own = pResponseYes(workspace.z[askedK]);
   const draws = screening ? SCREEN_DRAW : NWAY_ARTIFACT.draws;
