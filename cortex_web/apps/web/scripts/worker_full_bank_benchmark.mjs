@@ -101,6 +101,10 @@ function metrics(run) {
     .map((event) => event.durationMs);
   const steps = run.events.filter((event) => event.kind === "engine_step");
   const phases = steps.flatMap((step) => step.phaseV2 ? [step.phaseV2] : []);
+  const executionProfile = run.events.find((event) => event.kind === "execution_profile")
+    || null;
+  const heartbeat = run.events.findLast((event) => event.kind === "event_loop_heartbeat")
+    || null;
   const phaseDistribution = (read) => {
     const values = phases.map(read);
     return {
@@ -125,6 +129,8 @@ function metrics(run) {
     },
     requiredBranchReady: steps.filter((step) => step.requiredBranchReadyAtAnswer).length,
     serialFallbacks: steps.filter((step) => step.executionMode === "serial_fallback").length,
+    executionProfile,
+    heartbeat,
     phaseV2: phases.length ? {
       candidateBankPreparationMs: {
         p50: percentile(steps.map((step) => step.bankPreparationMs), 0.5),

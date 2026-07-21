@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { selectExecutionProfile } from "./execution_profile";
+import {
+  selectCalibratedWorkerCount, selectExecutionProfile,
+} from "./execution_profile";
 
 describe("selectExecutionProfile", () => {
   it("keeps the rollout disabled unless dual-branch execution is requested", () => {
@@ -83,5 +85,24 @@ describe("selectExecutionProfile", () => {
         reason: "adaptive_pool_eligible",
       });
     }
+  });
+});
+
+describe("selectCalibratedWorkerCount", () => {
+  it("selects the smallest responsive pool within five percent of fastest", () => {
+    expect(selectCalibratedWorkerCount([
+      { workers: 1, durationMs: 200, heartbeatMaxDelayMs: 2 },
+      { workers: 2, durationMs: 108, heartbeatMaxDelayMs: 3 },
+      { workers: 4, durationMs: 100, heartbeatMaxDelayMs: 4 },
+      { workers: 5, durationMs: 96, heartbeatMaxDelayMs: 5 },
+    ])).toBe(4);
+  });
+
+  it("rejects heartbeat violations and fails closed to one worker", () => {
+    expect(selectCalibratedWorkerCount([
+      { workers: 1, durationMs: 200, heartbeatMaxDelayMs: 1 },
+      { workers: 2, durationMs: 80, heartbeatMaxDelayMs: 51 },
+    ])).toBe(1);
+    expect(selectCalibratedWorkerCount([])).toBe(1);
   });
 });

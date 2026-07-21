@@ -55,13 +55,38 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         hardwareConcurrency,
         workerAvailable: typeof Worker !== "undefined",
       });
+      let calibrationResult = "not_run";
       if (profile.mode === "adaptive_pool") {
         const candidate = new NWaySelectorWorkerExecutor(inputs, profile.computeWorkers);
         try {
           await candidate.ready();
-          selectionExecutor = candidate;
+          const calibration = await candidate.calibrate();
+          calibrationResult = JSON.stringify({
+            version: 1,
+            result: calibration.result,
+            sampleCandidates: calibration.sampleCandidates,
+            selectedWorkerCount: calibration.selectedWorkerCount,
+            totalDurationMs: Math.round(calibration.totalDurationMs * 10) / 10,
+            samples: calibration.samples.map((sample) => ({
+              workers: sample.workers,
+              durationMs: Math.round(sample.durationMs * 10) / 10,
+              heartbeatMaxDelayMs:
+                Math.round(sample.heartbeatMaxDelayMs * 10) / 10,
+            })),
+          });
+          profile = {
+            ...profile,
+            computeWorkers: calibration.selectedWorkerCount,
+            ...(calibration.selectedWorkerCount === 1 ? {
+              mode: "serial" as const,
+              reason: "calibration_selected_serial" as const,
+            } : {}),
+          };
+          if (profile.mode === "adaptive_pool") selectionExecutor = candidate;
+          else candidate.dispose();
         } catch {
           candidate.dispose();
+          calibrationResult = "calibration_failed_closed";
           profile = {
             mode: "serial", computeWorkers: 1, reason: "worker_unavailable",
           };
@@ -74,7 +99,7 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         reason: profile.reason,
         hardwareConcurrency: hardwareConcurrency ?? null,
         selectedWorkerCount: profile.computeWorkers,
-        calibrationResult: "fixed_v1_profile",
+        calibrationResult,
         estimatedWorkerMemoryBytes: estimatedWorkerMemoryBytes(
           inputs, profile.computeWorkers,
         ),
