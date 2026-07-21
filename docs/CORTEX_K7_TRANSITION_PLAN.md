@@ -305,13 +305,11 @@ Cons: requires session-level phase switching; harder to make adaptive across the
 
 Stratification (recommended): 10 strata on `s_mean` × 5 segments per stratum = 50 calibrated spike segments. Quality-bias by `n_raters` within each stratum, same as the IIIC sampler.
 
-### 4.C7 — `cortex_app/cortex.spec` (PyInstaller bundle)
+### 4.C7–4.C8 — Native packaging (retired)
 
-PyInstaller spec needs to include the new `Sigma_l_fitted_k7.npy` and `spike_segment_signals.csv` in the bundled `datas` list. ~5-line change.
-
-### 4.C8 — `cortex_app/fetch_test_bank.sh` (release-fetch)
-
-Bumps the `build-data-v1` reference to `build-data-v2` (or `-v3` if v2 has been used). The bank itself needs to be re-uploaded to a new GitHub release after rebuild. Documented in `cortex_app/BUILD.md`.
+The PyInstaller bundle and release-fetch steps in the original transition plan
+were superseded by the deployed `cortex_web/` application. They are retained
+here only as a historical numbering gap and require no implementation.
 
 ### 4.C9 — `scripts/cortex_storage.py` (per-session JSONL audit log)
 
@@ -371,7 +369,7 @@ All three sequences end with v1.2.x: K=7 CORTEX shipping with rigorous calibrati
 | S1A.7 | `scripts/eeg_bank_viewer.py`: per-segment-type UI (6-button for IIIC, Yes/No for spike) | 1–2 days | None |
 | S1A.8 | `scripts/build_cortex_test_bank_v2.py`: update to optionally include calibrated spike (gated on S1A.3 output) | 0.5 day | None |
 | S1A.9 | Tests: per-section above (C11) | 1 day | None |
-| S1A.10 | `cortex_app/cortex.spec` + `fetch_test_bank.sh`: bundle new files | 30 min | None |
+| S1A.10 | Native-app packaging step (retired; superseded by `cortex_web/`) | — | None |
 | S1A.11 | New `build-data-v3` GitHub release with the K=7 bank | 30 min | None |
 | S1A.12 | Per-task replay smoke test on a few raters using a calibrated K=7 session | 1 day | None |
 

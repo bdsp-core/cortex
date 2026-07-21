@@ -7,7 +7,7 @@ describe("isPhoneDevice", () => {
     expect(isPhoneDevice("", 390, true)).toBe(true);   // landscape (short side unchanged)
   });
 
-  it("keeps tablets and desktops on the desktop app", () => {
+  it("keeps tablets and desktops on the desktop-layout web app", () => {
     expect(isPhoneDevice("", 768, true)).toBe(false);  // iPad short side
     expect(isPhoneDevice("", 1080, false)).toBe(false); // desktop
     expect(isPhoneDevice("", 500, false)).toBe(false); // narrow desktop window, fine pointer

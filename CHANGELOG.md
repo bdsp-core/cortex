@@ -7,6 +7,15 @@ fast-path orientation for a new contributor.
 
 ---
 
+## ▶ Native desktop application retired (2026-07-21)
+
+The obsolete PyInstaller application, platform build scripts, native release
+workflow, cloud/fallback sampler, and their dedicated tests were removed.
+`cortex_web/` is the sole supported product surface. The scientific full-bank
+builder remains available, without its unused native offline-fallback mode.
+
+---
+
 ## ▶ Live server trainer (2026-07-17) — legacy trainer retired
 
 The browser-local trainer and its repository-root prototype/port were superseded
@@ -218,7 +227,7 @@ bank, MAX_Q=500, N=600) and the **same bank** (`build-data-v4-k7`, no re-upload)
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.6 → 1.3.7`.
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.6 → 1.3.7`.
 * Same bank (`build-data-v4-k7`); release-body "What is new" updated for v1.3.7.
 
 ---
@@ -286,8 +295,8 @@ false-PASS/FAIL/REFER operating curve that justifies ALPHA=0.05.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.5 → 1.3.6`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.5 → 1.3.6`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.6. **Before tagging:** upload the new 700-seg `eeg_bank.h5` as the
   `build-data-v4-k7` release asset and bump the download tag reference
   `build-data-v3-k7 → build-data-v4-k7`. Do NOT tag `cortex-v1.3.6` first, or
@@ -339,8 +348,8 @@ length **shortens** (p95 300 → 213), and the verdict mix is unchanged.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.4 → 1.3.5`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.4 → 1.3.5`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.5.
 
 ---
@@ -380,8 +389,8 @@ engine change and is deferred for an explicit decision.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.3 → 1.3.4`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.3 → 1.3.4`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.4.
 
 ---
@@ -422,8 +431,8 @@ unchanged.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.2 → 1.3.3`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.2 → 1.3.3`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.3.
 
 ---
@@ -454,8 +463,8 @@ panels keep their v1.3.0 static (asymmetric, data-fit) limits.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.1 → 1.3.2`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.1 → 1.3.2`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.2.
 
 ---
@@ -489,8 +498,8 @@ time estimate, because the estimate was not accurate enough to be useful:
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.3.0 → 1.3.1`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.3.0 → 1.3.1`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.1.
 
 ---
@@ -549,8 +558,8 @@ domain", and a clean one-line caption; passfail "Question N of M".
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.9 → 1.3.0`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.9 → 1.3.0`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.3.0 (carries forward the two mac downloads).
 
 ### Test gate at ship
@@ -611,8 +620,8 @@ shows a determinate bar, the current stage, and a live countdown:
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.8 → 1.2.9`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.8 → 1.2.9`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.2.9 (carries forward the two mac downloads).
 
 ### Test gate at ship
@@ -679,8 +688,8 @@ break the band reference.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.7 → 1.2.8`.
-* `.github/workflows/cortex-release.yml` release-body "What is new" rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.7 → 1.2.8`.
+* retired native-app release workflow release-body "What is new" rewritten
   for v1.2.8 (carries forward the two mac downloads from v1.2.7).
 
 ### Test gate at ship
@@ -709,7 +718,7 @@ failure. Surfaced by Eli.
 
 ### Change
 
-`.github/workflows/cortex-release.yml`:
+retired native-app release workflow:
 
 * New `build-mac-intel` job that cross-builds the x86_64 app on the SAME
   Apple Silicon runner as `build-mac`, under Rosetta 2. GitHub is retiring
@@ -728,7 +737,7 @@ failure. Surfaced by Eli.
   Mac" chooser, and the system-requirements mac line corrected (no longer
   claims a single DMG covers both architectures).
 
-`cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.6 → 1.2.7`.
+retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.6 → 1.2.7`.
 
 ### Not changed
 
@@ -778,8 +787,8 @@ spike is present." Wording matches the terse tutorial voice and the
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.5 → 1.2.6`.
-* `.github/workflows/cortex-release.yml` release-body "What is new in
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.5 → 1.2.6`.
+* retired native-app release workflow release-body "What is new in
   v1.2.6" describes the tutorial note and carries forward the v1.2.5
   spike-display + MP4 fixes (fresh-slate page, no stacked history); the
   "earlier v1.2.x" re-download callout bumped to v1.2.6.
@@ -853,7 +862,7 @@ K=7 synthetic sessions: all four files produced cleanly.
 
 ### Issue 3: release notes rewrite (human voice, fresh-slate scope)
 
-The release-page body in `.github/workflows/cortex-release.yml` had
+The release-page body in retired native-app release workflow had
 stacked v1.2.0 through v1.2.4 hotfix sections that read as a wall of
 third-person technical changelog text full of em dashes. Per Eli's
 direction, the body is now a fresh, first-person, em-dash-free document
@@ -879,8 +888,8 @@ Full historical changelog stays in this file (`CHANGELOG.md`).
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.4 → 1.2.5`.
-* `.github/workflows/cortex-release.yml` release-body fully rewritten
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.4 → 1.2.5`.
+* retired native-app release workflow release-body fully rewritten
   (fresh-slate v1.2.5-only page, no stacked history).
 
 ### Test gate at ship
@@ -981,8 +990,8 @@ Four new tests, 30/30 viewer suite pass:
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.3 → 1.2.4`.
-* `.github/workflows/cortex-release.yml` release-body prepends a "Fixes
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.3 → 1.2.4`.
+* retired native-app release workflow release-body prepends a "Fixes
   in v1.2.4" section above the v1.2.3 calibration entry.
 
 ### Test gate at ship
@@ -1030,8 +1039,8 @@ math + Agent 2's CAT-literature review in the session transcript.
   * `scripts/cortex_policy.py` `DEFAULT_N_MIN` `12 → 20`. `DEFAULT_ALPHA`
     unchanged at `0.25` by design (keeps the internal test fast while
     raising the bar against momentary-posterior spurious locks).
-  * `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.2 → 1.2.3`.
-  * `.github/workflows/cortex-release.yml` release-body prepends a
+  * retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.2 → 1.2.3`.
+  * retired native-app release workflow release-body prepends a
     "Calibration tweak in v1.2.3" section above the v1.2.2 hotfix entry.
 
 ### Sim coverage
@@ -1055,7 +1064,7 @@ panel-target N_MIN=60 + ALPHA=0.05.
 Critical packaging hotfix for the cortex-v1.2.1 ship. v1.2.1 correctly
 re-wired `scripts/eeg_bank_viewer.py:open_viewer()` from the K=6 inputs
 builder to `cortex_engine_inputs_k7.build_k7_engine_inputs()`, but did
-NOT update the PyInstaller `datas` list in `cortex_app/cortex.spec` to
+NOT update the PyInstaller `datas` list in retired native-app PyInstaller spec to
 ship the two data files the K=7 builder reads. The v1.2.1 bundle still
 carried only the K=6 files (`data/labels/iiic_segment_signals.csv` +
 `Sigma_l_fitted.npy`), so launching the live test crashed at startup:
@@ -1086,7 +1095,7 @@ the second, surfacing only once the CSV is present.
 
 ### Fix
 
-`cortex_app/cortex.spec` `datas` now also ships:
+retired native-app PyInstaller spec `datas` now also ships:
 
 * `data/labels/segment_signals.csv` → `data/labels`
 * `Sigma_l_fitted_k7.npy` → bundle root
@@ -1098,8 +1107,8 @@ verified to read only the already-bundled `calibration/cert_config.yaml`
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.1` → `1.2.2`.
-* `.github/workflows/cortex-release.yml` release-body "Hotfix in v1.2.2"
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.1` → `1.2.2`.
+* retired native-app release workflow release-body "Hotfix in v1.2.2"
   prepended above the v1.2.1 section.
 
 ### What testers see
@@ -1163,8 +1172,8 @@ the policy default to v14 to match the loader.
 
 ### Packaging
 
-* `cortex_app/cortex.spec` `CFBundleShortVersionString` `1.2.0` → `1.2.1`.
-* `.github/workflows/cortex-release.yml` release-body "What's new in
+* retired native-app PyInstaller spec `CFBundleShortVersionString` `1.2.0` → `1.2.1`.
+* retired native-app release workflow release-body "What's new in
   v1.2.1" prepended above the v1.2.0 section explaining the hotfix.
 
 ### What testers see
@@ -1221,10 +1230,10 @@ Full close-out: `docs/PHASE9_CLOSEOUT.md`.
     (morgoth1_recompute + (20,6000) shape); 36,771-seg production-pool
     target; ~43 GB at full build; 91.6% IIIC coverage after strict filter
     documented in MANIFEST.
-  - `scripts/cortex_session_bank_fetch.py` — deterministic per-session
+  - retired per-session native bank fetcher — deterministic per-session
     sampler (sha256(session_id) seed); stratified by V_B `s_mean_<task>`;
     `BankBackend` interface (LocalBackend works; HTTPBackend placeholder).
-  - `cortex_app/cortex_offline_fallback.h5` (1.14 GB; 970 segs stratified)
+  - retired native offline-fallback bank (1.14 GB; 970 segs stratified)
     + manifest — built for testing.
 
 ### v1.2.0 release packaging (this commit)
@@ -1290,9 +1299,9 @@ Pair-wise overlap:     ~0.5% per session pair
 
 ### Tests
 
-`tests/test_phase9_layer6b.py` — 10 new tests for build + fetch
-infrastructure (schema, determinism, balance, e2e, manifest). Phase-9
-suite total: **48/48 PASS**.
+The now-retired native build/fetch infrastructure had 10 dedicated tests
+(schema, determinism, balance, end-to-end, and manifest). At that historical
+closeout the Phase-9 suite total was **48/48 PASS**.
 
 ---
 
@@ -1847,11 +1856,11 @@ PyInstaller-bundled standalone test-taker app distributed via GitHub
 Releases as `CORTEX-mac.dmg` (~308 MB) and `CORTEX-windows.zip`
 (~319 MB). Zero Python install required for end users; clinicians
 download, double-click, Gatekeeper "Open Anyway" once, run. Build
-infra: `.github/workflows/cortex-release.yml` triggers on `cortex-v*`
+infra: retired native-app release workflow triggers on `cortex-v*`
 tags, fetches the test bank from the `build-data-v1` release (no AWS
 deps in CI), stages `cortex_config.yaml` from the
 `CORTEX_CONFIG_YAML` repository secret, runs PyInstaller against
-`cortex_app/cortex.spec` on parallel macOS + Windows runners, and
+retired native-app PyInstaller spec on parallel macOS + Windows runners, and
 attaches both artifacts to a new GitHub Release. Complementary to
 `scripts/build_internal_test_zip.py` (bash-launcher zip for users
 willing to install Python 3.11 themselves).
@@ -1861,10 +1870,10 @@ Bug surface mostly: PyInstaller's static AST tracer cannot see
 dynamic / lazy / pickle-driven imports, and macOS `console=False`
 bundles redirect stdout to /dev/null.
 
-- **v1.0.0** (initial) — PyInstaller scaffold under `cortex_app/`
+- **v1.0.0** (initial) — PyInstaller scaffold under retired native-app package
   (`cortex.spec`, `build_mac.sh`, `build_windows.bat`,
   `fetch_test_bank.sh`, `BUILD.md`). Dedup pass at commit `a102ec5`
-  removed duplicated engine source under `cortex_app/scripts/`;
+  removed duplicated engine source under retired native-app-local scripts;
   spec points at repo-root `scripts/` / `engine/` / `Sigma_l_fitted.npy`
   as the single source of truth.
 
@@ -1989,7 +1998,7 @@ access-token refresh + 2× `files/upload`).
   remains** as the complementary distribution for tech-comfortable
   users with Python 3.11 already installed.
 
-Tags (annotated; each triggered `cortex-release.yml` CI): `cortex-v1.0`,
+Tags (annotated; each triggered retired native-app release workflow CI): `cortex-v1.0`,
 `cortex-v1.0.1`, `cortex-v1.0.2`, `cortex-v1.0.3`, `cortex-v1.0.4`,
 `cortex-v1.0.5`. Test bank pinned at `build-data-v1`.
 
@@ -2004,7 +2013,7 @@ release timeline; details live in the per-tag commit messages.
 - **v1.0.6** (`73694a8`) — drop 38 MB of `calibration/` dev-only outputs
   from the PyInstaller bundle. Pure size reduction; no behaviour change.
 - **v1.0.7** (`685b573`) — add Linux x86_64 to the release pipeline.
-  `.github/workflows/cortex-release.yml` now produces three artifacts
+  retired native-app release workflow now produces three artifacts
   per tag (macOS DMG + Windows ZIP + Linux bash launcher).
 - **v1.0.8** (`e98db34`) — DMG layout fix: include the
   `/Applications` symlink as a drag-target so users land in the right
@@ -2029,7 +2038,7 @@ release timeline; details live in the per-tag commit messages.
   v1 segments preserved for backward comparability; +200 new picks
   with median `n_raters=99` vs v1 median 81).
 
-Tags (annotated; each triggered `cortex-release.yml` CI): `cortex-v1.0.6`,
+Tags (annotated; each triggered retired native-app release workflow CI): `cortex-v1.0.6`,
 `cortex-v1.0.7`, `cortex-v1.0.8`, `cortex-v1.0.9`, `cortex-v1.1.0`.
 
 ---
@@ -2158,7 +2167,7 @@ byte-equivalent content. Not blocking v1.1.1.
   * `test_summary_csv_back_compat_missing_demographics` — pre-v1.1.1
     participant dicts produce empty strings, not KeyError.
 
-**Bundle version.** `cortex_app/cortex.spec`
+**Bundle version.** retired native-app PyInstaller spec
 `CFBundleShortVersionString` bumped `'1.1.0'` → `'1.1.1'`. Test bank
 unchanged at `build-data-v2` (300 IIIC + 100 spike, v1.1.0 build).
 AD6 strictness unchanged from v1.1.0 (`N_MIN=15`, `ALPHA=0.10`;
@@ -2259,7 +2268,7 @@ running the script outside the bundle), the module falls back to
 the system ffmpeg on PATH and logs a WARNING. So existing dev
 workflows keep working.
 
-**PyInstaller integration** (`cortex_app/cortex.spec`):
+**PyInstaller integration** (retired native-app PyInstaller spec):
 `collect_data_files('imageio_ffmpeg', include_py_files=False)`
 appended to `datas`; `'imageio_ffmpeg'` added to `hiddenimports`.
 The wheel ships ONE binary per platform, so each release artifact
@@ -2307,7 +2316,7 @@ stays green).
 
 ### Bundle version
 
-`cortex_app/cortex.spec` `CFBundleShortVersionString`
+retired native-app PyInstaller spec `CFBundleShortVersionString`
 `'1.1.1'` → `'1.1.2'`. Test bank unchanged at `build-data-v2`
 (300 IIIC + 100 spike). AD6 strictness unchanged from v1.1.0/v1.1.1
 (`N_MIN=15`, `ALPHA=0.10`).
@@ -2443,7 +2452,7 @@ matplotlib (already vendored) + the engine package (already vendored)
 
 ### Bundle version
 
-`cortex_app/cortex.spec` `CFBundleShortVersionString`
+retired native-app PyInstaller spec `CFBundleShortVersionString`
 `'1.1.2'` → `'1.1.3'`. Test bank unchanged at `build-data-v2`. AD6
 strictness unchanged from v1.1.0–v1.1.2 (`N_MIN=15`, `ALPHA=0.10`;
 production target `ALPHA=0.05` deferred to v1.2.0). No engine,
@@ -2578,7 +2587,7 @@ implicitly via the participant dict) into the uploaded summary CSV.
 
 ### Bundle version
 
-`cortex_app/cortex.spec` `CFBundleShortVersionString`
+retired native-app PyInstaller spec `CFBundleShortVersionString`
 `'1.1.3'` → `'1.1.4'`. Test bank unchanged at `build-data-v2`. AD6
 strictness unchanged from v1.1.0–v1.1.3 (`N_MIN=15`, `ALPHA=0.10`).
 No engine, deployment, calibration, or `cert_config.yaml` changes
@@ -2719,7 +2728,7 @@ preserves smoothness while hitting the 60s target.
 
 ### Bundle version
 
-`cortex_app/cortex.spec` `CFBundleShortVersionString`
+retired native-app PyInstaller spec `CFBundleShortVersionString`
 `'1.1.4'` → `'1.1.5'`. Test bank unchanged at `build-data-v2`.
 AD6 strictness unchanged from v1.1.0-v1.1.4 (`N_MIN=15`,
 `ALPHA=0.10`). No engine, deployment, calibration, or

@@ -1,12 +1,12 @@
 // Boot-time phone detection: the phone companion surface (src/mobile/) is a
-// SEPARATE module tree from the desktop app, selected ONCE at boot in
+// SEPARATE module tree from the desktop-layout web app, selected ONCE at boot in
 // main.tsx — deliberately no live desktop↔mobile switching on resize (it
 // would drop in-flight state, and a certification sitting must never change
 // modality mid-test).
 //
 // "Phone" = coarse pointer AND a screen whose short side is under 768 CSS px:
 // phones match in either orientation; iPads and laptops (fine pointer, or
-// short side ≥ 768) stay on the desktop app; a narrowed desktop window stays
+// short side ≥ 768) stay on the desktop-layout web app; a narrowed desktop window stays
 // desktop. ?desktop=1 / ?mobile=1 are the overrides for testing and as the
 // escape hatch.
 

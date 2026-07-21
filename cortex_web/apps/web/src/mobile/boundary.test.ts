@@ -4,7 +4,7 @@
 // import from mobile/ (main.tsx's boot branch is the single exception).
 // This is what keeps "future adjustments clean": a change to Shell/Viewer
 // can never break the phone surface, and phone layout tweaks can never leak
-// into the desktop app.
+// into the desktop-layout web app.
 
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";

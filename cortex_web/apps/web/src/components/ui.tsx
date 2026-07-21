@@ -1,6 +1,6 @@
 // Shared presentational primitives for the onboarding screens. Centralizes
 // the palette/typography so every branding screen (Consent /
-// Registration / Tutorial) is visually consistent with the desktop app.
+// Registration / Tutorial) is visually consistent with the desktop-layout web UI.
 
 import { CSSProperties, ReactNode } from "react";
 import { COLORS, FONTS } from "../../ui/theme";

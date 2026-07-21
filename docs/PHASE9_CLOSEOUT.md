@@ -165,20 +165,14 @@ morgoth1_recompute spectrograms). Backup of K=6 bank preserved as
 
 **Scripts:**
 
-* `scripts/build_cortex_bank_k7_production.py` — builds the full
-  production bank. Three modes (`--full` / `--fallback` / `--dry-run`).
+* `scripts/build_cortex_bank_k7_production.py` — builds or audits the full
+  production bank (`--mode full` / `--mode dry-run`).
   Strict filter: spike n_raters≥5 + IIIC n_raters≥5 + spec_source=
   morgoth1_recompute + data30s shape=(20,6000).
-* `scripts/cortex_session_bank_fetch.py` — per-session sampler.
-  Deterministic seed = `sha256(session_id)[:8]`; stratified by
-  V_B `s_mean_<task>` quantiles per task. `BankBackend` interface
-  (LocalBankBackend works; HTTPBankBackend placeholder for future
-  cloud choice).
-* `cortex_app/cortex_cloud_config.example.yaml` — config template
-  for 3 deployment modes (HTTPS object store, local mirror,
-  offline-only).
-* `cortex_app/cortex_offline_fallback.h5` (1.14 GB; 970 segs) + manifest
-  — bundled fallback for offline / first-run use.
+
+The native per-session sampler, cloud configuration, and offline fallback
+described in the original closeout were not adopted by the web runtime and
+have since been retired.
 
 **Production pool projection** (full build, deferred to operational
 session):
@@ -320,7 +314,7 @@ v1.2.0 (K=7):
                             →  engine_inputs_k7 (K=7)
 ```
 
-### 4.2 UI (cortex_app)
+### 4.2 Legacy native UI (retired)
 
 ```
 v1.1.5: 6-button answer panel; eeg30s renderer (200 Hz, 30s)
@@ -348,7 +342,7 @@ Spike "No"              →  raw = -1     (never matches any k)
 tests/test_phase9_gate_a.py                       3/3 PASS
 tests/test_phase9_layer1_prep_k7.py              12/12 PASS
 tests/test_phase9_layer1_variant_selection.py    11/11 PASS
-tests/test_phase9_layer6b.py                     10/10 PASS  (new)
+retired native bank/fetch suite                  10/10 PASS  (historical)
 tests/test_phase9_scaffolding.py                 12/12 PASS
 ────────────────────────────────────────────────────────────
 Phase 9 suite total:                             48/48 PASS
@@ -434,7 +428,7 @@ N_TUNE budget), it agrees with SVI within ~0.06 mean drift on
   with N_MIN=15, ALPHA=0.05 (panel-target production strictness; v1.2.0
   uses 0.10 calibration midpoint per `docs/AD6_RESOLUTION.md`).
 
-## 8. v1.2.0 release packaging (internal-test cohort)
+## 8. Historical v1.2.0 native release packaging (retired)
 
 ### 8.1 What ships in `cortex-v1.2.0`
 
@@ -444,11 +438,8 @@ N_TUNE budget), it agrees with SVI within ~0.06 mean drift on
   fetch script, new tag `build-data-v3-k7`.
 * **UI + engine:** all Layer 6a code (family-aware viewer, K=7
   policy + engine inputs, ResultsScreen K=7).
-* **Per-session fetch:** `cortex_session_bank_fetch.py` ships ready-
-  to-use but defaults to the bundled 350-seg bank. The fetcher
-  becomes the live path in v1.3.0 once production bank is uploaded.
-  Default `per_task=60` (~500 MB session — within Dropbox quotas
-  for internal testing).
+* **Per-session fetch proposal:** this path was not adopted by the dominant
+  web runtime and was removed with the native application.
 * **Dropbox:** existing app + existing `refresh_token` + existing
   `app_key` + `app_secret`. **Upload folder changed to
   `/results/v1.2.0/`** so v1.2.0 cohort recordings are logically

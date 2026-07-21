@@ -26,12 +26,6 @@ Modes:
   --mode full        Build all qualifying segments (~37 GB; ~3-4 h compute).
                      Output: data/production_bank/eeg_bank_production.h5
                               + MANIFEST.json (~22 MB; per-seg sha256)
-  --mode fallback    Build the offline fallback bundle: stratified 150/task
-                     × 7 = 1050 segs (~300 MB; fits in CORTEX installer or
-                     GitHub Release). Used when CORTEX runs offline or
-                     before the first cloud fetch.
-                     Output: cortex_app/cortex_offline_fallback.h5
-                              + .manifest.json
   --mode dry-run     Report what would be built; no I/O.
 
 Output schema (matches eeg_bank.h5 internal bank schema, scaled):
@@ -56,11 +50,7 @@ MANIFEST.json schema:
       source_dataset, n_raters, group_path,
       payload_sha256, ...per-task s_mean/s_sd...}, ...]}
 
-The MANIFEST is consumed by `scripts/cortex_session_bank_fetch.py` for
-per-session stratified sampling without downloading the full ~37 GB bank.
-
 Usage:
-    .venv/bin/python scripts/build_cortex_bank_k7_production.py --mode fallback
     .venv/bin/python scripts/build_cortex_bank_k7_production.py --mode full
     .venv/bin/python scripts/build_cortex_bank_k7_production.py --mode dry-run
 """
@@ -94,20 +84,12 @@ PROD_BANK_DIR = REPO / "data" / "production_bank"
 PROD_BANK_PATH = PROD_BANK_DIR / "eeg_bank_production.h5"
 PROD_MANIFEST_PATH = PROD_BANK_DIR / "MANIFEST.json"
 
-FALLBACK_DIR = REPO / "cortex_app"
-FALLBACK_PATH = FALLBACK_DIR / "cortex_offline_fallback.h5"
-FALLBACK_MANIFEST_PATH = FALLBACK_DIR / "cortex_offline_fallback.manifest.json"
-
 MIN_N_RATERS = 5
 IIIC_CLASSES = ("seizure", "lpd", "gpd", "lrda", "grda", "other")
 SPIKE_SUBSOURCES = (
     "sn1_combined_v2:sn1", "sn1_combined_v2:bonobo_only",
     "sn1_combined_v2:fabio_spikeed",
 )
-FALLBACK_PER_TASK = 150       # offline fallback bundle: 150/task × 7 = 1050 segs
-N_STRATA = 10                 # quantile strata for stratified sampling
-
-
 # ── filters + selection ─────────────────────────────────────────────────────
 
 def _select_spike_pool(min_n_raters: int = MIN_N_RATERS) -> pd.DataFrame:
@@ -209,28 +191,6 @@ def _select_iiic_pool(min_n_raters: int = MIN_N_RATERS) -> pd.DataFrame:
     return pool
 
 
-def _stratified_sample(df: pd.DataFrame, key: str, n_per_stratum: int,
-                       n_strata: int = N_STRATA, seed: int = 42) -> pd.DataFrame:
-    """Stratified-by-quantile sample of `df` on column `key`."""
-    if len(df) == 0:
-        return df.iloc[:0]
-    rng = np.random.default_rng(seed)
-    quantiles = np.linspace(0, 1, n_strata + 1)
-    bins = np.unique(df[key].quantile(quantiles).to_numpy())
-    if len(bins) < 2:
-        return df.sample(n=min(n_per_stratum * n_strata, len(df)),
-                         random_state=int(rng.integers(0, 2**31)))
-    df = df.copy()
-    df["__stratum"] = pd.cut(df[key], bins=bins, include_lowest=True,
-                              labels=False).astype(int)
-    picks = []
-    for _, sub in df.groupby("__stratum", observed=True):
-        n_take = min(n_per_stratum, len(sub))
-        picks.append(sub.sample(n=n_take,
-                                random_state=int(rng.integers(0, 2**31))))
-    return pd.concat(picks, ignore_index=True).drop(columns=["__stratum"])
-
-
 # ── per-segment writers ────────────────────────────────────────────────────
 
 def _write_spike_seg(dst: h5py.File, sid: int, signal: np.ndarray,
@@ -290,11 +250,9 @@ def _write_iiic_seg(dst: h5py.File, sid: int, spec_seg: h5py.Group,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mode", required=True,
-                    choices=["full", "fallback", "dry-run"])
+                    choices=["full", "dry-run"])
     ap.add_argument("--min-n-raters", "--min-raters", dest="min_n_raters",
                     type=int, default=MIN_N_RATERS)
-    ap.add_argument("--fallback-per-task", type=int, default=FALLBACK_PER_TASK)
-    ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", type=Path, default=None,
                     help="override output h5 path")
     ap.add_argument("--manifest-out", type=Path, default=None,
@@ -331,37 +289,8 @@ def main(argv=None) -> int:
     for c in IIIC_CLASSES:
         print(f"    {c:>8}: {cls_dist.get(c, 0):>5,}")
 
-    # Sampling for fallback mode
-    if args.mode == "fallback":
-        print(f"\nStage 2b — stratified sampling for offline fallback "
-              f"({args.fallback_per_task}/task × 7 = "
-              f"{args.fallback_per_task * 7} segs)")
-        spike_sample = _stratified_sample(
-            spike_pool, "s_mean", args.fallback_per_task // 10,
-            seed=args.seed)
-        print(f"  spike sampled: {len(spike_sample):,}")
-        iiic_samples = []
-        for cls in IIIC_CLASSES:
-            sub = iiic_pool[iiic_pool["pattern_class"] == cls]
-            if len(sub) == 0:
-                continue
-            key = f"s_mean_{cls if cls != 'other' else 'iic'}"
-            if key in sub.columns:
-                samp = _stratified_sample(
-                    sub, key, args.fallback_per_task // 10,
-                    seed=args.seed + hash(cls) % 1000)
-            else:
-                samp = sub.sample(
-                    n=min(args.fallback_per_task, len(sub)),
-                    random_state=args.seed + hash(cls) % 1000)
-            iiic_samples.append(samp)
-            print(f"  IIIC {cls:>8} sampled: {len(samp):,}")
-        iiic_sample = pd.concat(iiic_samples, ignore_index=True)
-        spike_to_write = spike_sample
-        iiic_to_write = iiic_sample
-    else:
-        spike_to_write = spike_pool
-        iiic_to_write = iiic_pool
+    spike_to_write = spike_pool
+    iiic_to_write = iiic_pool
 
     print(f"\n  TOTAL TO WRITE: spike={len(spike_to_write):,}  "
           f"iiic={len(iiic_to_write):,}  "
@@ -372,12 +301,8 @@ def main(argv=None) -> int:
         return 0
 
     # Resolve output paths
-    if args.mode == "fallback":
-        out_path = args.out or FALLBACK_PATH
-        manifest_path = args.manifest_out or FALLBACK_MANIFEST_PATH
-    else:
-        out_path = args.out or PROD_BANK_PATH
-        manifest_path = args.manifest_out or PROD_MANIFEST_PATH
+    out_path = args.out or PROD_BANK_PATH
+    manifest_path = args.manifest_out or PROD_MANIFEST_PATH
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"\nStage 3 — write bank + manifest")

@@ -96,7 +96,7 @@ the operator's call which version to ship). From your local workstation:
 
 ```bash
 # build it locally
-cortex_app/build_venv/bin/python cortex_web/scripts/prepare_web_bundle.py \
+.venv/bin/python cortex_web/apps/web/scripts/prepare_web_bundle.py \
     --bank /path/to/eeg_bank.h5 --version v1.5-k7 --include-spike
 
 # rsync it onto the deploy box. Bundles live at /opt/cortex/bundle: OUTSIDE

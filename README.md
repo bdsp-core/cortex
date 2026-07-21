@@ -6,8 +6,8 @@
 The current Python stopping-policy layout is documented in
 [`POLICY_LAYOUT.md`](POLICY_LAYOUT.md). AD6 remains the default and rollback
 policy; the frozen cut-independent PrecisionPolicy is available through the
-local `precision_v1` integration flag. The TypeScript web port is a separate,
-not-yet-started phase.
+local `precision_v1` integration flag. The deployed product surface is the
+TypeScript application under [`cortex_web/`](cortex_web/).
 
 Reading an electroencephalogram is a high stakes judgment call. Is this run
 of sharp waves a seizure or a benign rhythm? Two board certified
@@ -123,18 +123,13 @@ The validation trail is the point, not a footnote. See
 audit, and [`docs/METHODS.md`](docs/METHODS.md) section 5 for the validation
 methods.
 
-## Take the test: the desktop app
+## Take the test: the web app
 
-The desktop application is how a clinician actually takes CORTEX, turning
-all of this into a fifteen
-minute experience: a clinician launches it, works through an adaptive
-sequence of real EEGs driven by the research engine, and gets a per task
-report at the end. It is packaged as a one file download for macOS, Windows,
-and Linux, built and released automatically by
-[`.github/workflows/cortex-release.yml`](.github/workflows/cortex-release.yml).
-The viewer, the session controller, and the engine wiring live in
-[`scripts/`](scripts/); the test taker setup guide is
-[`README_CORTEX_TEST.md`](README_CORTEX_TEST.md).
+Clinicians take CORTEX through the deployed browser application. It presents
+the adaptive sequence of real EEGs, runs the qualified Web Worker engine, and
+produces the per-task report at the end. The application, deployment runbook,
+and reviewer entry points live under [`cortex_web/`](cortex_web/); start with
+the [`cortex_web` README](cortex_web/README.md).
 
 <div align="center">
   <img src="docs/media/passfail.gif" width="85%" alt="Per-task pass-mass trajectories crossing into the PASS or FAIL band over a session"/>

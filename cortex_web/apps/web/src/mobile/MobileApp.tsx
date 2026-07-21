@@ -1,5 +1,5 @@
 // Phone companion surface (v1: auth + dashboard + results) — a deliberately
-// SEPARATE module tree from the desktop app (../App.tsx), selected once at
+// SEPARATE module tree from the desktop-layout web app (../App.tsx), selected once at
 // boot by main.tsx via src/device.ts. Desktop layout never has to
 // accommodate phone constraints and vice versa; the import boundary is
 // enforced by boundary.test.ts (mobile may only reach the shared allowlist:
@@ -20,7 +20,7 @@ import { MobileHome } from "./MobileHome";
 import { MobileSettings } from "./MobileSettings";
 
 export function MobileApp() {
-  // Same one-shot email deep-link consumption as the desktop App: parse +
+  // Same one-shot email deep-link consumption as the desktop-layout App: parse +
   // strip the URL params, honored only for signed-out visitors.
   const [authDeepLink] = useState(() => {
     const link = consumeAuthDeepLink();

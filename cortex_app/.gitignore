@@ -1,6 +1,0 @@
-# PyInstaller artifacts (per-build, regeneratable).
-build/
-dist/
-build_venv/
-__pycache__/
-*.pyc

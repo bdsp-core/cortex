@@ -300,7 +300,7 @@ sha256-pinned, never rebuilt).
 
 ### Layer 6a — Internal K=7 test bank (eeg_bank.h5 update)
 
-**Purpose:** update the existing ~450 MB internal-debug bank to K=7 for internal review + smoke testing. Stays bundled with the CORTEX app (PyInstaller; ~375 MB → ~500 MB total).
+**Purpose:** update the existing ~450 MB internal-debug bank to K=7 for internal review + smoke testing. The native-app bundling described in this historical plan has since been retired in favor of `cortex_web/`.
 
 **Files (new + modified):**
 - New `scripts/build_cortex_bank_k7_internal.py` — extends `build_cortex_test_bank_v2.py` (PER_CLASS_TARGET still 50 IIIC; new SPIKE_TARGET=50 stratified spike segments)
@@ -309,7 +309,6 @@ sha256-pinned, never rebuilt).
 - Modified `scripts/cortex_policy.py` — `_KEY_FOR_CODE` mapping for v14 keys
 - Modified `scripts/session_controller.py` — docstring + per-segment UI dispatch
 - Modified `scripts/eeg_bank_viewer.py` — Yes/No spike UI variant (Eli choice)
-- Updated `cortex_app/cortex.spec` + `cortex_app/fetch_test_bank.sh`
 
 **Spike segments (50):** stratified sampling from `data/labels/fits/spike/cases.csv` filtered to `n_raters ≥ 5` (16,681 eligible); 10 quantile strata on `s_mean`; 5 per stratum; quality-bias by `n_raters` within each stratum (top 3× pool). EEG fetched from external `SN1_combined_v2.h5` build-time only; derived 30s slices vendored (D9 preserved).
 
@@ -333,17 +332,13 @@ sha256-pinned, never rebuilt).
 
 **Files (new):**
 - `scripts/build_cortex_bank_k7_production.py` — quality-filter (n_raters ≥ 5) → join EEG payload → vendor 30s slices into `data/production_bank/eeg_bank_production.h5`
-- `data/production_bank/eeg_bank_production.h5` (~5–15 GB; gzip-compressed; ALL 38,608 segments) — **NOT bundled in CORTEX installer**; lives at known location for cloud upload
+- `data/production_bank/eeg_bank_production.h5` (~5–15 GB; gzip-compressed; ALL 38,608 segments)
 - `data/production_bank/MANIFEST.json` — sha256 per-segment + provenance + tier breakdowns
-- `scripts/cortex_session_bank_fetch.py` — per-session cloud sampler; called at CORTEX session start
-- `cortex_app/cortex_cloud_config.example.yaml` — cloud-storage endpoint configuration (S3 or Dropbox); the actual bank lives at S3/Dropbox URL
-- New `cortex_app/cortex_offline_fallback.h5` — small stratified ~1,000-segment fallback bundle for offline / first-session use (~300 MB; stays in installer)
 
-**Delivery — per-session cloud sampling (Eli's choice):**
-- CORTEX session start → `cortex_session_bank_fetch.fetch_session_subset(n_per_task=200, rng_seed=session_id)` → fetches ~1,400 segs (200 per task × 7 tasks) from cloud → caches locally for the session duration only
-- Network required during test (graceful fallback to offline bundle if offline at start)
-- Sample drawn from full ~38,608 pool per session → maximises statistical novelty (P(any two sessions share segments) ~ negligible at 200 / 38,608 = 0.5% per task)
-- ~30 MB per session download
+**Delivery status:** the proposed native per-session cloud sampler and offline
+bundle were never adopted by the dominant web runtime and have been retired.
+The full production-bank builder and its provenance manifest remain research
+infrastructure; web delivery is documented under `cortex_web/`.
 
 **Bank deduplication discipline:** Each session's selected subset is logged in the per-session `participant.json`; CORTEX cohort-level analysis can verify segment-disjointness across sessions.
 
@@ -450,7 +445,7 @@ matching the documented Phase 4.1 → 4.7 → 7.1 → 7.5 sub-step convention.
   - **Publication data is collected via the CORTEX live deployment app** (the Nature Medicine submission cohort).
   - Single-cluster source (MGH/BIDMC/Harvard/Yale) is **not a concern** for the training-data audit because no other public expert/experienced/novice EEG-label dataset of this kind exists — the data itself is the methodological novelty.
   - The audit findings in `docs/NATURE_MEDICINE_AUDIT.md` remain valid for the methodology + integrity gaps (G1 leakage, G4 unpinned ℓ\*, G5 different priors, calibration metrics, lapse sweep, etc.) — but the §6 corpus / data gaps (single-cluster, demographics, etc.) are bounded to the training-data scope and do NOT block the Nature Medicine submission whose data is the live-deployment cohort.
-  - `cortex_app/` participant info code is the data-collection scope for the actual publication; future audit work should focus there.
+  - The deployed `cortex_web/` registration and session flow is the data-collection scope for the actual publication; future runtime audits should focus there.
 
 ---
 

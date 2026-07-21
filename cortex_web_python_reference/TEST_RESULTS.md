@@ -269,7 +269,7 @@ tests/test_cortex_engine_inputs.py
 tests/test_cortex_session_controller.py
 tests/test_cortex_ad6_integration.py
 tests/test_ell_star_v15.py
-tests/test_phase9_layer6b.py
+retired native bank/fetch suite (historical; no longer executable)
 ```
 
 Result: **69 passed, 1 skipped**.

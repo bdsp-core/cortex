@@ -1,12 +1,12 @@
 // EEG display filtering — zero-phase Butterworth bandpass + IIR notch.
 //
-// The desktop applies scipy butter(N=2, btype='band') + iirnotch via
+// The legacy Python viewer applied scipy butter(N=2, btype='band') + iirnotch via
 // sosfiltfilt (forward-backward, zero-phase). This is a faithful biquad
 // reimplementation: a bandpass built as a cascade of a 2nd-order high-pass
 // and 2nd-order low-pass (matching the N=2-per-edge response), and an RBJ
 // notch, all run forward then backward for zero phase.
 //
-// NOTE: visually matches the desktop; exact scipy-coefficient parity is a
+// NOTE: visually matches the qualified reference viewer; exact scipy-coefficient parity is a
 // documented refinement. The cutoffs, zero-phase property, and
 // roll-off are correct, which is what the clinician sees.
 
