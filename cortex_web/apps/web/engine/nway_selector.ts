@@ -1,6 +1,7 @@
 import type { BankArrays, Chosen } from "./choose_item";
 import {
-  fillResponseProbabilities, makeResponseProbabilityWorkspace,
+  fillResponseProbabilities, fillScreeningProbabilitiesAndJacobians,
+  IIIC_TASK_INDICES, makeResponseProbabilityWorkspace, makeScreeningJacobianWorkspace,
 } from "./nway_likelihood";
 import { posteriorMeans } from "./particles";
 import type {
@@ -22,7 +23,6 @@ const FULL_SCAN_LIMIT = 512;
 const COARSE_PER_TASK = 32;
 const ENTROPY_PER_TASK = 12;
 const FISHER_PER_TASK = 8;
-const FINITE_DIFFERENCE = 1e-3;
 
 function taskClass(inputs: ComputeEngineInputs, k: number): "iiic" | "spike" {
   const value = inputs.taskClasses?.[k];
@@ -147,40 +147,29 @@ function fisherUtility(
   moments: ReturnType<typeof posteriorMeans>, workspace: {
     meanT: Float64Array;
     meanL: Float64Array;
-    probability: ReturnType<typeof makeResponseProbabilityWorkspace>;
+    jacobian: ReturnType<typeof makeScreeningJacobianWorkspace>;
     base2: Float64Array;
-    plus2: Float64Array;
-    minus2: Float64Array;
     base6: Float64Array;
-    plus6: Float64Array;
-    minus6: Float64Array;
   },
 ): number {
   const kind = taskClass(inputs, candidate.k);
   const { meanT, meanL } = workspace;
-  const vector = (output: Float64Array) => fillResponseProbabilities(
-    kind, candidate.k, candidate.segment, meanT, meanL, 0, st.K,
-    output, workspace.probability, true,
-  );
   const base = kind === "spike" ? workspace.base2 : workspace.base6;
-  const plus = kind === "spike" ? workspace.plus2 : workspace.plus6;
-  const minus = kind === "spike" ? workspace.minus2 : workspace.minus6;
-  vector(base);
+  fillScreeningProbabilitiesAndJacobians(
+    kind, candidate.k, candidate.segment, meanT, meanL, 0, st.K,
+    base, workspace.jacobian,
+  );
   let utility = 0;
   for (const parameter of ["bias", "skill"] as const) {
-    const values = parameter === "bias" ? meanT : meanL;
     const deviations = parameter === "bias" ? moments.tSd : moments.lSd;
-    const relevant = kind === "spike" ? [candidate.k] : [1, 2, 3, 4, 5, 6];
+    const jacobian = parameter === "bias"
+      ? workspace.jacobian.biasJacobian : workspace.jacobian.skillJacobian;
+    const relevant = kind === "spike" ? [candidate.k] : IIIC_TASK_INDICES;
     for (const k of relevant) {
-      const original = values[k];
-      values[k] = original + FINITE_DIFFERENCE;
-      vector(plus);
-      values[k] = original - FINITE_DIFFERENCE;
-      vector(minus);
-      values[k] = original;
       let information = 0;
+      const row = k * base.length;
       for (let r = 0; r < base.length; r++) {
-        const derivative = (plus[r] - minus[r]) / (2 * FINITE_DIFFERENCE);
+        const derivative = jacobian[row + r];
         information += derivative * derivative / Math.max(base[r], 1e-12);
       }
       const variance = deviations[k] ** 2;
@@ -209,9 +198,9 @@ function shortlist(
   const fisherWorkspace = {
     meanT: Float64Array.from(moments.tMean),
     meanL: Float64Array.from(moments.lMean),
-    probability: makeResponseProbabilityWorkspace(st.K),
-    base2: new Float64Array(2), plus2: new Float64Array(2), minus2: new Float64Array(2),
-    base6: new Float64Array(6), plus6: new Float64Array(6), minus6: new Float64Array(6),
+    jacobian: makeScreeningJacobianWorkspace(st.K),
+    base2: new Float64Array(2),
+    base6: new Float64Array(6),
   };
   if (timing) timing.posteriorMomentsMs += performance.now() - momentsStartedAt;
   const domains = Array.from({ length: st.K }, () => [] as Candidate[]);

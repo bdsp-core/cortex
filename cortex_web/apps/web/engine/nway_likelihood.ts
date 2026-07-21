@@ -1,5 +1,5 @@
 import { logSumExp2 } from "./mathfns";
-import { logPResponse, pResponseYes, signalZ } from "./likelihood";
+import { LAPSE_RATE, logPResponse, pResponseYes, signalZ } from "./likelihood";
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
 import type {
   BinaryParticleObservation, CategoricalParticleObservation,
@@ -154,6 +154,28 @@ export function makeResponseProbabilityWorkspace(K: number): ResponseProbability
   return { z: new Float64Array(K), wrong: new Float64Array(K) };
 }
 
+export interface ScreeningJacobianWorkspace extends ResponseProbabilityWorkspace {
+  biasJacobian: Float64Array;
+  skillJacobian: Float64Array;
+  signalBiasDerivative: Float64Array;
+  signalSkillDerivative: Float64Array;
+}
+
+/** Reusable selector workspace. Matrix rows follow configured task indices and
+ * columns follow the response vector, so adding non-categorical domains only
+ * changes K and does not require a new hot-loop implementation. */
+export function makeScreeningJacobianWorkspace(
+  K: number, maximumOutcomeCount = IIIC_TASK_INDICES.length,
+): ScreeningJacobianWorkspace {
+  return {
+    ...makeResponseProbabilityWorkspace(K),
+    biasJacobian: new Float64Array(K * maximumOutcomeCount),
+    skillJacobian: new Float64Array(K * maximumOutcomeCount),
+    signalBiasDerivative: new Float64Array(K),
+    signalSkillDerivative: new Float64Array(K),
+  };
+}
+
 /** Allocation-free selector hot path; outcome order is [1..6] for IIIC and
  * [askedK,K-sentinel] for spike. `screening=true` uses only the frozen
  * moment-matched draw and is forbidden for the final objective/update. */
@@ -203,6 +225,128 @@ export function fillResponseProbabilities(
   }
   for (const k of IIIC_TASK_INDICES) {
     output[k - 1] = k === askedK ? own : (1 - own) * workspace.wrong[k];
+  }
+}
+
+const NORMAL_PDF_SCALE = 1 / Math.sqrt(2 * Math.PI);
+
+function fillSignalAndDerivatives(
+  k: number, segment: ComputeSegmentMeta,
+  t: Float64Array, l: Float64Array, offset: number,
+  workspace: ScreeningJacobianWorkspace,
+): void {
+  const skillScale = Math.exp(l[offset + k]);
+  const signalSd = segment.sSd[k];
+  const attenuationSquared = (skillScale * signalSd) ** 2;
+  const attenuation = Math.sqrt(1 + attenuationSquared);
+  const z = skillScale * (segment.sMean[k] + t[offset + k]) / attenuation;
+  workspace.z[k] = z;
+  workspace.signalBiasDerivative[k] = skillScale / attenuation;
+  workspace.signalSkillDerivative[k] = z / (1 + attenuationSquared);
+}
+
+function responseDerivative(z: number, signalDerivative: number): number {
+  return (1 - 2 * LAPSE_RATE) * NORMAL_PDF_SCALE
+    * Math.exp(-0.5 * z * z) * signalDerivative;
+}
+
+/** Fill the frozen Fisher-screen response vector and its analytical Jacobians.
+ * Jacobian entry `(k * outcomeCount + r)` is d P(outcome r) / d t_k or d l_k.
+ * The response probabilities themselves deliberately use the existing frozen
+ * implementation so only the derivative calculation changes. */
+export function fillScreeningProbabilitiesAndJacobians(
+  taskClass: "iiic" | "spike", askedK: number, segment: ComputeSegmentMeta,
+  t: Float64Array, l: Float64Array, particleIndex: number, K: number,
+  output: Float64Array, workspace: ScreeningJacobianWorkspace,
+): void {
+  const outcomeCount = taskClass === "spike" ? 2 : IIIC_TASK_INDICES.length;
+  if (output.length !== outcomeCount) {
+    throw new Error(`screening response output must have length ${outcomeCount}`);
+  }
+  const matrixLength = K * outcomeCount;
+  if (workspace.biasJacobian.length < matrixLength
+      || workspace.skillJacobian.length < matrixLength) {
+    throw new Error("screening Jacobian workspace is too small");
+  }
+  fillResponseProbabilities(
+    taskClass, askedK, segment, t, l, particleIndex, K,
+    output, workspace, true,
+  );
+  workspace.biasJacobian.fill(0, 0, matrixLength);
+  workspace.skillJacobian.fill(0, 0, matrixLength);
+  const offset = particleIndex * K;
+  if (taskClass === "spike") {
+    fillSignalAndDerivatives(askedK, segment, t, l, offset, workspace);
+    const bias = responseDerivative(
+      workspace.z[askedK], workspace.signalBiasDerivative[askedK],
+    );
+    const skill = responseDerivative(
+      workspace.z[askedK], workspace.signalSkillDerivative[askedK],
+    );
+    const row = askedK * outcomeCount;
+    workspace.biasJacobian[row] = bias;
+    workspace.biasJacobian[row + 1] = -bias;
+    workspace.skillJacobian[row] = skill;
+    workspace.skillJacobian[row + 1] = -skill;
+    return;
+  }
+
+  for (const k of IIIC_TASK_INDICES) {
+    fillSignalAndDerivatives(k, segment, t, l, offset, workspace);
+  }
+  const ownProbability = output[askedK - 1];
+  const draw = SCREEN_DRAW[0];
+  let maximum = -Infinity;
+  for (const k of IIIC_TASK_INDICES) {
+    if (k !== askedK) maximum = Math.max(maximum, draw.beta * workspace.z[k]);
+  }
+  let denominator = 0;
+  for (const k of IIIC_TASK_INDICES) {
+    if (k === askedK) continue;
+    const softmax = Math.exp(draw.beta * workspace.z[k] - maximum);
+    workspace.wrong[k] = softmax;
+    denominator += softmax;
+  }
+  for (const k of IIIC_TASK_INDICES) {
+    if (k !== askedK) workspace.wrong[k] /= denominator;
+  }
+
+  const ownBiasDerivative = responseDerivative(
+    workspace.z[askedK], workspace.signalBiasDerivative[askedK],
+  );
+  const ownSkillDerivative = responseDerivative(
+    workspace.z[askedK], workspace.signalSkillDerivative[askedK],
+  );
+  const askedRow = askedK * outcomeCount;
+  workspace.biasJacobian[askedRow + askedK - 1] = ownBiasDerivative;
+  workspace.skillJacobian[askedRow + askedK - 1] = ownSkillDerivative;
+  for (const k of IIIC_TASK_INDICES) {
+    if (k === askedK) continue;
+    const outcome = k - 1;
+    const wrongGivenIncorrect = output[outcome] / (1 - ownProbability);
+    workspace.biasJacobian[askedRow + outcome] =
+      -ownBiasDerivative * wrongGivenIncorrect;
+    workspace.skillJacobian[askedRow + outcome] =
+      -ownSkillDerivative * wrongGivenIncorrect;
+  }
+
+  const directedScale = (1 - ownProbability) * (1 - draw.distractorLapse) * draw.beta;
+  for (const parameterK of IIIC_TASK_INDICES) {
+    if (parameterK === askedK) continue;
+    const parameterSoftmax = workspace.wrong[parameterK];
+    const biasScale = directedScale * workspace.signalBiasDerivative[parameterK]
+      * parameterSoftmax;
+    const skillScale = directedScale * workspace.signalSkillDerivative[parameterK]
+      * parameterSoftmax;
+    const row = parameterK * outcomeCount;
+    for (const outcomeK of IIIC_TASK_INDICES) {
+      if (outcomeK === askedK) continue;
+      const contrast = outcomeK === parameterK
+        ? 1 - parameterSoftmax : -workspace.wrong[outcomeK];
+      const outcome = outcomeK - 1;
+      workspace.biasJacobian[row + outcome] = biasScale * contrast;
+      workspace.skillJacobian[row + outcome] = skillScale * contrast;
+    }
   }
 }
 
