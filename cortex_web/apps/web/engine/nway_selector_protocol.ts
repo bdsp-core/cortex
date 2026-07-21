@@ -26,7 +26,8 @@ export type NWaySelectorWorkerRequest =
       startIndex: number;
       N: number;
       K: number;
-      history: PackedParticleHistory;
+      historyVersion: number;
+      history?: PackedParticleHistory;
       t: Float64Array;
       l: Float64Array;
     };
@@ -38,6 +39,7 @@ export type NWaySelectorWorkerResponse =
       type: "history_result";
       jobId: number;
       startIndex: number;
+      historyVersion: number;
       logLikelihood: Float64Array;
     }
   | {

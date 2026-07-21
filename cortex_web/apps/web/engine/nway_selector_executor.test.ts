@@ -53,6 +53,50 @@ class InjectedWorker {
   }
 }
 
+class HistoryCachingWorker {
+  private listeners = new Map<string, Set<(event: any) => void>>();
+  readonly receivedFullHistory: boolean[] = [];
+  readonly receivedHistoryVersions: number[] = [];
+  terminated = false;
+
+  addEventListener(type: string, listener: (event: any) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: any) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  postMessage(message: NWaySelectorWorkerRequest): void {
+    if (message.type === "init") {
+      queueMicrotask(() => this.emitMessage({ type: "ready" }));
+      return;
+    }
+    if (message.type !== "history_likelihood") {
+      throw new Error("unexpected history caching worker request");
+    }
+    this.receivedFullHistory.push(message.history !== undefined);
+    this.receivedHistoryVersions.push(message.historyVersion);
+    queueMicrotask(() => this.emitMessage({
+      type: "history_result",
+      jobId: message.jobId,
+      startIndex: message.startIndex,
+      historyVersion: message.historyVersion,
+      logLikelihood: new Float64Array(message.N),
+    }));
+  }
+
+  terminate(): void {
+    this.terminated = true;
+  }
+
+  private emitMessage(data: NWaySelectorWorkerResponse): void {
+    for (const listener of this.listeners.get("message") ?? []) listener({ data });
+  }
+}
+
 function emptyHistory(K: number): PackedParticleHistory {
   return {
     K, length: 0, capacity: 1,
@@ -126,6 +170,38 @@ describe("n-way selector pool failure containment", () => {
     expect(workers.map((worker) => worker.terminated))
       .toEqual([true, true, false, false]);
     expect(executor.workerCount).toBe(2);
+    executor.dispose();
+    expect(workers.every((worker) => worker.terminated)).toBe(true);
+  });
+
+  it("sends each history version once and restores the cache after restart", async () => {
+    const workers = [new HistoryCachingWorker(), new HistoryCachingWorker()];
+    let nextWorker = 0;
+    const inputs = precisionGoldenInputs();
+    const executor = new NWaySelectorWorkerExecutor(inputs, 1, {
+      workerFactory: () => workers[nextWorker++] as unknown as Worker,
+    });
+    await executor.ready();
+    const K = inputs.taskCodes.length;
+    const history = emptyHistory(K);
+    const likelihood = () => executor.historyLikelihood(
+      history, 1, K, new Float64Array(K), new Float64Array(K),
+    );
+
+    await likelihood();
+    await likelihood();
+    history.length = 1;
+    await likelihood();
+
+    expect(workers[0].receivedFullHistory).toEqual([true, false, true]);
+    expect(workers[0].receivedHistoryVersions).toEqual([1, 1, 2]);
+
+    const restart = executor.restartAfterCancellation();
+    await restart.ready;
+    await likelihood();
+    expect(workers[1].receivedFullHistory).toEqual([true]);
+    expect(workers[1].receivedHistoryVersions).toEqual([2]);
+
     executor.dispose();
     expect(workers.every((worker) => worker.terminated)).toBe(true);
   });

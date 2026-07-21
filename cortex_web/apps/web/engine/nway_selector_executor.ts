@@ -19,6 +19,7 @@ import {
 interface SelectorSlot {
   worker: Worker;
   ready: Promise<void>;
+  historyVersion: number | null;
 }
 
 interface ActiveSelectorJob {
@@ -104,6 +105,10 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   private readonly jobTimeoutMs: number;
   private readonly calibrationProfile: NWayCalibrationProfile;
   private readonly activeJobs = new Map<number, ActiveSelectorJob>();
+  private readonly historyVersions = new WeakMap<
+    PackedParticleHistory, { length: number; version: number }
+  >();
+  private nextHistoryVersion = 1;
 
   constructor(
     private readonly inputs: ComputeEngineInputs, workerCount: number,
@@ -334,11 +339,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     const shardCount = Math.min(this.slots.length, N);
     const shardSize = Math.ceil(N / shardCount);
     const logLikelihood = new Float64Array(N);
+    const historyVersion = this.versionForHistory(history);
     await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(N, startIndex + shardSize);
       const response = await this.runHistoryShard(
-        this.slots[shardIndex], history, K,
+        this.slots[shardIndex], history, historyVersion, K,
         t.slice(startIndex * K, endIndex * K),
         l.slice(startIndex * K, endIndex * K), startIndex,
       );
@@ -488,11 +494,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     const shardCount = Math.min(workerCount, this.slots.length, N);
     const shardSize = Math.ceil(N / shardCount);
     const logLikelihood = new Float64Array(N);
+    const historyVersion = this.versionForHistory(history);
     await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(N, startIndex + shardSize);
       const response = await this.runHistoryShard(
-        this.slots[shardIndex], history, K,
+        this.slots[shardIndex], history, historyVersion, K,
         t.slice(startIndex * K, endIndex * K),
         l.slice(startIndex * K, endIndex * K), startIndex,
       );
@@ -693,10 +700,11 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   }
 
   private runHistoryShard(
-    slot: SelectorSlot, history: PackedParticleHistory, K: number,
+    slot: SelectorSlot, history: PackedParticleHistory, historyVersion: number, K: number,
     t: Float64Array, l: Float64Array, startIndex: number,
   ): Promise<Extract<NWaySelectorWorkerResponse, { type: "history_result" }>> {
     const jobId = this.nextJobId++;
+    const includeHistory = slot.historyVersion !== historyVersion;
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         slot.worker.removeEventListener("message", onMessage);
@@ -716,7 +724,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         if (message.type === "error") reject(new Error(message.message));
         else if (message.type !== "history_result") {
           reject(new Error("n-way history worker returned the wrong job kind"));
-        } else resolve(message);
+        } else if (message.historyVersion !== historyVersion) {
+          reject(new Error("n-way history worker returned a stale history version"));
+        } else {
+          slot.historyVersion = historyVersion;
+          resolve(message);
+        }
       };
       const onError = (event: ErrorEvent) => {
         cleanup();
@@ -738,7 +751,9 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       slot.worker.addEventListener("messageerror", onMessageError);
       const request: NWaySelectorWorkerRequest = {
         type: "history_likelihood", jobId, startIndex,
-        N: t.length / K, K, history, t, l,
+        N: t.length / K, K, historyVersion,
+        ...(includeHistory ? { history } : {}),
+        t, l,
       };
       slot.worker.postMessage(request, { transfer: [t.buffer, l.buffer] });
     });
@@ -768,6 +783,14 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     const payload = packComputeInputs(this.inputs);
     const init: NWaySelectorWorkerRequest = { type: "init", payload };
     worker.postMessage(init, { transfer: computePayloadTransferables(payload) });
-    return { worker, ready };
+    return { worker, ready, historyVersion: null };
+  }
+
+  private versionForHistory(history: PackedParticleHistory): number {
+    const existing = this.historyVersions.get(history);
+    if (existing?.length === history.length) return existing.version;
+    const version = this.nextHistoryVersion++;
+    this.historyVersions.set(history, { length: history.length, version });
+    return version;
   }
 }
