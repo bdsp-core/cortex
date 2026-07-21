@@ -165,7 +165,9 @@ engine/        Research engine: joint SMC particle cloud + Metropolis-Hastings r
 deployment/    Clinical runtime: Laplace posterior + extended Kalman filter (never imports engine/)
 pipeline/      Data ingest, fitting, and the calibration orchestrator (reference + joint hierarchical)
 calibration/   Frozen production cut scores and their provenance
-scripts/       The CORTEX app, plus the validation and experiment harnesses
+trainer-policy/ Root-level Python representation of the deployed trainer algorithm
+cortex_web/    Canonical deployed web application, API, trainer, and operations
+scripts/       Bank builders plus validation and experiment harnesses
 data/          The canonical corpus, the frozen deployment prior, and derived signal banks
 docs/          METHODS.md and the phase by phase scientific record
 tests/         The 282 test suite gating every invariant above

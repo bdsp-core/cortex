@@ -36,6 +36,16 @@ The package is self-contained for methodological review. Historical trainer
 prototypes, ports, parity fixtures, and their method-specific tests are not part
 of the live implementation.
 
+## Root-level Python representation
+
+`trainer-policy/` presents the same deployed algorithm under the unified
+import name `trainer_policy`. It contains byte-exact copies of the core model,
+the content-identical frozen `nway_dynamics_v1_1` artifact, and import/path-only rewrites of the
+policy and deployed session service. Its parity suite compares deterministic
+choices, particle states, and deployed session behavior against the production
+sources. The web paths above remain runtime-authoritative; the root package is
+the modular reviewer surface, not a second deployed entry point.
+
 ## Focused verification
 
 ```bash
@@ -47,4 +57,7 @@ cd cortex_web/services/api
 cd ../../apps/web
 npx vitest run trainer/serverSession.test.ts \
   src/trainingController.test.ts src/trainingReveal.test.ts
+
+cd ../../../trainer-policy
+../.venv/bin/python -m pytest -q
 ```

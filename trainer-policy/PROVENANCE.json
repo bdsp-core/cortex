@@ -1,0 +1,29 @@
+{
+  "schema_version": "trainer_policy_provenance_v1",
+  "production_commit": "53d2cf6c77f958df2682a84b1baf6770437025f4",
+  "production_runtime": {
+    "core": "cortex_web/learning-engine-cleaned/learning_engine",
+    "policy": "cortex_web/learning-engine-cleaned/adapter/le_adapter.py",
+    "serving": "cortex_web/services/api/engine_trainer.py",
+    "artifact": "cortex_web/learning-engine-cleaned/artifacts/nway_dynamics_v1_1.json"
+  },
+  "source_sha256": {
+    "learning_engine/__init__.py": "47c8c16077cca47c8816d65db920f4237463154abfa9446264314774f1d04e6b",
+    "learning_engine/learnmodel.py": "3e47db5acddf2c32a31b07ea336e6df1056739d41e379092dd0801c31a566438",
+    "learning_engine/mixedengine.py": "e592c123bf738591593ae75b32db240733f55953ff55bb5e55ecde02d68380fe",
+    "learning_engine/msengine.py": "e763644893bdd8dff49ffb45ac9f9d6d9eb85d1784eb098187bb1d12c00c2bff",
+    "learning_engine/multimodel.py": "4cc6b71020e6b1691cbe9874fb5ca694825b3635864e12634087a6b0bef2299c",
+    "learning_engine/registry.py": "2a71dfa09ba6698e306a15ef7e2d93d8cd30d81ebb2d888955f818ad7c4d74ae",
+    "adapter/le_adapter.py": "507150e844c83ee59b6eeba4a776bf8ad781d7916b3995b2798c5d77b4929ca8",
+    "engine_trainer.py": "fe9889d6fd7e45f9fc61ad4f9b8cb7bcc52bfe66de327d7839c92de4f8fa7f51",
+    "nway_dynamics_v1_1.json": "e44011563bac376bd94c7678c07677b50a1f973cbef71a16b871df84a0ca1765"
+  },
+  "allowed_mirror_rewrites": [
+    "adapter imports learning_engine through the local trainer_policy package",
+    "deployed service imports the local package rather than modifying sys.path",
+    "deployed artifact path resolves from trainer_policy/artifacts",
+    "artifact packaging may normalize the terminal newline; parsed JSON content must match the source hash-pinned production artifact"
+  ],
+  "runtime_authority": "cortex_web",
+  "mirror_is_deployed_entrypoint": false
+}
