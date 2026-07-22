@@ -100,6 +100,32 @@ export function App() {
     if (api.isAuthed()) void api.flushPendingResults();
   }, [phase]);
 
+  // Session expiry (the 6 h token running out). Without this every surface
+  // swallowed its own 401 and rendered an empty state, so an expired session
+  // looked like a dashboard that had simply lost its data.
+  //
+  // A sitting in progress is deliberately NOT interrupted. Answers are
+  // checkpointed server-side, and submitResults persists the result locally
+  // before attempting delivery, so finishing the sitting loses nothing — it
+  // uploads via flushPendingResults after the next sign-in. Ejecting the
+  // participant mid-exam is the only way to actually lose their work.
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => api.onSessionExpired(() => {
+    const inSitting = phaseRef.current === "running"
+      || phaseRef.current === "computing"
+      || phaseRef.current === "tutorial"
+      || phaseRef.current === "training";
+    if (inSitting || phaseRef.current === "auth") return;
+    disposeClient();
+    api.logout();
+    // Routed to sign-in without an inline notice: AuthFlow's copy is entirely
+    // i18n-driven, so a raw English string here would be the one untranslated
+    // line on that screen. A localized "your session expired" notice is the
+    // natural follow-up.
+    setPhase("auth");
+  }), [disposeClient]);
+
   // Auto sign-out after 30 minutes of inactivity. Any interaction resets the
   // timer; a visibility change re-checks immediately (covers a tab left in the
   // background past the limit). Only runs while signed in.

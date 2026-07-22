@@ -63,3 +63,81 @@ describe("API core boundary", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });
+
+describe("session-expiry announcement", () => {
+  function respond(status: number) {
+    return vi.fn(async () => new Response(
+      JSON.stringify(status === 200 ? { ok: true } : { error: "expired" }),
+      { status, headers: { "Content-Type": "application/json" } },
+    ));
+  }
+
+  it("announces once when an authenticated call is rejected", async () => {
+    vi.stubGlobal("fetch", respond(401));
+    const core = await import("./core");
+    core.setToken("t0");
+    const seen = vi.fn();
+    core.onSessionExpired(seen);
+
+    await expect(core.authedFetch("/api/dashboard")).rejects.toThrow();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet for a 401 on a call that carried no token", async () => {
+    vi.stubGlobal("fetch", respond(401));
+    const core = await import("./core");
+    const seen = vi.fn();
+    core.onSessionExpired(seen);
+
+    await expect(core.authedFetch("/api/dashboard")).rejects.toThrow();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("announces once even when several requests fail together", async () => {
+    vi.stubGlobal("fetch", respond(401));
+    const core = await import("./core");
+    core.setToken("t0");
+    const seen = vi.fn();
+    core.onSessionExpired(seen);
+
+    await Promise.allSettled([
+      core.authedFetch("/api/dashboard"),
+      core.authedFetch("/api/history"),
+      core.authedFetch("/api/regimen"),
+    ]);
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet on a successful call", async () => {
+    vi.stubGlobal("fetch", respond(200));
+    const core = await import("./core");
+    core.setToken("t0");
+    const seen = vi.fn();
+    core.onSessionExpired(seen);
+
+    await core.authedFetch("/api/dashboard");
+    expect(seen).not.toHaveBeenCalled();
+    expect(core.getToken()).toBe("t0");
+  });
+
+  it("still delivers the API error when a listener throws", async () => {
+    vi.stubGlobal("fetch", respond(401));
+    const core = await import("./core");
+    core.setToken("t0");
+    core.onSessionExpired(() => { throw new Error("listener blew up"); });
+
+    await expect(core.authedFetch("/api/dashboard"))
+      .rejects.toMatchObject({ status: 401, message: "expired" });
+  });
+
+  it("stops notifying after unsubscribe", async () => {
+    vi.stubGlobal("fetch", respond(401));
+    const core = await import("./core");
+    core.setToken("t0");
+    const seen = vi.fn();
+    core.onSessionExpired(seen)();       // subscribe, then immediately drop it
+
+    await expect(core.authedFetch("/api/dashboard")).rejects.toThrow();
+    expect(seen).not.toHaveBeenCalled();
+  });
+});

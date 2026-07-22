@@ -33,6 +33,7 @@ export {
   getToken,
   isAuthed,
   logout,
+  onSessionExpired,
   setDisplayName,
   setToken,
 } from "./api/core";

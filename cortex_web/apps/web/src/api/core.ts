@@ -67,6 +67,18 @@ export async function parseResponse(response: Response): Promise<any> {
   return body;
 }
 
+// Session expiry (a 401 on a call we sent a token with) is announced once, so
+// the app shell can route to sign-in instead of every surface independently
+// swallowing the error and rendering an empty state with no explanation —
+// which is what a 6-hour token expiry looked like from the dashboard.
+type SessionExpiredListener = () => void;
+const sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+export function onSessionExpired(listener: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => { sessionExpiredListeners.delete(listener); };
+}
+
 export async function authedFetch(
   path: string,
   init: RequestInit = {},
@@ -83,6 +95,18 @@ export async function authedFetch(
     { ...init, headers },
     options,
   );
-  if (response.status === 401) clearToken();
+  if (response.status === 401) {
+    // Re-read rather than reusing `token`: with several requests in flight the
+    // first one here still sees the token and announces the expiry; the rest
+    // find it already cleared and stay quiet, so listeners fire once. Both
+    // statements run in the same synchronous turn, so they cannot interleave.
+    const wasAuthenticated = !!getToken();
+    clearToken();
+    if (wasAuthenticated) {
+      for (const listener of [...sessionExpiredListeners]) {
+        try { listener(); } catch { /* a listener must not break the response */ }
+      }
+    }
+  }
   return parseResponse(response);
 }
