@@ -49,6 +49,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
+from . import timeutil
 from .persistence import migrations
 
 _DEFAULT_DB = Path(__file__).with_name("cortex.db")
@@ -288,8 +289,10 @@ _SCHEMA_STATEMENTS = [
 
 # Columns added to participants after the original schema. Idempotent
 # ALTERs run at startup so an existing database upgrades in place.
-def utc_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+# Re-exported: `from .db import utc_now` is the historical spelling used
+# across the package. The definition lives in timeutil (see its module
+# docstring on why the format must never vary).
+utc_now = timeutil.utc_now
 
 
 # User-facing 9-digit account ids (`participants.public_id`): uniformly random
@@ -786,8 +789,7 @@ class Database:
             "ORDER BY started_utc DESC LIMIT 1", (code,))
         if row is None:
             return None
-        cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                               time.gmtime(time.time() - max_age_hours * 3600))
+        cutoff = timeutil.iso_in(-max_age_hours * 3600)
         return row if row["started_utc"] >= cutoff else None
 
     def supersede_open_sessions(self, code: str) -> None:

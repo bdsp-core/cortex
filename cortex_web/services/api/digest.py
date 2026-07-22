@@ -34,7 +34,7 @@ import os
 import time
 from typing import Optional
 
-from . import mailer
+from . import config, mailer
 
 log = logging.getLogger("cortex.digest")
 
@@ -118,7 +118,7 @@ def build_letter(db, code: str, now_s: float) -> Optional[dict]:
         paras.append(f"You are close on {near[0]}: your latest estimate is within "
                      "one standard deviation of the bar. One strong session could clear it.")
     paras.append("You can turn these reminders off any time in Settings.")
-    origin = os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    origin = config.public_origin()
     button = ("Resume training", origin) if origin else None
     return {"subject": SUBJECT, "title": TITLE, "paragraphs": paras, "button": button}
 

@@ -38,13 +38,15 @@ import threading
 import time
 from pathlib import Path
 
+from . import timeutil
+
 
 def _now_epoch() -> float:
     return time.time()
 
 
 def _iso(epoch: float) -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
+    return timeutil.iso_at(epoch)
 
 
 def _utc_now() -> str:

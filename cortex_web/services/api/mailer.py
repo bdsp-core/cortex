@@ -40,6 +40,8 @@ import sys
 from email.message import EmailMessage
 from pathlib import Path
 
+from . import config
+
 _SUBJECTS = {
     "verify": "Your CORTEX verification code",
     "reset": "Your CORTEX password reset code",
@@ -84,7 +86,7 @@ def _one_click_link(code: str, purpose: str, to_email: str) -> str | None:
     set (e.g. https://app.cortexeeg.org); dev/CI emails stay link-free. The
     link carries the same short-lived code as the email body, so it grants
     nothing the email itself doesn't."""
-    origin = os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    origin = config.public_origin()
     if not origin:
         return None
     from urllib.parse import quote

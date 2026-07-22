@@ -3,16 +3,14 @@ per-session draw, per-question progress, and final results. (The bundle
 identity travels inside the POST /api/session draw payload.)"""
 from __future__ import annotations
 
-import calendar
 import json
 import random
-import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from .. import awards, dashboard_logic
+from .. import awards, dashboard_logic, timeutil
 from ..compute_rollout import compute_mode_for
 from ..policy_rollout import (
     AD6_POLICY,
@@ -46,8 +44,7 @@ def tutorial_example(req: Request, _code: str = Depends(require_auth)):
 # train-at-23:59, test-at-00:05 hole.
 WASHOUT_HOURS = 12
 def _iso_plus_hours(iso: str, hours: int) -> str:
-    t = calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ"))
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t + hours * 3600))
+    return timeutil.iso_at(timeutil.parse_iso(iso) + hours * 3600)
 
 
 def _washout_reopens(db, code: str) -> str | None:
@@ -59,7 +56,7 @@ def _washout_reopens(db, code: str) -> str | None:
         reopens = _iso_plus_hours(last, WASHOUT_HOURS)
     except ValueError:
         return None   # malformed legacy timestamp: never block on it
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    now = timeutil.utc_now()
     return reopens if now < reopens else None
 
 

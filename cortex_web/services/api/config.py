@@ -48,6 +48,18 @@ TOKEN_TTL = int(os.environ.get("CORTEX_TOKEN_TTL", str(6 * 3600)))
 # Where user reports (the /report page) are emailed. Overridable via env.
 REPORT_TO = os.environ.get("CORTEX_REPORT_TO", "elikeldsen@icloud.com")
 
+# Public site origin used to build links in outbound email (verify/reset
+# deep links, the digest button, cohort invites). Read per call, not at
+# import, because tests and dev set it per case. Returns "" when unset;
+# each caller decides what that means — mailer and the digest omit the link
+# entirely, cohort invites fall back to the canonical production origin.
+DEFAULT_PUBLIC_ORIGIN = "https://app.cortexeeg.org"
+
+
+def public_origin() -> str:
+    """The configured origin with any trailing slash removed, or ""."""
+    return os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
+
 # Training-protocol exposure gate (the adaptive trainer went live for all users
 # 2026-07-07). A soft, flag-based control so exposure is reversible WITHOUT a
 # revert-and-redeploy:

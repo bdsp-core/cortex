@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import os
 import re
-import time
 from typing import Any
 
 from . import mailer
 from . import security
+from . import timeutil
 from .db import Database, utc_now
 
 # ───────────────────────── validation ──────────────────────────
@@ -103,9 +103,8 @@ def is_unique_violation(e: Exception) -> bool:
 # ─────────────── auth-code lifecycle (verify/reset) ─────────────
 
 def future_utc(seconds: int) -> str:
-    """An ISO-Z timestamp `seconds` in the future. Same fixed format as
-    db.utc_now() so lexicographic compare == chronological compare."""
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + seconds))
+    """An ISO-Z timestamp `seconds` in the future."""
+    return timeutil.iso_in(seconds)
 
 
 def expose_codes() -> bool:

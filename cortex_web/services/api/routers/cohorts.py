@@ -16,15 +16,13 @@ the day the trainer ships — synthetic rows can never reach a cohort peer.
 """
 from __future__ import annotations
 
-import os
 import re
 import secrets
 import sys
-import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import helpers, mailer
+from .. import config, helpers, mailer, timeutil
 from ..deps import client_ip, require_auth
 from ..models import CohortCreateIn, CohortMemberIn, EmailIn
 
@@ -41,8 +39,7 @@ _PUBLIC_ID_RE = re.compile(r"^[1-9]\d{8}$")
 
 
 def _lookback_cutoff(days: int = LOOKBACK_DAYS) -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                         time.gmtime(time.time() - days * 86400))
+    return timeutil.iso_in(-days * 86400)
 
 
 def _cohort_and_role(db, cohort_id: str, code: str, *,
@@ -204,8 +201,7 @@ def _send_cohort_invite_email(to_email: str, cohort_name: str,
     same SES identity + bounce pipeline as verify/reset codes). Send failures
     log and never surface: the endpoint's response must stay identical either
     way (anti-oracle), and the pending invite row is already stored."""
-    origin = (os.environ.get("CORTEX_PUBLIC_ORIGIN", "").strip().rstrip("/")
-              or "https://app.cortexeeg.org")
+    origin = config.public_origin() or config.DEFAULT_PUBLIC_ORIGIN
     who = _clean_line(manager_name) or "A CORTEX user"
     name = _clean_line(cohort_name)
     action = (
@@ -397,7 +393,7 @@ def cohort_performance(cohort_id: str, req: Request,
             {"taskK": k, "points": [tasks[k][day] for day in sorted(tasks[k])]}
             for k in sorted(tasks)]
         members.append(entry)
-    now_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    now_ts = timeutil.utc_now()
     if all_time:
         # start the axis at the earliest real point (fall back to a short
         # window when the pod has no data yet, so the axis is never degenerate)

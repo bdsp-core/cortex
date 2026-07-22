@@ -60,12 +60,20 @@ def put_profile(body: ProfileIn, req: Request, code: str = Depends(require_auth)
     return {"ok": True}
 
 
+def _reauthenticate(db, code: str, presented: str, message: str) -> None:
+    """Re-check the account password before a credential change. One place so
+    the "must prove the current password" rule can't drift between the two
+    endpoints that enforce it; the message differs only because the request
+    field does."""
+    row = db.get_participant(code)
+    if row is None or not security.verify_password(presented, row["password_hash"]):
+        raise HTTPException(403, message)
+
+
 @router.post("/account/password")
 def change_password(body: PasswordChangeIn, req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
-    row = db.get_participant(code)
-    if row is None or not security.verify_password(body.currentPassword, row["password_hash"]):
-        raise HTTPException(403, "current password is incorrect")
+    _reauthenticate(db, code, body.currentPassword, "current password is incorrect")
     if len(body.newPassword) < helpers.MIN_PASSWORD_LEN:
         raise HTTPException(400, f"password must be at least {helpers.MIN_PASSWORD_LEN} characters")
     db.set_password_hash(code, security.hash_password(body.newPassword))
@@ -75,9 +83,7 @@ def change_password(body: PasswordChangeIn, req: Request, code: str = Depends(re
 @router.post("/account/email")
 def change_email(body: EmailChangeIn, req: Request, code: str = Depends(require_auth)):
     db = req.app.state.db
-    row = db.get_participant(code)
-    if row is None or not security.verify_password(body.password, row["password_hash"]):
-        raise HTTPException(403, "password is incorrect")
+    _reauthenticate(db, code, body.password, "password is incorrect")
     new_email = helpers.norm_email(body.newEmail)
     if not helpers.is_email(new_email):
         raise HTTPException(400, "invalid email")

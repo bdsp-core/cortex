@@ -106,16 +106,29 @@ async def ses_events(req: Request):
         return {"ok": True}   # transient — SES is still retrying
 
     db = req.app.state.db
-    flagged = 0
-    for rcpt in bounce.get("bouncedRecipients") or []:
-        email = helpers.norm_email(str(rcpt.get("emailAddress", "")))
-        if not email:
-            continue
-        row = db.get_participant_by_email(email)
-        if row is None:
-            continue
-        db.mark_email_undeliverable(row["code"])
-        flagged += 1
-        _log(f"permanent bounce for {email} → flagged {row['code']} "
-             f"(subType={bounce.get('bounceSubType')})")
-    return {"ok": True, "flagged": flagged}
+    recipients = bounce.get("bouncedRecipients") or []
+    sub_type = bounce.get("bounceSubType")
+
+    def _flag_bounced() -> list[tuple[str, str]]:
+        # All DB work for this webhook in ONE worker thread. This endpoint is
+        # async (it awaits the request body and the SNS subscribe callback),
+        # so blocking queries inline would stall the single-worker event loop
+        # — and therefore every other participant's request — for as long as
+        # a bounce batch takes.
+        marked: list[tuple[str, str]] = []
+        for rcpt in recipients:
+            email = helpers.norm_email(str(rcpt.get("emailAddress", "")))
+            if not email:
+                continue
+            row = db.get_participant_by_email(email)
+            if row is None:
+                continue
+            db.mark_email_undeliverable(row["code"])
+            marked.append((email, row["code"]))
+        return marked
+
+    flagged = await anyio.to_thread.run_sync(_flag_bounced)
+    for email, participant in flagged:
+        _log(f"permanent bounce for {email} → flagged {participant} "
+             f"(subType={sub_type})")
+    return {"ok": True, "flagged": len(flagged)}
