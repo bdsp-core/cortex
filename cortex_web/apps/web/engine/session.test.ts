@@ -138,6 +138,9 @@ describe(`full adaptive session (${source}, ${inputs.segments.length} segs)`, ()
     const nPass = r.verdicts.filter((v) => v === VERDICT.PASS).length;
     const nFail = r.verdicts.filter((v) => v === VERDICT.FAIL).length;
     expect(nPass).toBeLessThanOrEqual(1);
-    expect(nFail).toBeGreaterThanOrEqual(4);
+    // ≥3 (was ≥4): recalibrated for the intentional PER_DOMAIN_CAP 120→60
+    // change (4387b84, 2026-06-26) — under the tighter budget one previously
+    // borderline-FAIL domain now REFERs before accumulating a FAIL verdict.
+    expect(nFail).toBeGreaterThanOrEqual(3);
   }, 240000);
 });
