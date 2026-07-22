@@ -7,10 +7,9 @@
 // question chosen.k is the spike task index. "Yes" submits that index → y=1
 // (a spike). "No" submits an out-of-range sentinel (K) → y=0 (no spike).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bundle, SegmentData, Item } from "../bundle";
-import { applyMontage, MontageRow } from "../montage";
-import { buildCascade, filtfilt } from "../dsp";
+import { useEegDisplay } from "../features/eeg/useEegDisplay";
 import { Progress } from "../progress";
 import { EegCanvas } from "./EegCanvas";
 import {
@@ -38,10 +37,10 @@ export function SpikeViewer({
 }) {
   const [seg, setSeg] = useState<SegmentData | null>(null);
   const [segError, setSegError] = useState(false);
-  const [montage, setMontage] = useState<string>("bipolar");
-  const [gain, setGain] = useState(100);
-  const [bandpass, setBandpass] = useState(BANDPASS_OPTIONS[0]);
-  const [notchHz, setNotchHz] = useState(NOTCH_OPTIONS[0]);
+  const {
+    montage, setMontage, gain, setGain, bandpass, setBandpass,
+    notchHz, setNotchHz, rows, cycleMontage, stepGain,
+  } = useEegDisplay(seg);
   const [pick, setPick] = useState<number | null>(null);
 
   const segRef = useRef<SegmentData | null>(null);
@@ -70,14 +69,6 @@ export function SpikeViewer({
       .catch(() => { if (alive) setSegError(true); });
     return () => { alive = false; };
   }, [item, bundle, onMediaReady]);
-
-  const rows: MontageRow[] = useMemo(() => {
-    if (!seg) return [];
-    const base = applyMontage(montage, seg.eeg, seg.channelNames, seg.nSamp);
-    const cascade = buildCascade(bandpass, notchHz, seg.fsHz);
-    if (!cascade.length) return base;
-    return base.map((r) => (r.data ? { ...r, data: filtfilt(r.data, cascade) } : r));
-  }, [seg, montage, bandpass, notchHz]);
 
   // Pick-and-advance: Yes = spikeTaskIdx (y=1); No = totalTasks (out-of-range, y=0).
   const submit = useCallback(
@@ -110,17 +101,17 @@ export function SpikeViewer({
         submitRef.current(totalRef.current);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setGain((g) => GAIN_LADDER[Math.max(0, GAIN_LADDER.indexOf(g) - 1)]);
+        stepGain(-1);
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setGain((g) => GAIN_LADDER[Math.min(GAIN_LADDER.length - 1, GAIN_LADDER.indexOf(g) + 1)]);
+        stepGain(1);
       } else if (e.key === "Control") {
-        setMontage((m) => MONTAGES[(MONTAGES.indexOf(m as any) + 1) % MONTAGES.length]);
+        cycleMontage();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  }, [cycleMontage, stepGain]);
 
   const dur = seg ? seg.nSamp / seg.fsHz : 0;
   const sel = (v: boolean) => ({

@@ -91,9 +91,14 @@ export function notch(f0: number, fs: number, Q = 30): Biquad {
 
 // Parse the desktop bandpass dropdown string ("0.5-70 Hz" | "1-70 Hz" | "off")
 // into [lo, hi] Hz or null.
+//
+// The separator accepts the ASCII hyphen plus the typographic en/em dashes:
+// a hand-written "0.5–70 Hz" (en-dash) silently parsed to null and disabled
+// the bandpass entirely, which is exactly how the trainer shipped unfiltered
+// EEG. Failing open on a plausible spelling is worse than accepting it.
 export function parseBandpass(s: string): [number, number] | null {
   if (s === "off") return null;
-  const m = s.match(/([\d.]+)-([\d.]+)/);
+  const m = s.match(/([\d.]+)\s*[-–—]\s*([\d.]+)/);
   return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
 }
 

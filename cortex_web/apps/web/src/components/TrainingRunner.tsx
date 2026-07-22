@@ -7,8 +7,7 @@
 // progress); the ported trainer runs synchronously via TrainingController.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bundle, SegmentData } from "../bundle";
-import { applyMontage, MontageRow } from "../montage";
-import { buildCascade, filtfilt } from "../dsp";
+import { useEegDisplay } from "../features/eeg/useEegDisplay";
 import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import {
@@ -86,9 +85,11 @@ export function TrainingRunner({
     if (flashSeg != null) prevSegRef.current = flashSeg;
   }, [flashSeg]);
 
-  // display controls (same defaults as the exam Viewer)
-  const [montage, setMontage] = useState("bipolar");
-  const [gain, setGain] = useState(100);
+  // display controls (same defaults as the exam Viewer — including the
+  // 0.5-70 Hz bandpass + 60 Hz notch, which the trainer previously requested
+  // with an en-dash string that parsed to "no filter")
+  const { montage, setMontage, gain, setGain, rows, cycleMontage, stepGain } =
+    useEegDisplay(seg);
   const [windowS, setWindowS] = useState(10);
   const [panStart, setPanStart] = useState(IIIC_LABEL_START_S);
 
@@ -126,13 +127,6 @@ export function TrainingRunner({
     });
     return () => { alive = false; };
   }, [currentSegId, bundle, ctrl]);
-
-  const rows: MontageRow[] = (() => {
-    if (!seg) return [];
-    const base = applyMontage(montage, seg.eeg, seg.channelNames, seg.nSamp);
-    const cascade = buildCascade("0.5–70 Hz", "60 Hz", seg.fsHz);
-    return cascade.length ? base.map((r) => (r.data ? { ...r, data: filtfilt(r.data, cascade) } : r)) : base;
-  })();
 
   const flush = useCallback(() => {
     const pts = ctrl.drainTrajectory();
@@ -215,18 +209,18 @@ export function TrainingRunner({
         if (nway && e.key >= "1" && e.key <= "6") { e.preventDefault(); answerPick(Number(e.key)); }
         else if (!nway && (e.key === "y" || e.key === "Y" || e.key === "1")) { e.preventDefault(); answer(true); }
         else if (!nway && (e.key === "n" || e.key === "N" || e.key === "2")) { e.preventDefault(); answer(false); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); setGain((g) => GAIN_LADDER[Math.max(0, GAIN_LADDER.indexOf(g) - 1)]); }
-        else if (e.key === "ArrowDown") { e.preventDefault(); setGain((g) => GAIN_LADDER[Math.min(GAIN_LADDER.length - 1, GAIN_LADDER.indexOf(g) + 1)]); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); stepGain(-1); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); stepGain(1); }
         else if (e.key === "ArrowLeft") { e.preventDefault(); setPanStart((p) => Math.max(0, p - windowSRef.current)); }
         else if (e.key === "ArrowRight") { e.preventDefault(); setPanStart((p) => Math.min(Math.max(0, durRef.current - windowSRef.current), p + windowSRef.current)); }
-        else if (e.key === "Control") { e.preventDefault(); setMontage((m) => MONTAGES[(MONTAGES.indexOf(m as (typeof MONTAGES)[number]) + 1) % MONTAGES.length]); }
+        else if (e.key === "Control") { e.preventDefault(); cycleMontage(); }
       } else if (ctrl.phase === "result" && (e.key === "Enter" || e.key === " ")) {
         e.preventDefault(); proceed();
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [ctrl, answer, answerPick, proceed]);
+  }, [ctrl, answer, answerPick, proceed, cycleMontage, stepGain]);
 
   const { count } = ctrl.progress();
   const label = ctrl.item ? labels[ctrl.item.task] : (ctrl.lastResult?.patternLabel ?? "");
