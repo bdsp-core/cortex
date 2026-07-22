@@ -73,7 +73,7 @@ Compared with the untouched n-way production base, the final replay reduced
 answer p50 by 93.3%, answer p95 by 84.7%, selection p50 by 88.1%, and
 rejuvenation p95 by 81.0%.
 
-## Reported-core adaptation
+## Reported-core startup selection
 
 Short full-bank Chromium measurements, with exact serial/adaptive result
 equality:
@@ -87,8 +87,9 @@ equality:
 
 The reported-two-core result was measured on a high-resource host using a
 qualification override; it is not a physical low-power-device claim. The
-startup calibration is real work and data-driven, but post-start thermal and
-heartbeat revalidation is future work.
+startup calibration is real work and data-driven. Its selected worker count is
+fixed for the session; post-start heartbeat data remains observational and
+does not revalidate or resize the pool.
 
 ## Browser and workload evidence
 
@@ -96,7 +97,8 @@ heartbeat revalidation is future work.
   25.9 ms.
 - Firefox full replay: exact, answer p50/p95 620/4,645 ms, selection 578/720
   ms, rejuvenation p95 3,170 ms, no fallback. A rare 60 ms heartbeat exceeded
-  the 50 ms startup target and remains a monitoring/downgrade follow-up.
+  the 50 ms startup target and remains a monitoring signal, not an in-session
+  topology change.
 - WebKit did not start on the shared qualification host because its optional
   GStreamer, Flite, and libavif runtime libraries were absent. Shared OS
   packages were deliberately not changed; Safari/WebKit remains unqualified.
@@ -131,9 +133,9 @@ runtime arrays and dimensions, so additional approved domains can be added and
 requalified without rewriting pool topology.
 
 The next performance increment is probability-ranked expansion with
-cancellation/deprioritization and immediate observed-answer priority. Runtime
-heartbeat revalidation, versioned calibration caching, physical
-2/4/8/12-core testing, Safari/WebKit qualification, fine-grained
+cancellation/deprioritization and immediate observed-answer priority.
+Versioned calibration caching, physical 2/4/8/12-core testing, Safari/WebKit
+qualification, fine-grained
 cancellation/resume coverage, and the broader powered statistical matrix
 remain follow-up gates. Complete-trajectory equality proves the frozen replay
 did not change its statistical result; it does not claim performance on every

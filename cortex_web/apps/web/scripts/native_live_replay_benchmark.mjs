@@ -143,14 +143,6 @@ try {
     ...(process.env.CORTEX_REPLAY_RANKED_SPECULATION === "off" ? {
       qualificationRankedSpeculation: false,
     } : {}),
-    ...(process.env.CORTEX_REPLAY_RUNTIME_LOAD_TRIAL ? {
-      qualificationRuntimeLoad: {
-        trialIndex: Number(process.env.CORTEX_REPLAY_RUNTIME_LOAD_TRIAL),
-        sampleCount: 8,
-        meanDelayMs: 25,
-        maxDelayMs: 75,
-      },
-    } : {}),
   };
   const run = await page.evaluate(async ({ runOptions, computeMode }) => {
     const replay = await window.runWorkerHarness(computeMode, runOptions);
@@ -175,6 +167,9 @@ try {
     };
   }, { runOptions: options, computeMode: requestedComputeMode });
   assert.equal(run.nQuestions, replayTrials.length);
+  assert.equal(run.events.some(
+    (event) => event.kind === "runtime_pool_adjustment"), false,
+  "startup-selected worker pool changed during native replay");
   const steps = run.events.filter((event) => event.kind === "engine_step");
   assert.equal(steps.length, replayTrials.length);
   const answer = run.events.filter((event) => event.kind === "answer_to_item")

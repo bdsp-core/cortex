@@ -51,8 +51,6 @@ export interface NWaySelectionExecutor {
     history: PackedParticleHistory, N: number, K: number,
     t: Float64Array, l: Float64Array,
   ): Promise<Float64Array>;
-  /** Safe only between jobs; sessions use it at a between-question boundary. */
-  reduceWorkerCount?(maxWorkers: number): number;
   restartAfterCancellation?(): NWayCancellationRestart;
   dispose(): void;
 }
@@ -92,8 +90,9 @@ export interface NWaySelectorExecutorOptions {
   calibrationProfile?: Partial<NWayCalibrationProfile>;
 }
 
-/** Persistent deterministic candidate-shard pool. Workers return only indexed
- * loss vectors; ordering, tie behavior, and selection remain centralized. */
+/** Persistent deterministic candidate-shard pool. Startup calibration selects
+ * its session-fixed size. Workers return only indexed loss vectors; ordering,
+ * tie behavior, and selection remain centralized. */
 export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   private static readonly READY_TIMEOUT_MS = 10_000;
   private static readonly JOB_TIMEOUT_MS = 30_000;
@@ -355,20 +354,6 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       logLikelihood.set(response.logLikelihood, startIndex);
     }));
     return logLikelihood;
-  }
-
-  reduceWorkerCount(maxWorkers: number): number {
-    if (this.disposed) throw new Error("n-way selector worker executor is disposed");
-    if (!Number.isInteger(maxWorkers) || maxWorkers < 1) {
-      throw new Error(`invalid n-way selector worker reduction: ${maxWorkers}`);
-    }
-    if (this.activeJobs.size > 0) {
-      throw new Error("cannot resize n-way selector workers during an active job");
-    }
-    const selected = Math.min(this.slots.length, maxWorkers);
-    for (const slot of this.slots.slice(selected)) slot.worker.terminate();
-    this.slots = this.slots.slice(0, selected);
-    return this.slots.length;
   }
 
   restartAfterCancellation(): NWayCancellationRestart {
@@ -635,8 +620,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   }
 
   private activateWorkerCount(workerCount: number): void {
+    if (this.activeJobs.size > 0) {
+      throw new Error("cannot activate n-way selector workers during an active job");
+    }
     const selected = Math.max(1, Math.min(this.slots.length, workerCount));
-    this.reduceWorkerCount(selected);
+    for (const slot of this.slots.slice(selected)) slot.worker.terminate();
+    this.slots = this.slots.slice(0, selected);
   }
 
   private runScreen(

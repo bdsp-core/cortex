@@ -134,7 +134,7 @@ describe("n-way selector pool failure containment", () => {
     });
   }
 
-  it("reduces a pool downward without recreating or increasing workers", async () => {
+  it("does not expose post-calibration worker resizing", async () => {
     const workers = Array.from({ length: 4 }, () => new InjectedWorker("timeout"));
     let nextWorker = 0;
     const executor = new NWaySelectorWorkerExecutor(precisionGoldenInputs(), 4, {
@@ -142,10 +142,9 @@ describe("n-way selector pool failure containment", () => {
     });
     await executor.ready();
     expect(executor.workerCount).toBe(4);
-    expect(executor.reduceWorkerCount(2)).toBe(2);
-    expect(workers.map((worker) => worker.terminated)).toEqual([false, false, true, true]);
-    expect(executor.reduceWorkerCount(4)).toBe(2);
-    expect(() => executor.reduceWorkerCount(0)).toThrow(/invalid/);
+    expect((executor as unknown as { reduceWorkerCount?: unknown }).reduceWorkerCount)
+      .toBeUndefined();
+    expect(workers.every((worker) => !worker.terminated)).toBe(true);
     executor.dispose();
     expect(workers.every((worker) => worker.terminated)).toBe(true);
   });

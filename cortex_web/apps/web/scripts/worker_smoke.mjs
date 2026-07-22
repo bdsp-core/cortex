@@ -1,4 +1,4 @@
-/** Real-Chromium qualification for the coordinator + adaptive n-way pool. */
+/** Real-Chromium qualification for the coordinator + fixed calibrated n-way pool. */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -57,41 +57,17 @@ try {
   const options = { maxQuestions: 2, answerPattern: "no" };
   const serial = await page.evaluate(
     (runOptions) => window.runWorkerHarness("serial", runOptions), options);
-  const transientSpikes = await page.evaluate(
-    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), {
-      ...options,
-      qualificationRuntimeLoads: [
-        { trialIndex: 0, sampleCount: 8, meanDelayMs: 11.46, maxDelayMs: 85.4 },
-        { trialIndex: 0, sampleCount: 8, meanDelayMs: 0.5, maxDelayMs: 4 },
-        { trialIndex: 0, sampleCount: 8, meanDelayMs: 9.55, maxDelayMs: 59.9 },
-        { trialIndex: 0, sampleCount: 8, meanDelayMs: 0.4, maxDelayMs: 3 },
-        { trialIndex: 0, sampleCount: 8, meanDelayMs: 7, maxDelayMs: 55.9 },
-      ],
-    });
   const adaptive = await page.evaluate(
-    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), {
-      ...options,
-      qualificationRuntimeLoad: {
-        trialIndex: 0, sampleCount: 8, meanDelayMs: 25, maxDelayMs: 75,
-      },
-    });
+    (runOptions) => window.runWorkerHarness("dual_branch_auto", runOptions), options);
   assert.deepStrictEqual(adaptive.result, serial.result,
-    "adaptive-pool execution changed the authoritative session result");
-  assert.deepStrictEqual(transientSpikes.result, serial.result,
-    "transient-spike execution changed the authoritative session result");
+    "fixed calibrated-pool execution changed the authoritative session result");
   assert.equal(pageErrors.length, 0, pageErrors.join("\n"));
 
   const serialProfile = serial.events.find((event) => event.kind === "execution_profile");
   const adaptiveProfile = adaptive.events.find(
     (event) => event.kind === "execution_profile");
-  const transientProfile = transientSpikes.events.find(
-    (event) => event.kind === "execution_profile");
   assert.equal(serialProfile?.executionMode, "serial");
   assert.equal(adaptiveProfile?.executionMode, "adaptive_pool");
-  assert.equal(transientProfile?.executionMode, "adaptive_pool");
-  assert.equal(transientSpikes.events.some(
-    (event) => event.kind === "runtime_pool_adjustment"), false,
-  "isolated max-only heartbeat spikes reduced the worker pool");
   assert.ok(Number.isInteger(adaptiveProfile?.selectedWorkerCount));
   assert.ok(adaptiveProfile.selectedWorkerCount >= 2);
   const calibration = JSON.parse(adaptiveProfile.calibrationResult);
@@ -109,18 +85,14 @@ try {
     ? [event.phaseV2?.observedOutcomeRank] : []);
   assert.ok(cancelledSpeculation,
     `immediate non-rank-one answer did not cancel speculative work; ranks=${observedRanks}`);
-  const runtimeAdjustment = adaptive.events.find(
-    (event) => event.kind === "runtime_pool_adjustment");
-  assert.equal(runtimeAdjustment?.trialIndex, 1);
-  assert.equal(runtimeAdjustment?.reason, "main_realm_load");
-  assert.equal(runtimeAdjustment?.trigger, "sustained_mean");
-  assert.equal(runtimeAdjustment?.evidenceWindowCount, 1);
-  assert.equal(runtimeAdjustment?.previousWorkerCount, adaptiveProfile.selectedWorkerCount);
-  assert.ok(runtimeAdjustment.selectedWorkerCount < runtimeAdjustment.previousWorkerCount);
+  assert.equal(adaptive.events.some(
+    (event) => event.kind === "runtime_pool_adjustment"), false,
+  "startup-selected worker pool changed during the session");
   process.stdout.write(
-    `worker-smoke: exact native-IIIC serial/adaptive result parity (${serial.result.nQuestions} questions); `
+    `worker-smoke: exact native-IIIC serial/fixed-pool result parity (${serial.result.nQuestions} questions); `
     + `browser reported ${adaptiveProfile?.hardwareConcurrency} logical cores; `
-    + `${adaptiveProfile.selectedWorkerCount} calibrated pool workers used under worker-src 'self'\n`,
+    + `${adaptiveProfile.selectedWorkerCount} calibrated pool workers retained for the session `
+    + `under worker-src 'self'\n`,
   );
 } finally {
   await browser?.close();

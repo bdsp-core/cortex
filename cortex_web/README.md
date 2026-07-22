@@ -32,9 +32,10 @@ The full 35k manifest remains in the main-thread `Bundle` for exact EEG and
 spectrogram rendering. Only a packed numerical index crosses into the engine
 coordinator. On eligible native n-way devices, a bounded startup calibration
 selects a conservative persistent pool for deterministic selector and MH
-history shards. The coordinator owns state and RNG, speculates the most likely
-response, and adopts only the participant's actual response. AD6 and low-core
-devices stay serial. See
+history shards. That selected worker count remains fixed for the full session;
+heartbeat telemetry observes responsiveness but never resizes the pool. The
+coordinator owns state and RNG, speculates the most likely response, and adopts
+only the participant's actual response. AD6 and low-core devices stay serial. See
 [WEB_WORKER_ARCHITECTURE.md](docs/WEB_WORKER_ARCHITECTURE.md).
 
 ## Local setup

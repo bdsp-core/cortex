@@ -125,6 +125,7 @@ export class EnginePerformanceCollector {
   private answerToItem: number[] = [];
   private steps: EngineStepTiming[] = [];
   private heartbeat = { sampleCount: 0, weightedDelay: 0, maxDelayMs: 0 };
+  /** Backward-compatible reader for schema-v2 data emitted before fixed pools. */
   private runtimePoolAdjustments: RuntimePoolAdjustmentEvent[] = [];
 
   record(event: EnginePerformanceEvent): void {

@@ -12,8 +12,8 @@
 // in otherwise-idle think-time without changing a single result.
 
 import {
-  BranchLifecycleV2, ComputeEngineInputs, EngineStepTiming, RuntimePoolAdjustmentEvent,
-  TerminationPolicyName, TrialDiag,
+  BranchLifecycleV2, ComputeEngineInputs, EngineStepTiming, TerminationPolicyName,
+  TrialDiag,
 } from "./types";
 import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
@@ -28,10 +28,6 @@ import {
 import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
-import {
-  nextLowerWorkerCount, runtimeLoadExceedsLimit,
-  type RuntimeLoadReductionRequest,
-} from "./execution_profile";
 import {
   SessionCore, AdvanceParams, AdvanceResult, advanceCore,
   advanceCoreWithSelectionExecutor, cloneCore, chooseNext, precisionRemainingBank,
@@ -88,7 +84,6 @@ export interface SessionCallbacks {
   onItem?: (item: { trialIndex: number; taskK: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
   onPerformance?: (event: EngineStepTiming) => void;
-  onRuntimePoolAdjustment?: (event: RuntimePoolAdjustmentEvent) => void;
   onDone?: (result: SessionResult) => void;
 }
 
@@ -158,8 +153,6 @@ export class WebCortexSession {
   private rankedSpeculation: boolean;
   private cb: SessionCallbacks;
   private answerResolver: ((answer: SubmittedAnswer) => void) | null = null;
-  private pendingRuntimePoolAdjustment:
-    (RuntimeLoadReductionRequest & { target: number }) | null = null;
   private selectionRecovery: Promise<void> | null = null;
   private aborted = false;
 
@@ -196,41 +189,6 @@ export class WebCortexSession {
   abort(): void {
     this.aborted = true;
     if (this.answerResolver) this.submitAnswer(-1);
-  }
-
-  /** Main-realm timing feedback only. The reduction is deferred until the
-   * next between-question boundary, when no selector or MH shard is active. */
-  reportRuntimeLoad(sample: RuntimeLoadReductionRequest): void {
-    const current = this.selectionExecutor?.workerCount ?? 1;
-    if (current <= 1 || !runtimeLoadExceedsLimit(sample)) return;
-    const target = nextLowerWorkerCount(current);
-    if (target >= current) return;
-    if (!this.pendingRuntimePoolAdjustment
-        || target < this.pendingRuntimePoolAdjustment.target) {
-      this.pendingRuntimePoolAdjustment = { ...sample, target };
-    }
-  }
-
-  private applyRuntimePoolAdjustment(trialIndex: number): void {
-    const pending = this.pendingRuntimePoolAdjustment;
-    this.pendingRuntimePoolAdjustment = null;
-    const executor = this.selectionExecutor;
-    if (!pending || !executor?.reduceWorkerCount) return;
-    const previousWorkerCount = executor.workerCount;
-    const selectedWorkerCount = executor.reduceWorkerCount(pending.target);
-    if (selectedWorkerCount >= previousWorkerCount) return;
-    this.cb.onRuntimePoolAdjustment?.({
-      kind: "runtime_pool_adjustment",
-      trialIndex,
-      previousWorkerCount,
-      selectedWorkerCount,
-      reason: "main_realm_load",
-      trigger: pending.trigger,
-      evidenceWindowCount: pending.evidenceWindowCount,
-      sampleCount: pending.sampleCount,
-      meanDelayMs: pending.meanDelayMs,
-      maxDelayMs: pending.maxDelayMs,
-    });
   }
 
   private deferSelectionRecovery(
@@ -373,7 +331,6 @@ export class WebCortexSession {
       // A cached prior branch may already have exposed this item while a
       // cancelled expansion rebuilds the pool in the background.
       await this.waitForSelectionRecovery();
-      this.applyRuntimePoolAdjustment(trialIndex);
 
       const bankStartedAt = performance.now();
       let preparedPrecisionBank = policyName === "precision_v1"

@@ -60,4 +60,22 @@ describe("internal engine performance summary", () => {
     expect(result.phaseV2.runtimePool.finalWorkerCount).toBe(4);
     expect(result.phaseV2.runtimePool.adjustments[0].trialIndex).toBe(10);
   });
+
+  it("retains the startup-selected pool when no historical adjustment exists", () => {
+    const collector = new EnginePerformanceCollector();
+    collector.record({
+      kind: "execution_profile", requested: "dual_branch_auto",
+      executionMode: "adaptive_pool", reason: "adaptive_pool_eligible",
+      hardwareConcurrency: 12, selectedWorkerCount: 6,
+    });
+    collector.record({
+      kind: "event_loop_heartbeat", sampleCount: 8,
+      meanDelayMs: 25, maxDelayMs: 75,
+    });
+
+    const runtimePool = collector.summary().phaseV2.runtimePool;
+    expect(runtimePool).toEqual({
+      adjustmentCount: 0, finalWorkerCount: 6, adjustments: [],
+    });
+  });
 });

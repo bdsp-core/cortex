@@ -246,6 +246,8 @@ export interface EventLoopHeartbeatEvent {
   maxDelayMs: number;
 }
 
+/** Historical schema-v2 event retained for reading results from releases that
+ * resized the pool at runtime. Current sessions never emit this event. */
 export interface RuntimePoolAdjustmentEvent {
   kind: "runtime_pool_adjustment";
   trialIndex: number;

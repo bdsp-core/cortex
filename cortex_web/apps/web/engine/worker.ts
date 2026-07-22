@@ -5,7 +5,6 @@
 // Protocol (main → worker):
 //   { type: "init", payload, sessionId, seed }     start a session
 //   { type: "answer", pick }                       submit a 0-based 6-way pick
-//   { type: "runtime_load", ... }                  main-realm load feedback
 //   { type: "abort" }
 // Worker → main:
 //   { type: "item", trialIndex, taskK, segId }     next question is chosen
@@ -62,6 +61,8 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         try {
           await candidate.ready();
           const calibration = await candidate.calibrate();
+          // This startup choice is authoritative for the session. Runtime load
+          // telemetry is observational and cannot resize the calibrated pool.
           calibrationResult = JSON.stringify({
             version: 2,
             result: calibration.result,
@@ -111,7 +112,6 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
         onItem: (item) => post({ type: "item", ...item }),
         onTrial: (diag) => post({ type: "trial", diag }),
         onPerformance: (event) => post({ type: "performance", event }),
-        onRuntimePoolAdjustment: (event) => post({ type: "performance", event }),
         onDone: (result) => {
           branchExecutor?.dispose();
           branchExecutor = null;
@@ -141,8 +141,6 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
       );
     } else if (msg.type === "answer") {
       session?.submitAnswer(msg.pick, msg.submittedAtEpochMs);
-    } else if (msg.type === "runtime_load") {
-      session?.reportRuntimeLoad(msg);
     } else if (msg.type === "abort") {
       branchExecutor?.dispose();
       branchExecutor = null;

@@ -16,6 +16,8 @@ the application default remains fail-closed `off`.
   they never mutate authoritative state.
 - Only the participant's actual raw outcome is adopted. Timing, calibration,
   and device information never enter statistical state or policy decisions.
+- Startup calibration selects the pool size once. That worker count is fixed
+  for the session; heartbeat telemetry cannot resize it.
 - Worker initialization, calibration, timeout, malformed-response, or runtime
   failure falls back to the exact coordinator calculation from untouched
   authoritative state.
@@ -98,7 +100,8 @@ This reserves at least one reported core, and at least two on devices reporting
 eight or more. At startup, a bounded 24-candidate real-bank probe compares
 eligible pool sizes. It chooses the smallest pool within 5% of the fastest
 responsive result, subject to a 50 ms heartbeat-delay limit, and terminates
-unused workers. A failed probe selects exact serial execution.
+unused workers. The selected count then remains fixed until the session ends.
+A failed probe selects exact serial execution.
 
 These tuning points are intentionally isolated in `execution_profile.ts`.
 Calibration candidates are assembled from the runtime domain arrays, while
@@ -133,6 +136,8 @@ categories, or content/exposure eligibility.
   calibration summary, and a memory estimate. It records no new EEG or
   participant content, is excluded from statistical state, and is stripped
   from participant dashboard/history responses.
+- Post-start heartbeat delay is observational telemetry only and does not feed
+  worker-pool control.
 
 ## Rollout and rollback
 
