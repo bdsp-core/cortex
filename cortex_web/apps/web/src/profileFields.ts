@@ -8,15 +8,22 @@
 
 import { CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 
-export const EXPERTISE = [
-  "Attending epileptologist",
-  "Attending neurologist (non-epilepsy)",
-  "Clinical neurophysiology fellow",
-  "Neurology resident",
-  "EEG technologist",
-  "Researcher / scientist",
-  "Other",
+// Self-reported expertise, the single source for every surface that offers it
+// (signup, desktop settings, phone settings). [catalogKey, submittedValue]:
+// the visible label is translated where a catalog is wired, and the submitted
+// value stays canonical English so stored profiles are comparable.
+export const EXPERTISE_OPTIONS: [string, string][] = [
+  ["auth.expertise.epileptologist", "Attending epileptologist"],
+  ["auth.expertise.neurologist", "Attending neurologist (non-epilepsy)"],
+  ["auth.expertise.fellow", "Clinical neurophysiology fellow"],
+  ["auth.expertise.resident", "Neurology resident"],
+  ["auth.expertise.tech", "EEG technologist"],
+  ["auth.expertise.researcher", "Researcher / scientist"],
+  ["auth.expertise.other", "Other"],
 ];
+
+// Submitted values alone, for the surfaces that render untranslated options.
+export const EXPERTISE = EXPERTISE_OPTIONS.map(([, value]) => value);
 const PRACTICE_SETTING = [
   "Academic medical center",
   "Community hospital",

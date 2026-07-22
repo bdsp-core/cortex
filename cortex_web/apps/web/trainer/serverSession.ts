@@ -63,7 +63,7 @@ export class ServerTrainerSession {
   submit(choice: Choice, y: number): void {
     this.item = null;
     this.inflight = api
-      .engineRecord(this.trainingId, choice.segId, choice.task, y)
+      .engineRecord(this.trainingId, choice.segId, y)
       .then((r) => {
         this.item = r.item ? toChoice(r.item) : null;
         this.snap = r.snapshot as TaskSnapshot[];

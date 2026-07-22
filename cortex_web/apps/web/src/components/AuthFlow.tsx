@@ -18,6 +18,8 @@ import {
   ApiError, EmailNotVerifiedError, login, register, verifyCode, resendCode,
   requestReset, resetPassword, verifyStatus,
 } from "../api";
+// Signup's expertise dropdown; the list itself has exactly one definition.
+import { EXPERTISE_OPTIONS } from "../profileFields";
 import { COLORS, FONTS } from "../../ui/theme";
 import { ThemeToggle } from "../theme/ThemeProvider";
 import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
@@ -38,17 +40,6 @@ import {
 
 type Screen = "signin" | "signup" | "verify" | "forgot" | "reset" | "success";
 
-// Self-reported expertise dropdown shown at signup. [catalogKey, submittedValue]:
-// the visible label is translated; the submitted value stays canonical English.
-export const EXPERTISE: [string, string][] = [
-  ["auth.expertise.epileptologist", "Attending epileptologist"],
-  ["auth.expertise.neurologist", "Attending neurologist (non-epilepsy)"],
-  ["auth.expertise.fellow", "Clinical neurophysiology fellow"],
-  ["auth.expertise.resident", "Neurology resident"],
-  ["auth.expertise.tech", "EEG technologist"],
-  ["auth.expertise.researcher", "Researcher / scientist"],
-  ["auth.expertise.other", "Other"],
-];
 
 const RESEND_COOLDOWN_S = 30;
 
@@ -673,7 +664,7 @@ export function AuthFlow({ onAuthed, deepLink }: {
               <span style={labelStyle}>{t("auth.signup.role")}</span>
               <select value={suRole} onChange={(e) => setSuRole(e.target.value)} style={inputStyle}>
                 <option value="">{t("auth.signup.select")}</option>
-                {EXPERTISE.map(([k, v]) => <option key={k} value={v}>{t(k)}</option>)}
+                {EXPERTISE_OPTIONS.map(([k, v]) => <option key={k} value={v}>{t(k)}</option>)}
               </select>
             </label>
             {/* honeypot — visually + a11y hidden; naive bots fill every input */}

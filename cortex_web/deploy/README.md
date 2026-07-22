@@ -142,6 +142,8 @@ release directory, or restore persistent state merely to roll back code.
 | Service status | `sudo systemctl status cortex.service` |
 | Tail service logs | `sudo journalctl -u cortex.service -f` |
 | Deep health | `curl --fail --silent --show-error https://app.cortexeeg.org/api/health?deep=1` |
+| Verify the live CSP | `node cortex_web/apps/web/scripts/csp_verify_live.mjs` (loads the deployed site in Chromium and fails on a CSP violation or a missing Google sign-in button; run after any CSP or auth-provider change) |
+| Verify the live phone surface | `node cortex_web/apps/web/scripts/phone_smoke.mjs https://app.cortexeeg.org` (also runs automatically at the end of every deploy) |
 | Observe compute rollout | `sudo -u postgres psql -d cortex -v since_utc=<UTC_TIMESTAMP> -f /opt/cortex/cortex_web/deploy/scripts/observe_precision_compute.sql` |
 | Backup now | `sudo systemctl start cortex-backup.service` |
 | Backup history | `sudo journalctl -u cortex-backup.service -n 200 --no-pager` |

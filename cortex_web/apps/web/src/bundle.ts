@@ -60,13 +60,6 @@ export class Bundle {
     this.manifest = manifest;
   }
 
-  static async load(base: string): Promise<Bundle> {
-    const res = await fetch(`${base}/manifest.json`);
-    if (!res.ok) throw new Error(`manifest fetch failed (${res.status})`);
-    const manifest = (await res.json()) as BundleManifest;
-    return new Bundle(base, manifest);
-  }
-
   // Build a Bundle from a server-drawn session bank (goal 3) — no full-manifest
   // fetch. The engine runs over bank.segments; EEG/spec blobs are still fetched
   // lazily from bank.bundleUrl via each segment's `eeg`/`spec` path.

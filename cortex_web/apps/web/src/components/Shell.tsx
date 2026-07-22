@@ -53,7 +53,6 @@ import { ProtocolSurface } from "../features/protocol/ProtocolSurface";
 import { SettingsSurface } from "../features/settings/SettingsSurface";
 
 // Compatibility export for existing callers; new code imports the feature module.
-export { QuestionTable } from "../features/history/QuestionTable";
 
 // Inline-SVG line icons for the four nav surfaces (ported verbatim from the
 // mockup's nav, NOT emoji).

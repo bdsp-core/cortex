@@ -97,10 +97,14 @@ class EngineStartIn(BaseModel):
 
 class EngineRecordIn(BaseModel):
     """One answered engine-served item: the pick updates the belief; the
-    full response record lands via the existing checkpoint outbox."""
+    full response record lands via the existing checkpoint outbox.
+
+    The item's task is not accepted from the client — the trainer already
+    knows which item it served, so a client-supplied taskK could only
+    disagree with it. Older SPA builds still post one; pydantic ignores
+    unknown fields, so those keep working."""
     trainingId: str
     segId: int
-    taskK: int
     pick: int
 
 

@@ -474,11 +474,12 @@ export function engineStart(
   });
 }
 export function engineRecord(
-  trainingId: string, segId: number, taskK: number, pick: number,
+  trainingId: string, segId: number, pick: number,
 ): Promise<EngineStepResponse> {
+  // No taskK: the server-side trainer already knows which item it served.
   return authedFetch("/api/training-engine/record", {
     method: "POST",
-    body: JSON.stringify({ trainingId, segId, taskK, pick }),
+    body: JSON.stringify({ trainingId, segId, pick }),
   });
 }
 export function finalizeTrainingSession(

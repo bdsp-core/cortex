@@ -2,8 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { QuestionRow } from "../api";
-import { QuestionTable } from "./Shell";
+import type { QuestionRow } from "../../api";
+import { QuestionTable } from "./QuestionTable";
 
 describe("QuestionTable", () => {
   it("omits AD6-only diagnostics from participant history", () => {

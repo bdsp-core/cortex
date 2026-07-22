@@ -6,7 +6,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import * as api from "../api";
 import { COLORS } from "../../ui/theme";
-import { EXPERTISE } from "../components/AuthFlow";
+import { EXPERTISE_OPTIONS } from "../profileFields";
 import { PROFILE_SECTIONS } from "../profileFields";
 import * as S from "./styles";
 
@@ -148,7 +148,7 @@ export function MobileSettings({ onBack }: { onBack: () => void }) {
                   <select style={S.input} value={expertise}
                     onChange={(e) => setExpertise(e.target.value)}>
                     <option value="">Not specified</option>
-                    {EXPERTISE.map(([, v]) => <option key={v} value={v}>{v}</option>)}
+                    {EXPERTISE_OPTIONS.map(([, v]) => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </label>
                 {PROFILE_SECTIONS.flatMap((sec) => sec.fields).map((f) => (
