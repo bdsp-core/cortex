@@ -1,5 +1,6 @@
-"""The certification-test surface: bundle manifest, tutorial example, the
-server-side per-session draw, per-question progress, and final results."""
+"""The certification-test surface: tutorial example, the server-side
+per-session draw, per-question progress, and final results. (The bundle
+identity travels inside the POST /api/session draw payload.)"""
 from __future__ import annotations
 
 import calendar
@@ -23,20 +24,6 @@ from ..models import ProgressIn, ResultsIn, SessionIn
 from ..nway_profile import production_nway_profile
 
 router = APIRouter(prefix="/api")
-
-
-@router.get("/manifest")
-def manifest(req: Request, _code: str = Depends(require_auth)):
-    # Real bundle identity. The SPA uses bundleUrl as the base for lazily-
-    # fetched EEG/spec blobs; the per-session question SET comes from
-    # POST /api/session (the server-side draw), so sessionSample is advisory.
-    cfg = req.app.state.cfg
-    bank = req.app.state.get_bank()
-    return {
-        "bundleUrl": cfg["bundle_url"],
-        "version": bank.version if bank else None,
-        "sessionSample": cfg["session_sample"],
-    }
 
 
 @router.get("/tutorial-example")

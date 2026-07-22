@@ -190,7 +190,10 @@ def auth(body: AuthIn, req: Request):
     db.record_login_day(code, body.tzOffset or 0)
     token = security.issue_token(code, ttl_seconds=TOKEN_TTL,
                                  extra={"email": email})
-    return {"token": token, "expiresIn": TOKEN_TTL, "code": code,
+    # The internal participant code (the JWT subject / DB key) deliberately
+    # stays server-side — cohort payloads are keyed by public_id for the same
+    # reason.
+    return {"token": token, "expiresIn": TOKEN_TTL,
             "email": email, "displayName": row.get("display_name") or ""}
 
 
@@ -247,7 +250,7 @@ def auth_google(body: AuthGoogleIn, req: Request):
     db.record_login_day(row["code"], body.tzOffset or 0)
     token = security.issue_token(row["code"], ttl_seconds=TOKEN_TTL,
                                  extra={"email": email})
-    return {"token": token, "expiresIn": TOKEN_TTL, "code": row["code"],
+    return {"token": token, "expiresIn": TOKEN_TTL,
             "email": email, "displayName": row.get("display_name") or ""}
 
 

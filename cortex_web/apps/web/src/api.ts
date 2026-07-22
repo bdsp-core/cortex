@@ -1,5 +1,6 @@
-// Backend API client. The server is intentionally small: authenticate once, fetch
-// the bundle URL, ingest results — no per-question round-trips. All gated
+// Backend API client. The server is intentionally small: authenticate once,
+// receive the per-session draw (bundle identity + question set travel inside
+// POST /api/session), ingest results — no per-question round-trips. All gated
 // calls carry the JWT as a Bearer token.
 //
 // Base URL: VITE_API_BASE if set, else same-origin "" (the SPA is served by

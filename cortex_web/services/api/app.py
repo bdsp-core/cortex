@@ -19,10 +19,11 @@ Endpoint surface (all JSON, prefix /api). Public: health, register,
 verify/{confirm,resend,status}, auth, auth/google, forgot, reset, report,
 client-error (SPA crash telemetry; rate-limited, log-only),
 ses/events (SNS webhook; capability-token-gated, 404 unless enabled). Bearer-
-gated: manifest, tutorial-example, session, progress, results, dashboard,
+gated: tutorial-example, session, progress, results, dashboard,
 bootstrap (the dashboard-entry sections in one round-trip),
-activity, history (+ /{id}/questions), regimen, trajectories,
-training-sessions (+ /finalize), consent (+ /withdraw), profile,
+activity, history (+ /{id}/questions), regimen, trajectories (GET only —
+trajectory writes are server-authoritative via training-progress),
+training-sessions (POST + /finalize), consent (+ /withdraw), profile,
 account/{password,email}. X-Admin-Token-gated: admin/participants,
 admin/sessions, admin/results/{id}. GET /api/health?deep=1 additionally
 checks the DB (503 when it fails) — point uptime monitors at that.
@@ -46,6 +47,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -268,6 +270,18 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     @app.exception_handler(HTTPException)
     async def _http_exc(_req, exc: HTTPException):
         return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_exc(_req, exc: RequestValidationError):
+        # Same {"error": ...} envelope as every other API error — the SPA's
+        # parseResponse reads body.error, which FastAPI's default
+        # {"detail": [...]} shape would bypass.
+        fields = sorted({
+            ".".join(str(p) for p in e.get("loc", ())[1:]) or "body"
+            for e in exc.errors()})
+        return JSONResponse(
+            status_code=422,
+            content={"error": "invalid request: " + ", ".join(fields)})
 
     @app.exception_handler(Exception)
     async def _unhandled_exc(req, exc: Exception):

@@ -138,3 +138,6 @@ first-test-csv-results/
 # public repo; local bank backups are too large + redundant for git.
 paper/
 data/eeg_bank_pre_*.h5
+
+# Stray vite metadata from running vite outside apps/web.
+.vite/

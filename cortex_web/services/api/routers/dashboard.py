@@ -16,8 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from .. import awards, dashboard_logic, engine_trainer
 from ..deps import require_auth
 from ..models import (
-    SessionIn, TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn,
-    TrajectoryIn)
+    SessionIn, TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn)
 
 router = APIRouter(prefix="/api")
 
@@ -160,18 +159,6 @@ def regimen(req: Request, code: str = Depends(require_auth)):
 @router.get("/trajectories")
 def trajectories(req: Request, code: str = Depends(require_auth)):
     return trajectories_payload(req.app.state.db, code)
-
-
-@router.post("/trajectories")
-def trajectories_append(body: TrajectoryIn, req: Request, code: str = Depends(require_auth)):
-    _validate_points(body.points)
-    req.app.state.db.append_trajectory_points(code, body.points)
-    return {"ok": True}
-
-
-@router.get("/training-sessions")
-def training_list(req: Request, code: str = Depends(require_auth)):
-    return {"sessions": req.app.state.db.list_training_sessions(code)}
 
 
 @router.post("/training-sessions")

@@ -582,23 +582,32 @@ def test_verify_status_anti_oracle_on_unknown_email(client, monkeypatch):
 
 
 def test_gated_requires_token(client):
-    assert client.get("/api/manifest").status_code == 401
+    assert client.get("/api/tutorial-example").status_code == 401
     assert client.post("/api/session", json={"participant": {}}).status_code == 401
+
+
+def test_validation_error_uses_error_envelope(client):
+    """Pydantic request-validation failures must use the same {"error": ...}
+    envelope as every other API error (the SPA reads body.error)."""
+    r = client.post("/api/register", json={"email": 123})
+    assert r.status_code == 422
+    assert "error" in r.json()
 
 
 def test_full_session_flow(client):
     code, pw = _make_participant(client)
     hdr = _auth_header(client, code, pw)
 
-    man = client.get("/api/manifest", headers=hdr).json()
-    assert man["sessionSample"] == 21
-    assert man["version"] == "test-bank"        # real bundle id, not "v1.1-local"
-
-    sid = client.post("/api/session", headers=hdr,
-                      json={"participant": {"expertise": "attending",
-                                            "institution": "MGH"},
-                            "sampleSeed": 12345}).json()["sessionId"]
+    started = client.post("/api/session", headers=hdr,
+                          json={"participant": {"expertise": "attending",
+                                                "institution": "MGH"},
+                                "sampleSeed": 12345}).json()
+    sid = started["sessionId"]
     assert sid
+    # The draw carries the real bundle identity (not "v1.1-local") and the
+    # configured ~21-question AD6 sample.
+    assert started["bank"]["version"] == "test-bank"
+    assert len(started["bank"]["segments"]) == 21
 
     # per-trial checkpoints
     for i in range(3):
@@ -1106,7 +1115,7 @@ def test_expired_token_rejected_by_api(client, monkeypatch):
     # mint a token that is already expired
     from . import security
     tok = security.issue_token(code, ttl_seconds=-1)
-    r = client.get("/api/manifest", headers={"Authorization": f"Bearer {tok}"})
+    r = client.get("/api/profile", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 401
 
 
@@ -1494,18 +1503,20 @@ def test_trajectories_empty_then_real(client):
     # posted without isReal is quarantined (is_real=0) and stays hidden.
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
+    code = client.app.state.db.get_participant_by_email(email)["code"]
     t0 = client.get("/api/trajectories", headers=hdr).json()
     assert t0["sample"] is False and t0["trajectories"] == []
-    # quarantined point — still hidden
-    client.post("/api/trajectories", headers=hdr,
-                json={"points": [{"taskK": 0, "phase": "train", "ell": 0.9,
-                                  "theta": 0.1, "sd": 0.12, "rt": 2000}]})
+    # quarantined point (no isReal) — still hidden. Seeded at the db layer:
+    # the client-facing POST /api/trajectories write path was removed
+    # (trajectory writes are server-authoritative via /api/training-progress).
+    client.app.state.db.append_trajectory_points(
+        code, [{"taskK": 0, "phase": "train", "ell": 0.9,
+                "theta": 0.1, "sd": 0.12, "rt": 2000}])
     assert client.get("/api/trajectories", headers=hdr).json()["trajectories"] == []
     # real trainer point — surfaced
-    client.post("/api/trajectories", headers=hdr,
-                json={"points": [{"taskK": 1, "phase": "train", "ell": 0.8,
-                                  "theta": 0.0, "sd": 0.10, "rt": 1900,
-                                  "isReal": True}]})
+    client.app.state.db.append_trajectory_points(
+        code, [{"taskK": 1, "phase": "train", "ell": 0.8,
+                "theta": 0.0, "sd": 0.10, "rt": 1900, "isReal": True}])
     t1 = client.get("/api/trajectories", headers=hdr).json()
     assert t1["sample"] is False and len(t1["trajectories"]) == 1
     assert t1["trajectories"][0]["taskK"] == 1
@@ -1648,14 +1659,18 @@ def test_training_progress_idempotent_per_answer(client):
 def test_training_session_lifecycle(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
+    code = client.app.state.db.get_participant_by_email(email)["code"]
     tid = client.post("/api/training-sessions", headers=hdr,
                       json={"taskFocus": "gpd"}).json()["trainingId"]
-    lst = client.get("/api/training-sessions", headers=hdr).json()["sessions"]
+    # Verified at the db layer: the GET /api/training-sessions list endpoint
+    # was removed (no SPA caller; the dashboard reads training state from
+    # /api/bootstrap).
+    lst = client.app.state.db.list_training_sessions(code)
     assert len(lst) == 1 and lst[0]["status"] == "in_progress"
     assert client.post("/api/training-sessions/finalize", headers=hdr,
                        json={"trainingId": tid, "nItems": 40,
                              "summary": {"correct": 33}}).status_code == 200
-    lst2 = client.get("/api/training-sessions", headers=hdr).json()["sessions"]
+    lst2 = client.app.state.db.list_training_sessions(code)
     assert lst2[0]["status"] == "complete" and lst2[0]["n_items"] == 40
     # finalizing an unknown id is a 404
     assert client.post("/api/training-sessions/finalize", headers=hdr,
@@ -1781,9 +1796,16 @@ def test_auth_google_creates_then_signs_in_returning_user(client, monkeypatch):
     assert r.status_code == 200
     b = r.json()
     assert b["email"] == "newuser@gmail.com" and b["displayName"] == "New User" and b["token"]
-    # Same Google sub → same account, not a duplicate.
+    # Same Google sub → same account, not a duplicate. (Compared via the
+    # public profile id — auth responses no longer expose the internal code.)
+    assert "code" not in b
     r2 = client.post("/api/auth/google", json={"credential": "tok"})
-    assert r2.status_code == 200 and r2.json()["code"] == b["code"]
+    assert r2.status_code == 200
+    pid1 = client.get("/api/profile", headers={
+        "Authorization": f"Bearer {b['token']}"}).json()["publicId"]
+    pid2 = client.get("/api/profile", headers={
+        "Authorization": f"Bearer {r2.json()['token']}"}).json()["publicId"]
+    assert pid1 == pid2
 
 
 def test_auth_google_links_existing_email_account(client, monkeypatch):
@@ -2752,9 +2774,11 @@ def test_g4_train_retest_loop_staging(client):
         client.post("/api/results", json={"sessionId": sid, "result": result}, headers=h)
         prev_drawn = drawn
 
-    # is_real quarantine: a raw client trajectory post (no isReal) must NOT surface
-    client.post("/api/trajectories",
-                json={"points": [{"taskK": 0, "ell": 9.9, "phase": "train"}]}, headers=h)
+    # is_real quarantine: a raw trajectory row without isReal must NOT surface
+    # (db-seeded; the client-facing POST /api/trajectories path was removed)
+    ucode = client.app.state.db.get_participant_by_email(email)["code"]
+    client.app.state.db.append_trajectory_points(
+        ucode, [{"taskK": 0, "ell": 9.9, "phase": "train"}])
     traj = client.get("/api/trajectories", headers=h).json()["trajectories"]
     assert not any(p.get("ell") == 9.9 for p in traj), "quarantined synthetic point leaked"
 
@@ -2889,22 +2913,6 @@ def test_resend_survives_email_send_failure(client, monkeypatch):
     assert "devCode" not in r.json()
 
 
-def test_trajectory_points_missing_taskK_is_422(client):
-    """A malformed point must 4xx up front, not KeyError mid-transaction."""
-    email, pw = _make_participant(client)
-    hdr = _auth_header(client, email, pw)
-    r = client.post("/api/trajectories", headers=hdr,
-                    json={"points": [{"ell": 0.5}]})
-    assert r.status_code == 422
-    r = client.post("/api/trajectories", headers=hdr,
-                    json={"points": [{"taskK": "not-an-int"}]})
-    assert r.status_code == 422
-    # A valid batch still lands.
-    r = client.post("/api/trajectories", headers=hdr,
-                    json={"points": [{"taskK": 1, "ell": 0.5, "isReal": False}]})
-    assert r.status_code == 200
-
-
 def test_training_progress_bad_points_rejected(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
@@ -2926,8 +2934,11 @@ def test_points_batch_cap_is_413(client):
     from .routers import dashboard as dash_router
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
+    tid = client.post("/api/training-sessions", json={},
+                      headers=hdr).json()["trainingId"]
     too_many = [{"taskK": 0}] * (dash_router.MAX_POINTS_PER_POST + 1)
-    r = client.post("/api/trajectories", headers=hdr, json={"points": too_many})
+    r = client.post("/api/training-progress", headers=hdr,
+                    json={"trainingId": tid, "points": too_many})
     assert r.status_code == 413
 
 
@@ -2937,8 +2948,8 @@ def test_api_body_cap_413(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
     big = "x" * (4 * 1024 * 1024 + 100)
-    r = client.post("/api/trajectories", headers=hdr,
-                    json={"points": [], "pad": big})
+    r = client.post("/api/training-progress", headers=hdr,
+                    json={"trainingId": "any", "points": [], "pad": big})
     assert r.status_code == 413
 
 

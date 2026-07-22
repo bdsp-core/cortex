@@ -146,6 +146,8 @@ _SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_regimens_code ON regimens(code)",
     "CREATE INDEX IF NOT EXISTS idx_training_code ON training_sessions(code)",
     "CREATE INDEX IF NOT EXISTS idx_param_traj_code ON param_trajectories(code)",
+    # record_training_progress scans by training_id on every checkpoint POST.
+    "CREATE INDEX IF NOT EXISTS idx_param_traj_tid ON param_trajectories(training_id)",
     # One row per (participant, UTC day) the participant signed in — the
     # lightest tier of the dashboard activity heatmap (cert/training days are
     # derived from sessions/training_sessions).
@@ -213,6 +215,8 @@ _SCHEMA_STATEMENTS = [
         PRIMARY KEY (code, domain)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_training_trials_code ON training_trials(code)",
+    # record_training_progress scans by training_id on every checkpoint POST.
+    "CREATE INDEX IF NOT EXISTS idx_training_trials_tid ON training_trials(training_id)",
     # ── cohorts: manager-run peer groups ──
     # Each cohort is an isolated pod: membership is the ONLY grant that lets a
     # participant see other members' performance, and payloads are keyed by

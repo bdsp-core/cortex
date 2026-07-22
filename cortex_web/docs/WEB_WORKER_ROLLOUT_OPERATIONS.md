@@ -64,9 +64,10 @@ Use a read-only aggregate query approved for deployment operations. The query
 must emit no participant code, email, session identifier, response, or question
 identifier. It should report session stamps/lifecycle, completed-session
 telemetry coverage, fallback totals, actual browser mode, coarse
-hardware-concurrency strata, and per-session timing summaries. The operational
-query is not part of the reviewer source archive because it is coupled to the
-live schema and access controls. Stored summaries cannot reconstruct a pooled
+hardware-concurrency strata, and per-session timing summaries. The approved
+query is versioned at `deploy/scripts/observe_precision_compute.sql`; it is
+coupled to the live schema and access controls, so re-validate it against the
+deployed schema before each use. Stored summaries cannot reconstruct a pooled
 per-question percentile; reported means must therefore be labelled as means of
 session-level p50/p95 values.
 

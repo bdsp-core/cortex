@@ -76,10 +76,6 @@ class TrainingFinalizeIn(BaseModel):
     summary: Optional[dict[str, Any]] = None
 
 
-class TrajectoryIn(BaseModel):
-    points: list[dict[str, Any]] = Field(default_factory=list)
-
-
 class TrainingProgressIn(BaseModel):
     """One or more real training trials to persist (L1). Each point carries
     {taskK, segId?, ell?, theta?, sd?, rt?, seqInSession?} plus, since Phase
