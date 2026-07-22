@@ -76,7 +76,37 @@ export class Rng {
 
   // fill an array with standard normals
   fillGaussian(out: Float64Array): void {
-    for (let i = 0; i < out.length; i++) out[i] = this.gaussian();
+    let index = 0;
+    if (out.length > 0 && this.gaussSpare !== null) {
+      out[index++] = this.gaussSpare;
+      this.gaussSpare = null;
+    }
+    while (index + 1 < out.length) {
+      let u: number, v: number, s: number;
+      do {
+        u = 2 * this.random() - 1;
+        v = 2 * this.random() - 1;
+        s = u * u + v * v;
+      } while (s >= 1 || s === 0);
+      const mul = Math.sqrt((-2 * Math.log(s)) / s);
+      // Match gaussian() exactly: it evaluates and caches v·mul before
+      // returning u·mul, then the following call consumes that cached value.
+      const second = v * mul;
+      const first = u * mul;
+      out[index++] = first;
+      out[index++] = second;
+    }
+    if (index < out.length) {
+      let u: number, v: number, s: number;
+      do {
+        u = 2 * this.random() - 1;
+        v = 2 * this.random() - 1;
+        s = u * u + v * v;
+      } while (s >= 1 || s === 0);
+      const mul = Math.sqrt((-2 * Math.log(s)) / s);
+      this.gaussSpare = v * mul;
+      out[index] = u * mul;
+    }
   }
 
   // integer in [0, n)
