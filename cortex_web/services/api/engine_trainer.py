@@ -39,6 +39,7 @@ import time
 from pathlib import Path
 
 from . import timeutil
+from .rollout import identity_allowlisted
 
 
 def _now_epoch() -> float:
@@ -143,15 +144,8 @@ def enabled(cfg: dict, code: str, participant) -> bool:
         return False
     if mode == "all":
         return True
-    allow = (cfg or {}).get("trainer_engine_allowlist") or frozenset()
-    if not allow:
-        return False
-    cand = {str(code).strip().lower()}
-    for key in ("public_id", "email"):
-        v = (participant or {}).get(key)
-        if v:
-            cand.add(str(v).strip().lower())
-    return bool(cand & allow)
+    return identity_allowlisted(
+        (cfg or {}).get("trainer_engine_allowlist"), code, participant)
 
 
 def alloc_for(cfg: dict, code: str, participant) -> str:
@@ -162,15 +156,9 @@ def alloc_for(cfg: dict, code: str, participant) -> str:
     mode = (cfg or {}).get("trainer_alloc", "greedy")
     if mode == "thompson":
         return "thompson"
-    allow = (cfg or {}).get("trainer_alloc_allowlist") or frozenset()
-    if not allow:
-        return "greedy"
-    cand = {str(code).strip().lower()}
-    for key in ("public_id", "email"):
-        v = (participant or {}).get(key)
-        if v:
-            cand.add(str(v).strip().lower())
-    return "thompson" if (cand & allow) else "greedy"
+    return "thompson" if identity_allowlisted(
+        (cfg or {}).get("trainer_alloc_allowlist"), code, participant
+    ) else "greedy"
 
 
 def _seed_from(training_id: str) -> int:

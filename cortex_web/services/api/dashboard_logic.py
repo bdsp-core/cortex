@@ -36,7 +36,11 @@ def training_enabled(cfg: dict, code: str, participant: Optional[dict]) -> bool:
         return False
     if mode == "all":
         return True
-    # cohort: match code / 9-digit public_id / email against the allowlist
+    # cohort: match code / 9-digit public_id / email against the allowlist.
+    # NOT rollout.identity_allowlisted: that helper strips its candidates and
+    # this gate never has. Aligning them would change a live exposure gate
+    # rather than refactor it, so the difference stays explicit until someone
+    # decides it deliberately (see test_rollout_matrix.py).
     allow = (cfg or {}).get("training_allowlist") or frozenset()
     if not allow:
         return False

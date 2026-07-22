@@ -6,6 +6,8 @@ Unknown configuration values fail closed to the serial path.
 """
 from __future__ import annotations
 
+from .rollout import email_allowlisted
+
 SERIAL = "serial"
 DUAL_BRANCH_AUTO = "dual_branch_auto"
 PRECISION_POLICY = "precision_v1"
@@ -21,7 +23,6 @@ def compute_mode_for(db, cfg: dict, code: str,
         return DUAL_BRANCH_AUTO
     if rollout != "email_allowlist":
         return SERIAL
-    participant = db.get_participant(code)
-    email = str((participant or {}).get("email") or "").strip().lower()
-    allowlist = cfg.get("precision_compute_emails") or frozenset()
-    return DUAL_BRANCH_AUTO if email in allowlist else SERIAL
+    return (DUAL_BRANCH_AUTO
+            if email_allowlisted(db, cfg, code, "precision_compute_emails")
+            else SERIAL)
