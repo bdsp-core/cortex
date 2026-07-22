@@ -13,6 +13,9 @@ describe("internal engine performance summary", () => {
     for (let i = 1; i <= 20; i += 1) {
       collector.record({ kind: "answer_to_item", trialIndex: i, durationMs: i });
       collector.record({
+        kind: "answer_to_media_ready", trialIndex: i, durationMs: i * 2,
+      });
+      collector.record({
         kind: "engine_step", trialIndex: i, y: 1, pick: 1, rejuvenated: i === 20,
         bankPreparationMs: 0, updateMs: 1, rejuvenationMs: i === 20 ? 5 : 0,
         bookkeepingMs: 1, policyMs: 1, diagnosticsMs: 1,
@@ -47,6 +50,9 @@ describe("internal engine performance summary", () => {
     const result = collector.summary(3);
     expect(result.schemaVersion).toBe(2);
     expect(result.answerToItem).toEqual({ count: 20, p50Ms: 10, p95Ms: 19, maxMs: 20 });
+    expect(result.answerToMediaReady).toEqual({
+      count: 20, p50Ms: 20, p95Ms: 38, maxMs: 40,
+    });
     expect(result.engineTotal).toEqual({ count: 20, p50Ms: 20, p95Ms: 38, maxMs: 40 });
     expect(result.requiredBranchReadyCount).toBe(15);
     expect(result.replayedTrials).toBe(3);

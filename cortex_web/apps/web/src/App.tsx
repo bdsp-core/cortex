@@ -269,6 +269,9 @@ export function App() {
       let checkpointsToSkip = replayTrials.length;   // already server-logged
 
       const client = new EngineClient({
+        onPrefetch: ({ segId }) => {
+          if (checkpointsToSkip === 0) b.prefetch([segId]);
+        },
         onItem: (it) => {
           const step = replay.next(it.segId);
           if (step.kind === "answer") { client.answer(step.pick); return; }
@@ -516,6 +519,10 @@ export function App() {
     clientRef.current?.answer(pick);
   }, []);
 
+  const onMediaReady = useCallback((trialIndex: number) => {
+    clientRef.current?.mediaReady(trialIndex);
+  }, []);
+
 
   // ── render ────────────────────────────────────────────────────
   const startTraining = useCallback(async () => {
@@ -626,13 +633,14 @@ export function App() {
       if (isSpike) {
         return (
           <SpikeViewer bundle={bundle!} item={item} progress={progress}
-            onAnswer={onAnswer} spikeTaskIdx={k!}
+            onAnswer={onAnswer} onMediaReady={onMediaReady} spikeTaskIdx={k!}
             totalTasks={bundle!.inputs.taskCodes.length}
             onExit={() => setPhase("saveExit")} />
         );
       }
       return (
         <Viewer bundle={bundle!} item={item} onAnswer={onAnswer}
+          onMediaReady={onMediaReady}
           onExit={() => setPhase("saveExit")} />
       );
     }

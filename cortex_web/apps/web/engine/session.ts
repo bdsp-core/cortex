@@ -82,6 +82,7 @@ export async function seedFromSessionId(sessionId: string): Promise<number> {
 
 export interface SessionCallbacks {
   onItem?: (item: { trialIndex: number; taskK: number; segId: number }) => void;
+  onPrefetch?: (hint: { trialIndex: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
   onPerformance?: (event: EngineStepTiming) => void;
   onDone?: (result: SessionResult) => void;
@@ -477,6 +478,12 @@ export class WebCortexSession {
           firstReadyAtEpochMs = highResolutionEpochMs();
           firstLifecycle.durationMs = firstResult.timing.totalMs;
           branches.set(firstPick, firstResult);
+          if (firstResult.nextChosen.segId !== -1) {
+            this.cb.onPrefetch?.({
+              trialIndex: trialIndex + 1,
+              segId: firstResult.nextChosen.segId,
+            });
+          }
 
           const secondRanked = rankedOutcomes[1];
           const expansionEligible = secondRanked !== undefined

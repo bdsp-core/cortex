@@ -15,6 +15,7 @@ import {
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;
+  onPrefetch?: (hint: { trialIndex: number; segId: number }) => void;
   onTrial?: (diag: TrialDiag) => void;
   onPerformance?: (event: EnginePerformanceEvent) => void;
   onDone: (result: SessionResult) => void;
@@ -31,6 +32,8 @@ export interface EngineStartOptions {
 export class EngineClient {
   private worker: Worker;
   private answerStartedAt: number | null = null;
+  private mediaStartedAt: number | null = null;
+  private mediaTrialIndex: number | null = null;
   private heartbeatTimer: number | null = null;
   private heartbeatExpectedAt = 0;
   private heartbeatSamples = 0;
@@ -51,9 +54,13 @@ export class EngineClient {
               trialIndex: m.trialIndex,
               durationMs: performance.now() - this.answerStartedAt,
             });
+            this.mediaTrialIndex = m.trialIndex;
             this.answerStartedAt = null;
           }
           this.handlers.onItem({ trialIndex: m.trialIndex, taskK: m.taskK, segId: m.segId });
+          break;
+        case "prefetch":
+          this.handlers.onPrefetch?.({ trialIndex: m.trialIndex, segId: m.segId });
           break;
         case "trial":
           this.handlers.onTrial?.(m.diag);
@@ -62,10 +69,12 @@ export class EngineClient {
           this.handlers.onPerformance?.(m.event);
           break;
         case "done":
+          this.clearPendingAnswerTimings();
           this.stopHeartbeat(true);
           this.handlers.onDone(m.result);
           break;
         case "error":
+          this.clearPendingAnswerTimings();
           this.stopHeartbeat(true);
           this.handlers.onError?.(m.message);
           break;
@@ -76,10 +85,12 @@ export class EngineClient {
     // signal. Route both to onError so the UI can surface it.
     this.worker.onerror = (e: ErrorEvent) => {
       e.preventDefault();
+      this.clearPendingAnswerTimings();
       this.stopHeartbeat(true);
       this.handlers.onError?.(e.message || "engine worker crashed");
     };
     this.worker.onmessageerror = () => {
+      this.clearPendingAnswerTimings();
       this.stopHeartbeat(true);
       this.handlers.onError?.("engine worker message error");
     };
@@ -105,6 +116,8 @@ export class EngineClient {
 
   answer(pick: number): void {
     this.answerStartedAt = performance.now();
+    this.mediaStartedAt = this.answerStartedAt;
+    this.mediaTrialIndex = null;
     this.post({
       type: "answer", pick,
       submittedAtEpochMs: performance.timeOrigin + this.answerStartedAt,
@@ -112,10 +125,23 @@ export class EngineClient {
   }
 
   abort(): void {
+    this.clearPendingAnswerTimings();
     this.post({ type: "abort" });
   }
 
+  mediaReady(trialIndex: number): void {
+    if (this.mediaStartedAt === null || this.mediaTrialIndex !== trialIndex) return;
+    this.handlers.onPerformance?.({
+      kind: "answer_to_media_ready",
+      trialIndex,
+      durationMs: performance.now() - this.mediaStartedAt,
+    });
+    this.mediaStartedAt = null;
+    this.mediaTrialIndex = null;
+  }
+
   dispose(): void {
+    this.clearPendingAnswerTimings();
     this.stopHeartbeat(false);
     this.worker.terminate();
   }
@@ -136,6 +162,12 @@ export class EngineClient {
       this.heartbeatDelayMax = Math.max(this.heartbeatDelayMax, delay);
       this.heartbeatExpectedAt = now + intervalMs;
     }, intervalMs);
+  }
+
+  private clearPendingAnswerTimings(): void {
+    this.answerStartedAt = null;
+    this.mediaStartedAt = null;
+    this.mediaTrialIndex = null;
   }
 
   private stopHeartbeat(emit: boolean): void {

@@ -29,6 +29,7 @@ export type EngineWorkerRequest =
 /** Certification-engine worker → main-thread protocol. */
 export type EngineWorkerResponse =
   | { type: "item"; trialIndex: number; taskK: number; segId: number }
+  | { type: "prefetch"; trialIndex: number; segId: number }
   | { type: "trial"; diag: TrialDiag }
   | { type: "performance"; event: EnginePerformanceEvent }
   | { type: "done"; result: SessionResult }

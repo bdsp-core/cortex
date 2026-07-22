@@ -64,6 +64,7 @@ function loadRealInputs(): EngineInputs | null {
 
 interface Capture {
   items: { trialIndex: number; taskK: number; segId: number }[];
+  prefetches: { trialIndex: number; segId: number }[];
   trials: unknown[];
   nQuestions: number;
   stopReason: string;
@@ -81,17 +82,19 @@ async function runSession(inputs: EngineInputs, seed: number, speculative: boole
   // the captured comparison rather than via the answer feedback loop.
   const ansRng = new Rng((seed ^ 0xa5a5a5) >>> 0);
   const items: Capture["items"] = [];
+  const prefetches: Capture["prefetches"] = [];
   const trials: unknown[] = [];
   const session = new WebCortexSession(inputs, `bit-${seed}`, seed, {
     onItem: (it) => {
       items.push({ ...it });
       queueMicrotask(() => session.submitAnswer(ansRng.int(K)));
     },
+    onPrefetch: (hint) => prefetches.push(hint),
     onTrial: (d) => trials.push(d),
   }, { speculative });
   const r = await session.run();
   return {
-    items, trials,
+    items, prefetches, trials,
     nQuestions: r.nQuestions, stopReason: r.stopReason, verdicts: r.verdicts,
     servedSegIds: r.servedSegIds, finalAuroc: r.finalAuroc, finalAurocHw: r.finalAurocHw,
     traj: {
@@ -130,6 +133,13 @@ describe("speculative precompute is bit-identical to inline", () => {
 
         // EVERYTHING identical
         expect(spec.items).toEqual(ref.items);                 // item sequence
+        expect(ref.prefetches).toEqual([]);
+        expect(spec.prefetches.length).toBeGreaterThan(0);
+        expect(spec.prefetches.length).toBeLessThanOrEqual(spec.nQuestions);
+        expect(new Set(spec.prefetches.map((hint) => hint.trialIndex)).size)
+          .toBe(spec.prefetches.length);
+        expect(spec.prefetches.every((hint) =>
+          inputs.segments.some((segment) => segment.segId === hint.segId))).toBe(true);
         expect(spec.nQuestions).toBe(ref.nQuestions);
         expect(spec.stopReason).toBe(ref.stopReason);
         expect(spec.verdicts).toEqual(ref.verdicts);

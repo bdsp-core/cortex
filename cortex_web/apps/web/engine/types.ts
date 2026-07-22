@@ -228,6 +228,12 @@ export interface AnswerToItemTiming {
   durationMs: number;
 }
 
+export interface AnswerToMediaReadyTiming {
+  kind: "answer_to_media_ready";
+  trialIndex: number;
+  durationMs: number;
+}
+
 export interface ExecutionProfileEvent {
   kind: "execution_profile";
   requested: RequestedComputeMode;
@@ -264,6 +270,7 @@ export interface RuntimePoolAdjustmentEvent {
 export type EnginePerformanceEvent =
   | EngineStepTiming
   | AnswerToItemTiming
+  | AnswerToMediaReadyTiming
   | ExecutionProfileEvent
   | EventLoopHeartbeatEvent
   | RuntimePoolAdjustmentEvent;

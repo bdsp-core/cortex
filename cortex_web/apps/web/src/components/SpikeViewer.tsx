@@ -23,12 +23,13 @@ import {
 export type { Item };
 
 export function SpikeViewer({
-  bundle, item, onAnswer, spikeTaskIdx, totalTasks, onExit,
+  bundle, item, onAnswer, onMediaReady, spikeTaskIdx, totalTasks, onExit,
 }: {
   bundle: Bundle;
   item: Item | null;
   progress: Progress;
   onAnswer: (pick: number) => void;
+  onMediaReady?: (trialIndex: number) => void;
   spikeTaskIdx: number;        // engine task index for spike (typically 0)
   totalTasks: number;          // K — used as the "No" sentinel pick (out of range)
   // "Save & finish later": answers checkpoint server-side as they happen, so
@@ -60,10 +61,15 @@ export function SpikeViewer({
     setPick(null);
     answered.current = false;
     bundle.segment(item.segId)
-      .then((s) => { if (alive) setSeg(s); })
+      .then((s) => {
+        if (alive) {
+          setSeg(s);
+          onMediaReady?.(item.trialIndex);
+        }
+      })
       .catch(() => { if (alive) setSegError(true); });
     return () => { alive = false; };
-  }, [item, bundle]);
+  }, [item, bundle, onMediaReady]);
 
   const rows: MontageRow[] = useMemo(() => {
     if (!seg) return [];

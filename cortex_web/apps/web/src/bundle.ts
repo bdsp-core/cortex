@@ -52,6 +52,7 @@ export class Bundle {
   readonly base: string;
   readonly manifest: BundleManifest;
   private cache = new Map<number, SegmentData>();
+  private pending = new Map<number, Promise<SegmentData>>();
   private computeProfile: ComputeEngineInputs | null = null;
 
   private constructor(base: string, manifest: BundleManifest) {
@@ -117,9 +118,19 @@ export class Bundle {
     return this.computeProfile;
   }
 
-  async segment(segId: number): Promise<SegmentData> {
+  segment(segId: number): Promise<SegmentData> {
     const hit = this.cache.get(segId);
-    if (hit) return hit;
+    if (hit) return Promise.resolve(hit);
+    const pending = this.pending.get(segId);
+    if (pending) return pending;
+    const request = this.loadSegment(segId).finally(() => {
+      if (this.pending.get(segId) === request) this.pending.delete(segId);
+    });
+    this.pending.set(segId, request);
+    return request;
+  }
+
+  private async loadSegment(segId: number): Promise<SegmentData> {
     const meta = this.manifest.segments.find((s) => s.segId === segId);
     if (!meta) throw new Error(`segment ${segId} not in manifest`);
 
@@ -152,6 +163,6 @@ export class Bundle {
   // Prefetch a few segments (called for the next likely items; harmless if
   // they're never used).
   prefetch(segIds: number[]): void {
-    for (const id of segIds) if (!this.cache.has(id)) void this.segment(id).catch(() => {});
+    for (const id of segIds) void this.segment(id).catch(() => {});
   }
 }

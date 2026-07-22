@@ -28,12 +28,14 @@ export function Viewer({
   bundle,
   item,
   onAnswer,
+  onMediaReady,
   tutorial,
   onExit,
 }: {
   bundle: Bundle;
   item: Item | null;
   onAnswer: (pick: number) => void;
+  onMediaReady?: (trialIndex: number) => void;
   // When set, the Viewer is the in-context tutorial backdrop: answering is
   // disabled and a coach-marks overlay walks the user through the UI regions.
   tutorial?: { onFinish: () => void };
@@ -86,10 +88,15 @@ export function Viewer({
     // A fetch/decode failure must surface as a retryable error, not an
     // unhandled rejection that leaves the pane stuck on "loading EEG…".
     bundle.segment(item.segId)
-      .then((s) => { if (alive) setSeg(s); })
+      .then((s) => {
+        if (alive) {
+          setSeg(s);
+          onMediaReady?.(item.trialIndex);
+        }
+      })
       .catch(() => { if (alive) setSegError(true); });
     return () => { alive = false; };
-  }, [item, bundle]);
+  }, [item, bundle, onMediaReady]);
 
   // filtered montage rows (recompute on seg / montage / filter change)
   const rows: MontageRow[] = useMemo(() => {

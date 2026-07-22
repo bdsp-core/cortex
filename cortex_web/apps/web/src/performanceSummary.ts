@@ -15,6 +15,7 @@ export interface EnginePerformanceSummaryV1 {
   profile: Omit<ExecutionProfileEvent, "kind"> | null;
   replayedTrials: number;
   answerToItem: TimingDistribution;
+  answerToMediaReady: TimingDistribution;
   engineTotal: TimingDistribution;
   selection: TimingDistribution;
   rejuvenation: TimingDistribution;
@@ -123,6 +124,7 @@ function scalarDistribution(values: number[]): ScalarDistribution {
 export class EnginePerformanceCollector {
   private profile: ExecutionProfileEvent | null = null;
   private answerToItem: number[] = [];
+  private answerToMediaReady: number[] = [];
   private steps: EngineStepTiming[] = [];
   private heartbeat = { sampleCount: 0, weightedDelay: 0, maxDelayMs: 0 };
   /** Backward-compatible reader for schema-v2 data emitted before fixed pools. */
@@ -131,6 +133,9 @@ export class EnginePerformanceCollector {
   record(event: EnginePerformanceEvent): void {
     if (event.kind === "execution_profile") this.profile = event;
     else if (event.kind === "answer_to_item") this.answerToItem.push(event.durationMs);
+    else if (event.kind === "answer_to_media_ready") {
+      this.answerToMediaReady.push(event.durationMs);
+    }
     else if (event.kind === "engine_step") this.steps.push(event);
     else if (event.kind === "event_loop_heartbeat") {
       this.heartbeat.sampleCount += event.sampleCount;
@@ -174,6 +179,7 @@ export class EnginePerformanceCollector {
       } : null,
       replayedTrials,
       answerToItem: distribution(this.answerToItem),
+      answerToMediaReady: distribution(this.answerToMediaReady),
       engineTotal: distribution(this.steps.map((step) => step.totalMs)),
       selection: distribution(this.steps.map((step) => step.selectionMs)),
       rejuvenation: distribution(this.steps.map((step) => step.rejuvenationMs)),

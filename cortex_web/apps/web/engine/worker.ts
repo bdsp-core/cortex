@@ -110,6 +110,7 @@ self.onmessage = async (ev: MessageEvent<EngineWorkerRequest>) => {
       } });
       session = new WebCortexSession(inputs, msg.sessionId, seed, {
         onItem: (item) => post({ type: "item", ...item }),
+        onPrefetch: (hint) => post({ type: "prefetch", ...hint }),
         onTrial: (diag) => post({ type: "trial", diag }),
         onPerformance: (event) => post({ type: "performance", event }),
         onDone: (result) => {
