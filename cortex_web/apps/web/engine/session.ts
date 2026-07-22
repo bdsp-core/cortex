@@ -110,6 +110,7 @@ export interface SessionResult {
   terminalReasons?: (string | null)[];
   skillIntervals?: [number, number][];
   biasIntervals?: [number, number][];
+  biasFlags?: (string | null)[];
   nwayProfile?: ComputeEngineInputs["nwayProfile"];
   servedSegIds: number[];
   trials: TrialDiag[];
@@ -737,6 +738,7 @@ export class WebCortexSession {
       ...(finalized.terminalReasons ? { terminalReasons: finalized.terminalReasons } : {}),
       ...(finalized.skillIntervals ? { skillIntervals: finalized.skillIntervals } : {}),
       ...(finalized.biasIntervals ? { biasIntervals: finalized.biasIntervals } : {}),
+      ...(finalized.biasFlags ? { biasFlags: finalized.biasFlags } : {}),
       ...(this.inputs.nwayProfile ? { nwayProfile: { ...this.inputs.nwayProfile } } : {}),
       servedSegIds: this.served,
       trials: this.trials,

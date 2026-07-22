@@ -337,6 +337,7 @@ export function App() {
             taskCodes: inputs.taskCodes,
             taskLabels: inputs.taskLabels,
             taskClasses: inputs.taskClasses,
+            biasFlags: r.biasFlags,
             roc,
           };
           setSummary(sum);
@@ -381,6 +382,7 @@ export function App() {
             determination: r.determinations?.[k] ?? null,
             skillInterval: r.skillIntervals?.[k] ?? null,
             biasInterval: r.biasIntervals?.[k] ?? null,
+            biasFlag: r.biasFlags?.[k] ?? null,
           }));
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
@@ -394,6 +396,7 @@ export function App() {
             terminalReasons: r.terminalReasons,
             skillIntervals: r.skillIntervals,
             biasIntervals: r.biasIntervals,
+            biasFlags: r.biasFlags,
             perTask,
             roc,
             servedSegIds: r.servedSegIds,

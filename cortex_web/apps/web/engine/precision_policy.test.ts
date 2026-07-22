@@ -6,7 +6,10 @@ import type {
   EngineInputs, ParticleState, PriorPair, PriorPieces,
 } from "./types";
 import {
+  BIAS_FLAG,
+  biasFlagFor,
   CUT_CLASSIFICATION,
+  PRECISION_BIAS_FLAG_TAU,
   PRECISION_STATUS,
   PrecisionPolicy,
 } from "./precision_policy";
@@ -158,5 +161,38 @@ describe("PrecisionPolicy frozen boundary semantics", () => {
     expect(decision.domainStatuses).toEqual(
       new Array(7).fill(PRECISION_STATUS.UNDETERMINABLE_BANK),
     );
+  });
+});
+
+describe("report-only bias flags", () => {
+  it("flags only when the whole 95% interval clears ±tau", () => {
+    const tau = PRECISION_BIAS_FLAG_TAU;
+    expect(biasFlagFor([tau + 0.1, tau + 1])).toBe(BIAS_FLAG.EXTREME_OVERCALLER);
+    expect(biasFlagFor([-tau - 1, -tau - 0.1])).toBe(BIAS_FLAG.EXTREME_UNDERCALLER);
+    // The no-data prior interval (±1.96 in prior-SD units) must never flag.
+    expect(biasFlagFor([-1.96, 1.96])).toBeNull();
+    // Confidently non-zero but not extreme: interval straddles tau.
+    expect(biasFlagFor([tau - 0.5, tau + 2])).toBeNull();
+    expect(biasFlagFor([-tau - 2, -tau + 0.5])).toBeNull();
+  });
+
+  it("emits per-domain flags aligned with the reported bias intervals", () => {
+    const policy = PrecisionPolicy.fromInputs(inputs());
+    policy.evaluate(state("narrow"), reference.n_per_task, telemetry());
+    const final = policy.finalizeResult(new Array(7).fill(-1));
+    expect(final.biasFlags).toHaveLength(7);
+    final.biasFlags!.forEach((flag, k) => {
+      expect(flag).toBe(biasFlagFor(final.biasIntervals![k]));
+    });
+  });
+
+  it("never alters stopping statuses or cut verdicts", () => {
+    const flagged = PrecisionPolicy.fromInputs(inputs());
+    flagged.evaluate(state("narrow"), reference.n_per_task, telemetry());
+    flagged.evaluate(state("narrow"), reference.n_per_task, telemetry());
+    const final = flagged.finalizeResult(new Array(7).fill(-1));
+    // Identical to the frozen-boundary expectations regardless of flag values.
+    expect(final.determinations).toEqual(new Array(7).fill(PRECISION_STATUS.DETERMINED));
+    expect(final.verdicts).toEqual(new Array(7).fill(CUT_CLASSIFICATION.ABOVE_CUT));
   });
 });

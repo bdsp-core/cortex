@@ -28,7 +28,17 @@ export interface ResultSummary {
   taskCodes?: string[];
   taskLabels?: string[];
   taskClasses?: ("iiic" | "spike")[];
+  // Report-only response-tendency flags (engine-index-aligned); informational
+  // and independent of the certification verdicts above.
+  biasFlags?: (string | null)[];
 }
+
+const BIAS_FLAG_LABEL: Record<string, string> = {
+  EXTREME_OVERCALLER:
+    "Calibration note: tendency to over-report this pattern relative to panel consensus.",
+  EXTREME_UNDERCALLER:
+    "Calibration note: tendency to under-report this pattern relative to panel consensus.",
+};
 
 const DEFAULT_IIIC = [
   { code: "sz",   label: "Seizure" },
@@ -93,6 +103,8 @@ export function Results({ summary, onFinish, onReturn }: {
             const st = VERDICT_STYLE[v] ?? VERDICT_STYLE.PENDING;
             const roc = summary.roc?.[o.idx];
             const open = openRoc === o.idx;
+            const flag = summary.biasFlags?.[o.idx];
+            const flagLabel = flag ? BIAS_FLAG_LABEL[flag] : undefined;
             return (
               <div key={o.code} className="cx-reveal-in"
                 style={{ borderBottom: `1px solid ${COLORS.borderInactive}`,
@@ -116,6 +128,12 @@ export function Results({ summary, onFinish, onReturn }: {
                     <span style={{ color: st.color, fontWeight: 700, fontSize: 15 }}>{st.label}</span>
                   </span>
                 </div>
+                {flagLabel && (
+                  <div style={{ color: COLORS.referBorderline, fontSize: 12,
+                                padding: "0 0 10px" }}>
+                    {flagLabel}
+                  </div>
+                )}
                 {open && roc && (
                   <div style={{ display: "flex", gap: 16, alignItems: "center", padding: "4px 0 16px" }}>
                     <RocCanvas auroc={roc.auroc} opFar={roc.opFar} opHr={roc.opHr} size={220} />

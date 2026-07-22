@@ -49,6 +49,17 @@ export const PRECISION_RADIUS_MCSE_INFLATION = 1.3090533918867642;
 export const PRECISION_RADIUS_MCSE_INFLATION_LEGACY_15MH = 1.5962415320776275;
 export const PRECISION_SURROGATE_ACCEPTANCE_FLOOR = 0.20;
 export const PRECISION_SURROGATE_ANCESTRY_FLOOR = 0.35;
+// Report-only response-tendency flag threshold, in units of the zero-mean
+// unit-diagonal t-prior (calibration-population SDs). A flag fires only when
+// the ENTIRE 95% bias credible interval clears ±tau, so the no-data prior
+// interval (±1.96, always straddling zero) can never flag. Never consulted by
+// evaluate() gates or the finalizeResult() cut classification.
+export const PRECISION_BIAS_FLAG_TAU = 1.0;
+export const BIAS_FLAG = {
+  EXTREME_OVERCALLER: "EXTREME_OVERCALLER",
+  EXTREME_UNDERCALLER: "EXTREME_UNDERCALLER",
+} as const;
+export type BiasFlag = (typeof BIAS_FLAG)[keyof typeof BIAS_FLAG] | null;
 
 type Interval = [number, number];
 
@@ -214,6 +225,15 @@ function classifyIntervalAgainstCut(interval: Interval, cut: number): string {
   if (interval[0] > cut) return CUT_CLASSIFICATION.ABOVE_CUT;
   if (interval[1] < cut) return CUT_CLASSIFICATION.BELOW_CUT;
   return CUT_CLASSIFICATION.INDETERMINATE_AT_CUT;
+}
+
+// Report-only overcall/undercall flag (t > 0 = endorses the pattern at lower
+// signal = overcaller). Derived from the already-reported bias interval;
+// deliberately outside every stopping gate and certification verdict.
+export function biasFlagFor(interval: Interval): BiasFlag {
+  if (interval[0] > PRECISION_BIAS_FLAG_TAU) return BIAS_FLAG.EXTREME_OVERCALLER;
+  if (interval[1] < -PRECISION_BIAS_FLAG_TAU) return BIAS_FLAG.EXTREME_UNDERCALLER;
+  return null;
 }
 
 function cloneDiag(d: PrecisionDiagnostics | null): PrecisionDiagnostics | null {
@@ -626,6 +646,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       terminalReasons: this.terminalReasons.slice(),
       skillIntervals: intervals?.map((x) => [...x] as Interval),
       biasIntervals: this.lastDiag?.biasIntervals.map((x) => [...x] as Interval),
+      biasFlags: this.lastDiag?.biasIntervals.map(biasFlagFor),
     };
   }
 }

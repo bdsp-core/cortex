@@ -56,6 +56,9 @@ export interface FinalPolicyResult {
   terminalReasons?: (string | null)[];
   skillIntervals?: [number, number][];
   biasIntervals?: [number, number][];
+  // Report-only response-tendency flags derived from biasIntervals; never an
+  // input to stopping or the cut classification.
+  biasFlags?: (string | null)[];
 }
 
 export interface EngineTerminationPolicy {
