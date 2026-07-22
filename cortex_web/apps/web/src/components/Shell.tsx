@@ -879,8 +879,16 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
 
   useEffect(() => {
     let live = true;
-    api.getDashboard().then((d) => { if (live) setDash(d); }).catch(() => {});
-    api.getTrajectories().then((t) => { if (live) setTrajPts(t.trajectories); }).catch(() => {});
+    // The drill-down is a sub-view of the dashboard, so its dash + trajectory
+    // data is already in the shared bootstrap payload (the cache is
+    // invalidated on dashboard exit, so this is the same data the two
+    // standalone GETs returned). History is not a bootstrap section and is
+    // still fetched here.
+    bootstrapOnce().then((b) => {
+      if (!live) return;
+      if (b.dashboard) setDash(b.dashboard);
+      if (b.trajectories) setTrajPts(b.trajectories.trajectories);
+    }).catch(() => {});
     api.getHistory().then((h) => { if (live) setSessions(h.sessions); }).catch(() => {});
     return () => { live = false; };
   }, []);
@@ -1031,11 +1039,16 @@ export function Shell({
   const [trainingResumable, setTrainingResumable] = useState(false);
   useEffect(() => {
     let live = true;
-    api.getDashboard().then((d) => {
-      if (!live) return;
-      setHasResult(d.hasResult);
-      setTrainingEnabled(d.trainingEnabled ?? false);
-      setTrainingResumable(d.trainingResumable ?? false);
+    // These three flags live in the dashboard section of the shared
+    // /api/bootstrap payload the DashboardSurface already requests, so a
+    // second standalone /api/dashboard round-trip was pure duplication. A
+    // null section leaves the CTAs in their default state, exactly as a
+    // failed standalone fetch did.
+    bootstrapOnce().then((b) => {
+      if (!live || !b.dashboard) return;
+      setHasResult(b.dashboard.hasResult);
+      setTrainingEnabled(b.dashboard.trainingEnabled ?? false);
+      setTrainingResumable(b.dashboard.trainingResumable ?? false);
     }).catch(() => {});
     return () => { live = false; };
   }, []);

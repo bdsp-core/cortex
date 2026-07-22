@@ -3125,6 +3125,29 @@ def test_bootstrap_matches_standalone_endpoints(client):
     assert body["session"]["examResumable"] is True
 
 
+def test_bootstrap_reads_trajectories_once(client, monkeypatch):
+    """The dashboard and trajectories sections share one memoized read
+    instead of querying param_trajectories twice per bootstrap."""
+    email, pw = _make_participant(client)
+    hdr = _auth_header(client, email, pw)
+    db = client.app.state.db
+    calls = {"n": 0}
+    real = db.get_trajectories
+
+    def counted(code):
+        calls["n"] += 1
+        return real(code)
+
+    monkeypatch.setattr(db, "get_trajectories", counted)
+    body = client.get("/api/bootstrap?tz=0", headers=hdr).json()
+    assert body["trajectories"] is not None and body["dashboard"] is not None
+    assert calls["n"] == 1
+    # A section that doesn't need the rows must not trigger the query at all.
+    calls["n"] = 0
+    client.get("/api/bootstrap?include=activity", headers=hdr)
+    assert calls["n"] == 0
+
+
 def test_bootstrap_session_status_reflects_washout(client):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
@@ -3152,7 +3175,7 @@ def test_bootstrap_section_failure_is_isolated(client, monkeypatch):
     email, pw = _make_participant(client)
     hdr = _auth_header(client, email, pw)
 
-    def boom(req, code):
+    def boom(req, code, **_kw):
         raise RuntimeError("section exploded")
 
     monkeypatch.setattr(dashboard_router, "dashboard_payload", boom)

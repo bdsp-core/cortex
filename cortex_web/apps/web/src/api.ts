@@ -399,11 +399,13 @@ export interface QuestionRow {
   theta: number | null;      // running bias θ
 }
 
-// In-flight coalescing for the dashboard read: on first paint both the Shell
-// (hasResult/trainingEnabled) and the DashboardSurface (full payload) request
-// it. Sharing the pending promise collapses those into ONE round-trip. The
-// entry clears the moment it settles, so a later mount always refetches fresh
-// data — this is request dedup, not a stale cache.
+// In-flight coalescing for the dashboard read. The desktop dashboard surfaces
+// now take this payload from the shared /api/bootstrap round-trip
+// (bootstrapStore), so the remaining direct callers are the phone home screen
+// and anything fetching the dashboard on its own; the dedup stays because it
+// is what makes concurrent callers safe. The entry clears the moment it
+// settles, so a later mount always refetches fresh data — this is request
+// dedup, not a stale cache.
 let _dashInFlight: Promise<DashboardData> | null = null;
 export function getDashboard(): Promise<DashboardData> {
   if (_dashInFlight) return _dashInFlight;

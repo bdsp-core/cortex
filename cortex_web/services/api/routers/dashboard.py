@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import random
 import uuid
+from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -57,8 +58,13 @@ def _training_enabled(req: Request, code: str) -> bool:
 # endpoints return (one implementation, two routes). Referenced through the
 # module attribute in bootstrap.py so test monkeypatching reaches them.
 
-def dashboard_payload(req: Request, code: str) -> dict:
+def dashboard_payload(req: Request, code: str,
+                      trajectories: Callable[[], list] | None = None) -> dict:
+    # `trajectories` lets a caller that needs the same rows for another
+    # section (GET /api/bootstrap) supply one memoized fetch instead of
+    # querying param_trajectories twice per request. Default: fetch our own.
     db = req.app.state.db
+    get_traj = trajectories or (lambda: db.get_trajectories(code))
     # LIMIT-1 fetch: the dashboard reads only the newest attempt, so it must
     # not pull + JSON-parse every historical ~370 KB result blob.
     latest = db.latest_result_for_code(code)
@@ -73,7 +79,7 @@ def dashboard_payload(req: Request, code: str) -> dict:
     # Latest real measurement per domain (rows come ordered by task_k, ts
     # ascending, so the last one seen per task is the most recent).
     latest_traj: dict[int, dict] = {}
-    for r in db.get_trajectories(code):
+    for r in get_traj():
         latest_traj[int(r["task_k"])] = r
     tasks = dashboard_logic.dashboard_tasks(result, latest_traj)
     return {
@@ -100,8 +106,9 @@ def regimen_payload(db, code: str) -> dict:
     return {"regimen": reg["plan"] if reg is not None else None, "sample": False}
 
 
-def trajectories_payload(db, code: str) -> dict:
-    rows = db.get_trajectories(code)
+def trajectories_payload(db, code: str,
+                         trajectories: Callable[[], list] | None = None) -> dict:
+    rows = trajectories() if trajectories else db.get_trajectories(code)
     pts = [{"taskK": r["task_k"], "phase": r["phase"], "ell": r["ell"],
             "theta": r["theta"], "sd": r["sd"], "rt": r["rt"], "ts": r["ts"]}
            for r in rows]

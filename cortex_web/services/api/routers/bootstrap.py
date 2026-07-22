@@ -40,22 +40,40 @@ router = APIRouter(prefix="/api")
 # name → builder(req, code, tz). Helper calls go through the module attribute
 # (dashboard.dashboard_payload etc.) so test monkeypatching reaches them —
 # the same convention as the rest of routers/ (see routers/__init__.py).
+# `traj` is a per-request memo (see _trajectory_memo): the dashboard and
+# trajectories sections both need param_trajectories, and without it a single
+# bootstrap ran that query twice. It stays LAZY so a section that doesn't need
+# the rows never triggers the query, and so a failing query still surfaces
+# inside the requesting section's own try/except (failure isolation intact).
 _SECTION_BUILDERS = {
-    "dashboard": lambda req, code, tz: dashboard.dashboard_payload(req, code),
-    "trajectories": lambda req, code, tz: dashboard.trajectories_payload(
+    "dashboard": lambda req, code, tz, traj: dashboard.dashboard_payload(
+        req, code, trajectories=traj),
+    "trajectories": lambda req, code, tz, traj: dashboard.trajectories_payload(
+        req.app.state.db, code, trajectories=traj),
+    "regimen": lambda req, code, tz, traj: dashboard.regimen_payload(
         req.app.state.db, code),
-    "regimen": lambda req, code, tz: dashboard.regimen_payload(
-        req.app.state.db, code),
-    "activity": lambda req, code, tz: dashboard.activity_payload(
+    "activity": lambda req, code, tz, traj: dashboard.activity_payload(
         req.app.state.db, code, tz),
-    "session": lambda req, code, tz: testing.session_status(
+    "session": lambda req, code, tz, traj: testing.session_status(
         req.app.state.db, req.app.state.get_bank(), code,
         req.app.state.get_precision_bank),
-    "cohorts": lambda req, code, tz: cohorts.cohorts_payload(
+    "cohorts": lambda req, code, tz, traj: cohorts.cohorts_payload(
         req.app.state.db, code),
-    "awards": lambda req, code, tz: awards.pending_payload(
+    "awards": lambda req, code, tz, traj: awards.pending_payload(
         req.app.state.db, code),
 }
+
+
+def _trajectory_memo(db, code: str):
+    """One lazy param_trajectories read shared by the sections that need it."""
+    cache: dict[str, list] = {}
+
+    def get() -> list:
+        if "rows" not in cache:
+            cache["rows"] = db.get_trajectories(code)
+        return cache["rows"]
+
+    return get
 
 
 @router.get("/bootstrap")
@@ -78,9 +96,10 @@ def bootstrap(req: Request, tz: int = 0, include: str = "",
             log.exception("[cortex.bootstrap] tz persist failed for %s", code)
     out: dict = {}
     errors: dict[str, str] = {}
+    traj = _trajectory_memo(req.app.state.db, code)
     for name in wanted:
         try:
-            out[name] = _SECTION_BUILDERS[name](req, code, tz)
+            out[name] = _SECTION_BUILDERS[name](req, code, tz, traj)
         except Exception:
             log.exception("[cortex.bootstrap] section %r failed for %s", name, code)
             out[name] = None
