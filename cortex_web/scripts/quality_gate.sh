@@ -17,5 +17,7 @@ npm audit --audit-level=high
 
 if [ "${CORTEX_BROWSER_GATES:-0}" = "1" ]; then
   npm run -w cortex-web worker-smoke
-  npm run -w cortex-web ui-smoke
+  # `npm run build` above just produced dist/, so the smoke reuses it instead
+  # of building the same tree twice. A standalone ui-smoke rebuilds.
+  CORTEX_SMOKE_REUSE_DIST=1 npm run -w cortex-web ui-smoke
 fi

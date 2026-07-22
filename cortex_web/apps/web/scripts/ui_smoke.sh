@@ -23,7 +23,15 @@ export CORTEX_PRECISION_COMPUTE_ROLLOUT="off"
 export CORTEX_SERVE_STATIC=1
 rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true
 
-[ -d "$WEB/dist" ] || ( cd "$WEB" && npm run build )
+# Build unless the caller just built. Reusing whatever happens to sit in dist/
+# means the smoke can pass against a PREVIOUS revision while you believe you
+# are testing your working tree — the gate builds immediately before calling
+# this, so it opts out; a standalone run always rebuilds.
+if [ "${CORTEX_SMOKE_REUSE_DIST:-0}" = "1" ] && [ -d "$WEB/dist" ]; then
+  echo "▸ reusing the existing build in apps/web/dist"
+else
+  ( cd "$WEB" && npm run build )
+fi
 
 # Prefer the repository environment so the smoke uses the same pinned FastAPI,
 # NumPy, and bundle-builder dependencies as the backend suite.
@@ -45,13 +53,41 @@ if [ -z "${CORTEX_SMOKE_NOBUILD:-}" ]; then
 fi
 export CORTEX_BUNDLE_URL="/bundle/_smoke"
 
-( cd "$SERVICES" && "$PY" -m uvicorn api.app:app --port "$PORT" --log-level warning ) \
+# Refuse to run when something already owns the port. Otherwise uvicorn fails
+# to bind, the readiness probe below is answered by the LEFTOVER server, and
+# the smoke silently exercises whatever code that process is running. Observed:
+# a leaked server kept serving a hours-old revision, and its accumulated
+# per-IP rate-limit state (register is 5/hour) eventually failed signup —
+# which reads as a code regression, not a stale process.
+if curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1; then
+  echo "port $PORT is already serving — refusing to smoke against it." >&2
+  echo "find and stop the leftover process:  ss -lptn 'sport = :$PORT'" >&2
+  exit 1
+fi
+
+# `exec` so uvicorn REPLACES the subshell. Without it $! is the subshell's pid
+# and uvicorn is its child, so the cleanup below killed the wrapper and left
+# uvicorn orphaned — still holding the port and still serving that revision.
+# That is how stale servers accumulated and quietly answered later runs.
+( cd "$SERVICES" && exec "$PY" -m uvicorn api.app:app --port "$PORT" --log-level warning ) \
     >/tmp/cortex_ui_smoke.log 2>&1 &
 UV=$!
-cleanup() { kill $UV 2>/dev/null || true; rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true; }
+cleanup() {
+  kill "$UV" 2>/dev/null || true
+  wait "$UV" 2>/dev/null || true      # reap it before the port check next run
+  rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true
+}
 trap cleanup EXIT INT TERM
 
 for i in $(seq 1 40); do curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1 && break; sleep 0.3; done
+
+# The readiness probe above cannot tell OUR server from someone else's, so
+# confirm the process we started is the one still running.
+if ! kill -0 "$UV" 2>/dev/null; then
+  echo "the smoke server exited before becoming ready:" >&2
+  tail -5 /tmp/cortex_ui_smoke.log >&2
+  exit 1
+fi
 
 echo "▸ UI smoke against http://localhost:$PORT"
 node "$WEB/scripts/ui_smoke.mjs" "http://localhost:$PORT"
