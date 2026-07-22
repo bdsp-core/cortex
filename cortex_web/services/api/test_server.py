@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from . import awards, dashboard_logic, digest, helpers, security
+from . import awards, dashboard_logic, digest, helpers, reporting, security
 from .app import create_app
 from .db import Database
 from .routers import dashboard as dashboard_router
@@ -2859,7 +2859,7 @@ def test_training_monitor_false_graduation(client):
     insert_training("tr-1", "2026-01-02T00:00:00Z", grad_tasks=[3, 5])
     insert_result("s-post", "2026-01-03T00:00:00Z", result("FAIL", "PASS"))
 
-    m = db.training_monitor()
+    m = reporting.training_monitor(db)
     assert m["trainingTrials"] == 2
     assert m["learners"] == 1
     assert m["graduatedDomains"] == 2       # both 3 and 5 cleared ℓ*
@@ -2877,7 +2877,7 @@ def test_training_monitor_false_graduation(client):
 
 def test_training_monitor_empty(client):
     """Monitor on an empty DB returns zeros + a null rate (no divide-by-zero)."""
-    m = client.app.state.db.training_monitor()
+    m = reporting.training_monitor(client.app.state.db)
     assert m["learners"] == 0 and m["trainingTrials"] == 0
     assert m["graduatedDomains"] == 0 and m["falseGraduationRate"] is None
 

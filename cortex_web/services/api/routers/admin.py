@@ -5,7 +5,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import security
+from .. import reporting, security
 from ..deps import require_admin
 from ..models import AdminGenIn
 
@@ -26,7 +26,7 @@ def admin_training_monitor(req: Request, _: bool = Depends(require_admin)):
     return {
         "trainingMode": cfg.get("training_mode", "all"),
         "cohortSize": len(cfg.get("training_allowlist") or ()),
-        **req.app.state.db.training_monitor(),
+        **reporting.training_monitor(req.app.state.db),
     }
 
 
