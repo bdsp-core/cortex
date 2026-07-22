@@ -53,6 +53,66 @@ class InjectedWorker {
   }
 }
 
+class CompactPayloadWorker {
+  private listeners = new Map<string, Set<(event: any) => void>>();
+  readonly scoreRequests: Extract<
+    NWaySelectorWorkerRequest, { type: "score" }
+  >[] = [];
+  readonly screenRequests: Extract<
+    NWaySelectorWorkerRequest, { type: "screen" }
+  >[] = [];
+
+  addEventListener(type: string, listener: (event: any) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: any) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  postMessage(message: NWaySelectorWorkerRequest): void {
+    if (message.type === "init") {
+      queueMicrotask(() => this.emitMessage({ type: "ready" }));
+      return;
+    }
+    if (message.type === "score") {
+      const workerMessage = structuredClone(message, { transfer: [
+        message.taskKs.buffer, message.segIds.buffer,
+      ] });
+      this.scoreRequests.push(workerMessage);
+      queueMicrotask(() => this.emitMessage({
+        type: "result", jobId: workerMessage.jobId,
+        startIndex: workerMessage.startIndex,
+        losses: Float64Array.from(workerMessage.segIds),
+      }));
+      return;
+    }
+    if (message.type === "screen") {
+      const workerMessage = structuredClone(message, {
+        transfer: [message.segIds.buffer],
+      });
+      this.screenRequests.push(workerMessage);
+      queueMicrotask(() => this.emitMessage({
+        type: "screen_result", jobId: workerMessage.jobId,
+        taskK: workerMessage.taskK,
+        entropySegIds: [workerMessage.segIds[0]],
+        fisherSegIds: [workerMessage.segIds[workerMessage.segIds.length - 1]],
+        entropyMs: 1, fisherMs: 2,
+      }));
+      return;
+    }
+    throw new Error("unexpected compact payload worker request");
+  }
+
+  terminate(): void {}
+
+  private emitMessage(data: NWaySelectorWorkerResponse): void {
+    for (const listener of this.listeners.get("message") ?? []) listener({ data });
+  }
+}
+
 class HistoryCachingWorker {
   private listeners = new Map<string, Set<(event: any) => void>>();
   readonly receivedFullHistory: boolean[] = [];
@@ -123,6 +183,45 @@ function emptyHistory(K: number): PackedParticleHistory {
 }
 
 describe("n-way selector pool failure containment", () => {
+  it("transfers compact score and screen vectors without cloned candidates", async () => {
+    const worker = new CompactPayloadWorker();
+    const inputs = precisionGoldenInputs();
+    const executor = new NWaySelectorWorkerExecutor(inputs, 1, {
+      workerFactory: () => worker as unknown as Worker,
+    });
+    await executor.ready();
+    const K = inputs.taskCodes.length;
+    const candidates = inputs.segments.slice(0, 3).map((segment, k) => ({ k, segment }));
+    const state = {
+      N: 1, K,
+      t: new Float64Array(K), l: new Float64Array(K),
+      w: new Float64Array([1]),
+    };
+
+    await expect(executor.score(state, candidates)).resolves.toEqual(
+      Float64Array.from(candidates, (candidate) => candidate.segment.segId),
+    );
+    expect(worker.scoreRequests).toHaveLength(1);
+    expect(worker.scoreRequests[0].taskKs).toBeInstanceOf(Uint8Array);
+    expect(Array.from(worker.scoreRequests[0].taskKs)).toEqual([0, 1, 2]);
+    expect(worker.scoreRequests[0].segIds).toBeInstanceOf(Uint32Array);
+    expect("candidates" in worker.scoreRequests[0]).toBe(false);
+
+    const segIds = candidates.map((candidate) => candidate.segment.segId);
+    const moments = {
+      K,
+      tMean: new Array(K).fill(0), lMean: new Array(K).fill(0),
+      tSd: new Array(K).fill(1), lSd: new Array(K).fill(1),
+    };
+    await expect(executor.screen(moments, [{ taskK: 0, segIds }])).resolves.toEqual([{
+      taskK: 0,
+      entropySegIds: [segIds[0]], fisherSegIds: [segIds[segIds.length - 1]],
+      entropyMs: 1, fisherMs: 2,
+    }]);
+    expect(worker.screenRequests[0].segIds).toBeInstanceOf(Uint32Array);
+    executor.dispose();
+  });
+
   for (const mode of ["error", "malformed", "timeout"] as const) {
     it(`rejects and disposes safely after an injected ${mode} response`, async () => {
       const fake = new InjectedWorker(mode);

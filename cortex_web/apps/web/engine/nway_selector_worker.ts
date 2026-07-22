@@ -68,8 +68,23 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
         t: message.t, l: message.l, logLikelihood: message.logLikelihood,
       }, [message.t.buffer, message.l.buffer, message.logLikelihood.buffer]);
     } else {
+      if (!segmentsById) throw new Error("n-way selector segment index is unavailable");
+      if (message.taskKs.length !== message.segIds.length) {
+        throw new Error("n-way selector candidate vectors are misaligned");
+      }
+      const candidates: NWayCandidate[] = Array.from(
+        message.segIds, (segId, index) => {
+          const segment = segmentsById!.get(segId);
+          if (!segment) throw new Error(`n-way score segment ${segId} is unavailable`);
+          const k = message.taskKs[index];
+          if (k >= inputs!.taskCodes.length) {
+            throw new Error(`n-way score task index ${k} is unavailable`);
+          }
+          return { k, segment };
+        },
+      );
       const losses = scoreNWayCandidateLosses(
-        message.state, inputs, message.candidates,
+        message.state, inputs, candidates,
       );
       post(
         { type: "result", jobId: message.jobId, startIndex: message.startIndex, losses },

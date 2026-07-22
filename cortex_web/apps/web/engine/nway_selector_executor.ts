@@ -163,7 +163,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(candidates.length, startIndex + shardSize);
       const response = await this.runShard(
-        this.slots[shardIndex], state, candidates.slice(startIndex, endIndex), startIndex,
+        this.slots[shardIndex], state, candidates, startIndex, endIndex,
       );
       if (response.losses.length !== endIndex - startIndex
           || response.startIndex !== startIndex) {
@@ -392,8 +392,19 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
 
   private runShard(
     slot: SelectorSlot, state: NWaySelectionState,
-    candidates: NWayCandidate[], startIndex: number,
+    candidates: readonly NWayCandidate[], startIndex: number, endIndex: number,
   ): Promise<Extract<NWaySelectorWorkerResponse, { type: "result" }>> {
+    const taskKs = new Uint8Array(endIndex - startIndex);
+    const segIds = new Uint32Array(endIndex - startIndex);
+    for (let index = startIndex; index < endIndex; index++) {
+      const candidate = candidates[index];
+      if (!Number.isInteger(candidate.k) || candidate.k < 0 || candidate.k > 0xff) {
+        throw new Error(`n-way candidate has an unpackable task index: ${candidate.k}`);
+      }
+      this.assertPackableSegmentId(candidate.segment.segId);
+      taskKs[index - startIndex] = candidate.k;
+      segIds[index - startIndex] = candidate.segment.segId;
+    }
     const jobId = this.nextJobId++;
     return new Promise((resolve, reject) => {
       const cleanup = () => {
@@ -437,9 +448,11 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const request: NWaySelectorWorkerRequest = {
         type: "score", jobId, startIndex,
         state: { N: state.N, K: state.K, t: state.t, l: state.l, w: state.w },
-        candidates,
+        taskKs, segIds,
       };
-      slot.worker.postMessage(request);
+      slot.worker.postMessage(request, {
+        transfer: [taskKs.buffer, segIds.buffer],
+      });
     });
   }
 
@@ -453,7 +466,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(candidates.length, startIndex + shardSize);
       const response = await this.runShard(
-        this.slots[shardIndex], state, candidates.slice(startIndex, endIndex), startIndex,
+        this.slots[shardIndex], state, candidates, startIndex, endIndex,
       );
       if (response.losses.length !== endIndex - startIndex
           || response.startIndex !== startIndex) {
@@ -651,6 +664,11 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     slot: SelectorSlot, moments: NWayScreeningMoments,
     taskK: number, segIds: readonly number[],
   ): Promise<NWayDomainScreenResult> {
+    const packedSegIds = new Uint32Array(segIds.length);
+    for (let index = 0; index < segIds.length; index++) {
+      this.assertPackableSegmentId(segIds[index]);
+      packedSegIds[index] = segIds[index];
+    }
     const jobId = this.nextJobId++;
     return new Promise((resolve, reject) => {
       const cleanup = () => {
@@ -699,12 +717,17 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       slot.worker.addEventListener("message", onMessage);
       slot.worker.addEventListener("error", onError);
       slot.worker.addEventListener("messageerror", onMessageError);
-      const packedSegIds = Float64Array.from(segIds);
       const request: NWaySelectorWorkerRequest = {
         type: "screen", jobId, moments, taskK, segIds: packedSegIds,
       };
       slot.worker.postMessage(request, { transfer: [packedSegIds.buffer] });
     });
+  }
+
+  private assertPackableSegmentId(segId: number): void {
+    if (!Number.isInteger(segId) || segId < 0 || segId > 0xffff_ffff) {
+      throw new Error(`n-way segment ID cannot be packed losslessly: ${segId}`);
+    }
   }
 
   private runHistoryShard(

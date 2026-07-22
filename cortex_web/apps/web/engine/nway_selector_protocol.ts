@@ -1,5 +1,5 @@
 import type {
-  NWayCandidate, NWayScreeningMoments, NWaySelectionState,
+  NWayScreeningMoments, NWaySelectionState,
 } from "./nway_selector";
 import type { PackedComputeInputs } from "./compute_payload";
 import type { PackedParticleHistory } from "./types";
@@ -11,14 +11,15 @@ export type NWaySelectorWorkerRequest =
       jobId: number;
       startIndex: number;
       state: NWaySelectionState;
-      candidates: NWayCandidate[];
+      taskKs: Uint8Array;
+      segIds: Uint32Array;
     }
   | {
       type: "screen";
       jobId: number;
       moments: NWayScreeningMoments;
       taskK: number;
-      segIds: Float64Array;
+      segIds: Uint32Array;
     }
   | {
       type: "history_likelihood";
