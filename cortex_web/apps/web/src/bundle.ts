@@ -5,7 +5,7 @@
 // session, and persisted to IndexedDB (keyed by bundle version) so a reload
 // or a repeat sitting doesn't re-download the bundle.
 
-import { ComputeEngineInputs, EngineInputs, SegmentMeta } from "../engine/types";
+import { ComputeEngineInputs, EngineInputs, SegmentMeta } from "../engine";
 import { cachedArrayBuffer } from "./idbcache";
 
 export interface BundleManifest extends Omit<EngineInputs, "segments"> {

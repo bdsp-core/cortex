@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { EngineWorkerResponse } from "../engine/worker_protocol";
+import type { EngineWorkerResponse } from "../engine";
 import { EngineClient } from "./engineClient";
 
 class FakeWorker {

@@ -1,7 +1,7 @@
 import type {
   EnginePerformanceEvent, EngineStepTiming, ExecutionProfileEvent,
   RuntimePoolAdjustmentEvent,
-} from "../engine/types";
+} from "../engine";
 
 export interface TimingDistribution {
   count: number;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { EngineInputs, SegmentMeta } from "../engine/types";
+import type { EngineInputs, SegmentMeta } from "../engine";
 import { answerIsCorrect } from "./tasks";
 
 const inputs = {

@@ -2,16 +2,11 @@
 // particle filter off the UI thread; the client just relays init/answer/abort
 // and surfaces item/trial/done/error events.
 
-import type { SessionResult } from "../engine/session";
 import type {
-  ComputeEngineInputs, EnginePerformanceEvent, RequestedComputeMode, TrialDiag,
-} from "../engine/types";
-import type {
-  EngineWorkerRequest, EngineWorkerResponse,
-} from "../engine/worker_protocol";
-import {
-  computePayloadTransferables, packComputeInputs,
-} from "../engine/compute_payload";
+  ComputeEngineInputs, EnginePerformanceEvent, EngineWorkerRequest,
+  EngineWorkerResponse, RequestedComputeMode, SessionResult, TrialDiag,
+} from "../engine";
+import { computePayloadTransferables, packComputeInputs } from "../engine";
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;

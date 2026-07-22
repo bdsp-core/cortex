@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { resolutionConfidence } from "./progress";
-import { TrialDiag } from "../engine/types";
+import { TrialDiag } from "../engine";
 
 function diagWithPi(pi: number[]): TrialDiag {
   // resolutionConfidence only reads .pi; cast a partial.

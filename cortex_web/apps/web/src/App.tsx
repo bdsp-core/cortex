@@ -14,7 +14,7 @@ import { Viewer, Item } from "./components/Viewer";
 import { SpikeViewer } from "./components/SpikeViewer";
 import { resolutionConfidence, Progress } from "./progress";
 import { empiricalPoint, onCurvePoint } from "./roc";
-import { TrialDiag } from "../engine/types";
+import { TrialDiag } from "../engine";
 import * as api from "./api";
 import { bootstrapOnce, invalidateBootstrap } from "./bootstrapStore";
 import { AuthFlow } from "./components/AuthFlow";

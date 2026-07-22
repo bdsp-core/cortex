@@ -7,7 +7,7 @@ import { COLORS, FONTS, REVEAL_CSS, VERDICT_STYLE, cssVar } from "../../ui/theme
 import { useTheme } from "../theme/ThemeProvider";
 import { binormalSteps } from "../roc";
 import { Button, Card, Heading, Stage } from "./ui";
-import type { TerminationPolicyName } from "../../engine/types";
+import type { TerminationPolicyName } from "../../engine";
 
 export interface RocDatum {
   auroc: number;

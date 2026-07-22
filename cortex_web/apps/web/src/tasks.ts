@@ -3,7 +3,7 @@
 // The engine speaks task indices 0..K-1; the UI speaks "the IIIC button at
 // position N." These helpers bridge the two so K=6 and K=7 bundles both work.
 
-import { EngineInputs, SegmentMeta } from "../engine/types";
+import { EngineInputs, SegmentMeta } from "../engine";
 
 export interface TaskInfo {
   /** Engine task index (0..K-1). The raw pick must carry this real index, not

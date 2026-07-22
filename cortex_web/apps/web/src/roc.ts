@@ -4,8 +4,7 @@
 // binary Yes/No, so there is ONE real operating point; the staircase is a
 // cosmetic model curve at the given AUROC.
 
-import { normCdf } from "../engine/mathfns";
-import { TrialDiag } from "../engine/types";
+import { normCdf, type TrialDiag } from "../engine";
 
 // Inverse normal CDF (Acklam's rational approximation, ~1e-9). normCdf lives in
 // engine/mathfns; the engine never needed the inverse, so it lives here.

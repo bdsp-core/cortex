@@ -19,7 +19,7 @@
 // forward Monte-Carlo rollout that also accounts for the remaining question
 // budget. This min-over-tasks readout is the agreed interim.
 
-import { TrialDiag } from "../engine/types";
+import { TrialDiag } from "../engine";
 
 export interface Progress {
   answered: number;

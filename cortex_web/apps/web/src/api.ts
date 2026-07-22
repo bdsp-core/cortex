@@ -11,7 +11,7 @@
 import type { SessionBank } from "./bundle";
 import type {
   RequestedComputeMode, TerminationPolicyName,
-} from "../engine/types";
+} from "../engine";
 import type { CohortSummary } from "./api/cohorts";
 import { Outbox, transportFetch } from "./transport";
 import {
