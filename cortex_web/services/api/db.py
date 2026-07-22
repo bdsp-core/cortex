@@ -295,6 +295,84 @@ _SCHEMA_STATEMENTS = [
 utc_now = timeutil.utc_now
 
 
+def _upsert_sql(table: str, columns: "tuple[tuple[str, str], ...]",
+                conflict: "tuple[str, ...]", *, pg: bool,
+                on_conflict: str = "update") -> str:
+    """One INSERT-or-conflict statement in the running backend's dialect.
+
+    SQLite and Postgres spell this differently (INSERT OR REPLACE / OR IGNORE
+    vs ON CONFLICT (...) DO UPDATE / DO NOTHING). That pair was hand-written
+    at nine call sites covering essentially every write path in the app, and
+    only the SQLite half is exercised by the test suite — the Postgres half
+    runs in production alone. Generating both from one definition means a new
+    table cannot get half the pair subtly wrong, and test_db_sql.py locks the
+    exact text of both.
+
+    `columns` is (name, value_expr): "?" for a bound parameter, or a SQL
+    literal ("NULL", "0") for a column the statement always resets. It must
+    list EVERY column the row sets — SQLite's REPLACE rewrites the whole row,
+    so a column omitted here would fall back to its default on SQLite while
+    silently keeping its previous value on Postgres. Parameters bind in
+    `columns` order, skipping the literals.
+    """
+    names = [name for name, _ in columns]
+    cols = ", ".join(names)
+    values = ",".join(expr for _, expr in columns)
+    keys = ", ".join(conflict)
+    if on_conflict == "nothing":
+        if pg:
+            return (f"INSERT INTO {table}({cols}) VALUES ({values}) "
+                    f"ON CONFLICT ({keys}) DO NOTHING")
+        return f"INSERT OR IGNORE INTO {table}({cols}) VALUES ({values})"
+    if pg:
+        # EXCLUDED.<col> is the value this statement proposed, so for a column
+        # whose value_expr is a literal it resolves to exactly that literal.
+        skip = set(conflict)
+        sets = ", ".join(f"{n}=EXCLUDED.{n}" for n in names if n not in skip)
+        return (f"INSERT INTO {table}({cols}) VALUES ({values}) "
+                f"ON CONFLICT ({keys}) DO UPDATE SET {sets}")
+    return f"INSERT OR REPLACE INTO {table}({cols}) VALUES ({values})"
+
+
+# Column lists for the upserted tables. Each must name EVERY column its
+# statement writes (see _upsert_sql); the literals are columns the write
+# always resets rather than binds.
+AUTH_CODE_COLUMNS = (
+    ("participant_code", "?"), ("purpose", "?"), ("code_hash", "?"),
+    ("created_utc", "?"), ("expires_utc", "?"),
+    # A freshly issued code is always unconsumed with the attempt count reset.
+    ("consumed_utc", "NULL"), ("attempts", "0"),
+)
+CONSENT_EVENT_COLUMNS = (
+    ("code", "?"), ("consent_type", "?"), ("consent_version", "?"),
+    ("irb_protocol_id", "?"), ("accepted_utc", "?"), ("consent_ip", "?"),
+    # Re-accepting the same (type, version) clears any prior withdrawal.
+    ("withdrawn_utc", "NULL"),
+)
+TRIAL_COLUMNS = (
+    ("session_id", "?"), ("trial_index", "?"), ("seg_id", "?"),
+    ("task_k", "?"), ("pick", "?"), ("is_correct", "?"),
+    ("reaction_ms", "?"), ("diag", "?"), ("received_utc", "?"),
+    ("shown_client_utc", "?"), ("answered_client_utc", "?"),
+)
+RESULT_COLUMNS = (("session_id", "?"), ("result", "?"), ("received_utc", "?"))
+TRAINING_TRIAL_COLUMNS = (
+    ("training_id", "?"), ("code", "?"), ("seg_id", "?"), ("task_k", "?"),
+    ("shown_utc", "?"), ("pick", "?"), ("y_star", "?"), ("is_correct", "?"),
+    ("feedback_shown", "?"), ("rt_ms", "?"), ("shown_client_utc", "?"),
+    ("answered_client_utc", "?"), ("seq_in_session", "?"), ("mode", "?"),
+    ("link", "?"), ("quality_flag", "?"),
+)
+RETENTION_COLUMNS = (
+    ("code", "?"), ("domain", "?"), ("next_due_utc", "?"), ("interval_s", "?"),
+)
+EMAIL_INVITE_COLUMNS = (
+    ("cohort_id", "?"), ("email", "?"), ("invited_utc", "?"),
+)
+LOGIN_DAY_COLUMNS = (("code", "?"), ("day", "?"))
+DIGEST_LOG_COLUMNS = (("code", "?"), ("day", "?"), ("sent_utc", "?"))
+
+
 # User-facing 9-digit account ids (`participants.public_id`): uniformly random
 # in [100000000, 999999999] — always exactly 9 digits, no leading zero. ~9e8
 # values, so collisions are vanishingly rare; the unique index + the retry in
@@ -674,17 +752,8 @@ class Database:
     def put_auth_code(self, participant_code: str, purpose: str,
                       code_hash: str, expires_utc: str) -> None:
         """Store (replacing any existing) the active code for (account, purpose)."""
-        if self._pg:
-            sql = ("INSERT INTO auth_codes(participant_code, purpose, code_hash, "
-                   "created_utc, expires_utc, consumed_utc, attempts) "
-                   "VALUES (?,?,?,?,?,NULL,0) "
-                   "ON CONFLICT (participant_code, purpose) DO UPDATE SET "
-                   "code_hash=EXCLUDED.code_hash, created_utc=EXCLUDED.created_utc, "
-                   "expires_utc=EXCLUDED.expires_utc, consumed_utc=NULL, attempts=0")
-        else:
-            sql = ("INSERT OR REPLACE INTO auth_codes(participant_code, purpose, "
-                   "code_hash, created_utc, expires_utc, consumed_utc, attempts) "
-                   "VALUES (?,?,?,?,?,NULL,0)")
+        sql = _upsert_sql("auth_codes", AUTH_CODE_COLUMNS,
+                          ("participant_code", "purpose"), pg=self._pg)
         self._write(sql, (participant_code, purpose, code_hash,
                           utc_now(), expires_utc))
 
@@ -711,18 +780,9 @@ class Database:
                         consent_ip: Optional[str] = None) -> None:
         """Record (or re-affirm) a participant's consent. Re-accepting the same
         (type, version) clears any prior withdrawal."""
-        if self._pg:
-            sql = ("INSERT INTO consent_events(code, consent_type, consent_version, "
-                   "irb_protocol_id, accepted_utc, consent_ip, withdrawn_utc) "
-                   "VALUES (?,?,?,?,?,?,NULL) "
-                   "ON CONFLICT (code, consent_type, consent_version) DO UPDATE SET "
-                   "accepted_utc=EXCLUDED.accepted_utc, "
-                   "irb_protocol_id=EXCLUDED.irb_protocol_id, "
-                   "consent_ip=EXCLUDED.consent_ip, withdrawn_utc=NULL")
-        else:
-            sql = ("INSERT OR REPLACE INTO consent_events(code, consent_type, "
-                   "consent_version, irb_protocol_id, accepted_utc, consent_ip, "
-                   "withdrawn_utc) VALUES (?,?,?,?,?,?,NULL)")
+        sql = _upsert_sql("consent_events", CONSENT_EVENT_COLUMNS,
+                          ("code", "consent_type", "consent_version"),
+                          pg=self._pg)
         self._write(sql, (code, consent_type, consent_version,
                           irb_protocol_id, utc_now(), consent_ip))
 
@@ -836,25 +896,10 @@ class Database:
 
     # ── trials ────────────────────────────────────────────────────
     def upsert_trial(self, session_id: str, trial: dict) -> None:
-        # Upsert syntax differs: SQLite's INSERT OR REPLACE vs Postgres's
-        # ON CONFLICT … DO UPDATE on the (session_id, trial_index) PK.
-        if self._pg:
-            sql = ("INSERT INTO trials(session_id, trial_index, seg_id, "
-                   "task_k, pick, is_correct, reaction_ms, diag, received_utc, "
-                   "shown_client_utc, answered_client_utc) "
-                   "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
-                   "ON CONFLICT (session_id, trial_index) DO UPDATE SET "
-                   "seg_id=EXCLUDED.seg_id, task_k=EXCLUDED.task_k, "
-                   "pick=EXCLUDED.pick, is_correct=EXCLUDED.is_correct, "
-                   "reaction_ms=EXCLUDED.reaction_ms, diag=EXCLUDED.diag, "
-                   "received_utc=EXCLUDED.received_utc, "
-                   "shown_client_utc=EXCLUDED.shown_client_utc, "
-                   "answered_client_utc=EXCLUDED.answered_client_utc")
-        else:
-            sql = ("INSERT OR REPLACE INTO trials(session_id, trial_index, "
-                   "seg_id, task_k, pick, is_correct, reaction_ms, diag, "
-                   "received_utc, shown_client_utc, answered_client_utc) "
-                   "VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+        # Re-posting a trial (checkpoint retry) overwrites it on the
+        # (session_id, trial_index) PK.
+        sql = _upsert_sql("trials", TRIAL_COLUMNS,
+                          ("session_id", "trial_index"), pg=self._pg)
         self._write(sql, (
             session_id,
             int(trial.get("trialIndex", trial.get("trial_index", 0))),
@@ -910,14 +955,8 @@ class Database:
 
     # ── results ───────────────────────────────────────────────────
     def _store_result_stmt(self, conn, session_id: str, result: dict) -> None:
-        if self._pg:
-            sql = ("INSERT INTO results(session_id, result, received_utc) "
-                   "VALUES (?,?,?) "
-                   "ON CONFLICT (session_id) DO UPDATE SET "
-                   "result=EXCLUDED.result, received_utc=EXCLUDED.received_utc")
-        else:
-            sql = ("INSERT OR REPLACE INTO results(session_id, result, "
-                   "received_utc) VALUES (?,?,?)")
+        sql = _upsert_sql("results", RESULT_COLUMNS, ("session_id",),
+                          pg=self._pg)
         conn.execute(self._q(sql), (session_id, json.dumps(result), utc_now()))
 
     def store_result(self, session_id: str, result: dict) -> None:
@@ -1115,17 +1154,9 @@ class Database:
         from the client (anti-tamper). Caller must have verified ownership."""
         if not points:
             return
-        cols = ("training_id, code, seg_id, task_k, shown_utc, pick, y_star, "
-                "is_correct, feedback_shown, rt_ms, shown_client_utc, "
-                "answered_client_utc, seq_in_session, mode, link, "
-                "quality_flag")
-        vals = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?"
-        if self._pg:
-            excl = (f"INSERT INTO training_trials({cols}) VALUES ({vals}) "
-                    "ON CONFLICT (training_id, seg_id) DO NOTHING")
-        else:
-            excl = (f"INSERT OR IGNORE INTO training_trials({cols}) "
-                    f"VALUES ({vals})")
+        excl = _upsert_sql("training_trials", TRAINING_TRIAL_COLUMNS,
+                           ("training_id", "seg_id"), pg=self._pg,
+                           on_conflict="nothing")
         with self._connection() as conn:
             # Idempotency for the per-answer checkpoint outbox: a point whose
             # (training_id, seq_in_session) already landed is skipped, so a
@@ -1186,15 +1217,8 @@ class Database:
 
     def upsert_retention(self, code: str, domain: str,
                          next_due_utc: str, interval_s: float) -> None:
-        if self._pg:
-            sql = ("INSERT INTO training_retention(code, domain, "
-                   "next_due_utc, interval_s) VALUES (?,?,?,?) "
-                   "ON CONFLICT (code, domain) DO UPDATE SET "
-                   "next_due_utc=EXCLUDED.next_due_utc, "
-                   "interval_s=EXCLUDED.interval_s")
-        else:
-            sql = ("INSERT OR REPLACE INTO training_retention(code, domain, "
-                   "next_due_utc, interval_s) VALUES (?,?,?,?)")
+        sql = _upsert_sql("training_retention", RETENTION_COLUMNS,
+                          ("code", "domain"), pg=self._pg)
         self._write(sql, (code, domain, next_due_utc, float(interval_s)))
 
     # ── training pilot monitor (admin) ────────────────────────────
@@ -1417,13 +1441,8 @@ class Database:
     def put_cohort_email_invite(self, cohort_id: str, email: str) -> None:
         """Store (or refresh) a pending email invite. Upsert: re-inviting the
         same address just updates the timestamp."""
-        if self._pg:
-            sql = ("INSERT INTO cohort_email_invites(cohort_id, email, invited_utc) "
-                   "VALUES (?,?,?) ON CONFLICT (cohort_id, email) "
-                   "DO UPDATE SET invited_utc=EXCLUDED.invited_utc")
-        else:
-            sql = ("INSERT OR REPLACE INTO cohort_email_invites"
-                   "(cohort_id, email, invited_utc) VALUES (?,?,?)")
+        sql = _upsert_sql("cohort_email_invites", EMAIL_INVITE_COLUMNS,
+                          ("cohort_id", "email"), pg=self._pg)
         self._write(sql, (cohort_id, email, utc_now()))
 
     def delete_cohort_email_invite(self, cohort_id: str, email: str) -> None:
@@ -1505,11 +1524,8 @@ class Database:
         """Mark today (the user's LOCAL day, per their tz offset) as a sign-in
         day for `code` (idempotent per day)."""
         day = _local_day(utc_now(), tz_offset_min)
-        if self._pg:
-            sql = ("INSERT INTO login_days(code, day) VALUES (?,?) "
-                   "ON CONFLICT (code, day) DO NOTHING")
-        else:
-            sql = "INSERT OR IGNORE INTO login_days(code, day) VALUES (?,?)"
+        sql = _upsert_sql("login_days", LOGIN_DAY_COLUMNS, ("code", "day"),
+                          pg=self._pg, on_conflict="nothing")
         self._write(sql, (code, day))
 
     # ── ripeness digest (see digest.py) ───────────────────────────
@@ -1541,11 +1557,8 @@ class Database:
         """Atomically claim (code, local day) in the digest ledger; True for
         exactly one caller per day. Claimed BEFORE the send: a failed send
         costs one day's letter instead of ever risking a double-send."""
-        if self._pg:
-            sql = ("INSERT INTO digest_log(code, day, sent_utc) VALUES (?,?,?) "
-                   "ON CONFLICT (code, day) DO NOTHING")
-        else:
-            sql = "INSERT OR IGNORE INTO digest_log(code, day, sent_utc) VALUES (?,?,?)"
+        sql = _upsert_sql("digest_log", DIGEST_LOG_COLUMNS, ("code", "day"),
+                          pg=self._pg, on_conflict="nothing")
         with self._connection() as conn:
             cur = conn.execute(self._q(sql), (code, day, utc_now()))
             return cur.rowcount > 0
