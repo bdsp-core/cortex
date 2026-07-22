@@ -7,6 +7,13 @@ Snapshot date: 2025-09-23. Two parallel Centaur Labs / DiagnosUs contests:
 | 5290 | Brief sharp events (spike / IED) | 5,000 | 603 | 161,065 |
 | 5291 | Harmful brain activity (IIIC) | 5,000 | 699 | 125,865 |
 
+(Reads = the 2025-09-23 snapshot counts. After joining to source and
+ingesting, the unified store holds 167,503 IED and 128,872 IIIC reads
+from 643 / 736 distinct raters — the source-join recovered reads beyond
+the snapshot. The 603/699 "Readers" are the survey-flagged participants in
+`centaur_users.csv`; the larger ingested rater counts include readers not
+back-propagated into that table — a known reconciliation gap.)
+
 Both share Centaur's internal `Case ID` namespace; the two case pools are
 disjoint (5290: 26255616–26260615; 5291: 26392792–26397791).
 
@@ -17,22 +24,42 @@ disjoint (5290: 26255616–26260615; 5291: 26392792–26397791).
 - **`centaur_users.csv`** — one row per Centaur user_id (1,050 rows).
   Survey-derived tier (`expert` / `borderline` / `novice` / `unknown`)
   plus participation flags and read counts per contest.
+- **`case_id_to_seg_id.csv`** — the Case-ID → unified seg_id crosswalk
+  for **both** contests (10,000 rows; IED segs 89201–94200, IIIC segs
+  84555–89200). This is the crosswalk that was previously missing.
+- **`task1_case_source_map.csv` / `task2_case_source_map.csv`** — per-case
+  Centaur Case ID → source image + gold/source label, for IED (task1) and
+  IIIC (task2) respectively.
+- **`centaur_segment_map.csv`** — both tasks' cases joined to subject_id,
+  gold_label, and (where resolved) BDSP S3 retrieval pointers.
+- **`centaur_ied_case_table.csv`** — consolidated per-IED-case table:
+  gold label + crowd-read vote distribution + signal-availability flag.
+  Built by `scripts/build_centaur_ied_case_table.py` (self-checking).
+
+The actual reads are ingested into the unified label store, keyed by the
+crosswalk above:
+
+| `data/labels/labels.csv` `source_dataset` | rows | what |
+|---|---:|---|
+| `centaur_2025_ied`     | 167,503 | IED 5290 per-reader reads (`label_type=spike`) |
+| `centaur_2025_iiic`    | 128,872 | IIIC 5291 per-reader reads |
+| `centaur_iiic_expert`  |  20,000 | 4-expert IIIC IRR panel (Stage 1b) |
+
+IED reader vocabulary is `{ied, vertex wave, other, posts, wickets, bets}`;
+it maps to the gold vocabulary as `ied → spike`, `other → non-spike`, and
+identity for the rest. (See the consolidated table builder for the join.)
 
 ## What's NOT here (and where it lives)
 
-- **Raw per-read labels** (`Reads for ... .csv` files, ~290k rows total)
-  are the proprietary Centaur dump and remain in
-  `~/Downloads/Fw_ [External] Re_ new labels_/`. To re-build this folder:
-  unzip the two `Centaur_reads_for_task_*.zip` archives into
-  `/tmp/centaur_iiic/` and `/tmp/centaur_ied/`, then run
-  `python3 scripts/ingest_centaur_surveys.py`.
-
-- **Case-ID → BDSP seg_id crosswalk** for both contests is MISSING. The
-  reads carry only Centaur internal IDs (e.g. `task2_event4958.png` for
-  IIIC, `task1_event3480.png` for IED), with no published mapping to
-  the BDSP segments in our unified labels. Until that crosswalk arrives
-  (need to request from Centaur / Tianyu / WanYee), the reads cannot be
-  merged into `data/labels/labels.csv`.
+- **Raw IED EEG signals** — the 5,000 IED segments (seg_id 89201–94200)
+  carry only `file_key` / `pat_key` in `segments.csv`; every waveform
+  pointer (`s3_uri`, `h5_local_path`, `spike_h5_idx`, `profiler_mat_file`)
+  is empty. Provenance splits into the **Bonobo/SpikeNet** spike & non-spike
+  pool (`retrieval_status=bonobo_pending`, ~1,329 cases) and **BDSP**
+  subjects (`subject_missing` on S3, ~3,618 cases; only ~49 ever resolved
+  an `s3_uri`). Recovering the signals needs the Bonobo dump plus a BDSP
+  subject-retrieval pass — that is the remaining gap, not the reads.
+  (IIIC signals are largely resolved; see `centaur_segment_map.csv`.)
 
 ## Survey tier breakdown (177 IIIC + 207 IED surveyed; 755 not surveyed)
 
@@ -57,24 +84,26 @@ default if needed is `unknown → novice` for the lower tail.
 | Stage | What | Status |
 |---|---|---|
 | 1a | Survey responses → `centaur_users.csv` | ✅ done |
-| 1b | IRR study labels (4-expert IIIC xlsx) | pending; same case-id crosswalk problem as Stage 2 |
-| 2  | IIIC 5291 reads → unified labels | ⏸️ blocked on case-id crosswalk |
-| 3  | IED 5290 reads → unified labels | ⏸️ blocked on case-id crosswalk |
+| 1b | IRR study labels (4-expert IIIC xlsx) | ✅ done — `centaur_iiic_expert`, 20,000 rows |
+| 2  | IIIC 5291 reads → unified labels | ✅ done — `centaur_2025_iiic`, 128,872 rows |
+| 3  | IED 5290 reads → unified labels | ✅ done — `centaur_2025_ied`, 167,503 rows |
 | 4  | TianyuCentaur (superseded by IED 5290) | skipped permanently |
+
+The case-ID crosswalk that blocked Stages 1b/2/3 has since arrived
+(`case_id_to_seg_id.csv`) and all three streams are ingested into
+`data/labels/labels.csv`. The remaining open item is IED *signal*
+retrieval (see "What's NOT here").
 
 ## Reconciliation with existing raters.csv
 
-**Not yet merged.** Centaur `User ID` is an 8-digit integer in Centaur's
-own namespace, distinct from our unified `rater_id`. Numerical overlap
-between the two namespaces is coincidental (3/1,050 in a quick check).
+Centaur `User ID` is an independent source namespace. Reads are joined through
+the governed local `user_id_to_rater_id.csv` mapping (not distributed in a
+fresh source clone), never by matching numeric IDs or fuzzy names. A mapped
+Centaur identity may reuse a canonical person only
+when the governed crosswalk supplies that decision; otherwise it remains a
+distinct source-scoped rater. Missing, ambiguous, duplicate, or conflicting
+mappings are validation failures rather than candidates for automatic repair.
 
-If a Centaur user is in fact already represented in our unified pool as
-a Crowd rater (likely for the long-running platform users), the merge
-needs an explicit attribute-based reconciliation (e.g. on Centaur
-internal username or first/last name from the survey), which we don't
-currently have access to.
-
-The safe interim policy: leave the Centaur user table external; when
-the crosswalk arrives and reads are ingested, also bring in any newly
-discovered Centaur users as fresh `rater_id` entries with
-`groups: ["Centaur"]` and a flag pointing back to the Centaur ID.
+See `CROSSWALK_README.md` for the shareable case/rater mapping contract. Treat
+both the survey table and person crosswalk as governed identity artifacts
+before public distribution.

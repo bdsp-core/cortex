@@ -1,6 +1,9 @@
 # Phase 7 sub-step 2 — Tier-2 OC simstudy port + K=7 re-run
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-step 2, user-locked
+> Historical simulation record. Commands and test counts describe the dated
+> Phase-7 environment.
+
+Per the contemporaneous private merge plan's Phase-7 sub-step 2, user-locked
 decision 2026-05-19 (Q2 answer: **Port + re-run at K=7**). Faithful
 port of the methodology reference (`run_phase4_simstudy.py` →
 `scripts/run_tier2_oc_simstudy.py`) with K=7 added to the K-grid.

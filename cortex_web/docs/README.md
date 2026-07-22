@@ -11,6 +11,8 @@ guess which document governs a release.
 - `PLATFORM_ARCHITECTURE.md` — application and deployment architecture.
 - `WEB_WORKER_ARCHITECTURE.md` — deterministic browser-compute contract.
 - `WEB_WORKER_QUALIFICATION.md` — numerical, regression, and performance evidence.
+- `WEB_WORKER_ROLLOUT_OPERATIONS.md` — live rollout record, observation
+  checklist, aggregate telemetry query, and rollback conditions.
 - `MODULARIZATION_REPORT.md` — repository-hygiene changes, module boundaries,
   compatibility strategy, and qualification evidence.
 - `../LOCAL_DEV.md` — local development and production-shaped smoke setup.
@@ -26,12 +28,11 @@ guess which document governs a release.
 These records provide rationale but cannot override current code, tests, or
 the authoritative PrecisionPolicy contract in the Python reference.
 
-## Historical records
+## Historical implementation record
 
 - `OPTIMIZATION_PASS_2026-07.md`
-- `V15_STAGING.md`
 
-Historical records describe completed work and are not release instructions.
-The obsolete root `PLAN.md` and `STATUS.md` were removed during repository
-hygiene because their phase model and paths no longer described the current
-application.
+This record describes completed work and is not a release instruction. Earlier
+staging plans and obsolete root status documents were removed because their
+phase models and paths no longer described the current application. Git history
+preserves them if implementation archaeology is required.

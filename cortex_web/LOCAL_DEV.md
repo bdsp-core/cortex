@@ -1,163 +1,141 @@
 # Local development — CORTEX web
 
-Two-process dev (Vite + FastAPI) on your laptop, SQLite as the DB, no AWS
-involved. Suitable for everything except "shake-down test the real prod build."
+The supported development stack is the `cortex_web` monorepo: a React/Vite SPA
+and deterministic TypeScript certification engine, plus a FastAPI service with
+SQLite for local state. Production uses the same source with PostgreSQL and an
+externally managed EEG bundle.
 
-Monorepo layout (Phase B): `apps/web/` is the SPA (engine, trainer, src, ui),
-`services/api/` is the FastAPI backend, `research/` is the offline analytics +
-de-identified export tooling.
+## Prerequisites
 
-## One-time setup (~5 min)
+- Python 3.11
+- Node 20
+- Git
+- Chromium only when running browser smoke tests
 
-You need: macOS or Linux, Python 3.11+ (prod runs 3.12), Node 20+, git, ~2 GB
-free disk.
-
-```bash
-git clone https://github.com/bdsp-core/ilae-skill-certification-test-multi.git
-cd ilae-skill-certification-test-multi/cortex_web
-npm install
-pip3 install -r services/api/requirements.txt
-```
-
-That installs the SPA deps and the backend deps (FastAPI, uvicorn, psycopg).
-psycopg's binary wheel is only used in prod-style runs; locally the SQLite
-branch is the default and works without it.
-
-### Drop in the EEG bundle (one-time)
-
-The test needs the K=7 EEG bank in `apps/web/public/bundle/v1.5-k7/`. It's
-gitignored (~325 MB, PHI-adjacent so not in the repo). Easiest path:
+From the repository root:
 
 ```bash
-# A. If you have eeg_bank.h5 already on disk (e.g. scp'd from prod):
-python3 apps/web/scripts/prepare_web_bundle.py --bank /path/to/eeg_bank.h5 \
-    --version v1.5-k7 --include-spike
-
-# B. If you don't, copy from the prod box (needs SSH to cortex-prod):
-rsync -avz cortex-prod:/opt/cortex/cortex_web/apps/web/public/bundle/v1.5-k7/ \
-    apps/web/public/bundle/v1.5-k7/
+cd cortex_web
+npm ci
+python3.11 -m venv .venv
+.venv/bin/pip install -r services/api/requirements.lock
 ```
 
-`prepare_web_bundle.py` produces the manifest + per-segment binaries in ~30 s
-if the h5 is local.
+Use `npm ci`, not `npm install`, when reproducing CI or a release candidate.
 
-## Day-to-day
+## EEG bundle boundary
 
-### Hot-reload dev (the usual)
+Real EEG banks and production bundle blobs are governed external artifacts and
+are intentionally absent from Git. Do not copy a production bank into a source
+archive.
+
+Authorized developers can build a versioned bundle from an approved HDF5 bank:
+
+```bash
+.venv/bin/python apps/web/scripts/prepare_web_bundle.py \
+  --bank /approved/path/eeg_bank.h5 \
+  --version v1.6-k7-35k \
+  --include-spike
+```
+
+Place or mount the resulting version under `apps/web/public/bundle/` only for
+local development. Validate the manifest hash against the governed production
+record. For UI/browser smoke without restricted data, use the supported
+synthetic smoke bundle instead.
+
+## Development servers
+
+Hot reload:
 
 ```bash
 apps/web/scripts/dev.sh
 ```
 
-- Vite on **:5173** with HMR — typing in `apps/web/src/` reloads instantly.
-- FastAPI on **:8000** — `--reload` so server edits also bounce automatically.
-- `/api/*` calls from the SPA are proxied to :8000 by Vite (no CORS gymnastics).
-
-Open <http://localhost:5173>, click BEGIN, create a test account (any email,
-any password ≥ 8 chars), do the test.
-
-### Production-mode local smoke
-
-When you want to test what users will actually see — the built SPA served by
-the same uvicorn that handles the API + bundle:
+This starts Vite on port 5173 and the local API on port 8000, with `/api`
+proxied by Vite. For a production-shaped local build:
 
 ```bash
 apps/web/scripts/run_local.sh
 ```
 
-Hits **<http://localhost:8000>**. Same as `dev.sh` from the user's point of
-view, but no HMR — used as the final pre-deploy sanity check.
+The scripts create/use local SQLite state and never require AWS.
 
-### Tests
+## Required checks
 
-```bash
-# Frontend (vitest): engine drift-guards + trainer + src. The engine session
-# sims do real adaptive runs, so the full suite takes ~5 min.
-cd apps/web && npx vitest run
-
-# Backend API (run from services/, which must be on sys.path):
-cd services && python3 -m pytest api/test_server.py -q      # 117 tests
-
-# Research (gold ETL + de-identified export):
-python3 -m pytest research -q                                # 4 tests
-```
-
-### Visual regression smoke (screenshot diffs)
-
-The "silent rewrite" net: screenshots of the key stable screens (sign-in
-desktop/mobile, create-account, forgot-password, /report), pixel-diffed
-against baselines committed in `apps/web/scripts/visual_baselines/`:
+The normal self-contained gate is:
 
 ```bash
-cd apps/web && npm run visual-smoke           # compare against baselines
-cd apps/web && npm run visual-smoke:update    # after an INTENTIONAL restyle
+CORTEX_QUALITY_PYTHON=.venv/bin/python npm run quality
 ```
 
-Boots a throwaway server (no EEG bundle needed) and needs a production build
-in `dist/` + headless Chrome. Baselines are machine-rendered: regenerate and
-review the diff whenever a visual change is intentional.
+It runs ESLint, TypeScript type checking, Vitest, the FastAPI/Python suite, the
+production build, CSP verification, and the high-severity dependency audit.
 
-### Type-check + production build
+The browser release gate additionally needs Chromium:
 
 ```bash
-cd apps/web && npm run build                 # tsc --noEmit + vite build
+CORTEX_QUALITY_PYTHON=.venv/bin/python \
+CORTEX_BROWSER_GATES=1 \
+CORTEX_SMOKE_SYNTHETIC=1 \
+  bash scripts/quality_gate.sh
 ```
 
-Hard-fails on any TypeScript error before doing the bundle. Run this before
-deploying. The build emits code-split chunks: one main chunk, one async chunk
-per non-English locale, and lazy chunks for Cohorts + the standalone pages.
+Focused commands:
 
-## Branches + PRs
+```bash
+npm run lint
+npm run typecheck
+npm test
+.venv/bin/python -m pytest -q
+npm run build
+npm run -w cortex-web worker-smoke
+npm run -w cortex-web ui-smoke
+```
 
-Branch off `main`, push, open a PR. Standard squash-merge to `main`.
+Full-bank benchmarks and sanitized production-session replays are separate
+governed gates. Supply their external fixture paths explicitly; never commit
+those fixtures.
 
-`main` is the deploy branch — what's on `main` is what's on prod.
+Visual regression tests require a production build and local Chromium:
 
-## Deploying to prod (https://app.cortexeeg.org)
+```bash
+npm run -w cortex-web visual-smoke
+```
 
-If you have SSH to `cortex-prod`, deploy from your laptop in one command:
+Update visual baselines only for an intentional reviewed UI change.
+
+## Repository ownership
+
+```text
+cortex_web/
+  apps/web/                    SPA and deterministic certification engine
+  services/api/                FastAPI, auth, persistence, and trainer host
+  learning-engine-cleaned/     runtime-authoritative server trainer
+  research/                    non-serving export and analysis utilities
+  deploy/                      release, backup, and rollback automation
+  docs/                        current architecture and operations records
+```
+
+The browser trainer is a thin server-session adapter; it has no local learning
+model fallback. The root `trainer-policy/` package is a reviewer representation,
+not a serving dependency.
+
+## Local state reset
+
+The default local database is `services/api/cortex.db`. Stop local processes
+before removing that file and its `-wal`/`-shm` companions. This destroys local
+development accounts and sessions only; never apply the procedure to a
+production database.
+
+## Deployments
+
+`main` is the release branch. Deploy only from a clean checkout whose `HEAD`
+exactly matches `origin/main`:
 
 ```bash
 bash cortex_web/deploy/scripts/deploy_app.sh
 ```
 
-That rsyncs your working tree to the box, rebuilds the SPA on-box, restarts the
-uvicorn service, and **gates on `GET /api/health?deep=1`** — a bad boot (e.g.
-DB unreachable) aborts the deploy with a non-zero exit instead of a false green
-check. The bundle on the box is preserved (rsync's `--delete` is scoped to skip
-`apps/web/public/bundle/`).
-
-If you DON'T have SSH access yet — open a PR, ping the maintainer, they deploy.
-
-## Where things live
-
-```
-cortex_web/
-  apps/web/
-    engine/       The adaptive engine — particle filter, Φ/logΦ numerics,
-                  AD6 stopping, item selection. Drift-guarded against the
-                  Python reference (engine/core_mcmc.py up the repo).
-    trainer/      Thin browser adapter and shared types for the server trainer.
-    src/          React SPA: App.tsx flow state machine, components/*,
-                  api.ts (backend client), transport.ts (retry/outbox).
-    ui/theme.ts   Single source of truth for colors, fonts, geometry.
-    scripts/      prepare_web_bundle.py (h5 → bundle), dev.sh, run_local.sh.
-    public/bundle/  Gitignored. EEG payload; drop the v1.5-k7 tree in here.
-  services/api/   FastAPI: auth (PBKDF2 + HS256 JWT), routers/*, db.py
-                  (SQLite dev / pooled Postgres prod), admin CLI.
-  research/       Offline gold ETL + de-identified export (ilae-export).
-  deploy/         systemd units, Caddyfile.template, provision.sh,
-                  deploy_app.sh, backup_to_box.sh, deploy README.
-```
-
-## When the local DB needs resetting
-
-The local SQLite lives at `services/api/cortex.db`. Wipe and restart fresh:
-
-```bash
-rm -f services/api/cortex.db services/api/cortex.db-wal services/api/cortex.db-shm
-apps/web/scripts/dev.sh
-```
-
-Tables get recreated on next service start (`services/api/db.py`'s schema is
-idempotent on both SQLite and Postgres).
+The deployment script stages an immutable release, backs up persistent state,
+builds on the target, and activates only after health checks. See
+`deploy/README.md`; do not deploy from the dirty research workspace.

@@ -1,8 +1,9 @@
 # AD6 policy
 
 This project is the standalone Python implementation of the shipped AD6
-termination and verdict policy. AD6 remains the default CORTEX policy and the
-rollback path while PrecisionPolicy is integrated and evaluated.
+termination and verdict policy. Production now selects PrecisionPolicy for new
+certification sittings; AD6 remains the supported fail-closed rollback policy
+and the interpretation rule for sessions already stamped `ad6`.
 
 AD6 owns cut-aware PASS/FAIL/PENDING decisions and monotone verdict locks. The
 application-specific loader for the K=7 cut vector remains in the Python

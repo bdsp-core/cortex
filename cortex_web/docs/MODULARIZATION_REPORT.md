@@ -1,8 +1,9 @@
 # Repository hygiene and modularization report
 
-Date: 2026-07-19  
-Scope: developed in `cortex_web_optimized`, then promoted into canonical
-`cortex_web` on the clean release branch
+Date: 2026-07-19; current-status clarification 2026-07-21
+Scope: developed in an isolated staging worktree, then promoted into canonical
+`cortex_web` on a clean release branch. The staging directory was disposable
+and is not part of the repository.
 
 This pass reorganized the isolated replacement candidate without changing the
 scientific policy, participant result, persistence meaning, or deployment
@@ -61,6 +62,12 @@ serial/helper result equality in real Chromium, the full participant UI path,
 the actual 35,193-item bank benchmark, production build/CSP verification, and
 dependency auditing. Exact counts and timings live in
 `WEB_WORKER_QUALIFICATION.md`.
+
+Subsequent native n-way performance work retained these boundaries while
+adding deterministic worker sharding, ranked speculation/preemption,
+load-guarding, and persistent MH-history caches. Those runtime details are
+owned by `WEB_WORKER_ARCHITECTURE.md`; this report remains the modularization
+record rather than a second architecture specification.
 
 ## Deliberate stopping point
 

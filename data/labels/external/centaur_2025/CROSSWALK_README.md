@@ -1,36 +1,55 @@
-# Centaur ICU EEG annotation search results
+# Centaur case and rater crosswalk provenance
 
-Source found in Box:
+This directory contains the publishable mapping products used to ingest the
+2025 Centaur/DiagnosUs IED and IIIC contests. Private Box locations, raw export
+filenames, survey identities, and operator-specific paths are intentionally not
+documented here.
 
-`box:Brandon - PHI/0_People/Chenxi Sun’s files/Home/File transfer/Centaur_2025April`
+## Case mapping
 
-Primary files:
+Centaur reads are keyed by a source `Case ID`/event image. Source task lookup
+tables map the normalized event image to its original image and source/gold
+label. `case_id_to_seg_id.csv` then maps both contests into the unified segment
+namespace:
 
-- `Reads for Brief sharp events classification in EEG 2025.10.07_22.37.41.174816.csv`
-- `Reads for Harmful brain activity classification 2025.10.07_22.37.56.912550.csv`
-- `task1/task1_labels_ided.xlsx`
-- `task2/task2_labels_ided.xlsx`
+- task 5290 IED: unified segment IDs 89201–94200;
+- task 5291 IIIC: unified segment IDs 84555–89200.
 
-Mapping method:
+`case_id_to_seg_id.csv` contains 10,000 mappings plus its header.
+`task1_case_source_map.csv`, `task2_case_source_map.csv`, and
+`centaur_segment_map.csv` retain the source-side provenance needed to audit the
+join.
 
-- Centaur read exports contain per-user labels keyed by `Origin`.
-- `Origin` is normalized to the basename, for example `task2_images_v3/task2_event4958.png` becomes `task2_event4958.png`.
-- The normalized origin is joined to `task*_labels_ided.xlsx` column `lut1`.
-- The lookup sheets provide:
-  - `lut1`: Centaur event image
-  - `lut2`: original/source image identifier
-  - `lut3`: source path used when constructing the task
-  - `lut4`: source/gold label
+## Rater mapping
 
-Local outputs:
+Centaur user IDs belong to a source-specific namespace. They are joined to the
+unified corpus only through the governed local `user_id_to_rater_id.csv`
+crosswalk, which is not distributed in a fresh source clone;
+numeric coincidence with another dataset is never accepted as identity
+evidence. Missing or ambiguous person-level mappings remain distinct
+source-scoped identities.
 
-- `task1_brief_sharp_events_centaur_reads_joined_to_source.csv`
-- `task1_brief_sharp_events_case_source_map.csv`
-- `task2_harmful_brain_activity_centaur_reads_joined_to_source.csv`
-- `task2_harmful_brain_activity_case_source_map.csv`
-- `centaur_search_summary.json`
+The crosswalk is a governed identity artifact. Review it separately before a
+public release even when it contains only numeric identifiers.
 
-Join validation:
+## Ingested results
 
-- Task 1: 167,507 Centaur reads, 5,000 cases, 644 users, 0 missing source mappings.
-- Task 2: 128,872 Centaur reads, 5,000 cases, 736 users, 0 missing source mappings.
+The current unified `labels.csv` contains:
+
+| Source dataset | Reads |
+|---|---:|
+| `centaur_2025_ied` | 167,503 |
+| `centaur_2025_iiic` | 128,872 |
+| `centaur_iiic_expert` | 20,000 |
+
+The IED vocabulary is normalized according to the source registry, with `ied`
+used as the positive spike decision and non-IED source classes retained in
+provenance. The IIIC expert panel retains its native source labels before the
+deployed mapping to six reporting classes.
+
+## Validation requirements
+
+A rebuild must fail on duplicate case mappings, missing source cases,
+conflicting segment assignments, ambiguous rater mappings, foreign-key
+failures, or an unexpected read count. Generated replacements require a new
+hash/provenance record; never hand-edit an identifier to make a join pass.

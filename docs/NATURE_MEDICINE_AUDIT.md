@@ -1,5 +1,11 @@
 # Nature Medicine Readiness Audit — Multi-rater CORTEX system
 
+> Historical audit snapshot. Findings and test counts below describe the
+> 2026-05-28 repository and remain useful scientific review evidence; they are
+> not current runtime or release instructions. Current entry points are listed
+> in `docs/README.md`, and resolved/open dispositions belong in
+> `docs/OPEN_DECISIONS.md`.
+
 **Date:** 2026-05-28
 **Scope:** end-to-end audit of `ilae-skill-certification-test-multi` at v1.0.0-rc1
 candidate, targeting **Nature Medicine** submission for the CORTEX rater-certification
@@ -82,7 +88,7 @@ Convergent across all five PhD audits. Cited with file:line where it lives.
 
 - **Single-source likelihood (D2 invariant).** `P(y=1 | c, σ, θ, λ) = λ + (1 − 2λ) · Φ((c/1.7 − θ)/σ)` is defined exactly once at `pipeline/reference_calibration/fit_sdt_per_domain.py:55` and consumed bit-equivalently by the Mode-A SMC engine (`engine/core.py:21, 93-112`), the Mode-B engine (`engine/engine_mode_b.py`), the Laplace+EKF deployment runtime (`deployment/simulate_test.py:22-40`), and the joint hierarchical fit (`pipeline/joint_calibration/fit_joint_iiic.py:89`). The runtime assertion at `pipeline/run_unified_calibration.py:201` ensures the single source survives any future edit. This is genuinely rare and reviewers will appreciate it.
 
-- **Numerical-stability hygiene** (`engine/core.py:93-112`). `scipy.special.log_ndtr` + `scipy.special.logsumexp` everywhere a probit log-likelihood is consumed, instead of the seductive `np.clip(norm.cdf(z), 1e-9, 1-1e-9)`. The CLAUDE.md "what NOT to do" section explicitly bans the clipped form because it collapses to 1.0 at |z| ≳ 6 and biases the posteriors of confident raters. This is the right call and the kind of correctness gate Nature Medicine reviewers grade highly.
+- **Numerical-stability hygiene** (`engine/core.py:93-112`). `scipy.special.log_ndtr` + `scipy.special.logsumexp` everywhere a probit log-likelihood is consumed, instead of the seductive `np.clip(norm.cdf(z), 1e-9, 1-1e-9)`. The invariant audit explicitly rejects the clipped form because it collapses to 1.0 at |z| ≳ 6 and biases the posteriors of confident raters. This is the right call and the kind of correctness gate Nature Medicine reviewers grade highly.
 
 - **Byte-md5 reference-fitter pinning.** Three calibration scripts are carried verbatim from the reference paper with md5 drift-guard tests:
   - `fit_sdt_per_domain.py` ≡ `6b90d59dcd0aaa878f9a52802254044b` (`tests/test_phase3_calibration.py:79`, `tests/test_phase6_invariants.py:67`)
@@ -95,7 +101,7 @@ Convergent across all five PhD audits. Cited with file:line where it lives.
 
 - **BLAS single-thread bit-exactness.** `OPENBLAS_NUM_THREADS=MKL_NUM_THREADS=VECLIB_MAXIMUM_THREADS=NUMEXPR_NUM_THREADS=OMP_NUM_THREADS=1` set in `tests/conftest.py:22-25` *before* numpy imports; runtime parity in `scripts/_parallel.configure_blas_single_thread()`; verified by `tests/test_parallel_determinism.py:89-103` (parallel == serial bitwise on a seeded 64×64 eigvalsh/solve workload). Rare in clinical-AI papers.
 
-- **JAX/calibration isolation.** Phase-3.5's NumPyro/JAX path is calibration-stage-only — `engine/core_mcmc.py` runtime never imports JAX. Deliberate isolation because XLA uses internal threading that would break the BLAS contract if it crossed module boundaries. (CLAUDE.md.)
+- **JAX/calibration isolation.** Phase-3.5's NumPyro/JAX path is calibration-stage-only — `engine/core_mcmc.py` runtime never imports JAX. Deliberate isolation because XLA uses internal threading that would break the BLAS contract if it crossed module boundaries. See `docs/INVARIANT_AUDIT.md`.
 
 - **K-agnostic engine.** The engine derives `K, DIM, TASKS` from the Σ slot-name index rather than hard-coded constants (`tests/test_phase4_port_fidelity.py:80-100`), with a K=7 SBC mean-rank test (`tests/test_phase7_k7_validation.py:108-139`) and K=7 90/95 % CI empirical coverage > 0.7 (`tests/test_phase7_k7_validation.py:142-186`).
 
@@ -113,7 +119,7 @@ Convergent across all five PhD audits. Cited with file:line where it lives.
 
 - **Honest D7 reporting** (`calibration/CALIBRATION_PROVENANCE.md:259-279`). The Centaur n=4 expert-panel reproduction failed point-equivalence on 4/6 IIIC tasks; instead of spinning, the docs re-scoped D7 to "consistency / direction check" with the systematic gold > CV ℓ\* shift documented and Spearman ρ reported. Nature Medicine reviewers reward this kind of disclosure.
 
-- **D1 two-engine separation is hard-walled.** `engine/` and `deployment/` never cross-import; the deliberate sharing point is the likelihood definition and the data layer. CLAUDE.md "what NOT to do" enforces.
+- **D1 two-engine separation is hard-walled.** `engine/` and `deployment/` never cross-import; the deliberate sharing point is the likelihood definition and the data layer. The boundary is recorded in `docs/INVARIANT_AUDIT.md`.
 
 ### 2.3 The D6 finding is itself publishable
 
@@ -265,8 +271,8 @@ Public-shippable derived per-segment signal banks (s_probit, frac_yes, integer c
 
 These are the **public reproducibility surface**: aggregate per-segment
 s_probit + integer case_keys + frac_yes, no raw EEG (D9 enforced). Total ~168 KB.
-The anonymizer spec is at `data/SENSITIVE.md:170-194` — invoked at post-acceptance
-public-fork time.
+The contemporaneous private anonymizer specification (not distributed) was
+invoked at post-acceptance public-fork time.
 
 ### 3.7 Pipeline provenance map
 
@@ -606,7 +612,7 @@ These are bounding the manuscript's claim space. They cannot be closed by code; 
 
 **Unique finding:** EEG Gap 1.
 
-Every label stream is from a tightly-coupled MGH/BIDMC/Harvard-affiliated network: SN1 + Bonobo + SpikeEd are MGH-PI-curated; SPARCNET 50K is the Hong/Jing SPARCNET consortium (MGH-BIDMC-Yale core); pd_rda_profiler is internal; Centaur 2025 is the same lab's spinoff/contest platform; Kong 2025 is the same author group. IRBs (`data/SENSITIVE.md:14-18`): BIDMC 2016P000058 and MGH 2013P001024 — both Harvard.
+Every label stream is from a tightly-coupled MGH/BIDMC/Harvard-affiliated network: SN1 + Bonobo + SpikeEd are MGH-PI-curated; SPARCNET 50K is the Hong/Jing SPARCNET consortium (MGH-BIDMC-Yale core); pd_rda_profiler is internal; Centaur 2025 is the same lab's spinoff/contest platform; Kong 2025 is the same author group. The contemporaneous private governance record associated the sources with BIDMC and MGH protocols; that record is not distributed in this repository.
 
 **Implication.** Every Σ_l, every ℓ\*, every σ\* in the prior is a Boston-network estimate. Nature Medicine reviewer 2: "show that ℓ\* on a clean external site replicates the same PASS/FAIL boundary."
 
@@ -896,20 +902,20 @@ TRIPOD agent's analysis.
    D1 two-engine architecture shares the single likelihood definition; differ only in inference machinery. Phase 4.6-C's "+0.0145 pass-share-of-decisive leniency shift" is the quantified, signed-off characteristic.
 
 10. **"Code + data availability is opaque."**
-    Code = post-acceptance public fork after anonymizer (`data/SENSITIVE.md:170-194`). Data = `data/curated_banks/*.json` aggregate signals (no raw EEG; D9 enforced). Rater identities replaced with `rater_<sha256[:12]>`. All integer-keyed result CSVs ship as-is.
+    Code = post-acceptance public fork after the governed anonymization step. Data = `data/curated_banks/*.json` aggregate signals (no raw EEG; D9 enforced). Rater identities replaced with `rater_<sha256[:12]>`. All integer-keyed result CSVs ship as-is.
 
 ---
 
 ## 12. Cross-document links
 
 - `data/DATA_PROVENANCE.md` — corpus derivation chain.
-- `docs/OPEN_DECISIONS.md` — Phase-8 acceptance review register. **Should be updated** with the Nature Medicine deltas identified here (planned in next task).
+- `docs/OPEN_DECISIONS.md` — current acceptance-review register carrying the open and resolved dispositions raised by this audit.
 - `docs/INVARIANT_AUDIT.md` — Phase-6 5-PASS / 4-deviation invariants.
 - `docs/PHASE7_REPLAY_HEADLINE.md` — D6 finding; lines 209–212 explicitly defer the formal-test layer (T1.5 closes).
 - `docs/PHASE7_REPLAY_DESIGN.md` — replay harness design; cohort definitions.
 - `docs/PHASE7_CLOSEOUT.md:243–271` — Phase-7 acknowledgement that pre-registration is post-hoc (T1.9 closes).
 - `calibration/CALIBRATION_PROVENANCE.md` — D7 honest n=4 re-scoping.
-- `data/SENSITIVE.md` — PHI governance + anonymizer spec.
+- Private governance record — PHI governance + anonymizer specification (not distributed).
 - `data/engine_inputs/README.md` + `MANIFEST.json` — Phase-5 D3 anchor.
-- `CLAUDE.md` — D1–D9 reviewer-grade context.
+- `docs/INVARIANT_AUDIT.md` — reviewer-facing invariant context.
 - `README.md` — user-facing entry-point usage.

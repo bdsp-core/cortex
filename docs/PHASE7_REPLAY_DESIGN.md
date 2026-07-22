@@ -1,6 +1,9 @@
 # Phase 7 sub-step 3 — D6 real-rater replay harness: design audit
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` D6 + §"Phase 7" sub-step 3, this is
+> Historical design record. The completed replay disposition is summarized in
+> `PHASE7_REPLAY_HEADLINE.md` and `PHASE7_CLOSEOUT.md`.
+
+Per decision D6 and Phase-7 sub-step 3 of the contemporaneous private merge plan, this is
 the **v1.0 blocker** — the harness must drive both the deployment
 engine (`simulate_test.py`) and the Mode-A engine (`core_mcmc.py`)
 with held-out *real* rater response sequences. User-locked decisions

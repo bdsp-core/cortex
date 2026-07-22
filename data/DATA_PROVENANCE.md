@@ -1,8 +1,8 @@
 # Data Provenance — unified repo
 
-**Phase 1 complete: 2026-05-18.** Authoritative record of the data corpus,
-its derivation chain, and the six integrity remediations. Verified against
-actual files (not agent summaries / stale state-logs).
+**Opened 2026-05-18; refreshed 2026-07-21.** Authoritative narrative record of
+the data corpus, its derivation chain, integrity remediations, and later
+Centaur extensions. Release manifests and hashes remain the machine authority.
 
 ## 1. Canonical corpus = PI `data/labels/` (proven strict superset)
 
@@ -30,11 +30,10 @@ Post-gold-ingest canonical table sizes (data rows):
 ```
 raw annotations (SN1_combined_v2.h5 [EXTERNAL, PHI, never vendored - D9]
                  + sparcnet50K + pd-rda-profiler + Centaur2025 + Kong2025)
-  -> build_unified_labels.py  -> labels/segments/raters/datasets.csv
-        (base build is NOT re-runnable here: needs the external PHI h5,
-         the absent pd-rda-profiler repo, and a hardcoded ROOT. PI's
-         ingest_*.py appended Centaur2025/Kong rows to the 4 tables.)
-  -> Phase-1 ingest_centaur_iiic_expert.py -> +20,000 gold rows
+  -> governed upstream corpus build -> labels/segments/raters/datasets.csv
+        (the original one-off builders are not distributed; rebuilding needs
+         controlled EEG/annotation snapshots and a new provenance manifest)
+  -> Centaur/Kong crowd ingests + Centaur IIIC expert panel
   -> Rasch main effects (reference fit_main_effects.py): per-case c_j +
      per-rater l_i on the LOGIT scale  ->  x(1/1.7) logit->probit bridge
   -> probit-lapse MLE (lambda=0.025 fixed): per-rater (sigma_hat, theta_hat)
@@ -44,8 +43,9 @@ raw annotations (SN1_combined_v2.h5 [EXTERNAL, PHI, never vendored - D9]
 
 Invariants to enforce downstream (reference ground truth): `LOGIT_TO_PROBIT
 = 1/1.7`; `lambda = 0.025`; sigma*/ell* on TRAIN pool only; expert split
-**70/30** (reference CLAUDE.md's "50/50" is STALE); the `EXPERTS` set is the
-authoritative expert membership (not `gold_standard_raters.yaml`).
+**70/30** (correcting an early merge-note claim of 50/50); canonical expertise
+and person grouping come from the governed rater table/crosswalk, never an
+unversioned hard-coded name set.
 
 ## 3. The six integrity remediations (as executed)
 
@@ -54,32 +54,31 @@ authoritative expert membership (not `gold_standard_raters.yaml`).
   pure function `build_segment_labels(labels_df, segments_df)` (zero logic
   drift) on the post-gold canonical tables -> 95,327 rows (one per
   segment), full original 33-column schema incl. `iiic_vote_other` (the
-  K=7 task). Script: `pipeline/regen_segment_labels.py`.
+  K=7 task). The one-off regeneration script is not distributed; the resulting
+  table must be governed by its release hash.
 - **R2 - consolidated/ NOT shipped.** It is a losslessly reconstructible,
   zero-consumer convenience view (no engine/deployment code reads it).
-  Canonical tier truth = `raters.csv.expertise_level`. The script is kept
-  for ad-hoc use only (`pipeline/consolidate_label_tiers.py`).
-- **R3 - Centaur double-count eliminated.** The original consolidate script
+  Canonical tier truth = `raters.csv.expertise_level`; no duplicate
+  consolidation builder is shipped.
+- **R3 - Centaur double-count eliminated.** The original private consolidate script
   unioned `labels.csv` (disjoint) raw Centaur (conservation hardwired to
   the pre-ingest corpus). PI's labels.csv *already* ingested Centaur 2025.
-  The carried script is R3-corrected to tier ONLY the canonical labels.csv;
-  raw Centaur stays provenance-only and is never re-unioned. Validated:
+  The corrected procedure tiers ONLY canonical `labels.csv`; raw Centaur stays
+  provenance-only and is never re-unioned. Validated:
   lossless round-trip on all 2,115,793 rows.
 - **R4 - legacy Sigma_l_fitted.npy archived.** The frozen 6x6 (15-rater
   era; max corr drift 0.715 vs current) moved to `archive/`. The engine
   migrates to PI's fitted 12x12->14x14 Sigma (deployment_prior /
   fits_hier); consistent with the methodology repo's own AUDIT.
-- **R5 - rater_id namespace pre-flight (findings recorded).** Gold ingest
+- **R5 - rater identity namespace pre-flight (findings recorded).** Gold ingest
   introduced **0** rater_id collisions (`97`, `99000001/2/3` each appear
   once). KNOWN, deferred to Phase 5: `engine_inputs/sdt_fits.csv`
-  `rater_id` is a domain-local index (42 ids 0,1,10...), NOT a PI
-  `raters.csv` rater_id - must join by `rater_name`, never numeric id.
-  `cross_domain_rater_matrix.csv` is name-keyed; 4/29 names need crosswalk
-  resolution against PI `canonical_name` (`Hiba Haider`->`Hiba Arif`
-  [documented marriage name change], `Osman Gamaleldin`->`Gamal Osman`,
-  `Zubeda Karim`->`Zubeda Sheikh`, `Aaron Struck`). Phase 5 regenerates
-  engine_inputs from the PI corpus, resolving identities by construction;
-  a Phase-1 test asserts the gold-ingest collision-freeness now.
+  `rater_id` is a domain-local index, NOT automatically a canonical
+  `raters.csv` identity. Current reconciliation uses the approved
+  `(source_namespace, source_rater_id)` crosswalk. Missing, ambiguous, or
+  conflicting mappings fail; unlinked people remain distinct source-scoped
+  identities. Earlier name-based examples are historical evidence only and
+  are not an authorized join method.
 - **R6 - Full-7 / K=7 (data side).** The real 7th task is the SPARCNET
   `other`/IIC class, present in canonical `labels.csv` as
   `pattern_class=='other'` and (post-ingest) in the gold panel. PI's
@@ -88,9 +87,10 @@ authoritative expert membership (not `gold_standard_raters.yaml`).
 
 ## 4. Centaur-IIIC gold panel ingest (Phase-1 decision)
 
-The 4-expert gold panel (`centaur_iiic_expert_labels.xlsx`, 5000 cases x
-{mbw,cal,matt,tianyu}) existed ONLY in MINE's raw files (absent from PI's
-labels.csv) and is the Paper-1 Centaur-IIIC validation reference.
+The four-expert gold panel (`centaur_iiic_expert_labels.xlsx`, 5,000 cases)
+was absent from the original canonical `labels.csv` and is the Paper-1
+Centaur-IIIC validation reference. Expert identities are intentionally omitted
+from the shareable narrative.
 
 - **Join (asserted, not assumed):** `case_id` -> `external/centaur_2025/
   case_id_to_seg_id.csv` -> `seg_id`; all 5000/5000 cases map; every seg_id
@@ -103,11 +103,11 @@ labels.csv) and is the Paper-1 Centaur-IIIC validation reference.
   **Native 7-class is losslessly recoverable** from the raw xlsx kept
   verbatim under `data/labels/external/centaur_iiic_goldpanel_raw/`
   (Paper-2 / native-7).
-- **rater_ids:** mbw -> existing canonical `97` (M. Brandon Westover);
-  cal/matt/tianyu -> new collision-free block `99000001/2/3`
-  (expertise_level=expert). source_dataset = `centaur_iiic_expert`.
-- **Method:** `pipeline/ingest_centaur_iiic_expert.py` - repo-relative
-  paths, idempotent (aborts if already ingested), APPEND-ONLY (the
+- **rater IDs:** resolved through the governed identity crosswalk into one
+  existing canonical expert and three collision-free source-scoped expert
+  records. `source_dataset = centaur_iiic_expert`.
+- **Method:** the governed one-off ingest used repo-relative paths and was
+  idempotent (aborts if already ingested), APPEND-ONLY (the
   2,095,793 prior labels rows are a byte-identical prefix; verified),
   reversible (`*.bak.*.csv`). Provenance sidecar:
   `external/centaur_iiic_goldpanel_raw/INGEST_PROVENANCE.json`.
@@ -117,9 +117,8 @@ labels.csv) and is the Paper-1 Centaur-IIIC validation reference.
 | item | from | unified location | role |
 |------|------|-------------------|------|
 | labels/segments/raters/datasets, fits*/, deployment_prior/, external/centaur_2025/ | PI | `data/...` | canonical |
-| SENSITIVE.md | MINE | `data/SENSITIVE.md` | PHI governance |
 | engine_inputs/ (4 files) | MINE | `data/engine_inputs/` | carried as-is; **Phase 5 regenerates from PI corpus** |
-| raw Centaur (novice/expert/survey/AUDIT) | MINE | `data/labels/external/centaur_iiic_goldpanel_raw/` | provenance only; never re-ingested |
+| raw Centaur expert source | private source | governed external snapshot | provenance only; never re-ingested |
 | Sigma_l_fitted.npy | MINE root | `archive/` | legacy/frozen (R4) |
 | 8 shared aux files (annotations.csv, channel_*.json, discharge_times.json, rda_wave_labels.json, raters_aliases_*, README.md) | byte-identical MINE==PI | `data/labels/` (PI copy) | unchanged |
 | consolidated/ | - | NOT shipped (R2) | reconstructible view |
@@ -213,3 +212,15 @@ gaps and three of six §5 (methodology) gaps:
 
 OPEN_DECISIONS items 6–15 carry the Nature Medicine deltas
 (`docs/OPEN_DECISIONS.md`).
+
+## 8. Current release reconciliation exceptions
+
+The committed `labels.csv` contains 167,503 `centaur_2025_ied` reads and
+128,872 `centaur_2025_iiic` reads, but the committed `datasets.csv` has not yet
+registered those two source namespaces. It therefore has five rows, not seven.
+
+The committed `segment_signals.csv` has 89,138 rows. The 5,000 IED segments
+have labels but do not yet have a committed fitted `s_mean_spike`/`s_sd_spike`
+extension. Any future extension must be reviewed and committed together with
+its governed inputs, validation report, hashes, registry rows, and exact
+reconciliation counts; a local or untracked fit is not part of this release.

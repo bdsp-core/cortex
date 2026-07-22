@@ -1,15 +1,13 @@
 # Open shipping decisions — v1.0 acceptance review
 
-Per `../UNIFIED_REPO_MERGE_PLAN.md` §"Phase 8" sub-4: the open
-shipping decisions are explicitly unresolved in the PI decks and are
-carried here as **a documented decision register** rather than
-silently locked in code. Each item records the engineering state,
-the scientific stake, the current working policy (where one exists),
-and what remains for v1.0 acceptance review to confirm.
+This is the documented decision register for unresolved scientific and
+publication questions. The original private merge plan is no longer
+distributed. Each item records the engineering state, scientific stake,
+current working policy where one exists, and the evidence still required.
 
-Date: 2026-05-20 (Phase 8 sub-8.2).
-Status: 5 open items — 1 working policy adopted, 1 resolved by
-Phase-7 evidence, 3 carry-as-open for acceptance review.
+Opened 2026-05-20; refreshed 2026-07-21. The summary table at the end is
+authoritative for current disposition; dated counts and version labels inside
+individual findings describe the audit that raised them.
 
 ## 1. Per-candidate overall verdict policy
 
@@ -155,7 +153,7 @@ may PASS on `ℓ` while still being clinically miscalibrated.
     `(t_k, ℓ_k)` for each task; the per-task `theta_k` posterior is
     available at session end but is not surfaced as a warning channel.
   * The reference repo's `T_TOL = 0.20` ≈ 9.3 pp (Phase-6 §8
-    notes the prior CLAUDE.md ±5 pp claim was wrong; corrected to
+    notes the prior contributor-note ±5 pp claim was wrong; corrected to
     9.3 pp).
 
 **For v1.0 acceptance review**: decide whether to (a) add a bias
@@ -228,7 +226,7 @@ manuscript acknowledgement, or (c) defer to Paper 2.
 
 The seven `ell_star_unified_v13` values in `calibration/cert_config.yaml:58-112`
 — the clinical decision boundary for every PASS/FAIL verdict — are not
-pinned numerically in any of the 282 tests. A hand-edit of the YAML would
+pinned numerically in the 282-test audit-era suite. A hand-edit of the YAML would
 pass CI silently.
 
 **For v1.0 acceptance review.** Add `test_v13_ell_star_pinned()` to
@@ -377,6 +375,38 @@ on the unified corpus; quote `worst_excess_bias` in Methods. (NATURE
 MEDICINE AUDIT T1.3; minutes of compute; no D-decision risk.) This is
 the single most likely reviewer-1-round ask.
 
+## 16. AD6 variance-contraction gate (gate-2) is non-operative
+
+**Status**: 🔴 OPEN — re-opens the deferred R\* recalibration (its premise is
+void). Surfaced by an isolated estimator audit on 2026-06-19; that disposable
+R&D directory is not part of the shareable repository, so the complete finding
+is preserved here.
+
+AD6's per-domain "relative info-gain" gate `R_k = 1 − Var_post(ℓ_k)/var_prior[k]
+≥ 0.30` (`scripts/cortex_policy.py:287`) takes `var_prior = diag(Corr_l) = 1.0`
+(`cortex_policy_k7.py:128`) — a **correlation** diagonal — while the particle ℓ_k
+live on the fitted **covariance** scale `diag(Σ_l)=[.498,.838,1.426,1.696,1.811,
+2.112,1.632]`. The threshold `(1−0.30)·1.0 = 0.70` sits **above 5 of 7 prior
+variances**, so gate-2 never binds: in the baseline cohort **95/95 REFER are
+BORDERLINE, 0 UNINFORMATIVE** → AD6 has effectively been `n_min ∧ π-escape` all
+along (the R\* gate is structurally absent — preserving today's spike permissiveness
+on the Σ scale would require R\* ≤ 0).
+
+**Investigation**: correcting the reference to `diag(Σ_l)` at the shipped R\*=0.30
+is **confounded** (scale and operating point change inseparably; spike stricter,
+high-variance IIIC looser) and shows **no benefit** (Δhw < 0.0003, REFER reshuffled)
+with a small non-significant **adverse** clear-case false-FAIL lean. Shipping the
+reference fix *alone* is the worst option. No shipped verdict changes (gate inert);
+verdicts kept byte-identical.
+
+**For v1.0 acceptance review.** Bundle the reference fix (`var_prior → diag(Σ_l)`)
+**with** R\* recalibration on the Σ scale into one pre-registered change; **trigger**
+= a drift-guard pinning `REFER_UNINFORMATIVE == 0` going red (i.e. the day a cohort /
+recalibration / real-rater replay makes gate-2 bind). Defer the *tuning*, not the
+*decision to schedule it*. Inertness is **cohort-conditional** (binds if Var_post
+stays above `(1−R*)·var_prior` for any resolved domain — plausible under
+wider-variance/real raters); keep gate-2 (UNINFORMATIVE is a real verdict class).
+
 ## Decision tracking
 
 | # | Decision | Status | Owner | Target |
@@ -396,19 +426,12 @@ the single most likely reviewer-1-round ask.
 | **13** | **Multiple-testing burden** | 🔴 Open (doc-only close) | NatMed audit (2026-05-28) | acceptance |
 | **14** | **Pre-registration retroactive** | 🔴 Open (OSF retrospective + CORTEX prospective) | NatMed audit (2026-05-28) | acceptance |
 | **15** | **Lapse-sensitivity sweep never run on unified corpus** | 🔴 Open (trivial close) | NatMed audit (2026-05-28) | acceptance |
+| **16** | **AD6 gate-2 non-operative (var_prior corr-vs-cov scale)** | 🔴 Open (re-opens deferred R\* recalib) | estimator audit (2026-06-19) | acceptance |
 
-## Relation to the merge plan
+## Register provenance
 
-Per `../UNIFIED_REPO_MERGE_PLAN.md` §"Phase 8" sub-4:
-
-> Carry the **open shipping decisions** into an issue tracker /
-> `docs/OPEN_DECISIONS.md` (these are explicitly unresolved in PI
-> decks): per-candidate overall verdict policy (spike-only vs
-> spike+≥3-IIIC vs full-6); real-rater replay (vs Bernoulli sim);
-> ℓ\* reproducibility on an independent panel; bias-warning channel
-> (`|t_k|>tol`); split-half reliability + external-cohort validation.
-
-This document is that tracker. The five items above match the five
-in the plan; the working policy for #1 was added at this Phase-8
-sub-step (user scope 2026-05-20), and #2 is recorded as resolved
-by Phase-7 evidence.
+The register began with five merge-time shipping questions: candidate roll-up,
+real-rater replay, independent-panel cut reproducibility, a bias-warning
+channel, and split-half/external-cohort reliability. Later audits extended it
+without silently rewriting the earlier decisions. Git history preserves the
+private planning wording; this file is the maintained public record.

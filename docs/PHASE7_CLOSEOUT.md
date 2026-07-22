@@ -1,7 +1,10 @@
 # Phase 7 — Close-out + gate (sub-step 5)
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7 — Validation re-run (the
-scientific gate; incl. D6 replay)" sub-5:
+> Historical validation snapshot. Counts, paths, and “next” sections below
+> describe the 2026-05-19 gate, not the current web release procedure.
+
+Per sub-step 5 of the contemporaneous private merge plan's Phase-7 scientific
+validation gate:
 
 > **Gate:** coverage within target band; real-rater replay OC computed
 > and within pre-registered bounds; no regression vs your last
@@ -313,11 +316,11 @@ to Phase 8 or post-ship:
 
 ## 8. Next: Phase 8 — Shippability
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 8":
+Per the contemporaneous private merge plan's Phase 8:
 
-  1. Merge `README.md` / `CLAUDE.md`; correct stale 50/50 + δ
+  1. Merge the contemporaneous repository guidance; correct stale 50/50 + δ
      statements; document the two-engine architecture (D1) and the
-     single data+calibration layer. (CLAUDE.md is currently a Phase-0
+     single data+calibration layer. (The repository guidance was then a Phase-0
      placeholder; full assembly is a Phase-8 task per
      `docs/INVARIANT_AUDIT.md` Phase-6 sign-off note.)
   2. `environment.yml` / `requirements.txt` = union, pinned; test

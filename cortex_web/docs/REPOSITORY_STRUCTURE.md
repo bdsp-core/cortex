@@ -1,8 +1,8 @@
 # Repository structure and dependency rules
 
-This document defines ownership boundaries for the optimized CORTEX web
-candidate. Changes that cross a boundary must retain the tests at that boundary
-and document the reason in the pull request.
+This document defines ownership boundaries for the deployed CORTEX web
+application. Changes that cross a boundary must retain the tests at that
+boundary and document the reason in the pull request.
 
 ## Runtime directories
 
@@ -13,11 +13,11 @@ and document the reason in the pull request.
 | `apps/web/src/api/` | authentication-aware transport and domain API clients | transport primitives only; feature code consumes the compatibility facade |
 | `apps/web/src/shared/` | reusable browser infrastructure | no feature-specific views |
 | `apps/web/src/components/` | compatibility entry points and genuinely shared components | features and shared infrastructure |
-| `apps/web/trainer/` | browser training algorithm | trainer modules and explicit API contracts; never certification-policy internals |
+| `apps/web/trainer/` | thin browser trainer adapter | authenticated server-session contracts; never a local learning-model fallback |
 | `services/api/routers/` | authenticated HTTP boundary | application services and repositories |
 | `services/api/persistence/` | additive schema declarations and migration registry | database-neutral schema metadata only |
 | `services/api/` | API services, persistence, security, and configuration | no browser implementation imports |
-| `learning-engine-cleaned/` | vendored server training package | its own package and adapter tests |
+| `learning-engine-cleaned/` | runtime-authoritative server training package | its own package and adapter tests |
 
 `research/` is non-serving analysis code. `deploy/` contains operational
 assets only. Neither may become an implicit runtime dependency of the browser.
@@ -61,8 +61,8 @@ are required:
 3. deterministic Precision and AD6 goldens;
 4. real-browser coordinator/helper parity and participant UI smoke;
 5. dependency audit;
-6. an empty tracked diff under the existing public `cortex_web` tree until the
-   canonical integration step is explicitly approved.
+6. release-candidate provenance from a clean commit, with no unrelated or
+   generated tracked diff.
 
 Production releases must also be clean, pushed `origin/main` commits. The
 deployment builds a versioned tree before changing the stable application path

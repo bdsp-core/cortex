@@ -1,4 +1,12 @@
-# Methods: the math behind the adaptive certification engine
+# Historical methods: Python certification-engine reference
+
+> **Status (2026-07-21): historical reference.** This document derives the
+> repository's Python SMC/reference implementations in `engine/` and
+> `deployment/`. Those modules are not the deployed application. The production
+> browser engine is under `cortex_web/apps/web/engine/`; its current runtime,
+> worker, stopping-policy, and qualification documentation starts at
+> `cortex_web/docs/README.md`. The mathematical response model remains useful,
+> but paths and runtime statements below describe the Python reference lineage.
 
 This document derives the statistical machinery of the ILAE skill
 certification system from first principles and ties every equation to the
@@ -16,9 +24,9 @@ below is in service of those two ideas.
 
 A note on honesty up front. Where the code deliberately departs from a
 textbook method, this document says so rather than borrowing the textbook's
-authority. The clearest example is the stopping rule: it is a posterior
+authority. The clearest example is the reference stopping rule: it is a posterior
 precision criterion, not a Wald sequential probability ratio test, and the
-engine source says as much at `engine/core_mcmc.py:40`. See the closing
+Python reference says as much at `engine/core_mcmc.py:40`. See the closing
 section "What this is not."
 
 ---

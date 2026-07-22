@@ -1,5 +1,11 @@
 # Phase-3 Calibration Provenance
 
+> Historical v12/Phase-3 calibration record. The numerical results remain
+> provenance, but name-based identity reconciliation below is superseded by the
+> approved `(source_namespace, source_rater_id)` crosswalk, and the deployed web
+> profile now uses its frozen v15 inputs. Current policy ownership is documented
+> in `../POLICY_LAYOUT.md`.
+
 Reference-faithful 7-task calibration pipeline on the unified corpus.
 **Methodology is verbatim.** The reference scripts implement a published
 Nature-grade methodology; they were carried BYTE-FOR-BYTE and never edited.
@@ -165,42 +171,20 @@ preserved as `sdt_fits.legacy_oldcorpus.csv`. Spike fits written to
 
 ---
 
-## 5. R5 name reconciliation (Q2 candidate pool, all 29 resolved)
+## 5. Historical R5 reconciliation (superseded identity method)
 
-The Q2-locked candidate pool (`cross_domain_rater_matrix.csv`, 29 raters)
-was reconciled to unified `canonical_name` space so the carried
-`run_youden_calibration.py` (which keys candidates by
-`confirmed_sparcnet_name` against `sdt_fits.csv` `rater_name`
-= canonical_name) joins correctly. The reconciled matrix's
-`confirmed_sparcnet_name` AND `confirmed_canonical_name` are set to the
-resolved unified canonical name. Original preserved as
+At Phase 3 the 29-rater Q2-locked candidate pool was reconciled through
+canonical names and aliases so the carried calibration driver could execute.
+All 29 resolved and the original matrix was preserved as
 `cross_domain_rater_matrix.q2locked.csv`.
 
-Resolution order: (1) sparcnet name matches unified canonical directly;
-(2) via unified `raters.csv` alias on sparcnet name; (3) via
-`name_crosswalk_audit_v3.0.csv` sparcnet→canonical then unified; (4)
-matrix canonical direct/alias.
-
-**Result: 29 / 29 resolved, 0 unresolved, all 29 present in the new
-sdt_fits.csv.** 25 matched `confirmed_sparcnet_name` directly. The 4
-known name fixes (applied via unified `raters.csv` aliases =
-`sn_via_unified_alias`):
-
-| matrix sparcnet | matrix canonical | → resolved unified canonical |
-|---|---|---|
-| `Aaron Struck` | `Aaron Struck` | **`Aaron F. Struck`** |
-| `Hiba Arif` | `Hiba Haider` | **`Hiba A. Haider`** |
-| `Jon Halford` | `Jonathan J. Halford` | **`Jonathan J. Halford`** |
-| `Taraschenko Olha` | `Olga Taraschenko` | **`Olga Taraschenko`** |
-
-(The Phase-3 brief named `"Hiba Haider"→"Hiba Arif"`,
-`"Osman Gamaleldin"→"Gamal Osman"`, `"Zubeda Karim"→"Zubeda Sheikh"`,
-`"Aaron Struck"→"Aaron F. Struck"` as the 4/29 mismatches vs unified
-canonical. In the actual matrix, `Osman Gamaleldin`/`Zubeda Karim` carry
-`confirmed_sparcnet_name` = `Gamal Osman`/`Zubeda Sheikh`, which already
-match unified canonical directly — so the operative join key needing a
-fix is the sparcnet name, and the 4 requiring alias reconciliation are
-the ones tabled above. All resolve; nothing dropped.)
+That procedure is retained only as historical provenance. Current
+person/session grouping must join through the approved
+`(source_namespace, source_rater_id)` crosswalk. Names and coincident numeric
+IDs are not authorized identity keys. Missing, ambiguous, or conflicting
+mappings fail loudly, and unlinked people remain distinct source-scoped
+identities. The clinician-name examples formerly embedded here were removed
+from the shareable narrative.
 
 ---
 
@@ -246,9 +230,9 @@ Centaur-IED IED-vs-benign fold; §1).
 
 ### D7 — independent Centaur 4-expert gold panel (re-scoped, honest)
 
-Held-out IIIC gold = `source_dataset=='centaur_iiic_expert'`, rater_ids
-`{97, 99000001, 99000002, 99000003}` (`M. Brandon Westover` +
-`Centaur-IIIC gold expert: cal/matt/tianyu`).
+Held-out IIIC gold = `source_dataset=='centaur_iiic_expert'`, comprising four
+source-designated experts resolved through the governed identity crosswalk.
+Names and internal rater IDs are intentionally omitted here.
 
 **Decision 2026-05-18 (user): D7 is re-scoped as an honest
 consistency/direction check, NOT a tight point-reproduction claim** —
@@ -303,7 +287,7 @@ data-entry-point / reporting-scope only.
 
 ---
 
-## 8. cert_config v12
+## 8. Historical cert_config v12
 
 `calibration/cert_config.yaml` = a COPY of repo-root `cert_config.yaml`
 with `config_version` bumped 11→12, plus a new top-level

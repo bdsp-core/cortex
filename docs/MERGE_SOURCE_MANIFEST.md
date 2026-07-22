@@ -1,7 +1,11 @@
 # Merge Source Manifest — immutable provenance record
 
+> Historical repository-assembly record. The private merge plan and source
+> sibling worktrees are not distributed; current ownership is indexed in this
+> directory's `README.md` and the repository-root `README.md`.
+
 **Created:** 2026-05-18 (Phase 0)
-**Plan:** `../UNIFIED_REPO_MERGE_PLAN.md` · decisions D1–D9, §0/§0.1
+**Original plan:** private/not distributed · decisions D1–D9, §0/§0.1
 **Why this file exists:** none of the source repos were git repositories, so
 there are no commit SHAs. Per D8 (squash to a clean root commit), this
 file-manifest + MD5 snapshot **is** the authoritative record of exactly what

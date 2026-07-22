@@ -1,5 +1,8 @@
 # Phase 4 — Deployment Integration: close-out & provenance
 
+> Historical Python deployment-reference record. The live product runtime is
+> `cortex_web/`; this document does not describe current production operations.
+
 Status: **Phase 4 COMPLETE** (4.1 → 4.7, all sub-steps gated +
 committed). This is the *documented attribution summary*
 (decision 2026-05-19): each deliberate change to the deployment runtime

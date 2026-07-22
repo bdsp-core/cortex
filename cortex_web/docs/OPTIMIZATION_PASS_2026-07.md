@@ -1,5 +1,12 @@
 # CORTEX web — efficiency & robustness pass (2026-07-07)
 
+> **Historical release record.** This report describes the July 7 optimization
+> baseline. Later production changes introduced the native n-way worker pool,
+> ranked speculation/preemption, worker calibration, load anti-ratchet, exact
+> categorical paths, persistent MH-history caching, and long-wait status UI.
+> See `WEB_WORKER_ARCHITECTURE.md` and `WEB_WORKER_QUALIFICATION.md` for the
+> current runtime and evidence.
+
 A gated, regression-tested pass over the production `cortex_web` app
 (app.cortexeeg.org) for efficiency, robustness, and intuitive organization of
 the backend and frontend. Driven by a three-part audit (backend `services/api`,

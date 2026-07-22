@@ -1,5 +1,9 @@
 # Phase 9 close-out — K=7 unified ground-up rebuild + CORTEX v1.2.0
 
+> Historical K=7 rebuild record. Sections about the native desktop application,
+> packaging, and future deployment are obsolete because `cortex_web/` is now
+> the sole product surface.
+
 Date: 2026-05-29 · Tag: `cortex-v1.2.0` (internal-test release)
 Author: Eli Keldsen · Lead: MBW (Brandon Westover)
 Status: **PHASE 9 BACKBONE COMPLETE.** All 6 layers shipped, 48/48 tests
@@ -455,7 +459,7 @@ Before scaling to cloud-hosted v2.0 public release:
 |---|---|
 | 48/48 Phase-9 tests pass | ✅ |
 | K=6 v13 → K=7 V_B ℓ\* drift documented (5/6 IIIC byte-stable; 2 changed with justification) | ✅ |
-| modular Bayesian inference framing locked in CLAUDE.md + this report | ✅ |
+| modular Bayesian inference framing locked in the contemporaneous repository guidance + this report | ✅ |
 | Internal-test cohort runs end-to-end with v1.2.0 bundle | ⏳ awaiting deployment |
 | Internal-tester N≥10 sessions complete; per-task verdict distributions sane | ⏳ awaiting deployment |
 | AD6 calibration sweep at ALPHA=0.05 (production target) | ⏳ Sprint-2 |

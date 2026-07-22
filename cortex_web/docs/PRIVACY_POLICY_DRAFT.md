@@ -4,6 +4,9 @@
 > and approved by counsel admitted in the relevant jurisdiction(s) before it is
 > published or relied upon. Team-supplied details were filled in on 2026-06-18;
 > two items remain for counsel to confirm (see Part 1 §1.6 item 7).
+> The technical inventory is a 2026-06-18 snapshot and must be re-audited
+> against the deployed schema and authentication configuration before counsel
+> review or publication.
 
 ---
 

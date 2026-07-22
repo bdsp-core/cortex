@@ -1,5 +1,8 @@
 # Sim report — consecutive-same-domain cap (v1.3.5)
 
+> Historical AD6 simulation record. The result remains provenance for the
+> rollback policy, not a current production rollout instruction.
+
 ## Problem
 
 The adaptive selector pours every remaining question into the last unresolved

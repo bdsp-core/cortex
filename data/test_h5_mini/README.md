@@ -55,4 +55,7 @@ The full 100 IIIC + 100 spike test set (175 MB) is at
 
 Index at `s3://bdsp-opendata-credentialed/eeg-test/manifest.csv`.
 
-Built by [scripts/build_test_h5.py](../../scripts/build_test_h5.py).
+The original one-off extraction script is not part of the shareable
+repository. Treat these files as frozen test fixtures; reconstructing them
+requires authorized access to the governed full test set and a new,
+provenance-recorded extraction rather than an undocumented local script.

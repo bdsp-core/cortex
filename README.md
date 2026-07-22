@@ -5,9 +5,15 @@
 
 The current Python stopping-policy layout is documented in
 [`POLICY_LAYOUT.md`](POLICY_LAYOUT.md). AD6 remains the default and rollback
-policy; the frozen cut-independent PrecisionPolicy is available through the
-local `precision_v1` integration flag. The deployed product surface is the
-TypeScript application under [`cortex_web/`](cortex_web/).
+policy in the local Python reference; production selects the frozen
+cut-independent PrecisionPolicy for new certification sittings and retains AD6
+as rollback. The deployed product surface is the TypeScript application under
+[`cortex_web/`](cortex_web/).
+
+For an authoritative map of current versus historical documentation, see
+[`docs/README.md`](docs/README.md). Dated phase and simulation reports preserve
+the evidence available at the time they were written; they are not current
+runtime instructions.
 
 Reading an electroencephalogram is a high stakes judgment call. Is this run
 of sharp waves a seizure or a benign rhythm? Two board certified
@@ -73,20 +79,20 @@ engines that never import each other, by deliberate design:
   to shrink total posterior variance the most. It stops when every task's
   95% AUROC interval is narrower than 0.05.
 
-- The **deployment engine** (`deployment/`) trades the cloud for a Gaussian
-  (Laplace) posterior updated online by an extended Kalman filter, so a
-  single session runs fast and the update is a transparent rank one
-  information step. It certifies a task PASS when the posterior puts 95% of
-  its mass above the cut score, FAIL when 95% falls below, and REFER when
-  the evidence never resolves.
+- The historical **Python deployment reference** (`deployment/`) trades the
+  cloud for a Gaussian (Laplace) posterior updated online by an extended
+  Kalman filter. It remains useful for scientific reproduction, but it is not
+  the live application runtime. Production certification runs the qualified
+  TypeScript particle engine in `cortex_web/apps/web/engine/`.
 
 The cut scores themselves are calibrated, not chosen by hand. They come from
 a leave one task out cross validated Youden procedure on fitted clinician
 skill, which is specifically designed so that the definition of "expert"
 cannot leak into the threshold it produces.
 
-**The full derivations live in [`docs/METHODS.md`](docs/METHODS.md)**, which
-walks from the response model through the particle filter, the
+**The historical Python derivations live in
+[`docs/METHODS.md`](docs/METHODS.md)**, which walks from the response model
+through the reference particle filter, the
 Metropolis-Hastings rejuvenation step, the A-optimal question selection, the
 Kalman update, and the calibration pipeline, with every equation pinned to
 the line of code that implements it.
@@ -139,50 +145,62 @@ the [`cortex_web` README](cortex_web/README.md).
 
 ## Quickstart
 
-Python 3.11 is required (see `.python-version`). The engine's bit exact
-reproducibility contract needs single thread BLAS at runtime;
-`conftest.py` sets `OPENBLAS_NUM_THREADS=1` and `MKL_NUM_THREADS=1`
-automatically for the test suite.
+Python 3.11 is required (see `.python-version`). The root package remains the
+historical research/reference install target:
 
 ```sh
 python -m venv .venv
-.venv/bin/pip install -e ".[test]"     # add ,calibration for the joint fits
-.venv/bin/pytest                        # 282 passed, 1 xfailed expected
+.venv/bin/pip install -e ".[test]"
+.venv/bin/pytest
 ```
 
-Three console entry points expose the pipeline end to end:
+The modular policy packages can also be tested independently:
 
-| CLI | Purpose |
-|---|---|
-| `ilae-deploy` | Clinical deployment pipeline: freeze the prior, simulate a session, plot the figures, at K = 7. |
-| `ilae-paper` | The Multi-AUROC Precision Protocol research runs (Mode-A). |
-| `ilae-calibrate` | Recompute the unified, non circular cross validated calibration on the corpus. |
+```sh
+(cd termination-policy && python -m pytest -q)
+(cd ad6-policy && python -m pytest -q)
+(cd precision-policy && python -m pytest -q)
+(cd trainer-policy && python -m pytest -q)
+```
+
+The canonical production-web setup and quality gate are documented in
+[`cortex_web/README.md`](cortex_web/README.md). Historical research checks and
+full-instrument tests require governed external EEG/reference fixtures and are
+not fresh-clone commands. Test counts are intentionally not hard-coded here
+because regression coverage changes.
 
 ## Repository map
 
 ```
 engine/        Research engine: joint SMC particle cloud + Metropolis-Hastings rejuvenation
-deployment/    Clinical runtime: Laplace posterior + extended Kalman filter (never imports engine/)
+deployment/    Historical Python deployment reference; not the live web runtime
 pipeline/      Data ingest, fitting, and the calibration orchestrator (reference + joint hierarchical)
-calibration/   Frozen production cut scores and their provenance
-trainer-policy/ Root-level Python representation of the deployed trainer algorithm
+calibration/   Frozen research/deployment-reference cuts and their provenance
+termination-policy/, ad6-policy/, precision-policy/  Standalone Python stopping policies
+trainer-policy/ Auditable Python representation of the deployed trainer algorithm
 cortex_web/    Canonical deployed web application, API, trainer, and operations
+cortex_web_python_reference/  Local scientific integration/reference workspace
 scripts/       Bank builders plus validation and experiment harnesses
-data/          The canonical corpus, the frozen deployment prior, and derived signal banks
-docs/          METHODS.md and the phase by phase scientific record
-tests/         The 282 test suite gating every invariant above
+data/          Corpus metadata, frozen reference inputs, and derived signal banks
+docs/          Current documentation index plus dated scientific records
+tests/         Root research/reference regression suite
 ```
 
 ## Data, ethics, and reproducibility
 
-This system is trained and calibrated on de-identified clinical EEG
-annotations from roughly 89,000 segment signals scored by 1,949 raters. That
-provenance carries obligations, and the repository takes them seriously.
+The committed label tables contain observations for 94,138 canonical segment
+IDs and 5,306 canonical or unresolved source-scoped rater identity rows;
+`segment_signals.csv` currently contains fitted signals for 89,138 of those
+segments. Those identity rows are not a claim of 5,306 uniquely resolved
+people. This provenance carries obligations, and the repository takes them
+seriously.
 
-- **IRB.** All annotation data are covered by IRB 2016P000058 (BIDMC) and
-  2013P001024 (MGH), under a waiver of consent for retrospective use. The
-  raw EEG source is never vendored into this repository; only derived per
-  segment signals are. See [`data/SENSITIVE.md`](data/SENSITIVE.md).
+- **IRB.** Annotation data are governed by IRB 2016P000058 (BIDMC) and
+  2013P001024 (MGH), under a waiver of consent for retrospective use. Raw EEG
+  banks, participant exports, credentials, and identity crosswalks must not be
+  included in a public source archive. See
+  [`data/DATA_PROVENANCE.md`](data/DATA_PROVENANCE.md) for the publishable
+  derivation record.
 - **Privacy.** The EEG is de-identified at source. The remaining sensitivity
   is the identities of the board certified clinicians who served as raters,
   which are hashed before any public distribution and never co-published
@@ -195,8 +213,9 @@ provenance carries obligations, and the repository takes them seriously.
 ## Status, license, and citation
 
 This is active research software accompanying a manuscript in preparation.
-The interfaces are stable enough to read and run, the science is gated by
-the test suite, and the calibration is frozen at its v13 production values.
+The canonical web runtime and its frozen PrecisionPolicy profile are gated by
+the web quality suite; older Python calibration and deployment records remain
+available for scientific reproduction.
 Released under [CC BY-NC 4.0](LICENSE.txt) (attribution, non commercial).
 
 Authors: **E. W. Keldsen**, **M. B. Westover**. Stanford University School
@@ -209,10 +228,12 @@ please cite the repository and the forthcoming manuscript.
 |---|---|
 | How does the math actually work? | [`docs/METHODS.md`](docs/METHODS.md) |
 | Is the engine calibrated and validated? | [`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) |
-| What is the deployment contract? | `deployment/deployment_config.yaml` + [`docs/DEPLOYMENT_INTEGRATION.md`](docs/DEPLOYMENT_INTEGRATION.md) |
+| What is the live deployment contract? | [`cortex_web/README.md`](cortex_web/README.md) + [`cortex_web/deploy/README.md`](cortex_web/deploy/README.md) |
+| What does the older Python deployment reference implement? | [`docs/DEPLOYMENT_INTEGRATION.md`](docs/DEPLOYMENT_INTEGRATION.md) |
 | How was the corpus built? | [`data/DATA_PROVENANCE.md`](data/DATA_PROVENANCE.md) |
 | What are the reference truth invariants? | [`docs/INVARIANT_AUDIT.md`](docs/INVARIANT_AUDIT.md) |
-| Reviewer grade architecture notes | [`CLAUDE.md`](CLAUDE.md) |
+| Which documentation is current? | [`docs/README.md`](docs/README.md) |
+| What are the production web boundaries? | [`cortex_web/docs/REPOSITORY_STRUCTURE.md`](cortex_web/docs/REPOSITORY_STRUCTURE.md) |
 | The full change history | [`CHANGELOG.md`](CHANGELOG.md) |
 | How does the live adaptive trainer work? | [`docs/LIVE_TRAINER.md`](docs/LIVE_TRAINER.md) |
 

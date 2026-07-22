@@ -1,10 +1,9 @@
 # The Learning Engine: a constant-free, population-learned protocol
 
 *Mathematical derivation for the abstractable learning engine (2026-07-11).
-Decisions D21+ in [DECISION_LOG.md](../DECISION_LOG.md); implementation gates
-G1–G6 at the end. Companion to
-[learning_with_feedback_design_note.tex](learning_with_feedback_design_note.tex)
-and the D8–D20 methodology round.*
+The original private decision log and TeX design memo are not distributed.
+Implementation gates G1–G6 are retained at the end, and this derivation plus
+the frozen artifact and executable tests form the shareable record.*
 
 ---
 
@@ -27,15 +26,14 @@ The single blessed constant is the design lapse $\lambda = 0.025$ (still
 rate, noise scale, calibration factor, and placement target — is learned from
 $\mathcal{R}$ or derived from $\mathcal{E}$.
 
-**Handoff from the testing algorithm.** The test hands the engine its full
-posterior $b_0(x_0)$ over the initial state $x_0 = (t_0, \log\sigma_0)$ *and*
-its raw response stream. The posterior is a sufficient summary under the
-shared observation model; the raw stream is retained because the engine's
-filter can re-consume it losslessly (answer *patterns* — streaks, error runs,
-response times — carry information the point summary discards, and the
-learned-dynamics layer can use them). In simulation the testing algorithm is
-mimicked by the measurement-only pre-test already built
-(`policy.run_pretest`), which produces exactly this object.
+**Handoff from the testing algorithm.** A session is initialized from either
+the test posterior $b_0(x_0)$ over $x_0 = (t_0, \log\sigma_0)$ or the raw
+response stream, never both because they encode the same evidence. The deployed
+web service uses raw-stream replay through the learning engine's observation
+model. Replay preserves response patterns and is observation-only because the
+test provides no feedback. Research simulations may instead supply a posterior
+summary when no raw stream is available; the XOR rule is enforced at the
+session boundary.
 
 ## 1. The generative model: a law of learning with learned shapes
 

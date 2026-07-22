@@ -52,12 +52,20 @@ redundant computation:
 - The manifest-expanded, signal-sorted full bank is cached once per session;
   the post-answer remaining-bank view is built once and shared by speculative
   branches.
-- The Web Worker computes the posterior-predicted answer branch first, yields
-  to accept the participant's answer, and skips the unused branch when the
-  answer is already available. The adopted branch still calls the same
-  `advanceCore`; inline/speculative trajectory identity remains a test gate.
+- Eligible native n-way sessions use a conservatively calibrated persistent
+  worker pool for deterministic screening, exact refinement, and MH-history
+  shards. Probability-ranked speculation is bounded, observed answers preempt
+  unused work, and only the actual response is adopted.
+- Worker-side categorical history is cached behind a versioned typed protocol;
+  cache changes preserve particle order and the exact likelihood result.
+- Runtime load evidence can reduce a pool only at a safe between-question
+  boundary. Repeated-maximum evidence and a cooldown prevent isolated browser
+  stalls from ratcheting a high-core session to serial execution.
+- During required long calculations the UI presents non-statistical trajectory
+  progress. Presentation timing never enters inference or policy state.
 
-These are scheduling and algebraic optimizations only. They do not change the
+These are scheduling, allocation, caching, and algebraic optimizations only.
+They do not change the
 particle count, candidate set, `n_subsample`, selection objective, stopping
 rule, intervals, cuts, or status semantics.
 

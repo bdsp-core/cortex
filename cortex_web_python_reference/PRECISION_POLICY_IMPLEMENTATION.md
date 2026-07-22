@@ -7,8 +7,10 @@ implemented in the standalone `../precision-policy/` package and connected to
 this Python reference through the existing policy seam. PrecisionPolicy
 development is closed. Its material extreme-skill tail undercoverage is an
 accepted, disclosed limitation and is not repaired or tuned here. AD6 remains
-the default and rollback policy in `../ad6-policy/`. Nothing in `cortex_web`
-has been modified or promoted.
+the local-reference default and supported rollback policy in
+`../ad6-policy/`. The matching TypeScript PrecisionPolicy is deployed for new
+production certification sittings; this Python directory is not imported by
+the live application.
 
 The prerequisite numerical profile corrections are included: full Python sessions use 1,200
 particles, `Corr_l` for skill, `Corr_t` for bias, and the v15 AD6 block. Invalid
@@ -105,5 +107,6 @@ point-centred stopping radius separately. The factory pins
 `precision_statistic="point_centered_radius"`, and the complete controller
 profile described in `../POLICY_LAYOUT.md`.
 
-Implementation is not production promotion. TypeScript porting, storage/UI
-migration, rollout, and production sign-off remain separately approved steps.
+The Python package remains a scientific/reference implementation. Production
+promotion occurred separately in `cortex_web`, whose TypeScript, storage, UI,
+rollout, and operations gates remain authoritative.

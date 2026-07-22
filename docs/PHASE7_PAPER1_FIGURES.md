@@ -1,6 +1,9 @@
 # Phase 7 sub-step 4 — Paper-1 figures regeneration at K=7
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-4: regenerate Paper-1
+> Historical validation snapshot. Test counts and subsequent-phase directions
+> below are retained as dated evidence, not current instructions.
+
+Per the contemporaneous private merge plan's Phase-7 sub-step 4: regenerate Paper-1
 figures + PI deployment figures at the production deployment dim K=7.
 User-locked scope (2026-05-20):
 
@@ -368,7 +371,7 @@ re-confirmed:
 
 ### Next: Phase 7 sub-7.5 — Phase-7 close-out + gate
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-5:
+Per the contemporaneous private merge plan's Phase-7 sub-step 5:
 
   - Document pre-registered tolerance for replay OC bounds (sub-7.3-C
     headline already records the finding; sub-7.5 confirms it's

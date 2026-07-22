@@ -1,5 +1,9 @@
 # AD6 — termination + verdict policy
 
+> Historical AD6 design record. AD6 remains a supported rollback/session
+> policy, but new production certification sittings use PrecisionPolicy. Current
+> policy ownership is documented in `../POLICY_LAYOUT.md`.
+
 The CORTEX live test's stopping and verdict logic. Authoritative
 specification lives in `scripts/cortex_policy.py`; this doc records the
 calibration choices and any deviations from the panel-derived defaults.

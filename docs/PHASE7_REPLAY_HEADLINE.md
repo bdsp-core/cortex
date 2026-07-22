@@ -1,6 +1,9 @@
 # Phase 7 sub-step 3-C — D6 real-rater replay HEADLINE
 
-The v1.0 blocker (D6). Per `UNIFIED_REPO_MERGE_PLAN.md`, this is
+> Historical scientific result from the 2026-05 Phase-7 gate. Its test counts
+> and “next” section are not current release instructions.
+
+The v1.0 blocker (D6). The contemporaneous private merge plan called this
 "the headline Nature-Medicine result". User-locked design (2026-
 05-19): Q1 = both engines (deployment + Mode-A); Q3 = strict-A
 constrained-bank replay; Q3-Bernoulli = fitted-θ paired comparator;

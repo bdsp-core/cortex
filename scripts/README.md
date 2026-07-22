@@ -1,13 +1,11 @@
-# scripts/ — validated validation & experiment harness (from the methodology repo)
+# scripts/ — research/reference validation and experiment harnesses
 
-Carried verbatim in Phase 2 so the methodology repo's test suite
-(`tests/test_parallel_determinism.py` and the Phase-7 validation drivers)
-runs unchanged. `_parallel.py` is the process-pool helper; `run_*.py` are
-the SBC / coverage / sparcnet-retest / gold-chain / phase1 / phase4
-drivers re-run in Phase 7.
+This directory supports the root Python research/reference stack; it is not
+imported by the canonical `cortex_web` runtime. `_parallel.py` is the
+process-pool helper, `run_*.py` contains the dated SBC/coverage/retest and
+simulation drivers, and the `cortex_*` modules support the local Python
+integration reference.
 
-NOTE: `build_unified_labels.py` and `consolidate_label_tiers.py` are
-**deliberately NOT here** — their canonical, Phase-1-corrected copies live
-in `pipeline/` (build_unified_labels.py path-patched; consolidate_label_tiers.py
-R3-corrected to avoid Centaur double-count). Do not re-introduce the
-methodology-repo originals here (divergent-copy hazard).
+Canonical corpus-building and tier-consolidation ownership remains in
+`pipeline/`. Do not recreate historical copies under `scripts/`; duplicate
+builders are a provenance and drift hazard.

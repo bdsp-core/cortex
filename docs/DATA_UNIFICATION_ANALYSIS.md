@@ -1,12 +1,19 @@
 # Data Unification Analysis — 3 IIIC Sources (3-agent debate + adjudication)
 
+> **Status (2026-07-21): historical decision record, not an active build
+> plan.** The proposed joint/unified calibration was not promoted. Production
+> continues to consume separately fitted `Corr_l` and `Corr_t` matrices. This
+> report is retained because it records why linked cross-source inference was
+> judged fragile; its proposed Phase 3.5 work and approval language below are
+> superseded.
+
 **Date:** 2026-05-18 · **Scope:** how to unify the 3 IIIC annotation sources
 (SPaRCNet consortium · Kong crowd · Centaur gold+novice) to maximize the
 statistical power of the Bayesian-hierarchical adaptive **skill (ℓ) + bias
 (t)** test. Method: 3 independent PhD-level analyses (Bayesian hierarchical
 inference · MCMC/computational · identifiability/Fisher-power) → neutral
-cross-rebuttal + adjudication. This is a decision-record; it amends the
-merge plan (proposed Phase 3.5 — pending user approval).
+cross-rebuttal + adjudication. This is the frozen decision record for a
+proposed Phase 3.5 that was ultimately not promoted.
 
 ## 1. Verified facts (adjudicator re-checked against the repo)
 

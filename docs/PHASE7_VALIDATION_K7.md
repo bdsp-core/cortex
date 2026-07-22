@@ -1,6 +1,9 @@
 # Phase 7 sub-step 1 — Phase-2 validation suite at K=7
 
-Per `UNIFIED_REPO_MERGE_PLAN.md` §"Phase 7" sub-step 1, scope α
+> Historical validation record. Later phase directions below were completed
+> and are preserved only to explain the evidence sequence.
+
+Per the contemporaneous private merge plan's Phase-7 sub-step 1, scope α
 (synthetic K=7 only, user-confirmed 2026-05-19): re-validate the
 engine soundness pins at the production deployment dim **K=7** =
 6 IIIC + `combined_spike` + `other`.

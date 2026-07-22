@@ -5,6 +5,12 @@ cleaned learning engine as the forward approach — one generative model,
 one belief, every decision (placement, pacing, stopping, readiness)
 derived from it, every number derived / population-estimated /
 field-supplied — over incremental patching of the incumbent trainer.
+
+Current status (2026-07-21): the server-side engine is the sole deployed
+trainer. The phase markers below preserve the adoption decision and validation
+record; they are not a second deployment checklist. Runtime ownership and
+focused verification commands are maintained in `../README.md` and
+`../../../docs/LIVE_TRAINER.md`.
 This document details what must be accomplished to (1) keep that
 cohesion intact, (2) measurably improve on the incumbent, (3) be
 acceptable to the current testing/learning implementation, and (4) stay

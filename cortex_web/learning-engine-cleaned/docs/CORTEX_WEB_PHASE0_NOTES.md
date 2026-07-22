@@ -1,16 +1,22 @@
 # Phase 0/1/2 drop notes: instrumentation, shadow, and the live engine trainer
 
+Historical record: these notes describe the staged rollout as it existed on
+2026-07-16. The server-side engine became the sole trainer on 2026-07-17; the
+incumbent browser-local trainer and rollout flag described below are retired.
+See `INTEGRATION_PLAN_MIXED_TASKS.md` for the current request path.
+
 2026-07-16. This note documents the Phase-0 (instrumentation), Phase-1
 (read-only shadow), and Phase-2 (server-side engine trainer) changes that
 put the learning engine into the web pipeline for real-human testing, per
 the adoption roadmap and handoff contract v1.1. Terminology is generic;
 code identifiers are quoted verbatim.
 
-## Phase 2: the engine trainer, live behind a flag
+## Phase 2 at the time: engine trainer live behind a flag
 
 The vendored engine now serves per-question training decisions through
-the web API — the fastest sound path to live testing; the incumbent
-client-side trainer remains the default posture.
+the web API. At the date of these notes the incumbent client-side trainer was
+still the default; that statement is historical and no longer describes
+production.
 
 - **Endpoints** (`services/api/routers/training_engine.py` +
   `engine_trainer.py`): `POST /api/training-engine/start` builds the

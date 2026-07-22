@@ -1,5 +1,8 @@
 # v1.2.0 ship-config sim report
 
+> Historical native/AD6 configuration record. Recommendations and cleanup
+> commands below do not govern the current web PrecisionPolicy runtime.
+
 Generated: 2026-05-29 · By `sim_v1_2_0/generate_report.py` + manual augmentation
 
 ## TL;DR — three findings

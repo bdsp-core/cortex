@@ -1,9 +1,49 @@
 # CHANGELOG — ilae-skill-certification (unified)
 
-Consolidated 2026-05-15 (F3.5).  Supersedes the per-day `STATE_LOG_*.md`
-and per-wave `CHANGES_W*.md` files (archived under
-`docs/historical/`).  Forward-chronological; the box below is the
-fast-path orientation for a new contributor.
+Consolidated 2026-05-15 (F3.5). Earlier per-day and per-wave working logs were
+removed from the shareable tree; Git history preserves them. Entries below are
+dated historical records. Current runtime and reviewer entry points are indexed
+in `docs/README.md` and `cortex_web/docs/README.md`.
+
+---
+
+## ▶ Native n-way production performance and wait-state UX (2026-07-21)
+
+The canonical web engine retained its 1,200-particle, ESS, 30-step MH,
+likelihood, selector, precision, and stopping contract while reducing browser
+latency through exact n-way worker sharding, ranked speculation and
+preemption, a calibrated worker pool, an anti-ratchet load guard, allocation-
+aware categorical likelihood evaluation, and persistent-worker MH-history
+caching. Exact replay hashes, serial/parallel parity, browser smoke, API tests,
+type checking, lint, build, CSP, and dependency gates protected the rollout.
+
+The participant UI now reports trajectory-optimization progress during long
+required calculations instead of appearing stalled. These changes are
+computation-placement and presentation changes; timing never enters inference
+or policy state.
+
+Key production commits: `9706749`, `fa93a91`, `687b0fe`, `8afbbb0`, and
+`c5d6356`. Operational architecture and current qualification boundaries are
+documented under `cortex_web/docs/`.
+
+---
+
+## ▶ Modular trainer-policy reviewer package (2026-07-21)
+
+Added `trainer-policy/`, an independently importable Python representation of
+the deployed server trainer under the unified `trainer_policy` namespace. The
+live runtime remains `cortex_web/learning-engine-cleaned/`; source-drift,
+artifact, and deterministic behavioral parity tests prevent the reviewer copy
+from silently diverging.
+
+---
+
+## ▶ Repository sharing cleanup (2026-07-21)
+
+Removed retired desktop, local-testing, trainer prototype, simulation, and
+superseded R&D directories from the versioned reviewer surface. The canonical
+product is `cortex_web/`; dated scientific close-outs remain historical
+evidence and no longer serve as release instructions.
 
 ---
 

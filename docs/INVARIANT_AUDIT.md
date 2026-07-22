@@ -1,7 +1,8 @@
 # Phase 6 — Invariant audit
 
-Reference-truth audit of the unified repo against the 9 invariants in
-`UNIFIED_REPO_MERGE_PLAN.md` §"Phase 6". Gate per the plan: **every
+Historical reference-truth audit of the unified repo against nine merge-time
+invariants. The private merge plan is no longer distributed. Gate at the time:
+**every
 box checked OR has a written, signed-off deviation.** Each box below
 links to the in-code evidence; deviations are documented with the
 actual repo state and a proposed disposition.
@@ -68,22 +69,19 @@ Audit date: 2026-05-19. Suite at audit time: 237 passed / 1 xfailed.
   computation. Asserted in `tests/test_phase3_calibration` (the
   reference-faithful md5 + the v13 provenance block) and gated.
 
-## 5. Expert split = 70/30 (code), CLAUDE.md corrected to match ✅
+## 5. Expert split = 70/30 (code and reviewer docs agree) ✅
 
 - **Code:** `EXPERT_TRAIN_FRAC = 0.70` (the canonical literal, see §4);
   the non-expert pool uses 50/50 (a different split, documented in
   `run_unified_calibration.py:466`).
-- **`CLAUDE.md`:** currently a Phase-0 placeholder; lines 8–9 list
-  *"expert split is **70/30** (not 50/50)"* as a known reference-truth
-  correction to bake into the Phase-8 final CLAUDE.md. No stale
-  "50/50" claim survives in the body. The Phase-8 assembly task
-  (separate phase) will produce the final CLAUDE.md.
+- The reviewer-facing invariant record uses **70/30**, not the superseded
+  50/50 merge-note claim. The former assistant-specific context file was
+  removed from the shareable repository.
 
 ## 6. `GRAY_ZONE_DELTA` literal verified per file ⚠️ DEVIATION
 
-- **Finding:** `GRAY_ZONE_DELTA` is **absent from the entire unified
-  repo** — no `.py` / `.yaml` / `.json` consumer. The only mention is
-  in `CLAUDE.md` line 9 as a "verify per file" reminder.
+- **Finding:** `GRAY_ZONE_DELTA` is **absent from the executable unified
+  repository** — no `.py` / `.yaml` / `.json` consumer.
 - **Provenance:** the constant lives in the methodology-repo
   Mode-B / Paper-2 validation scripts (`eval_sequential_stopping.py`,
   `eval_bias_criterion.py`), as `GRAY_ZONE_DELTA = 0.05` — the
@@ -123,7 +121,7 @@ Audit date: 2026-05-19. Suite at audit time: 237 passed / 1 xfailed.
   authoritative source) but its *wording* must be updated: the source
   is the `expertise_level` column in `data/labels/raters.csv`, not a
   YAML or a module-level set. Documented here; should also surface in
-  the Phase-8 CLAUDE.md.
+  the reviewer documentation.
 
 ## 8. `T_TOL = 0.20` documented as ≈9.3pp wherever surfaced ⚠️ DEVIATION
 
@@ -168,7 +166,7 @@ Audit date: 2026-05-19. Suite at audit time: 237 passed / 1 xfailed.
 | 2 | λ = 0.025 | ✅ |
 | 3 | two fit_sdt_per_domain copies byte-equivalent | ✅ (+ new drift-guard test) |
 | 4 | σ*/ℓ* TRAIN only | ✅ |
-| 5 | Expert split 70/30 + CLAUDE.md | ✅ |
+| 5 | Expert split 70/30 + reviewer documentation | ✅ |
 | 6 | GRAY_ZONE_DELTA | ⚠️ N/A (Mode-B/Paper-2 scope-out) |
 | 7 | EXPERTS source | ⚠️ wording updated → `raters.csv.expertise_level` |
 | 8 | T_TOL = 0.20 | ⚠️ N/A (Mode-B/Paper-2 scope-out) |

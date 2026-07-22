@@ -4,7 +4,7 @@ This directory is the Python integration reference and authorized improvement
 boundary for the current TypeScript CORTEX testing engine. Concrete stopping
 policies are independently testable sibling packages in `../ad6-policy/` and
 `../precision-policy/`, sharing the contract in `../termination-policy/`. No
-file in `cortex_web` is changed by this Python phase.
+production code imports this directory at runtime.
 
 The production termination backstop is a **60-question per-domain cap**. A
 domain that remains unresolved after 60 of its own questions is removed from
@@ -14,9 +14,10 @@ the production stopping policy.
 The approved cut-independent design is implemented as the opt-in
 `PrecisionPolicy`. `scripts/cortex_policy.py` preserves the historical import
 surface, and `scripts/session_controller.py::build_cortex_session` connects the
-standalone packages to the local engine. AD6 remains the default and rollback
-policy. See `PRECISION_POLICY_IMPLEMENTATION.md` and `../POLICY_LAYOUT.md` for
-the exact contract.
+standalone packages to the local engine. The local adapter defaults to AD6;
+production selects PrecisionPolicy for new certification sittings and retains
+AD6 as rollback. See `PRECISION_POLICY_IMPLEMENTATION.md` and
+`../POLICY_LAYOUT.md` for the exact contract.
 
 The earlier `c=1.40`, five-item profile used interval half-width and is
 explicitly superseded as evidence. Stopping uses the stricter point-centred
@@ -29,7 +30,8 @@ decision report live under `calibration/precision_frontier/` and
 stopping-time screen found material extreme-skill tail undercoverage but no
 false certifications. That limitation is accepted and disclosed. Development
 is closed: no calibration repair, tuning, or new stopping family is part of
-the frozen profile. AD6 remains the default.
+the frozen profile. AD6 remains the local-reference default and production
+rollback path.
 
 ## Included runtime mapping
 
@@ -42,12 +44,14 @@ the frozen profile. AD6 remains the default.
 | `types.ts`/manifest engine inputs | `scripts/cortex_engine_inputs_k7.py` |
 | Browser-bundle construction | `cortex_web/apps/web/scripts/prepare_web_bundle.py` |
 
-The corresponding frozen inputs are also local:
+The corresponding frozen inputs may be staged locally for governed internal
+verification. They are not all part of a fresh Git clone:
 
 - `Sigma_l_fitted_k7.npy` — K=7 `Corr_l` and `Corr_t`.
 - `calibration/cert_config*.yaml` — v13/v14 and v15 cut scores.
 - `data/labels/segment_signals.csv` — per-segment signal estimates.
-- `data/eeg_bank.h5` — the 700-segment desktop/reference bank.
+- `data/eeg_bank.h5` — governed external reference bank, intentionally
+  untracked.
 - `cortex_web/.../v1.6-k7-35k/manifest.json` — the exact current web engine
   manifest. EEG and spectrogram display blobs are deliberately not duplicated;
   the particle engine requires only the manifest.
@@ -87,7 +91,7 @@ cloud trajectory removes that irrelevant RNG difference and tests the shared
 engine computation directly. Existing browser session tests separately cover
 deterministic browser replay, resampling, rejuvenation, and termination.
 
-## Run the complete gate
+## Run the local integration gate
 
 From this directory:
 
@@ -95,7 +99,7 @@ From this directory:
 ./run_tests.sh
 ```
 
-The gate:
+With all governed fixtures staged, the gate:
 
 1. verifies all isolated hashes, preserved source hashes, and that originals
    remain unchanged;
@@ -110,11 +114,13 @@ The gate:
 It also exercises fail-closed transactional updates, reversible precision
 completion, the hard 60/domain budget, floor-aware selection, band reservation,
 raw-response telemetry, and the additive policy interface. No `cortex_web`
-file is changed by these tests.
+file is changed by these tests. In a fresh clone, use the four standalone
+package suites and the `cortex_web` quality gate; `run_tests.sh` also names
+local parity and reference fixtures that are not currently distributed.
 
 ## Deliberate exclusions
 
-The 28 GB production HDF5 bank, 106 GB source spectrogram bank, raw EEG source,
+The production HDF5 bank, source spectrogram bank, raw EEG source,
 calibration fitters, simulation studies, desktop GUI, storage, and research
 variants are upstream or downstream of the TypeScript particle engine. They
 are not needed to execute or validate the port and are therefore not copied.

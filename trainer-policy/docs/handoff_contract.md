@@ -1,221 +1,170 @@
-# Handoff contract: adaptive testing engine ↔ learning engine
+# Certification-to-training handoff contract
 
-Version 1.1 (2026-07-16; v1.0 2026-07-13). v1.1 adds §2a (raw trial
-stream + seeding exclusivity) and the §4 `floor_joint` block — additive
-optional fields, minor bump per §7. This contract binds the adaptive TESTING engine
-(`testing-algo-cleaned/`, package `adaptive_testing`) to the LEARNING
-engine (`sim/msengine.py`) and the population learner (M1,
-`sim/multimodel.py`). It is written against the testing package's actual
-dataclasses (`SessionResult`, `TrialRecord`, `PosteriorSummary`,
-`ItemCandidate`, `Prior`) as shipped, not against an idealization.
+Version 2.0 (2026-07-21). This contract describes the deployed server-driven
+trainer. It supersedes Version 1.1, whose section 2a introduced exclusive raw
+trial replay for the retired `adaptive_testing` and root-level trainer
+prototypes.
 
-```
-                 ┌─────────────────────────────────────────────┐
-   pilot data ──►│ M1 population learner (multimodel)          │
-                 │  rates, gate, floors, transfer, chronometry │
-                 └──────┬───────────────────────────┬──────────┘
-                        │ §5 prior blocks           │ §4 population artifact
-                        ▼                           ▼
-                 ┌──────────────┐   §2 posterior   ┌──────────────┐
-   respondent ──►│ TESTING      │ ───────────────► │ LEARNING     │──► items,
-                 │ engine       │   (result JSON   │ engine (M2)  │    readiness
-                 │ (particle    │    + cloud npz)  │ (RBPF belief │    flag
-                 │  cloud, MH)  │                  │  + dynamics) │
-                 └──────┬───────┘                  └──────┬───────┘
-                        │            §1 item bank         │
-                        └───────────────┬─────────────────┘
-                                        ▼
-                          crowd-anchored per-signal axes
-                                        │ §6 session logs
-                                        ▼
-                              back to the M1 repository
-```
+## 1. Runtime owners
 
-## 0. Shared conventions
+- Browser assembly: `cortex_web/apps/web/src/trainingSetup.ts`
+- Browser API adapter: `cortex_web/apps/web/trainer/serverSession.ts`
+- HTTP boundary: `cortex_web/services/api/routers/training_engine.py`
+- Deployed session policy: `cortex_web/services/api/engine_trainer.py`
+- Learning model: `cortex_web/learning-engine-cleaned/learning_engine/`
+- Selection/update adapter: `cortex_web/learning-engine-cleaned/adapter/le_adapter.py`
+- Population artifact:
+  `cortex_web/learning-engine-cleaned/artifacts/nway_dynamics_v1_1.json`
 
-- **Dimensions = signals.** The testing engine's `dimension_names` and the
-  learning engine's `signals` list must be byte-identical, same order.
-- **The one shared constant.** Both engines default the lapse rate to
-  0.025 (`ModelConfig.lapse_rate` there, `LAPSE_DESIGN` here). A deployment
-  overriding one side must override the other.
-- **Parameter mapping.** The testing engine estimates per-dimension
-  response offsets `o_k` and log sensitivities `l_k` in the model
-  `P(y=1) = λ + (1−2λ) Φ(exp(l_k)(s + o_k) / sqrt(1 + (exp(l_k) u)^2))`.
-  The learning engine's state is criterion `t_k` and log-noise
-  `u_k = log σ_k` in `P = λ + (1−2λ) Φ((s − t_k)/σ_k)`. The exact bijection:
+The repository-root `trainer-policy/` package is an auditable Python mirror. It
+is not a runtime dependency.
 
-  ```
-  t_k = −o_k          σ_k = exp(−l_k)          u_k = −l_k
-  ```
+## 2. Shared bank and task coordinates
 
-  The testing engine's signal-uncertainty marginalization (its `u` =
-  `signal_sd`) has no learning-engine counterpart yet; the learning engine
-  treats `signal_mean` as the item's evidence coordinate. Item banks built
-  under §1 carry `signal_sd` so the testing side keeps its exactness.
+The server and browser use the same session-bank manifest. The following fields
+are contract inputs:
 
-## 1. Item bank (shared input)
+- `taskCodes` fixes task order and dimension count;
+- `ellStar` supplies the certification targets displayed by the trainer;
+- `taskPatternWords` maps n-way gold classes onto the task axis;
+- each segment's `sMean`, `sSd`, and `applicableTaskIdx` define its signal row,
+  uncertainty, and eligible tasks.
 
-Producer: this project's ingestion layer (`sim/realdata.py`). Consumer:
-both engines.
+The population artifact must contain one n-way domain for every manifest task
+after the leading binary task. A mismatch stops session construction. The
+trainer does not refit or reinterpret the certification prior.
 
-One JSON file per task, the testing package's native schema
-(`ItemBank.from_json` compatible):
+## 3. Certification replay seed
 
-```json
-{
-  "dimension_names": ["signal-2", "...", "signal-7"],
-  "candidates": [
-    {"item_id": "case-12841", "dimension": "signal-4",
-     "signal_mean": -0.412, "signal_sd": 0.121}
-  ]
-}
-```
+At training start, the server reads the participant's latest finalized
+certification session. It replays only the contiguous trial prefix beginning at
+`trial_index == 0` and ending before the first gap or missing pick.
 
-- `signal_mean` = the crowd-anchored evidence axis `s_jm` (probit of the
-  EB-shrunken leave-one-out crowd rate, D28) of item j on its GOLD channel.
-- `signal_sd` = the delta-method standard error of that probit rate.
-- An `item_id` may appear once per dimension; serving an item retires
-  every occurrence (the testing package enforces this; the learning engine
-  must respect the same rule via its `served` set).
-- The learning engine additionally needs the full evidence ROW `s_j`
-  (all M channels) per item; the extended bank file adds an optional
-  `"signal_row": [..M floats..]` field per candidate that the testing
-  engine ignores.
+Pick coding is fixed by the live ledger:
 
-## 2. Testing → learning: the posterior handoff
+- binary task: task-axis pick `0` means yes; any other task-axis pick means no;
+- n-way task: task-axis pick `1..K-1` maps to group index `pick - 1`.
 
-Producer: `adaptive_testing.storage.write_result_json(result, path)` and,
-when configured with `SessionConfig(capture_clouds=True)`,
-`write_cloud_snapshots(result, path)`. Consumer:
-`msengine.belief_seed_from_testing_result`.
+Certification replay is reweight-only because the test provides no answer
+feedback. If no finalized session exists, the population prior remains the
+seed. The browser deliberately does not also submit a posterior or test stream:
+the seed source is server replay, never two competing representations.
 
-- **Preferred payload**: the final cloud snapshot — arrays
-  `response_offset (N, K)`, `log_sensitivity (N, K)`, `weights (N,)`.
-  The learning belief resamples its particles from this weighted cloud
-  through the §0 mapping. Cross-dimension posterior correlations (the
-  testing prior's information sharing) survive the handoff exactly.
-- **Fallback payload**: `result["final_summary"]` (per-dimension means and
-  variances). The learning belief seeds an independent Gaussian per
-  dimension; correlations are lost. Deployments SHOULD capture clouds.
-- Required result fields: `dimension_names`, `final_summary`,
-  `stop_reason`, `n_questions`, `served_item_ids` (the learning engine
-  must not re-serve them), `seed`.
-- The learning engine ignores `score_*` fields (the testing package's
-  reporting transform is presentation-layer by its own contract).
+The replay starts with an expanded particle cloud and contracts to the deployed
+particle count after seeding. `seeded` and `seedUnique` expose the number of
+replayed trials and surviving unique ancestors for audit.
 
-### 2a. The raw trial stream (replay seeding, v1.1)
+## 4. Start endpoint
 
-Producer: the testing package's per-trial log (`TrialRecord` /
-`JsonLinesTrialWriter`). Consumer:
-`msengine.MSBelief.seed_from_test_replay`, reachable through
-`MSSessionEngine.run(testing_trials=...)`.
+`POST /api/training-engine/start` requires authentication and ownership of the
+training session.
 
-The test's EXACT question sequence, one record per trial in served order:
-
-```json
-{"k": 0, "item_id": "case-12841", "response": 3,
- "displayed_at": "2026-07-16T10:02:11Z", "submitted_at": "..."}
-```
-
-- `response` is the FULL n-way pick index — never binarized (binarized
-  replay measurably corrupts criterion estimates, `sim/exp_v0.py` /
-  D48 §2.6). Timestamps are optional until true RT logging lands
-  (`next_cohort_design.md` §4.1); they are carried for the future
-  chronometric replay channel, not consumed today.
-- `item_id` must join the §1 bank. A record MAY instead carry an explicit
-  `"s"` evidence row for consumers that cannot join the bank.
-- The learning engine replays the stream through its OWN observation
-  model, reweight-only: the test shows no feedback, so under the
-  feedback-gated learning law the dynamics do not advance. Replayed
-  `item_id`s join the engine's served set (the no-repeat rule).
-- **Seeding exclusivity.** A deployment seeds a belief from the §2
-  posterior payload OR the §2a raw stream, NEVER both — they encode the
-  same responses (double counting). When both are available, replay is
-  preferred (D49 §2.6 adjudication: matches-or-beats cloud on state
-  fidelity and attainability calibration).
-
-## 3. Learning-engine outputs
-
-- **Item requests**: the selected candidate's `item_id` (the application
-  presents it and returns the categorical response index).
-- **Readiness flag**: `{"ready": bool, "at_question": int,
-  "pass_prob": float, "rule": "double-eta-quantile", "eta": float}`.
-  The flag semantics (D36): P(pass | θ) ≥ 1−η holds with posterior
-  probability ≥ 1−η under a belief whose particles carry their own skill
-  floors. The mixture-mean rule is dishonest on heterogeneous populations
-  (measured: pass-given-ready 0.67–0.86 vs the 0.90 target).
-- **Session log**: one JSON line per trial (crash-tolerant, mirroring the
-  testing package's `JsonLinesTrialWriter`): `{"k": int, "item_id": str,
-  "gold": int, "response": int}` plus optional response-time seconds.
-
-## 4. M1 → learning engine: the population artifact
-
-Producer: the M1 fit (`realfit_st_soft*` checkpoint). Schema consumed by
-`MSBelief`:
+Request:
 
 ```json
 {
-  "alpha_t": [..M..], "alpha_s": [..M..], "lam": 0.0096,
-  "q_t": 0.0, "q_s": 0.006,
-  "w_coef": [..8 simplex weights..],
-  "floor_prior": [[..M means..], [..M sds..]],
-  "floor_joint": {"slope": [..M..], "intercept": [..M..],
-                  "resid_sd": [..M..]},
-  "state_prior": {"mu_t0": [..M..], "tau_t0": [..M..],
-                   "mu_u0": [..M..], "tau_u0": [..M..],
-                   "gamma": [..M..]}
+  "trainingId": "session identifier",
+  "segIds": [101, 102],
+  "restrictTaskKs": [0, 3]
 }
 ```
 
-- `floor_prior` is on log σ_∞, computed from POOLED posterior draws
-  (draws × participants), not the spread of per-participant means (the
-  means-only spread understates the shallow-floor tail that breaks the
-  readiness flag, D36).
-- `w_coef` is the learned-gate simplex (D23/D35 posterior mean or a
-  per-session Thompson draw); omit to fall back to the Wilson gate.
-- `floor_joint` (v1.1, optional): the per-signal regression of the floor
-  `u_inf` on the starting skill `u0` across pooled posterior draws
-  (draws × participants). When present, the belief draws per-particle
-  floors CONDITIONALLY on each particle's skill — at construction and
-  again after posterior seeding replaces the skill particles — instead of
-  from the marginal `floor_prior`. This repairs the state–floor joint
-  that wholesale cloud replacement severs (the D49 attainability-optimism
-  mechanism). Absent → marginal behavior, unchanged.
+`segIds` is the browser's drawn media pool; the server must not select media the
+browser cannot load. `restrictTaskKs` is the optional regimen weak-task set.
 
-## 5. Learning → testing: the prior handoff (closing the loop)
+Response:
 
-Producer: `msengine.prior_blocks_from_population(artifact)`. Consumer:
-`adaptive_testing.Prior(...)`.
-
-The fitted population becomes the testing engine's declared prior:
-
-```
-offset_mean            = −mu_t0
-offset_covariance      = diag(tau_t0²)
-log_sensitivity_mean   = −mu_u0
-log_sensitivity_covariance = γ γᵀ + diag(tau_u0²)
+```json
+{
+  "item": {
+    "task": 3,
+    "segId": 101,
+    "s": 0.4,
+    "sSd": 0.1,
+    "yStar": 3,
+    "mode": "skill",
+    "link": "nway"
+  },
+  "snapshot": [],
+  "allMastered": false,
+  "seeded": 120,
+  "rebuiltSeq": 0,
+  "attainability": {},
+  "seedUnique": 301
+}
 ```
 
-The one-factor transfer structure (D30) is exactly the cross-dimension
-information sharing the testing engine's unstructured covariance was
-designed to accept. A new cohort's testing sessions then start from what
-the population has already taught us, and their results feed the next M1
-refit (§6).
+`item` may be null when no eligible candidate remains. `attainability` is a
+report in practice mode; it does not silently change the certification rule.
 
-## 6. Session logs → M1 repository
+## 5. Record endpoint and browser ordering
 
-Both engines' per-trial logs append to the response repository in the
-ingestion layer's schema (participant, item, response, timestamp). The M1
-refit consumes them exactly as it consumed the pilot (D28 ingestion), so
-the loop testing → learning → repository → M1 → priors → testing closes
-with no schema translation.
+`POST /api/training-engine/record` accepts one pending answer:
 
-## 7. Versioning and validation
+```json
+{
+  "trainingId": "session identifier",
+  "segId": 101,
+  "taskK": 3,
+  "pick": 2
+}
+```
 
-- This document carries the contract version; both engines embed it in
-  their outputs (`"contract_version": "1.1"`).
-- Conformance checks live in `sim/exp_msengine.py` (learning side): a
-  golden testing-engine session is ingested, the mapping round-trips
-  (t = −o to numerical precision), and the closed loop runs end to end.
-- Breaking changes to either side's schemas bump the major version;
-  additive optional fields bump the minor version.
+The server rejects an unknown session, a segment that is not pending, or an
+out-of-range n-way pick. It applies feedback dynamics, updates retention state,
+and returns the next item plus the post-answer snapshot. `item: null` means the
+sitting is done because of mastery, policy limits, or candidate exhaustion.
+
+The browser sends this decision request immediately while showing feedback and
+waits for it before advancing. Its synchronous `snapshot()` can therefore lag
+one answer during the reveal; the snapshot returned by the record response is
+authoritative.
+
+## 6. Persistence and recovery
+
+The decision endpoint does not write the response ledger. The existing browser
+checkpoint outbox remains the single writer to `training_trials` and parameter
+trajectories. Each persisted point carries the session sequence, task, segment,
+pick, gold, correctness, feedback/timing fields, serving mode, and `binary` or
+`nway` link.
+
+The server holds an in-memory session cache, but the belief is rebuildable from:
+
+1. the frozen population artifact;
+2. the latest finalized certification trial stream; and
+3. this training sitting's persisted response rows ordered by
+   `seq_in_session`.
+
+A restart can change side-alternation or item order, but persisted responses
+must reconstruct the belief. A response still waiting in the client outbox is
+not part of recovery until it is flushed.
+
+## 7. Non-negotiable invariants
+
+- Task order comes from the served manifest and is never inferred from labels.
+- Certification replay and a client-supplied posterior are mutually exclusive.
+- The server selects only from the submitted media pool and permitted tasks.
+- One segment can be pending only under the server-issued item contract.
+- Native n-way gold is the segment's true class; trained domain and gold class
+  are not assumed to be the same.
+- The checkpoint ledger has one writer and is idempotent by session sequence.
+- Trainer mastery/attainability reporting cannot change certification cuts,
+  stopping, likelihood, selector, particle settings, or precision policy.
+
+## 8. Conformance checks
+
+The focused production checks are:
+
+```bash
+cd cortex_web/services/api
+python -m pytest -q \
+  ../../learning-engine-cleaned/tests/test_package_smoke.py \
+  test_engine_trainer.py
+
+cd ../../apps/web
+npx vitest run trainer/serverSession.test.ts \
+  src/trainingController.test.ts src/trainingReveal.test.ts
+```
+
+The root mirror adds source-drift and deterministic behavioral-equivalence
+checks under `trainer-policy/tests/`.

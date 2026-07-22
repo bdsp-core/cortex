@@ -1,13 +1,14 @@
 # CORTEX policy implementation layout
 
-The Python stopping policies are organized as small, independently testable
-projects at the repository root. The TypeScript application is intentionally
-outside this implementation phase and has not been modified.
+The Python policies are organized as small, independently testable projects at
+the repository root. They are reviewer and reference packages; the canonical
+deployed certification and training runtimes live under `cortex_web/`.
 
 ```text
 termination-policy/                 shared StopDecision/TerminationPolicy contract
 ad6-policy/                         standalone shipped AD6 policy
 precision-policy/                   standalone frozen PrecisionPolicy + profile
+trainer-policy/                     Python reviewer representation of the deployed trainer
 cortex_web_python_reference/
   scripts/cortex_policy.py          compatibility imports and AD6 config adapter
   scripts/cortex_policy_k7.py       K=7 policy registry and safe name resolver
@@ -26,9 +27,15 @@ cortex_web_python_reference/
   selector, cut, or engine dependency.
 - `cortex_web_python_reference` connects the packages to the particle engine.
   Historical `from cortex_policy import ...` callers remain compatible.
+- `trainer-policy` mirrors the deployed server trainer behind the unified
+  `trainer_policy` import name and verifies behavioral/source equivalence. The
+  runtime-authoritative trainer remains
+  `cortex_web/learning-engine-cleaned/` plus its API adapter.
 
-There is one canonical copy of each concrete policy implementation. The
-reference façade does not duplicate their stopping math.
+There is one canonical copy of each stopping-policy implementation. The
+reference façade does not duplicate stopping math. The trainer package is an
+intentional auditable representation and is protected by parity tests against
+the deployed source.
 
 ## Local policy selection and rollback
 
@@ -83,16 +90,27 @@ stopping family.
 
 ## Verification
 
-Run the complete local gate from the repository root:
+Run the four standalone package suites from their respective directories:
+
+```bash
+(cd termination-policy && python -m pytest -q)
+(cd ad6-policy && python -m pytest -q)
+(cd precision-policy && python -m pytest -q)
+(cd trainer-policy && python -m pytest -q)
+```
+
+The broader local integration gate is:
 
 ```bash
 ./run_policy_tests.sh
 ```
 
-This runs all three standalone package suites, the Python reference suite, the
-primary Python algorithm regressions, the two fixed-cloud Python↔TypeScript
-parity checks, and the pinned 48 browser regressions. The browser sources are
-read-only in this phase.
+`run_policy_tests.sh` additionally exercises the Python integration reference,
+primary algorithm regressions, and Python↔TypeScript parity. That broader gate
+requires its governed local reference fixtures, including the external EEG
+bank and locally staged parity artifacts; it is not presently a fresh-clone
+CI command. The canonical web release gate is documented separately in
+`cortex_web/README.md`.
 
 The heavier selector proofs and 1,200-particle deterministic golden sessions
 are opt-in:

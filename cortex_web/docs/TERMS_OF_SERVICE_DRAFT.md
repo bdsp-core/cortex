@@ -5,6 +5,9 @@
 > published or relied upon. The shippable public copy lives in
 > `apps/web/src/i18n/locales/_terms_en.json` and does **not** contain the
 > `[counsel]` tags below.
+> The operational and product descriptions are a 2026-06-18 snapshot and must
+> be re-audited against the deployed application before counsel review or
+> publication.
 
 ---
 

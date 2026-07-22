@@ -1,5 +1,8 @@
 # Bank-composition quality sweep (n_raters × expert filter)
 
+> Historical AD6 simulation record; current production policy and release
+> commands are documented under `cortex_web/`.
+
 **Question.** What `(n_min_raters, min_n_expert)` filter on the question bank
 maximizes the number of questions available while preserving — or improving —
 the test's accuracy and statistical power?

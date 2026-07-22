@@ -4,13 +4,14 @@
 
 # CORTEX Research Data Architecture — Unified Plan
 
-**Status (2026-07-01):** phases H0 (fab-data hotfix), R0 (gold ETL), R1
+**Status (refreshed 2026-07-21):** phases H0 (fab-data hotfix), R0 (gold ETL), R1
 (`ilae-export`), O1 (expertise + consent), O2 (learning linkage) shipped
 2026-06-19; O3 (provenance stamping: `sessions.bundle_version`) shipped with
 the v1.6 deploy 2026-06-25, extended by `sessions.drawn_seg_ids` 2026-07-01.
-Still open: O4 (engine SD/AUROC persistence — optional, re-derivable) and L1
-(the real trainer). This doc remains the design reference for those; sections
-describing already-shipped phases are historical rationale.
+L1 shipped when the server-side learning engine became the sole trainer on
+2026-07-17. O4 (engine SD/AUROC persistence — optional and re-derivable)
+remains open. This document is now a design/history record; current runtime
+ownership is defined by `REPOSITORY_STRUCTURE.md` and `../README.md`.
 
 **Original status:** proposal, revision 2 (post-adversarial-review). No files modified. Grounded in current `main`; where the five audits disagreed, code was the tiebreaker (see §0.3 "adjudicated facts"). Every Critical (C1–C5) and Important (I1–I6) item from the adversarial review is resolved inline; the four Minors (M1–M5) are folded into the relevant sections. A change-log is in §9.
 
@@ -194,7 +195,7 @@ manifest.version + bundle.certBlock + git-SHA engine stamp
 
 ### 3.2 `gold.dim_provenance` is self-describing about the likelihood
 Each row stamps the **Phase-6 HARD invariants** so every exported fact is reproducible from the export alone:
-- `lapse_rate = 0.025` (CLAUDE.md invariant #2)
+- `lapse_rate = 0.025` (`../../docs/INVARIANT_AUDIT.md` invariant #2)
 - `logit_to_probit = 1/1.7 = 0.588235…` (invariant #1)
 - `cert_config` → cross-linked to its `calibration/CALIBRATION_PROVENANCE.md` sha256 entry (D3 chain), e.g. the K=7 `ell_star` block.
 
