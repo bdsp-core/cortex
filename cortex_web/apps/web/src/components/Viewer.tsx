@@ -13,6 +13,9 @@ import { EegCanvas } from "./EegCanvas";
 import { SpecCanvas } from "./SpecCanvas";
 import { TutorialOverlay, TutorialStep } from "./TutorialOverlay";
 import {
+  TrajectoryOptimizationStatus, useTrajectoryOptimizationStatus,
+} from "./TrajectoryOptimizationStatus";
+import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS,
   NOTCH_OPTIONS, WINDOW_OPTIONS, PAN_BTN_STYLE,
   IIIC_LABEL_START_S, IIIC_LABEL_END_S,
@@ -65,6 +68,9 @@ export function Viewer({
   const windowSRef = useRef(windowS);
   windowSRef.current = windowS;
   const answered = useRef(false);
+  const {
+    beginWait: beginTrajectoryWait, visible: trajectoryStatusVisible,
+  } = useTrajectoryOptimizationStatus(item?.trialIndex ?? null);
 
   // fetch the segment whenever the item changes; reset per-question UI state
   useEffect(() => {
@@ -101,10 +107,11 @@ export function Viewer({
       if (answered.current || !itemRef.current || !segRef.current) return;
       answered.current = true;
       setPick(k);
+      beginTrajectoryWait();
       onAnswer(k);
       setSeg(null); // clear until the next item loads
     },
-    [onAnswer, tutorial],
+    [beginTrajectoryWait, onAnswer, tutorial],
   );
 
   // keyboard. Bound ONCE for the component's life (empty deps) with a stable
@@ -295,6 +302,7 @@ export function Viewer({
         <TutorialOverlay onFinish={tutorial.onFinish}
           steps={tutorialSteps(answerRowRef, specBoxRef, eegBoxRef, controlsRef)} />
       )}
+      {trajectoryStatusVisible && <TrajectoryOptimizationStatus />}
     </div>
   );
 }

@@ -14,6 +14,9 @@ import { buildCascade, filtfilt } from "../dsp";
 import { Progress } from "../progress";
 import { EegCanvas } from "./EegCanvas";
 import {
+  TrajectoryOptimizationStatus, useTrajectoryOptimizationStatus,
+} from "./TrajectoryOptimizationStatus";
+import {
   COLORS, FONTS, GAIN_LADDER, MONTAGES, BANDPASS_OPTIONS, NOTCH_OPTIONS,
 } from "../../ui/theme";
 
@@ -45,6 +48,9 @@ export function SpikeViewer({
   const itemRef = useRef<Item | null>(null);
   itemRef.current = item;
   const answered = useRef(false);
+  const {
+    beginWait: beginTrajectoryWait, visible: trajectoryStatusVisible,
+  } = useTrajectoryOptimizationStatus(item?.trialIndex ?? null);
 
   useEffect(() => {
     if (!item) return;
@@ -73,10 +79,11 @@ export function SpikeViewer({
       if (answered.current || !itemRef.current || !segRef.current) return;
       answered.current = true;
       setPick(k);
+      beginTrajectoryWait();
       onAnswer(k);
       setSeg(null);
     },
-    [onAnswer],
+    [beginTrajectoryWait, onAnswer],
   );
 
   const submitRef = useRef(submit);
@@ -218,6 +225,7 @@ export function SpikeViewer({
           </button>
         )}
       </div>
+      {trajectoryStatusVisible && <TrajectoryOptimizationStatus />}
     </div>
   );
 }
