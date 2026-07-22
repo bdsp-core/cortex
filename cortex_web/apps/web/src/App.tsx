@@ -13,7 +13,6 @@ import { EngineClient } from "./engineClient";
 import { Viewer, Item } from "./components/Viewer";
 import { SpikeViewer } from "./components/SpikeViewer";
 import { resolutionConfidence, Progress } from "./progress";
-import { empiricalPoint, onCurvePoint } from "./roc";
 import { TrialDiag } from "../engine";
 import * as api from "./api";
 import { bootstrapOnce, invalidateBootstrap } from "./bootstrapStore";
@@ -21,13 +20,16 @@ import { AuthFlow } from "./components/AuthFlow";
 import { consumeAuthDeepLink, consumeCohortDeepLink } from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
 import { reportClientError } from "./telemetry";
-import { reopenLabel } from "./washout";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
 import { Participant, participantFromProfile } from "./profileFields";
 import { Computing } from "./components/Computing";
 import { Results, ResultSummary } from "./components/Results";
 import { Shell } from "./components/Shell";
 import { Stage, Card, Heading, Button } from "./components/ui";
+import { WashoutBanner } from "./components/exam/WashoutBanner";
+import {
+  buildPerTaskRecords, cloudSdPerTask, perTaskRoc,
+} from "./features/exam/results";
 import { COLORS } from "../ui/theme";
 import type { TrainingState } from "./trainingSetup";
 import { EnginePerformanceCollector } from "./performanceSummary";
@@ -55,60 +57,6 @@ type Phase =
   | "training"
   | "done"
   | "error";
-
-// Post-training exam-washout notice (server-enforced 12h gate in
-// routers/testing.py). A top sheet that descends over a dimmed dashboard and
-// requires explicit acknowledgment: the participant must recognize that
-// testing is closed, not glance past a corner card.
-function WashoutBanner({ reopensAtUtc, onAccept }: {
-  reopensAtUtc: string;
-  onAccept: () => void;
-}) {
-  const label = reopenLabel(reopensAtUtc);
-  return (
-    <div role="alertdialog" aria-modal="true"
-      aria-label="Testing temporarily unavailable"
-      style={{
-        position: "fixed", inset: 0, zIndex: 80,
-        background: "rgba(20, 28, 26, 0.45)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        animation: "cx-washout-dim 300ms ease-out",
-      }}>
-      <style>{`
-        @keyframes cx-washout-dim { from { background: rgba(20,28,26,0); }
-                                    to { background: rgba(20,28,26,0.45); } }
-        @keyframes cx-washout-descend { from { transform: translateY(-60vh); opacity: 0.4; }
-                                        to { transform: none; opacity: 1; } }
-        @keyframes cxBannerGlow {
-          0%, 100% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 0 0 rgba(47,143,131,0); }
-          50% { box-shadow: 0 16px 44px rgba(15,40,36,0.32), 0 0 24px 5px rgba(47,143,131,0.4); }
-        }
-        .cx-washout-card {
-          animation: cx-washout-descend 460ms cubic-bezier(0.22, 0.8, 0.36, 1),
-                     cxBannerGlow 3s ease-in-out 0.6s infinite;
-        }
-        @media (prefers-reduced-motion: reduce) { .cx-washout-card { animation: none; } }
-      `}</style>
-      <div className="cx-washout-card" style={{
-        width: 560, maxWidth: "92vw", background: COLORS.card,
-        border: `1px solid ${COLORS.borderInactive}`,
-        borderTop: `3px solid ${COLORS.fail}`,
-        boxShadow: "0 16px 44px rgba(15, 40, 36, 0.32)",
-        padding: "26px 28px", boxSizing: "border-box",
-      }}>
-        <div style={{
-          fontSize: 15, lineHeight: 1.6, color: COLORS.textPrimary,
-        }}>
-          You trained earlier today; to keep the exam a clean measure,
-          testing reopens at <b>{label}</b>.
-        </div>
-        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-          <Button onClick={onAccept}>I understand</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function App() {
   // One-click email link (verify/reset): parse + strip the URL params once at
@@ -322,13 +270,8 @@ export function App() {
           // operating point projected onto the binormal curve. Spike truth =
           // sign(s_mean); IIIC truth = segment pattern class.
           const truth = new Map(b.manifest.segments.map((s) => [s.segId, s.patternClass]));
-          const words = inputs.taskPatternWords;
-          const roc = (r.finalAuroc ?? []).map((auroc, k) => {
-            const spike = inputs.taskClasses?.[k] === "spike";
-            const emp = empiricalPoint(r.trials, k, words[k], (id) => truth.get(id), spike);
-            const op = emp ? onCurvePoint(auroc, emp[0]) : null;
-            return { auroc, hw: r.finalAurocHw?.[k] ?? 0, opFar: op?.[0] ?? null, opHr: op?.[1] ?? null };
-          });
+          const roc = perTaskRoc(r.finalAuroc, r.finalAurocHw, r.trials,
+                                 inputs, (id) => truth.get(id));
           const sum: ResultSummary = {
             nQuestions: r.nQuestions,
             stopReason: r.stopReason,
@@ -344,49 +287,15 @@ export function App() {
             roc,
           };
           setSummary(sum);
-          // Per-task posterior SD of ℓ (σ) from the FINAL particle-cloud step —
-          // the ± band on the ℓ evolution chart. l is [T,N,K] row-major, w is
-          // [T,N]; weighted std over the N particles at t = T-1.
-          const [Tn, Np, Kp] = r.traj.shape;
-          const lCloud = r.traj.l, wCloud = r.traj.w, ti = Tn - 1;
-          const sdPerTask = (inputs.taskCodes ?? []).map((_c, k) => {
-            let wsum = 0, mean = 0;
-            for (let i = 0; i < Np; i++) {
-              const w = wCloud[ti * Np + i];
-              wsum += w; mean += w * lCloud[(ti * Np + i) * Kp + k];
-            }
-            if (wsum <= 0) return null;
-            mean /= wsum;
-            let varAcc = 0;
-            for (let i = 0; i < Np; i++) {
-              const w = wCloud[ti * Np + i];
-              const dl = lCloud[(ti * Np + i) * Kp + k] - mean;
-              varAcc += w * dl * dl;
-            }
-            return Math.sqrt(varAcc / wsum);
+          const sdPerTask = cloudSdPerTask(r.traj, (inputs.taskCodes ?? []).length);
+          const perTask = buildPerTaskRecords({
+            inputs, lastDiag: d, sdPerTask, roc,
+            verdicts: r.verdicts,
+            determinations: r.determinations,
+            skillIntervals: r.skillIntervals,
+            biasIntervals: r.biasIntervals,
+            biasFlags: r.biasFlags,
           });
-          // Real per-task certification values, persisted so the dashboard reads
-          // genuine numbers (not sample data) for ℓ/θ/σ/AUROC. ℓ/θ are the final
-          // posterior means from the last engine diagnostic (lMean/tMean); σ is
-          // the cloud SD above; ℓ* is the bundle's Youden cut-score; AUROC is the
-          // per-task posterior mean. The backend turns these into the first
-          // "eval" trajectory point per domain.
-          const perTask = (inputs.taskCodes ?? []).map((code, k) => ({
-            taskK: k,
-            code,
-            label: inputs.taskLabels?.[k] ?? code,
-            ell: d?.lMean?.[k] ?? null,
-            theta: d?.tMean?.[k] ?? null,
-            sd: sdPerTask[k] ?? null,
-            ellStar: inputs.ellStar?.[k] ?? null,
-            auroc: roc[k]?.auroc ?? null,
-            aurocHw: roc[k]?.hw ?? null,
-            verdict: r.verdicts?.[k] ?? "PENDING",
-            determination: r.determinations?.[k] ?? null,
-            skillInterval: r.skillIntervals?.[k] ?? null,
-            biasInterval: r.biasIntervals?.[k] ?? null,
-            biasFlag: r.biasFlags?.[k] ?? null,
-          }));
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
           // rather than lost.
