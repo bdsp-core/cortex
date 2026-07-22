@@ -399,17 +399,20 @@ export function resampleAndRejuvenate(
     const cov: Mat = covRows(theta, N, D);
     for (let i = 0; i < D; i++) cov[i][i] += 1e-6;
     let F: Mat;
+    let lowerTriangular = true;
     try {
       F = cholesky(cov); // lower-triangular
     } catch {
       F = symSqrtClipped(cov, 1e-6);
+      lowerTriangular = false;
     }
     // propose theta' = theta + scale·(ε · Fᵀ)
     for (let n = 0; n < N; n++) {
       rng.fillGaussian(eps);
       for (let i = 0; i < D; i++) {
         let acc = 0;
-        for (let j = 0; j < D; j++) acc += eps[j] * F[i][j];
+        const width = lowerTriangular ? i + 1 : D;
+        for (let j = 0; j < width; j++) acc += eps[j] * F[i][j];
         const v = theta[n * D + i] + proposalScale * acc;
         if (i < K) tNew[n * K + i] = v;
         else lNew[n * K + (i - K)] = v;
@@ -520,16 +523,19 @@ export async function resampleAndRejuvenateWithExecutor(
     const cov: Mat = covRows(theta, N, D);
     for (let i = 0; i < D; i++) cov[i][i] += 1e-6;
     let F: Mat;
+    let lowerTriangular = true;
     try {
       F = cholesky(cov);
     } catch {
       F = symSqrtClipped(cov, 1e-6);
+      lowerTriangular = false;
     }
     for (let n = 0; n < N; n++) {
       rng.fillGaussian(eps);
       for (let i = 0; i < D; i++) {
         let acc = 0;
-        for (let j = 0; j < D; j++) acc += eps[j] * F[i][j];
+        const width = lowerTriangular ? i + 1 : D;
+        for (let j = 0; j < width; j++) acc += eps[j] * F[i][j];
         const value = theta[n * D + i] + proposalScale * acc;
         if (i < K) tNew[n * K + i] = value;
         else lNew[n * K + (i - K)] = value;
