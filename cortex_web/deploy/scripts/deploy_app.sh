@@ -87,6 +87,10 @@ rsync -az --delete \
   --exclude '.venv' \
   --exclude '__pycache__' \
   --exclude '.pytest_cache' \
+  --exclude 'test_*.py' \
+  --exclude 'conftest.py' \
+  --exclude '*.test.ts' \
+  --exclude '*.test.tsx' \
   "$WEB_LOCAL/" "$SSH_HOST:$REMOTE_STAGE/"
 printf '%s %s\n' "$HEAD_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   | ssh "$SSH_HOST" "cat > '$REMOTE_STAGE/RELEASE'"

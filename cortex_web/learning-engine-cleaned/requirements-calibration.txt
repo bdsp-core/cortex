@@ -1,0 +1,27 @@
+# CALIBRATION ONLY — not the serving stack.
+#
+# These install the environment used to REFIT the population artifact
+# (learning_engine.multimodel, the hierarchical NumPyro/JAX model) and to run
+# this package's own tests. Nothing here is installed on the app server, and
+# no deploy or CI path reads this file.
+#
+# At serving time the app imports learning_engine + adapter.le_adapter from a
+# checkout (services/api/engine_trainer.py), and the numpy/scipy those modules
+# run against come from the API virtualenv — services/api/requirements.lock,
+# currently numpy==2.4.6 / scipy==1.17.1. That lock is the single source of
+# truth for the runtime numeric stack. This file previously carried the same
+# two packages at different versions with nothing marking it calibration-only,
+# which read as a contradiction about what production runs.
+#
+# multimodel (the only jax/numpyro importer) is reached through a lazy
+# __getattr__ in learning_engine/__init__.py that fires only for the
+# calibration exports, so a serving process never imports JAX at all.
+#
+# The pins below are what the refit was validated against and may legitimately
+# differ from the serving lock; keep that difference deliberate, and
+# re-validate the artifact if you change them.
+numpy==2.5.1
+scipy==1.18.0
+jax==0.10.2
+jaxlib==0.10.2
+numpyro==0.21.0

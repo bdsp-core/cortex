@@ -1,0 +1,33 @@
+# Python tooling configuration for the cortex_web tree.
+#
+# There is deliberately no [project] table: nothing here is pip-installed.
+# The API runs from a checkout as `uvicorn api.app:app` with cwd=services/
+# (see services/api/run.py and deploy/systemd/cortex.service), and the
+# learning engine is loaded from its directory by engine_trainer.py. This
+# file exists so pytest has ONE rootdir and one collection contract.
+#
+# Before it, running pytest from cortex_web/, services/, services/api/, or
+# learning-engine-cleaned/ each discovered its own rootdir and wrote its own
+# cache (four stray .pytest_cache directories were the evidence). Now every
+# invocation resolves to this rootdir and one cache, and a bare
+# `python -m pytest` from cortex_web/ collects exactly the suite the quality
+# gate and CI run. (Running it from a subdirectory still collects only that
+# subtree — testpaths applies to the no-argument run at the rootdir.)
+
+[tool.pytest.ini_options]
+# Explicit roots so collection does not depend on the invoking directory.
+# Every directory that actually holds tests is listed; adding a new one
+# means adding it here.
+testpaths = [
+    "services/api",
+    "research",
+    "apps/web/scripts",
+    "learning-engine-cleaned/tests",
+]
+# `prepend` (pytest's current default) is what makes the API suite's relative
+# imports (`from . import awards`) resolve against services/api as a package.
+# Pinned via addopts — pytest 8 exposes import mode only as a command-line
+# option — so a future default change cannot silently break collection.
+addopts = ["--import-mode=prepend"]
+# Keep the cache in one place instead of one per invocation directory.
+cache_dir = ".pytest_cache"
