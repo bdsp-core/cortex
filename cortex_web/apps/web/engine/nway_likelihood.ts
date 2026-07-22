@@ -10,6 +10,28 @@ import type {
 
 export const IIIC_TASK_INDICES = Object.freeze([1, 2, 3, 4, 5, 6]);
 
+interface PreparedHistoryDraw extends ArtifactDraw {
+  logWeight: number;
+  uniformLogProbability: number;
+  directedLogProbability: number;
+}
+
+// These terms are invariant across every particle, observation, and MH step.
+// Keep them on the log-domain history path only: the selector mixes response
+// probabilities and intentionally retains its existing arithmetic.
+const HISTORY_DRAWS: readonly PreparedHistoryDraw[] = Object.freeze(
+  NWAY_ARTIFACT.draws.map((draw) => ({
+    ...draw,
+    logWeight: Math.log(draw.weight),
+    uniformLogProbability: draw.distractorLapse === 0
+      ? -Infinity
+      : Math.log(draw.distractorLapse) - Math.log(IIIC_TASK_INDICES.length - 1),
+    directedLogProbability: draw.distractorLapse === 1
+      ? -Infinity
+      : Math.log1p(-draw.distractorLapse),
+  })),
+);
+
 function zFor(
   taskK: number, sMean: readonly number[], sSd: readonly number[],
   t: Float64Array, l: Float64Array, particleOffset: number,
@@ -31,7 +53,7 @@ function zFor(
 
 function logDistractorProbability(
   askedK: number, pickK: number,
-  draw: ArtifactDraw,
+  draw: PreparedHistoryDraw,
   workspace: ObservationLikelihoodWorkspace,
 ): number {
   if (pickK === askedK
@@ -55,13 +77,14 @@ function logDistractorProbability(
     denominator += Math.exp(workspace.distractorLogits[i] - maximum);
   }
   const logSoftmax = pickedLogit - (maximum + Math.log(denominator));
-  const uniform = draw.distractorLapse === 0
-    ? -Infinity
-    : Math.log(draw.distractorLapse) - Math.log(IIIC_TASK_INDICES.length - 1);
-  const directed = draw.distractorLapse === 1
-    ? -Infinity
-    : Math.log1p(-draw.distractorLapse) + logSoftmax;
-  return logSumExp2(uniform, directed);
+  // Seven of the nine frozen draws have exactly zero distractor lapse. For
+  // those draws logSumExp(-Infinity, logSoftmax) is exactly logSoftmax, so the
+  // generic mixture and its transcendental calls are pure repeated work.
+  if (draw.distractorLapse === 0) return logSoftmax;
+  return logSumExp2(
+    draw.uniformLogProbability,
+    draw.directedLogProbability + logSoftmax,
+  );
 }
 
 export interface ObservationLikelihoodWorkspace {
@@ -127,9 +150,9 @@ export function logCategoricalObservationProbability(
       k, sMean, sSd, signalOffset, t, l, particleOffset, skillScale,
     );
   }
-  for (let i = 0; i < NWAY_ARTIFACT.draws.length; i++) {
-    const draw = NWAY_ARTIFACT.draws[i];
-    workspace.mixture[i] = Math.log(draw.weight) + logDistractorProbability(
+  for (let i = 0; i < HISTORY_DRAWS.length; i++) {
+    const draw = HISTORY_DRAWS[i];
+    workspace.mixture[i] = draw.logWeight + logDistractorProbability(
       askedK, pickK, draw, workspace,
     );
   }
