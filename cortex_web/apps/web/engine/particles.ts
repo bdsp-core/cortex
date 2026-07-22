@@ -8,7 +8,7 @@ import type {
 import { logPResponse, signalZ, signalZFromScale } from "./likelihood";
 import {
   logCategoricalObservationProbability, logObservationProbability,
-  makeObservationLikelihoodWorkspace,
+  makeObservationLikelihoodWorkspace, type ObservationLikelihoodWorkspace,
 } from "./nway_likelihood";
 import { logPriorOne, samplePrior } from "./prior";
 import { covRows, cholesky, symSqrtClipped, Mat } from "./linalg";
@@ -288,6 +288,20 @@ export function ess(w: Float64Array): number {
 
 // cumulative log-likelihood of the full history for a proposed (t',l') cloud.
 // Vectorized over particles; mirrors _log_lik_history.
+export interface PackedHistoryLikelihoodScratch {
+  likelihoodWorkspace: ObservationLikelihoodWorkspace;
+  skillScale: Float64Array;
+}
+
+export function makePackedHistoryLikelihoodScratch(
+  valueCount = 0,
+): PackedHistoryLikelihoodScratch {
+  return {
+    likelihoodWorkspace: makeObservationLikelihoodWorkspace(),
+    skillScale: new Float64Array(valueCount),
+  };
+}
+
 export function logLikPackedHistory(
   history: PackedParticleHistory,
   N: number,
@@ -295,13 +309,19 @@ export function logLikPackedHistory(
   tNew: Float64Array,
   lNew: Float64Array,
   out: Float64Array,
+  scratch?: PackedHistoryLikelihoodScratch,
 ): void {
   if (tNew.length !== N * K || lNew.length !== N * K || out.length !== N) {
     throw new Error("packed history likelihood shard dimensions are invalid");
   }
   out.fill(0);
-  const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
-  const skillScale = new Float64Array(lNew.length);
+  const likelihoodWorkspace = scratch?.likelihoodWorkspace
+    ?? makeObservationLikelihoodWorkspace();
+  let skillScale = scratch?.skillScale;
+  if (!skillScale || skillScale.length !== lNew.length) {
+    skillScale = new Float64Array(lNew.length);
+    if (scratch) scratch.skillScale = skillScale;
+  }
   for (let index = 0; index < lNew.length; index++) {
     skillScale[index] = Math.exp(lNew[index]);
   }

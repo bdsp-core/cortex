@@ -20,6 +20,9 @@ interface SelectorSlot {
   worker: Worker;
   ready: Promise<void>;
   historyVersion: number | null;
+  historyT?: Float64Array;
+  historyL?: Float64Array;
+  historyOutput?: Float64Array;
 }
 
 interface ActiveSelectorJob {
@@ -342,10 +345,18 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(N, startIndex + shardSize);
+      const slot = this.slots[shardIndex];
+      const valueCount = (endIndex - startIndex) * K;
+      const shardT = this.takeHistoryBuffer(slot, "historyT", valueCount);
+      const shardL = this.takeHistoryBuffer(slot, "historyL", valueCount);
+      const shardOutput = this.takeHistoryBuffer(
+        slot, "historyOutput", endIndex - startIndex,
+      );
+      shardT.set(t.subarray(startIndex * K, endIndex * K));
+      shardL.set(l.subarray(startIndex * K, endIndex * K));
       const response = await this.runHistoryShard(
-        this.slots[shardIndex], history, historyVersion, K,
-        t.slice(startIndex * K, endIndex * K),
-        l.slice(startIndex * K, endIndex * K), startIndex,
+        slot, history, historyVersion, K,
+        shardT, shardL, shardOutput, startIndex,
       );
       if (response.startIndex !== startIndex
           || response.logLikelihood.length !== endIndex - startIndex) {
@@ -483,10 +494,18 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(N, startIndex + shardSize);
+      const slot = this.slots[shardIndex];
+      const valueCount = (endIndex - startIndex) * K;
+      const shardT = this.takeHistoryBuffer(slot, "historyT", valueCount);
+      const shardL = this.takeHistoryBuffer(slot, "historyL", valueCount);
+      const shardOutput = this.takeHistoryBuffer(
+        slot, "historyOutput", endIndex - startIndex,
+      );
+      shardT.set(t.subarray(startIndex * K, endIndex * K));
+      shardL.set(l.subarray(startIndex * K, endIndex * K));
       const response = await this.runHistoryShard(
-        this.slots[shardIndex], history, historyVersion, K,
-        t.slice(startIndex * K, endIndex * K),
-        l.slice(startIndex * K, endIndex * K), startIndex,
+        slot, history, historyVersion, K,
+        shardT, shardL, shardOutput, startIndex,
       );
       if (response.startIndex !== startIndex
           || response.logLikelihood.length !== endIndex - startIndex) {
@@ -690,10 +709,15 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
 
   private runHistoryShard(
     slot: SelectorSlot, history: PackedParticleHistory, historyVersion: number, K: number,
-    t: Float64Array, l: Float64Array, startIndex: number,
+    t: Float64Array, l: Float64Array, logLikelihood: Float64Array, startIndex: number,
   ): Promise<Extract<NWaySelectorWorkerResponse, { type: "history_result" }>> {
     const jobId = this.nextJobId++;
     const includeHistory = slot.historyVersion !== historyVersion;
+    // Transfer detaches the coordinator-side views synchronously, so retain
+    // the expected dimensions before posting the request.
+    const tLength = t.length;
+    const lLength = l.length;
+    const outputLength = logLikelihood.length;
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         slot.worker.removeEventListener("message", onMessage);
@@ -715,8 +739,14 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
           reject(new Error("n-way history worker returned the wrong job kind"));
         } else if (message.historyVersion !== historyVersion) {
           reject(new Error("n-way history worker returned a stale history version"));
+        } else if (message.t.length !== tLength || message.l.length !== lLength
+            || message.logLikelihood.length !== outputLength) {
+          reject(new Error("n-way history worker returned malformed reusable buffers"));
         } else {
           slot.historyVersion = historyVersion;
+          slot.historyT = message.t;
+          slot.historyL = message.l;
+          slot.historyOutput = message.logLikelihood;
           resolve(message);
         }
       };
@@ -740,12 +770,24 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       slot.worker.addEventListener("messageerror", onMessageError);
       const request: NWaySelectorWorkerRequest = {
         type: "history_likelihood", jobId, startIndex,
-        N: t.length / K, K, historyVersion,
+        N: tLength / K, K, historyVersion,
         ...(includeHistory ? { history } : {}),
-        t, l,
+        t, l, logLikelihood,
       };
-      slot.worker.postMessage(request, { transfer: [t.buffer, l.buffer] });
+      slot.worker.postMessage(request, {
+        transfer: [t.buffer, l.buffer, logLikelihood.buffer],
+      });
     });
+  }
+
+  private takeHistoryBuffer(
+    slot: SelectorSlot,
+    key: "historyT" | "historyL" | "historyOutput",
+    length: number,
+  ): Float64Array {
+    const cached = slot[key];
+    slot[key] = undefined;
+    return cached?.length === length ? cached : new Float64Array(length);
   }
 
   private createSlot(): SelectorSlot {

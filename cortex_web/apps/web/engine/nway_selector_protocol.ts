@@ -30,6 +30,7 @@ export type NWaySelectorWorkerRequest =
       history?: PackedParticleHistory;
       t: Float64Array;
       l: Float64Array;
+      logLikelihood: Float64Array;
     };
 
 export type NWaySelectorWorkerResponse =
@@ -40,6 +41,8 @@ export type NWaySelectorWorkerResponse =
       jobId: number;
       startIndex: number;
       historyVersion: number;
+      t: Float64Array;
+      l: Float64Array;
       logLikelihood: Float64Array;
     }
   | {

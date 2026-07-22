@@ -7,7 +7,10 @@ import type {
   NWaySelectorWorkerRequest, NWaySelectorWorkerResponse,
 } from "./nway_selector_protocol";
 import type { ComputeEngineInputs } from "./types";
-import { logLikPackedHistory } from "./particles";
+import {
+  logLikPackedHistory, makePackedHistoryLikelihoodScratch,
+  type PackedHistoryLikelihoodScratch,
+} from "./particles";
 
 let inputs: ComputeEngineInputs | null = null;
 let segmentsById: Map<number, ComputeEngineInputs["segments"][number]> | null = null;
@@ -15,6 +18,7 @@ let cachedHistory: Extract<
   NWaySelectorWorkerRequest, { type: "history_likelihood" }
 >["history"] = undefined;
 let cachedHistoryVersion: number | null = null;
+let historyLikelihoodScratch: PackedHistoryLikelihoodScratch | undefined;
 
 const post = (message: NWaySelectorWorkerResponse, transfer: Transferable[] = []) =>
   self.postMessage(message, { transfer });
@@ -27,6 +31,7 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
       segmentsById = new Map(inputs.segments.map((segment) => [segment.segId, segment]));
       cachedHistory = undefined;
       cachedHistoryVersion = null;
+      historyLikelihoodScratch = makePackedHistoryLikelihoodScratch();
       post({ type: "ready" });
       return;
     }
@@ -52,16 +57,16 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
       } else if (!cachedHistory || cachedHistoryVersion !== message.historyVersion) {
         throw new Error("n-way history worker cache is unavailable or stale");
       }
-      const logLikelihood = new Float64Array(message.N);
       logLikPackedHistory(
         cachedHistory, message.N, message.K,
-        message.t, message.l, logLikelihood,
+        message.t, message.l, message.logLikelihood, historyLikelihoodScratch,
       );
       post({
         type: "history_result", jobId: message.jobId,
         startIndex: message.startIndex,
-        historyVersion: message.historyVersion, logLikelihood,
-      }, [logLikelihood.buffer]);
+        historyVersion: message.historyVersion,
+        t: message.t, l: message.l, logLikelihood: message.logLikelihood,
+      }, [message.t.buffer, message.l.buffer, message.logLikelihood.buffer]);
     } else {
       const losses = scoreNWayCandidateLosses(
         message.state, inputs, message.candidates,

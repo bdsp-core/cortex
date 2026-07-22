@@ -57,6 +57,7 @@ class HistoryCachingWorker {
   private listeners = new Map<string, Set<(event: any) => void>>();
   readonly receivedFullHistory: boolean[] = [];
   readonly receivedHistoryVersions: number[] = [];
+  readonly receivedOutputValuesBeforeWork: number[] = [];
   terminated = false;
 
   addEventListener(type: string, listener: (event: any) => void): void {
@@ -77,15 +78,26 @@ class HistoryCachingWorker {
     if (message.type !== "history_likelihood") {
       throw new Error("unexpected history caching worker request");
     }
-    this.receivedFullHistory.push(message.history !== undefined);
-    this.receivedHistoryVersions.push(message.historyVersion);
-    queueMicrotask(() => this.emitMessage({
-      type: "history_result",
-      jobId: message.jobId,
-      startIndex: message.startIndex,
-      historyVersion: message.historyVersion,
-      logLikelihood: new Float64Array(message.N),
-    }));
+    const workerMessage = structuredClone(message, { transfer: [
+      message.t.buffer, message.l.buffer, message.logLikelihood.buffer,
+    ] });
+    this.receivedFullHistory.push(workerMessage.history !== undefined);
+    this.receivedHistoryVersions.push(workerMessage.historyVersion);
+    this.receivedOutputValuesBeforeWork.push(workerMessage.logLikelihood[0]);
+    workerMessage.logLikelihood.fill(this.receivedHistoryVersions.length);
+    const response = structuredClone({
+      type: "history_result" as const,
+      jobId: workerMessage.jobId,
+      startIndex: workerMessage.startIndex,
+      historyVersion: workerMessage.historyVersion,
+      t: workerMessage.t,
+      l: workerMessage.l,
+      logLikelihood: workerMessage.logLikelihood,
+    }, { transfer: [
+      workerMessage.t.buffer, workerMessage.l.buffer,
+      workerMessage.logLikelihood.buffer,
+    ] });
+    queueMicrotask(() => this.emitMessage(response));
   }
 
   terminate(): void {
@@ -194,12 +206,14 @@ describe("n-way selector pool failure containment", () => {
 
     expect(workers[0].receivedFullHistory).toEqual([true, false, true]);
     expect(workers[0].receivedHistoryVersions).toEqual([1, 1, 2]);
+    expect(workers[0].receivedOutputValuesBeforeWork).toEqual([0, 1, 2]);
 
     const restart = executor.restartAfterCancellation();
     await restart.ready;
     await likelihood();
     expect(workers[1].receivedFullHistory).toEqual([true]);
     expect(workers[1].receivedHistoryVersions).toEqual([2]);
+    expect(workers[1].receivedOutputValuesBeforeWork).toEqual([0]);
 
     executor.dispose();
     expect(workers.every((worker) => worker.terminated)).toBe(true);
