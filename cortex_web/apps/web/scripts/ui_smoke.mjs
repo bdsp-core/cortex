@@ -229,7 +229,14 @@ try {
     if (dashboardScores !== 7) {
       throw new Error(`expected seven dashboard percentile scores, got ${dashboardScores}`);
     }
-    log("percentile artifact → score → ingest → seven-domain result display ✓");
+    const dashboardAurocs = await page
+      .getByRole("region", { name: "Per-task mastery grid" })
+      .getByText(/^AUROC /)
+      .count();
+    if (dashboardAurocs !== 7) {
+      throw new Error(`expected seven dashboard AUROC scores, got ${dashboardAurocs}`);
+    }
+    log("percentile artifact → score → ingest → seven-domain percentile and AUROC display ✓");
   }
 
   console.log("UI SMOKE: PASS");

@@ -503,11 +503,13 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       </div>
                       <div className="foot">
                         <span className="auroc">
-                          {t.percentile != null
-                            ? <>historical percentile <b>{formatPercentile(t.percentile.estimate)}</b></>
-                            : t.auroc != null
-                            ? <>AUROC <b>{t.auroc.toFixed(2)}</b></>
-                            : "not yet assessed"}
+                          {t.percentile != null && (
+                            <span>historical percentile <b>{formatPercentile(t.percentile.estimate)}</b></span>
+                          )}
+                          {t.auroc != null && (
+                            <span>AUROC <b>{t.auroc.toFixed(2)}</b></span>
+                          )}
+                          {t.percentile == null && t.auroc == null && <span>not yet assessed</span>}
                         </span>
                         {tr && tr.ell.length >= 2 && <Sparkline series={tr.ell} />}
                       </div>
