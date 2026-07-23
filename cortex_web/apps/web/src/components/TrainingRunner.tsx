@@ -19,6 +19,7 @@ import * as api from "../api";
 import { TrainingController, DEFAULT_SESSION_ITEMS,
          type TrainerSessionLike } from "../trainingController";
 import { buildRevealRows, type RevealRow } from "../trainingReveal";
+import type { PercentileProfile } from "../percentile/types";
 
 // Teal ring flashed around the "Is this X?" prompt when the learning policy
 // switches task domains mid-session — beta testers missed the silent label
@@ -40,6 +41,7 @@ const TASK_FLASH_CSS = `
 export function TrainingRunner({
   bundle, session, trainingId, labels, total = DEFAULT_SESSION_ITEMS, onExit,
   attainability,
+  percentileProfile,
 }: {
   bundle: Bundle;
   session: TrainerSessionLike;    // local TrainerSession or the Phase-L3
@@ -51,6 +53,7 @@ export function TrainingRunner({
   // R5: seed-time "where you stand" report (engine mode only) — shown as a
   // slim strip on the first question, gone after the first answer.
   attainability?: { label: string; tier: "far" | "mid" | "near" }[];
+  percentileProfile?: PercentileProfile | null;
 }) {
   const ctrlRef = useRef<TrainingController | null>(null);
   if (ctrlRef.current === null) {
@@ -264,8 +267,16 @@ export function TrainingRunner({
                 Readiness is the probability that your estimated skill clears the domain's ℓ* certification bar.
               </div>
               {rows.map((r, i) => (
-                <RevealRowView key={r.taskK} r={r} delayS={0.4 + i * 0.45} />
+                <RevealRowView key={r.taskK} r={r} delayS={0.4 + i * 0.45}
+                  showPercentile={!!percentileProfile?.display} />
               ))}
+              {percentileProfile?.display && (
+                <div style={{ fontSize: 12, color: COLORS.textBody, opacity: 0.8,
+                              lineHeight: 1.5, marginTop: 12 }}>
+                  <b>{percentileProfile.displayCopy.label}.</b>{" "}
+                  {percentileProfile.displayCopy.disclosure}
+                </div>
+              )}
             </div>
           )}
           <div className="cx-reveal-in" style={{ animationDelay: `${empty ? 0 : footDelay}s` }}>
@@ -423,7 +434,9 @@ export function TrainingRunner({
   );
 }
 
-function RevealRowView({ r, delayS }: { r: RevealRow; delayS: number }) {
+function RevealRowView({ r, delayS, showPercentile }: {
+  r: RevealRow; delayS: number; showPercentile: boolean;
+}) {
   const dSkill = r.after.skill - r.before.skill;
   const passB = Math.round(100 * r.before.pass);
   const passA = Math.round(100 * r.after.pass);
@@ -451,6 +464,16 @@ function RevealRowView({ r, delayS }: { r: RevealRow; delayS: number }) {
         </b>
       </span>
       <span style={num}>readiness {passB}% → {passA}%</span>
+      {showPercentile && r.beforePercentile && r.afterPercentile && (
+        <span style={num}>
+          historical percentile{" "}
+          {formatPercentile(r.beforePercentile.estimate)}{" "}
+          [{formatRange(r.beforePercentile.lower, r.beforePercentile.upper)}]
+          {" → "}
+          {formatPercentile(r.afterPercentile.estimate)}{" "}
+          [{formatRange(r.afterPercentile.lower, r.afterPercentile.upper)}]
+        </span>
+      )}
       <span style={{ flex: 1 }} />
       {r.newlyMastered
         ? <span style={chip}>✓ mastered today</span>
@@ -461,6 +484,26 @@ function RevealRowView({ r, delayS }: { r: RevealRow; delayS: number }) {
             : null}
     </div>
   );
+}
+
+function ordinal(value: number): string {
+  const n = Math.round(value);
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13
+    ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd"
+      : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
+function formatPercentile(value: number): string {
+  if (value < 5) return "<5th";
+  if (value > 95) return ">95th";
+  return ordinal(value);
+}
+
+function formatRange(lower: number, upper: number): string {
+  return `${lower < 5 ? "<5th" : ordinal(lower)}–${
+    upper > 95 ? ">95th" : ordinal(upper)}`;
 }
 
 function ProgressBar({ count, total, inline }: { count: number; total: number; inline?: boolean }) {

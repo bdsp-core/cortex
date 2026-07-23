@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cortexeeg.org/schemas/percentile-score-v1.json",
+  "title": "CORTEX provisional percentile score",
+  "type": "object",
+  "required": [
+    "scoreSchemaVersion",
+    "policyStatus",
+    "norm",
+    "intervalLabel",
+    "domains",
+    "warnings"
+  ],
+  "properties": {
+    "scoreSchemaVersion": {
+      "const": "cortex-percentile-score/v1"
+    },
+    "policyStatus": {
+      "const": "provisional_historical_calibration_cohort"
+    },
+    "norm": {
+      "type": "object",
+      "required": ["id", "sha256", "referenceLabel"]
+    },
+    "domains": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "estimate",
+          "lower",
+          "upper",
+          "level",
+          "candidateMethod",
+          "referenceReplicates",
+          "display"
+        ],
+        "properties": {
+          "estimate": {"type": "number", "minimum": 0, "maximum": 100},
+          "lower": {"type": "number", "minimum": 0, "maximum": 100},
+          "upper": {"type": "number", "minimum": 0, "maximum": 100},
+          "level": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    }
+  }
+}

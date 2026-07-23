@@ -19,6 +19,9 @@ export CORTEX_EMAIL_EXPOSE_CODE="1"
 # Precision worker execution has its own real-browser gate (worker-smoke).
 export CORTEX_PRECISION_POLICY_ROLLOUT="off"
 export CORTEX_PRECISION_COMPUTE_ROLLOUT="off"
+# Default smoke is the noninterference posture. A dedicated percentile smoke
+# may explicitly override this to all/cohort plus the release SHA.
+export CORTEX_PERCENTILE_MODE="${CORTEX_PERCENTILE_MODE:-off}"
 # Single-process smoke: uvicorn serves the SPA + bundle as well as /api.
 export CORTEX_SERVE_STATIC=1
 rm -f /tmp/cortex_ui_smoke.db* 2>/dev/null || true

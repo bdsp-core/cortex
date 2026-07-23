@@ -1,0 +1,215 @@
+{
+  "automaticCutoverAllowed": false,
+  "decision": "continue_provisional_policy",
+  "eligibleForGovernedCutover": false,
+  "gates": [
+    {
+      "name": "spike.effective_n",
+      "observed": 235.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "spike.precision",
+      "observed": 6.8,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "spike.stability",
+      "observed": 3.8,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "sz.effective_n",
+      "observed": 215.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "sz.precision",
+      "observed": 7.0,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "sz.stability",
+      "observed": 3.9,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "lpd.effective_n",
+      "observed": 208.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "lpd.precision",
+      "observed": 7.3,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "lpd.stability",
+      "observed": 4.2,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "gpd.effective_n",
+      "observed": 210.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "gpd.precision",
+      "observed": 7.2,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "gpd.stability",
+      "observed": 4.1,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "lrda.effective_n",
+      "observed": 202.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "lrda.precision",
+      "observed": 7.5,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "lrda.stability",
+      "observed": 4.5,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "grda.effective_n",
+      "observed": 205.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "grda.precision",
+      "observed": 7.4,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "grda.stability",
+      "observed": 4.4,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "iic.effective_n",
+      "observed": 207.0,
+      "passed": false,
+      "required": ">= 500"
+    },
+    {
+      "name": "iic.precision",
+      "observed": 7.1,
+      "passed": false,
+      "required": "<= 5 percentage points"
+    },
+    {
+      "name": "iic.stability",
+      "observed": 4.0,
+      "passed": false,
+      "required": "<= 3 percentage points"
+    },
+    {
+      "name": "stable_windows",
+      "observed": 1,
+      "passed": false,
+      "required": ">= 2"
+    },
+    {
+      "name": "strata_coverage",
+      "observed": 0.55,
+      "passed": false,
+      "required": ">= 80%"
+    },
+    {
+      "name": "site_concentration",
+      "observed": 0.42,
+      "passed": false,
+      "required": "<= 25%"
+    },
+    {
+      "name": "first_attempt_only",
+      "observed": true,
+      "passed": true,
+      "required": "true"
+    },
+    {
+      "name": "pre_training_only",
+      "observed": true,
+      "passed": true,
+      "required": "true"
+    },
+    {
+      "name": "instrument_compatibility",
+      "observed": true,
+      "passed": true,
+      "required": "true"
+    },
+    {
+      "name": "posterior_calibration",
+      "observed": false,
+      "passed": false,
+      "required": "true"
+    },
+    {
+      "name": "dif_review",
+      "observed": false,
+      "passed": false,
+      "required": "true"
+    },
+    {
+      "name": "data_quality",
+      "observed": true,
+      "passed": true,
+      "required": "true"
+    },
+    {
+      "name": "privacy_and_consent",
+      "observed": true,
+      "passed": true,
+      "required": "true"
+    },
+    {
+      "name": "independent_scientific_review",
+      "observed": false,
+      "passed": false,
+      "required": "true"
+    },
+    {
+      "name": "governance_cutover_approval",
+      "observed": false,
+      "passed": false,
+      "required": "true"
+    }
+  ],
+  "policy": {
+    "max_anchor_drift_pp": 3.0,
+    "max_interval_halfwidth_pp": 5.0,
+    "max_largest_site_share": 0.25,
+    "min_effective_n_per_domain": 500.0,
+    "min_required_strata_coverage": 0.8,
+    "min_stable_windows": 2,
+    "target_effective_n_per_domain": 1000.0
+  },
+  "schemaVersion": "cortex-percentile-transition-evaluation/v1"
+}

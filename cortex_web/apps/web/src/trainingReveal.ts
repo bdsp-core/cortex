@@ -4,6 +4,7 @@
 // only in WHEN the numbers are shown. UI-free so it is unit-testable;
 // TrainingRunner's done screen renders the rows.
 import type { TaskSnapshot } from "../trainer/types";
+import type { PercentileDomainScore } from "./percentile/types";
 
 export interface RevealRow {
   taskK: number;
@@ -11,6 +12,8 @@ export interface RevealRow {
   items: number;                                    // items answered today
   before: { skill: number; sd: number; pass: number };
   after: { skill: number; sd: number; pass: number };
+  beforePercentile: PercentileDomainScore | null;
+  afterPercentile: PercentileDomainScore | null;
   ellStar: number;
   mastered: boolean;                                // mastered as of session end
   newlyMastered: boolean;                           // crossed into mastery today
@@ -38,6 +41,8 @@ export function buildRevealRows(
       items,
       before: { skill: a.skill, sd: a.sd, pass: a.passMass },
       after: { skill: b.skill, sd: b.sd, pass: b.passMass },
+      beforePercentile: a.percentile ?? null,
+      afterPercentile: b.percentile ?? null,
       ellStar,
       mastered: b.mastered,
       newlyMastered: b.mastered && !a.mastered,

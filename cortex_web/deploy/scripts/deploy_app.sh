@@ -110,6 +110,12 @@ sudo -u "$CORTEX_USER" /opt/cortex/.venv/bin/python -m compileall -q \
 
 test -f "$RELEASE/apps/web/dist/index.html"
 test -f "$RELEASE/RELEASE"
+test -f "$RELEASE/apps/web/dist/norms/historical-calibration-k7-provisional-v1.json"
+test -f "$RELEASE/apps/web/dist/norms/historical-calibration-k7-provisional-v1.bin"
+printf '%s  %s\n' \
+  "c0ca140310b2410d12d61733478c0b8d4999e25e9f77c204a2caa318a7ee4776" \
+  "$RELEASE/apps/web/dist/norms/historical-calibration-k7-provisional-v1.bin" \
+  | sha256sum -c -
 "$RELEASE/deploy/scripts/publish_assets.sh" "$RELEASE"
 
 # Apply a governed Caddy change only when the live file still byte-matches the

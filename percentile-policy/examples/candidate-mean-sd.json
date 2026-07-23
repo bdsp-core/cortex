@@ -1,0 +1,8 @@
+{
+  "domains": {
+    "spike": {
+      "ellMean": 0.2,
+      "ellSd": 0.15
+    }
+  }
+}

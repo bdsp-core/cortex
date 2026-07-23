@@ -318,3 +318,19 @@ def test_alloc_for_pilot_allowlist():
     assert et.alloc_for(cfg, "abc", None) == "greedy"
     assert et.alloc_for({"trainer_alloc": "thompson"}, "abc", None) \
         == "thompson"
+
+
+def test_percentile_reporting_failure_cannot_interrupt_training():
+    """A reporting-only runtime failure degrades to unavailable, never 500."""
+    from .engine_trainer import EngineSession
+
+    class BrokenRuntime:
+        ready = True
+
+        def score_domain(self, *_args):
+            raise RuntimeError("synthetic scoring failure")
+
+    session = EngineSession.__new__(EngineSession)
+    session.percentile_profile = {"normId": "test"}
+    session.percentile_runtime = BrokenRuntime()
+    assert session._percentile_for("spike", [0.0], [1.0]) is None

@@ -1,0 +1,9 @@
+{
+  "max_anchor_drift_pp": 3.0,
+  "max_interval_halfwidth_pp": 5.0,
+  "max_largest_site_share": 0.25,
+  "min_effective_n_per_domain": 500.0,
+  "min_required_strata_coverage": 0.8,
+  "min_stable_windows": 2,
+  "target_effective_n_per_domain": 1000.0
+}

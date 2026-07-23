@@ -37,6 +37,10 @@ SCHEMA_STATEMENTS = [
         candidate_exclusion TEXT,
         candidate_bank_sha256 TEXT,
         nway_profile      TEXT,
+        norm_id           TEXT,
+        norm_sha256       TEXT,
+        score_schema_version TEXT,
+        norm_profile      TEXT,
         FOREIGN KEY (code) REFERENCES participants(code)
     )""",
     """CREATE TABLE IF NOT EXISTS trials (
@@ -82,7 +86,11 @@ SCHEMA_STATEMENTS = [
         n_items           INTEGER,
         summary           TEXT,
         regimen_id        TEXT,        -- FK→regimens (Phase O2)
-        source_session_id TEXT         -- FK→sessions (the seeding cert; Phase O2)
+        source_session_id TEXT,        -- FK→sessions (the seeding cert; Phase O2)
+        norm_id           TEXT,
+        norm_sha256       TEXT,
+        score_schema_version TEXT,
+        norm_profile      TEXT
     )""",
     # Append-only time series of (task, ℓ, θ, sd, rt) for the evolution charts.
     """CREATE TABLE IF NOT EXISTS param_trajectories (

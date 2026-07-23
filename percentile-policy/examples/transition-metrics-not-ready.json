@@ -1,0 +1,51 @@
+{
+  "dataQualityPassed": true,
+  "difReviewPassed": false,
+  "domains": {
+    "gpd": {
+      "effectiveFirstAttemptN": 210,
+      "maxAnchorDriftPp": 4.1,
+      "maxCentralIntervalHalfwidthPp": 7.2
+    },
+    "grda": {
+      "effectiveFirstAttemptN": 205,
+      "maxAnchorDriftPp": 4.4,
+      "maxCentralIntervalHalfwidthPp": 7.4
+    },
+    "iic": {
+      "effectiveFirstAttemptN": 207,
+      "maxAnchorDriftPp": 4.0,
+      "maxCentralIntervalHalfwidthPp": 7.1
+    },
+    "lpd": {
+      "effectiveFirstAttemptN": 208,
+      "maxAnchorDriftPp": 4.2,
+      "maxCentralIntervalHalfwidthPp": 7.3
+    },
+    "lrda": {
+      "effectiveFirstAttemptN": 202,
+      "maxAnchorDriftPp": 4.5,
+      "maxCentralIntervalHalfwidthPp": 7.5
+    },
+    "spike": {
+      "effectiveFirstAttemptN": 235,
+      "maxAnchorDriftPp": 3.8,
+      "maxCentralIntervalHalfwidthPp": 6.8
+    },
+    "sz": {
+      "effectiveFirstAttemptN": 215,
+      "maxAnchorDriftPp": 3.9,
+      "maxCentralIntervalHalfwidthPp": 7.0
+    }
+  },
+  "firstAttemptOnly": true,
+  "governanceCutoverApproved": false,
+  "independentScientificReviewApproved": false,
+  "instrumentCompatibilityValidated": true,
+  "largestSiteShare": 0.42,
+  "posteriorCalibrationPassed": false,
+  "preTrainingOnly": true,
+  "privacyAndConsentApproved": true,
+  "requiredStrataCoverage": 0.55,
+  "stableWindows": 1
+}

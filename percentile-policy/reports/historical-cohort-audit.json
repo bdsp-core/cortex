@@ -1,0 +1,346 @@
+{
+  "artifactSha256": "e5a532dda595e76e3559efa20a0f8ca45fdaa039bada6e8f99890ac8a3c01262",
+  "domains": {
+    "gpd": {
+      "eligibleRows": 1677,
+      "ellSummary": {
+        "max": 3.681636169023179,
+        "median": -0.437996392115376,
+        "min": -1.5518756541705734,
+        "p05": -0.964151898936802,
+        "p25": -0.6682698016331655,
+        "p75": -0.11684798708253767,
+        "p95": 0.8597329442854842
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 40,
+        "not_converged": 420,
+        "optimizer_boundary": 46,
+        "unparseable": 186
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 96.0,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 41.0,
+        "p75": 221.0,
+        "p95": 1724.9999999999964
+      },
+      "rowDisposition": {
+        "eligible": 1677,
+        "ell_se_above_limit": 40,
+        "not_converged": 420,
+        "optimizer_boundary": 46,
+        "unparseable": 186
+      },
+      "seEllSummary": {
+        "max": 0.9900589809820699,
+        "median": 0.30023481871329866,
+        "min": 0.013429451340674563,
+        "p05": 0.06528449110620065,
+        "p25": 0.18574330380117796,
+        "p75": 0.47797284660872547,
+        "p95": 0.7329142932697004
+      }
+    },
+    "grda": {
+      "eligibleRows": 1561,
+      "ellSummary": {
+        "max": 2.7025007361484907,
+        "median": -0.4584937460583531,
+        "min": -1.5495582431270185,
+        "p05": -0.9990083737867187,
+        "p25": -0.6965210067421665,
+        "p75": -0.15850223626445428,
+        "p95": 0.9630768898017505
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 57,
+        "not_converged": 420,
+        "optimizer_boundary": 42,
+        "unparseable": 289
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 101.0,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 43.0,
+        "p75": 244.0,
+        "p95": 1899.0
+      },
+      "rowDisposition": {
+        "eligible": 1561,
+        "ell_se_above_limit": 57,
+        "not_converged": 420,
+        "optimizer_boundary": 42,
+        "unparseable": 289
+      },
+      "seEllSummary": {
+        "max": 0.996455238620126,
+        "median": 0.3329761626479014,
+        "min": 0.012306017673970646,
+        "p05": 0.06641917493651335,
+        "p25": 0.20353125011392947,
+        "p75": 0.5144413519472323,
+        "p95": 0.781847946267922
+      }
+    },
+    "iic": {
+      "eligibleRows": 1612,
+      "ellSummary": {
+        "max": 2.263849062983013,
+        "median": -0.2644246032420854,
+        "min": -1.6058330445199105,
+        "p05": -1.047905572750849,
+        "p25": -0.6089379781777183,
+        "p75": 0.08818050859760299,
+        "p95": 0.7480388739349078
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 75,
+        "not_converged": 420,
+        "optimizer_boundary": 59,
+        "unparseable": 203
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 100.5,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 43.0,
+        "p75": 236.0,
+        "p95": 1851.199999999997
+      },
+      "rowDisposition": {
+        "eligible": 1612,
+        "ell_se_above_limit": 75,
+        "not_converged": 420,
+        "optimizer_boundary": 59,
+        "unparseable": 203
+      },
+      "seEllSummary": {
+        "max": 0.9965505538908906,
+        "median": 0.35969978388841695,
+        "min": 0.011215626866750253,
+        "p05": 0.06290833754434648,
+        "p25": 0.21463283421460305,
+        "p75": 0.5339087852004977,
+        "p95": 0.818912035677057
+      }
+    },
+    "lpd": {
+      "eligibleRows": 1664,
+      "ellSummary": {
+        "max": 2.6577993015957593,
+        "median": -0.4315111965977997,
+        "min": -1.6055669443511755,
+        "p05": -0.9856259412772577,
+        "p25": -0.6653019683999826,
+        "p75": -0.1338767529312321,
+        "p95": 0.6826188998428038
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 83,
+        "not_converged": 420,
+        "optimizer_boundary": 23,
+        "unparseable": 179
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 98.0,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 42.0,
+        "p75": 223.25,
+        "p95": 1737.9999999999982
+      },
+      "rowDisposition": {
+        "eligible": 1664,
+        "ell_se_above_limit": 83,
+        "not_converged": 420,
+        "optimizer_boundary": 23,
+        "unparseable": 179
+      },
+      "seEllSummary": {
+        "max": 0.9986030821769045,
+        "median": 0.36591251703018934,
+        "min": 0.011007191725733141,
+        "p05": 0.07674994058432393,
+        "p25": 0.23258555942304154,
+        "p75": 0.5533819885084016,
+        "p95": 0.811489284080117
+      }
+    },
+    "lrda": {
+      "eligibleRows": 1593,
+      "ellSummary": {
+        "max": 3.167892578246167,
+        "median": -0.4288925115826989,
+        "min": -1.5468796088225765,
+        "p05": -1.0075541890558684,
+        "p25": -0.6602380194567931,
+        "p75": -0.08216881364625679,
+        "p95": 0.7541849802424953
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 65,
+        "not_converged": 420,
+        "optimizer_boundary": 32,
+        "unparseable": 259
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 98.0,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 40.0,
+        "p75": 229.0,
+        "p95": 1782.799999999986
+      },
+      "rowDisposition": {
+        "eligible": 1593,
+        "ell_se_above_limit": 65,
+        "not_converged": 420,
+        "optimizer_boundary": 32,
+        "unparseable": 259
+      },
+      "seEllSummary": {
+        "max": 0.9874808796497268,
+        "median": 0.36572788565052233,
+        "min": 0.012222177000467026,
+        "p05": 0.0781520122638731,
+        "p25": 0.22399892148478476,
+        "p75": 0.554131528818887,
+        "p95": 0.8017676781809197
+      }
+    },
+    "spike": {
+      "eligibleRows": 1934,
+      "ellSummary": {
+        "max": 2.273457809454902,
+        "median": 0.008695270146894831,
+        "min": -1.5896880020016102,
+        "p05": -1.0077648442779705,
+        "p25": -0.341957919679025,
+        "p75": 0.3135267971309999,
+        "p95": 0.7267077493225055
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 15,
+        "not_converged": 521,
+        "optimizer_boundary": 65,
+        "unparseable": 16
+      },
+      "inputRows": 2551,
+      "nTrialsSummary": {
+        "max": 15670.0,
+        "median": 125.0,
+        "min": 20.0,
+        "p05": 25.0,
+        "p25": 51.0,
+        "p75": 492.75,
+        "p95": 1861.0
+      },
+      "rowDisposition": {
+        "eligible": 1934,
+        "ell_se_above_limit": 15,
+        "not_converged": 521,
+        "optimizer_boundary": 65,
+        "unparseable": 16
+      },
+      "seEllSummary": {
+        "max": 0.9990674396499225,
+        "median": 0.20285855317369916,
+        "min": 0.016467902370321526,
+        "p05": 0.053414755924902725,
+        "p25": 0.10835968953861665,
+        "p75": 0.33633424405135376,
+        "p95": 0.5591221240431147
+      }
+    },
+    "sz": {
+      "eligibleRows": 1810,
+      "ellSummary": {
+        "max": 2.3328860123253117,
+        "median": -0.10566434960454799,
+        "min": -1.578742425194749,
+        "p05": -1.0882142398286063,
+        "p25": -0.5367023189290614,
+        "p75": 0.25844315182083877,
+        "p95": 0.7684289568585168
+      },
+      "exclusionReasons": {
+        "ell_se_above_limit": 48,
+        "not_converged": 420,
+        "optimizer_boundary": 37,
+        "unparseable": 54
+      },
+      "inputRows": 2369,
+      "nTrialsSummary": {
+        "max": 64791.0,
+        "median": 92.0,
+        "min": 20.0,
+        "p05": 20.0,
+        "p25": 40.0,
+        "p75": 215.0,
+        "p95": 1544.2999999999997
+      },
+      "rowDisposition": {
+        "eligible": 1810,
+        "ell_se_above_limit": 48,
+        "not_converged": 420,
+        "optimizer_boundary": 37,
+        "unparseable": 54
+      },
+      "seEllSummary": {
+        "max": 0.9993665503742709,
+        "median": 0.28750995877527175,
+        "min": 0.012544215764463431,
+        "p05": 0.06667247287221252,
+        "p25": 0.17027352496155201,
+        "p75": 0.44721655481358513,
+        "p95": 0.7133560777879976
+      }
+    }
+  },
+  "inputProvenance": {
+    "manifestGenerated": "2026-05-29T19:37:57.534595+00:00",
+    "manifestPath": "data/engine_inputs/MANIFEST_k7.json",
+    "manifestSha256": "fe4e353f24ddce739f8e8a655369b418f91d9a02c882cefb4edf00d3af04eaf5",
+    "producer": "scripts/build_engine_inputs_k7.py — concatenates v13 byte-verbatim two-stage IIIC sdt_fits + spike sdt_fits (D2 invariant). V_B joint posterior NPZs are consumed by Layer 2 (assemble_outputs_k7.py) for s_j; per-rater (σ̂, θ̂) come from the byte-verbatim two-stage path per Phase-3.5 decoupling.",
+    "sourcePath": "data/engine_inputs/sdt_fits_k7.csv",
+    "sourceSha256": "c0a261b2d184c40d3605ec3c041e2d744aaba9bc8bb27dc85b0a9a2604263a54"
+  },
+  "normId": "historical-calibration-k7-provisional-v1",
+  "qualityPolicy": {
+    "boundary_tolerance": 1e-06,
+    "max_se_ell": 1.0,
+    "min_trials": 20,
+    "sigma_lower_bound": 0.02,
+    "sigma_upper_bound": 5.0
+  },
+  "schemaVersion": "cortex-percentile-audit/v1",
+  "sensitivityPolicies": {
+    "minimum_50_trials": {
+      "boundary_tolerance": 1e-06,
+      "max_se_ell": 1.0,
+      "min_trials": 50,
+      "sigma_lower_bound": 0.02,
+      "sigma_upper_bound": 5.0
+    },
+    "stricter_se_ell_0_50": {
+      "boundary_tolerance": 1e-06,
+      "max_se_ell": 0.5,
+      "min_trials": 20,
+      "sigma_lower_bound": 0.02,
+      "sigma_upper_bound": 5.0
+    }
+  }
+}

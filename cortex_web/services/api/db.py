@@ -584,7 +584,8 @@ class Database:
                         compute_mode: str = "serial",
                         candidate_exclusion: Optional[str] = None,
                         candidate_bank_sha256: Optional[str] = None,
-                        nway_profile: Optional[dict] = None) -> None:
+                        nway_profile: Optional[dict] = None,
+                        norm_profile: Optional[dict] = None) -> None:
         # A distinct open-state is a rollback interlock. Older releases search
         # only status='in_progress', so after an application rollback they
         # cannot resume and reinterpret a native n-way answer stream as binary.
@@ -595,11 +596,17 @@ class Database:
             "INSERT INTO sessions(session_id, code, participant, sample_seed, "
             "bundle_version, drawn_seg_ids, termination_policy, "
             "compute_mode, candidate_exclusion, candidate_bank_sha256, nway_profile, "
-            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "norm_id, norm_sha256, score_schema_version, norm_profile, "
+            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (session_id, code, json.dumps(participant), sample_seed,
              bundle_version, drawn_seg_ids, termination_policy, compute_mode,
              candidate_exclusion, candidate_bank_sha256,
              json.dumps(nway_profile, sort_keys=True) if nway_profile else None,
+             norm_profile.get("normId") if norm_profile else None,
+             norm_profile.get("normSha256") if norm_profile else None,
+             norm_profile.get("scoreSchemaVersion") if norm_profile else None,
+             (json.dumps(norm_profile, sort_keys=True)
+              if norm_profile else None),
              utc_now(), open_status),
         )
 
@@ -809,12 +816,20 @@ class Database:
     def create_training_session(self, training_id: str, code: str,
                                 task_focus: Optional[str], *,
                                 regimen_id: Optional[str] = None,
-                                source_session_id: Optional[str] = None) -> None:
+                                source_session_id: Optional[str] = None,
+                                norm_profile: Optional[dict] = None) -> None:
         self._write(
             "INSERT INTO training_sessions(training_id, code, task_focus, "
-            "regimen_id, source_session_id, started_utc, status) "
-            "VALUES (?,?,?,?,?,?, 'in_progress')",
-            (training_id, code, task_focus, regimen_id, source_session_id, utc_now()))
+            "regimen_id, source_session_id, norm_id, norm_sha256, "
+            "score_schema_version, norm_profile, started_utc, status) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?, 'in_progress')",
+            (training_id, code, task_focus, regimen_id, source_session_id,
+             norm_profile.get("normId") if norm_profile else None,
+             norm_profile.get("normSha256") if norm_profile else None,
+             norm_profile.get("scoreSchemaVersion") if norm_profile else None,
+             (json.dumps(norm_profile, sort_keys=True)
+              if norm_profile else None),
+             utc_now()))
 
     def finalize_training_session(self, training_id: str, code: str,
                                   n_items: Optional[int], summary: Optional[dict]) -> bool:
@@ -831,6 +846,11 @@ class Database:
         return self._fetchall(
             "SELECT * FROM training_sessions WHERE code=? "
             "ORDER BY started_utc DESC", (code,))
+
+    def get_training_session(self, training_id: str) -> Optional[dict]:
+        return self._fetchone(
+            "SELECT * FROM training_sessions WHERE training_id=?",
+            (training_id,))
 
     # ── parameter trajectories ────────────────────────────────────
     def append_trajectory_points(self, code: str, points: list[dict]) -> None:

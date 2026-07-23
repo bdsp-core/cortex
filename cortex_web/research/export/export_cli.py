@@ -47,7 +47,7 @@ except ModuleNotFoundError:  # flat run (files copied side-by-side)
     )
     from codebook import CODEBOOK, CODEBOOK_VERSION  # type: ignore
 
-SCHEMA_VERSION = "r1.0"
+SCHEMA_VERSION = "r1.1"
 
 # Deterministic per-table sort keys (grain) so two runs are byte-identical.
 SORT_KEYS = {

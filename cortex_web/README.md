@@ -25,6 +25,8 @@ post-rollout checks are recorded in
   evidence and the rollout gate.
 - `docs/WEB_WORKER_ROLLOUT_OPERATIONS.md` — production exposure record,
   privacy-safe observation queries, and rollback checklist.
+- `docs/PERCENTILE_PREVIEW_RUNBOOK.md` — preliminary historical-percentile
+  provenance, qualification, staged exposure, and rollback contract.
 - `docs/REPOSITORY_STRUCTURE.md` — module ownership, dependency rules, and
   release gates.
 - `docs/MODULARIZATION_REPORT.md` — completed hygiene/modularization work and
@@ -106,6 +108,10 @@ CORTEX_PRECISION_POLICY_EMAILS=...
 
 CORTEX_PRECISION_COMPUTE_ROLLOUT=off|email_allowlist|all
 CORTEX_PRECISION_COMPUTE_EMAILS=...
+
+CORTEX_PERCENTILE_MODE=off|shadow|cohort|all
+CORTEX_PERCENTILE_ALLOWLIST=...
+CORTEX_PERCENTILE_RELEASE_SHA256=...
 ```
 
 The compute default is `off`. Unknown values, AD6 sessions, unsupported

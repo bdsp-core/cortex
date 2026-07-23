@@ -55,6 +55,7 @@ from fastapi.staticfiles import StaticFiles
 from . import config, digest
 from .db import Database
 from .ops_alerts import OpsAlerter
+from .percentile_runtime import PercentileRuntime
 from .routers import ALL_ROUTERS
 from .session_bank import SessionBank
 
@@ -118,6 +119,11 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     app.state.limiter = RateLimiter()
     app.state.get_bank = get_session_bank
     app.state.get_precision_bank = get_precision_session_bank
+    percentile_runtime = PercentileRuntime(Path(os.environ.get(
+        "CORTEX_PERCENTILE_NORM_METADATA",
+        str(config.PERCENTILE_NORM_METADATA),
+    )))
+    app.state.percentile_runtime = percentile_runtime
     # Ops error alerting (ops_alerts.py): backend 500s + SPA crash telemetry
     # email the operator, cooldown-collapsed. Empty CORTEX_OPS_ALERT_TO
     # disables it.
@@ -156,6 +162,17 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 "CORTEX_PRECISION_COMPUTE_EMAILS",
                 ",".join(sorted(config.PRECISION_COMPUTE_EMAILS))).split(",")
             if x.strip()),
+        "percentile_mode": os.environ.get(
+            "CORTEX_PERCENTILE_MODE", config.PERCENTILE_MODE).strip().lower(),
+        "percentile_allowlist": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_PERCENTILE_ALLOWLIST",
+                ",".join(sorted(config.PERCENTILE_ALLOWLIST))).split(",")
+            if x.strip()),
+        "percentile_release_sha256": os.environ.get(
+            "CORTEX_PERCENTILE_RELEASE_SHA256",
+            config.PERCENTILE_RELEASE_SHA256).strip().lower(),
         # Engine-trainer exposure. Default ALL (2026-07-17 integration
         # decision: the learning engine IS the production trainer; the
         # incumbent client-side trainer is ARCHIVED as the fallback).
@@ -253,6 +270,28 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             info["bank"] = ("not_loaded_yet" if "bank" not in _bank_cache
                             else "loaded" if _bank_cache["bank"] is not None
                             else "missing")
+            mode = app.state.cfg.get("percentile_mode", "off")
+            valid_mode = mode in {"off", "shadow", "cohort", "all"}
+            release_acknowledged = (
+                mode not in {"cohort", "all"}
+                or app.state.cfg.get("percentile_release_sha256")
+                == (percentile_runtime.metadata or {}).get(
+                    "runtimeDataSha256")
+            )
+            info["percentile"] = {
+                "mode": mode,
+                "ready": percentile_runtime.ready,
+                "modeValid": valid_mode,
+                "releaseAcknowledged": release_acknowledged,
+                "normId": (
+                    (percentile_runtime.metadata or {}).get("normId")
+                    if percentile_runtime.ready else None
+                ),
+                "error": percentile_runtime.error if mode != "off" else None,
+            }
+            if (not valid_mode or not release_acknowledged
+                    or (mode != "off" and not percentile_runtime.ready)):
+                info["ok"] = False
             if not info["ok"]:
                 return JSONResponse(status_code=503, content=info)
         return info

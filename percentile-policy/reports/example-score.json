@@ -1,0 +1,64 @@
+{
+  "domains": {
+    "gpd": {
+      "candidateMethod": "posterior_particles",
+      "display": {
+        "estimate": 80,
+        "lower": 70,
+        "upper": 85
+      },
+      "estimate": 79.68072099806167,
+      "intervalResolutionPercentagePoints": 0.01,
+      "level": 0.95,
+      "lower": 70.18,
+      "referenceReplicates": 500,
+      "sensitivityEstimates": {
+        "minimum_50_trials": 79.85104437877445,
+        "stricter_se_ell_0_50": 82.6035669541856
+      },
+      "sensitivityRange": [
+        79.85104437877445,
+        82.6035669541856
+      ],
+      "upper": 84.87
+    },
+    "spike": {
+      "candidateMethod": "posterior_particles",
+      "display": {
+        "estimate": 62,
+        "lower": 40,
+        "upper": 77
+      },
+      "estimate": 61.98825424712002,
+      "intervalResolutionPercentagePoints": 0.01,
+      "level": 0.95,
+      "lower": 39.99,
+      "referenceReplicates": 500,
+      "sensitivityEstimates": {
+        "minimum_50_trials": 59.572768630834304,
+        "stricter_se_ell_0_50": 62.031299908925185
+      },
+      "sensitivityRange": [
+        59.572768630834304,
+        62.031299908925185
+      ],
+      "upper": 76.71000000000001
+    }
+  },
+  "intervalLabel": "Approximate 95% uncertainty interval from candidate posterior, reference-fit uncertainty, and rater bootstrap; excludes unknown population-representativeness bias.",
+  "norm": {
+    "fieldwork": "heterogeneous historical source studies; not a single norming window",
+    "id": "historical-calibration-k7-provisional-v1",
+    "referenceLabel": "quality-screened historical mixed-rater calibration fit cohort",
+    "sha256": "e5a532dda595e76e3559efa20a0f8ca45fdaa039bada6e8f99890ac8a3c01262"
+  },
+  "policyStatus": "provisional_historical_calibration_cohort",
+  "scoreSchemaVersion": "cortex-percentile-score/v1",
+  "warnings": [
+    "Provisional historical calibration-cohort percentile; not representative clinician norms.",
+    "The 95% interval excludes unknown population-mismatch and source-composition bias.",
+    "Historical fit rows are the sampling units and are not asserted to be unique governed people across sources.",
+    "Percentile does not affect or replace the criterion-referenced CORTEX verdict.",
+    "Percentile is not percent correct and is not readiness/pass probability."
+  ]
+}

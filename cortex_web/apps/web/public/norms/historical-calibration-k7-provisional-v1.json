@@ -1,0 +1,203 @@
+{
+  "display": {
+    "disclosure": "This preview compares you with quality-screened historical calibration records—not representative clinician norms. It is not percent correct or readiness and does not affect the assessment determination.",
+    "intervalLabel": "Approximate 95% range",
+    "label": "Preliminary historical calibration-cohort percentile"
+  },
+  "domainOrder": [
+    "spike",
+    "sz",
+    "lpd",
+    "gpd",
+    "lrda",
+    "grda",
+    "iic"
+  ],
+  "domains": {
+    "gpd": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 303510,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 303309
+      },
+      "eligibleFitRows": 1677,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 404010
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 404211
+        }
+      }
+    },
+    "grda": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 505716,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 505515
+      },
+      "eligibleFitRows": 1561,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 606216
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 606417
+        }
+      }
+    },
+    "iic": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 606819,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 606618
+      },
+      "eligibleFitRows": 1612,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 707319
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 707520
+        }
+      }
+    },
+    "lpd": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 202407,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 202206
+      },
+      "eligibleFitRows": 1664,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 302907
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 303108
+        }
+      }
+    },
+    "lrda": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 404613,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 404412
+      },
+      "eligibleFitRows": 1593,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 505113
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 505314
+        }
+      }
+    },
+    "spike": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 201,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 0
+      },
+      "eligibleFitRows": 1934,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 100701
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 100902
+        }
+      }
+    },
+    "sz": {
+      "bootstrap": {
+        "cols": 201,
+        "count": 100500,
+        "offset": 101304,
+        "rows": 500
+      },
+      "central": {
+        "count": 201,
+        "offset": 101103
+      },
+      "eligibleFitRows": 1810,
+      "sensitivity": {
+        "minimum_50_trials": {
+          "count": 201,
+          "offset": 201804
+        },
+        "stricter_se_ell_0_50": {
+          "count": 201,
+          "offset": 202005
+        }
+      }
+    }
+  },
+  "fieldwork": "heterogeneous historical source studies; not a single norming window",
+  "floatCount": 707721,
+  "floatEncoding": "float32_le",
+  "intervalLevel": 0.95,
+  "intervalResolutionPercentagePoints": 0.01,
+  "metadataSha256": "6bb77ba9efb8ef53eb7a0b5cc4d0cb6af48a20cb7482d76017f0e4d9e4f08d1b",
+  "normId": "historical-calibration-k7-provisional-v1",
+  "normSha256": "e5a532dda595e76e3559efa20a0f8ca45fdaa039bada6e8f99890ac8a3c01262",
+  "policyStatus": "provisional_historical_calibration_cohort",
+  "referenceLabel": "quality-screened historical mixed-rater calibration fit cohort",
+  "requiredWarnings": [
+    "Provisional historical calibration-cohort percentile; not representative clinician norms.",
+    "The 95% interval excludes unknown population-mismatch and source-composition bias.",
+    "Historical fit rows are the sampling units and are not asserted to be unique governed people across sources.",
+    "Percentile does not affect or replace the criterion-referenced CORTEX verdict.",
+    "Percentile is not percent correct and is not readiness/pass probability."
+  ],
+  "runtimeDataSha256": "c0ca140310b2410d12d61733478c0b8d4999e25e9f77c204a2caa318a7ee4776",
+  "runtimeDataUrl": "/norms/historical-calibration-k7-provisional-v1.bin",
+  "runtimeMetadataUrl": "/norms/historical-calibration-k7-provisional-v1.json",
+  "schemaVersion": "cortex-percentile-runtime/v1",
+  "scoreSchemaVersion": "cortex-percentile-score/v1",
+  "tailDisplayMaximum": 95,
+  "tailDisplayMinimum": 5
+}

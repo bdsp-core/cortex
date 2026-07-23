@@ -17,6 +17,20 @@ function fmtDay(iso: string | null | undefined): string {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
+function formatPercentile(value: number): string {
+  if (value < 5) return "<5th";
+  if (value > 95) return ">95th";
+  const n = Math.round(value), mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th"
+    : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd"
+      : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
+function formatPercentileRange(lower: number, upper: number): string {
+  return `${formatPercentile(lower)}–${formatPercentile(upper)}`;
+}
+
 function Verdict({ v }: { v: string }) {
   const st = VERDICT_STYLE[v] ?? VERDICT_STYLE.PENDING;
   return (
@@ -114,6 +128,15 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
                       {t.ell != null && (
                         <span style={S.faint}>
                           ℓ {t.ell.toFixed(2)}{t.ellStar != null ? ` / ${t.ellStar.toFixed(2)}` : ""}
+                        </span>
+                      )}
+                      {t.percentile != null && (
+                        <span style={S.faint}>
+                          historical percentile{" "}
+                          {formatPercentile(t.percentile.estimate)} · 95%{" "}
+                          {formatPercentileRange(
+                            t.percentile.lower, t.percentile.upper,
+                          )}
                         </span>
                       )}
                       <Verdict v={t.verdict} />

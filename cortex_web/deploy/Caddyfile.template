@@ -65,6 +65,17 @@ app.cortexeeg.org {
         }
     }
 
+    # Immutable, versioned percentile reference runtime. Browser and API also
+    # verify its SHA-256 before scoring; this cache rule only avoids repeatedly
+    # transferring the 2.7 MB binary between sittings.
+    handle /norms/* {
+        root * /opt/cortex/cortex_web/apps/web/dist
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server {
+            precompressed br gzip
+        }
+    }
+
     # SPA (everything else) — single-page app, fall back to index.html.
     # index.html, theme-init.js and the logo PNGs are NOT hashed and stay on
     # default revalidation.

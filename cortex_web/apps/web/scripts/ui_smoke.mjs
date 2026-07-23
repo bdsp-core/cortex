@@ -181,6 +181,40 @@ try {
   if (after <= before) throw new Error(`counter did not advance (${before} → ${after})`);
   log(`answered IIIC via keyboard: question ${before} → ${after} ✓`);
 
+  // Optional percentile qualification: finish the tiny-bank assessment in a
+  // real browser and verify the end-to-end artifact fetch/hash/score/ingest/UI
+  // path. The normal smoke remains short; the release gate enables this with
+  // CORTEX_SMOKE_EXPECT_PERCENTILE=1 and a public local rollout stamp.
+  if (process.env.CORTEX_SMOKE_EXPECT_PERCENTILE === "1") {
+    let complete = false;
+    for (let i = 0; i < 120 && !complete; i++) {
+      complete = await page.getByText("Assessment Complete").isVisible()
+        .catch(() => false);
+      if (complete) break;
+      if (await page.getByText("Something went wrong").isVisible().catch(() => false)) {
+        throw new Error("assessment entered the error screen before percentile results");
+      }
+      const spike = await page.getByRole("button", { name: /^(?:1 · )?Spike$/i })
+        .isVisible().catch(() => false);
+      const seizure = await page.getByRole("button", { name: /Seizure/ })
+        .isVisible().catch(() => false);
+      if (spike || seizure) await page.keyboard.press(String((i % 6) + 1));
+      await page.waitForTimeout(350);
+    }
+    await page.getByText("Assessment Complete").waitFor({ timeout: 30000 });
+    const labels = await page.getByText(
+      "Preliminary historical calibration-cohort percentile.",
+    ).count();
+    if (labels !== 1) throw new Error(`expected one percentile disclosure, got ${labels}`);
+    const ranges = await page.getByText(/Approximate 95% range/).count();
+    if (ranges !== 7) throw new Error(`expected seven percentile ranges, got ${ranges}`);
+    const body = await page.locator("body").innerText();
+    if (/\b(?:0th|100th) percentile\b/.test(body)) {
+      throw new Error("provisional tail suppression exposed a 0th/100th percentile");
+    }
+    log("percentile artifact → score → ingest → seven-domain result display ✓");
+  }
+
   console.log("UI SMOKE: PASS");
   await browser.close();
   process.exit(0);

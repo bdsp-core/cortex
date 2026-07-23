@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cortexeeg.org/schemas/percentile-norm-v1.json",
+  "title": "CORTEX provisional percentile norm artifact",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "normId",
+    "status",
+    "artifactSha256",
+    "domainOrder",
+    "referenceLabel",
+    "method",
+    "qualityPolicy",
+    "inputProvenance",
+    "domains",
+    "requiredWarnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "cortex-percentile-norm/v1"
+    },
+    "normId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "provisional_research_only"
+    },
+    "artifactSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "domainOrder": {
+      "const": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"]
+    },
+    "domains": {
+      "type": "object",
+      "required": ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"],
+      "additionalProperties": false,
+      "properties": {
+        "spike": {"$ref": "#/$defs/domain"},
+        "sz": {"$ref": "#/$defs/domain"},
+        "lpd": {"$ref": "#/$defs/domain"},
+        "gpd": {"$ref": "#/$defs/domain"},
+        "lrda": {"$ref": "#/$defs/domain"},
+        "grda": {"$ref": "#/$defs/domain"},
+        "iic": {"$ref": "#/$defs/domain"}
+      }
+    },
+    "requiredWarnings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "curve": {
+      "type": "array",
+      "minItems": 101,
+      "items": {"type": "number"}
+    },
+    "domain": {
+      "type": "object",
+      "required": [
+        "eligibleFitRows",
+        "centralQuantiles",
+        "bootstrapQuantiles",
+        "sensitivityQuantiles"
+      ],
+      "properties": {
+        "eligibleFitRows": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "centralQuantiles": {
+          "$ref": "#/$defs/curve"
+        },
+        "bootstrapQuantiles": {
+          "type": "array",
+          "minItems": 100,
+          "items": {"$ref": "#/$defs/curve"}
+        },
+        "sensitivityQuantiles": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/curve"}
+        }
+      }
+    }
+  }
+}

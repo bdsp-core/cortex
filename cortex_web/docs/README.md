@@ -13,6 +13,10 @@ guess which document governs a release.
 - `WEB_WORKER_QUALIFICATION.md` — numerical, regression, and performance evidence.
 - `WEB_WORKER_ROLLOUT_OPERATIONS.md` — live rollout record, observation
   checklist, aggregate telemetry query, and rollback conditions.
+- `PERCENTILE_PREVIEW_RUNBOOK.md` — provisional norm identity, disclosure,
+  fail-closed exposure gate, qualification, monitoring, and approval boundary.
+- `PERCENTILE_PREVIEW_VALIDATION.md` — local statistical/runtime parity,
+  performance, regression, browser-smoke, and release-boundary evidence.
 - `MODULARIZATION_REPORT.md` — repository-hygiene changes, module boundaries,
   compatibility strategy, and qualification evidence.
 - `../LOCAL_DEV.md` — local development and production-shaped smoke setup.

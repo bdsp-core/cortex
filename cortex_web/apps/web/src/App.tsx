@@ -34,6 +34,10 @@ import { COLORS } from "../ui/theme";
 import type { TrainingState } from "./trainingSetup";
 import { EnginePerformanceCollector } from "./performanceSummary";
 import { answerIsCorrect } from "./tasks";
+import {
+  preloadPercentile, scoreOrUnavailable,
+} from "./percentile/runtime";
+import type { PercentileProfile } from "./percentile/types";
 
 // The training surface is trainer-only weight (belief-filter engine, candidate
 // bank, feedback runner) that most visitors — signup, exam — never reach, so
@@ -222,6 +226,7 @@ export function App() {
   const runSession = useCallback(async (
     sessionId: string, sampleSeed: number, bank: SessionBank,
     replayTrials: ReplayTrial[], computeMode: api.StartSessionResult["computeMode"],
+    percentileProfile: PercentileProfile | null,
   ) => {
       const b = Bundle.fromSessionBank(bank);
       bundleRef.current = b;
@@ -229,6 +234,7 @@ export function App() {
       const inputs = b.computeInputs;
       const segmentById = new Map(b.manifest.segments.map((segment) => [segment.segId, segment]));
       sessionIdRef.current = sessionId;
+      preloadPercentile(percentileProfile);
 
       // Precision selects from the full 35k candidate bank but can serve only
       // 60 per domain (<=420). Do not present the candidate-pool size as the
@@ -298,6 +304,9 @@ export function App() {
           const truth = new Map(b.manifest.segments.map((s) => [s.segId, s.patternClass]));
           const roc = perTaskRoc(r.finalAuroc, r.finalAurocHw, r.trials,
                                  inputs, (id) => truth.get(id));
+          const percentile = await scoreOrUnavailable(
+            percentileProfile, r.traj, inputs.taskCodes,
+          );
           const sum: ResultSummary = {
             nQuestions: r.nQuestions,
             stopReason: r.stopReason,
@@ -311,6 +320,7 @@ export function App() {
             taskClasses: inputs.taskClasses,
             biasFlags: r.biasFlags,
             roc,
+            percentile,
           };
           setSummary(sum);
           const sdPerTask = cloudSdPerTask(r.traj, (inputs.taskCodes ?? []).length);
@@ -321,6 +331,8 @@ export function App() {
             skillIntervals: r.skillIntervals,
             biasIntervals: r.biasIntervals,
             biasFlags: r.biasFlags,
+            percentiles: percentile?.status === "available"
+              ? percentile.domains : undefined,
           });
           // Persist-then-deliver: the payload is saved locally before the
           // POST, so a failed upload is retried on the next authed load
@@ -339,6 +351,7 @@ export function App() {
             roc,
             servedSegIds: r.servedSegIds,
             trials: r.trials,
+            percentile,
             // Stored for operations/performance review and stripped from every
             // participant dashboard/history response by the API.
             _enginePerformance: performanceCollector.summary(replayTrials.length),
@@ -379,14 +392,18 @@ export function App() {
       // Server-authoritative candidate profile: AD6 receives its balanced
       // sample; the allowlisted Precision pilot receives the complete
       // exposure-eligible served bank required by its frozen profile.
-      const { sessionId, sampleSeed, bank, computeMode } = await api.startSession(
+      const {
+        sessionId, sampleSeed, bank, computeMode, percentileProfile,
+      } = await api.startSession(
         { ...(participantRef.current ?? {}) },
       );
       console.info(
         `[cortex] session bank: ${bank.segments.length} of ${bank.nPool} pool ` +
         `(seed ${sampleSeed})`,
       );
-      await runSession(sessionId, sampleSeed, bank, [], computeMode);
+      await runSession(
+        sessionId, sampleSeed, bank, [], computeMode, percentileProfile,
+      );
     } catch (e) {
       if (e instanceof api.ApiError && e.message === "training_washout") {
         const body = e.body as { reopensAtUtc?: string } | undefined;
@@ -413,7 +430,8 @@ export function App() {
       console.info(
         `[cortex] resuming session ${active.sessionId} at trial ${active.trials.length}`);
       await runSession(active.sessionId, active.bank.sampleSeed ?? 0,
-        active.bank, active.trials, active.computeMode);
+        active.bank, active.trials, active.computeMode,
+        active.percentileProfile);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
       setPhase("error");
@@ -475,11 +493,13 @@ export function App() {
         api.startTrainingBank(),
         import("./trainingSetup"),
       ]);
-      const { trainingId } = await api.startTrainingSession();
+      const { trainingId, percentileProfile } = await api.startTrainingSession();
       // The server-side learning engine is the SOLE trainer (2026-07-17:
       // the incumbent client trainer was removed, no fallback). If the
       // engine is disabled server-side, this surfaces as an error state.
-      setTrainState(await setup.buildServerTrainingState(plan, bank, trainingId));
+      setTrainState(await setup.buildServerTrainingState(
+        plan, bank, trainingId, percentileProfile,
+      ));
       setPhase("training");
     } catch (e) {
       setMsg(String((e as Error)?.message ?? e));
@@ -614,6 +634,7 @@ export function App() {
             trainingId={trainState.trainingId}
             labels={trainState.labels}
             attainability={trainState.attainability}
+            percentileProfile={trainState.percentileProfile}
             onExit={() => { setTrainState(null); setPhase("dashboard"); }}
           />
         </Suspense>

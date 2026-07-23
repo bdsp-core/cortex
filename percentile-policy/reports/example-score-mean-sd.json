@@ -1,0 +1,42 @@
+{
+  "domains": {
+    "spike": {
+      "candidateMethod": "normal_approximation_from_mean_sd",
+      "display": {
+        "estimate": 64,
+        "lower": 41,
+        "upper": 84
+      },
+      "estimate": 63.75952552496714,
+      "intervalResolutionPercentagePoints": 0.01,
+      "level": 0.95,
+      "lower": 41.08,
+      "referenceReplicates": 500,
+      "sensitivityEstimates": {
+        "minimum_50_trials": 61.78117738598908,
+        "stricter_se_ell_0_50": 64.16202185984599
+      },
+      "sensitivityRange": [
+        61.78117738598908,
+        64.16202185984599
+      ],
+      "upper": 83.99
+    }
+  },
+  "intervalLabel": "Approximate 95% uncertainty interval from candidate posterior, reference-fit uncertainty, and rater bootstrap; excludes unknown population-representativeness bias.",
+  "norm": {
+    "fieldwork": "heterogeneous historical source studies; not a single norming window",
+    "id": "historical-calibration-k7-provisional-v1",
+    "referenceLabel": "quality-screened historical mixed-rater calibration fit cohort",
+    "sha256": "e5a532dda595e76e3559efa20a0f8ca45fdaa039bada6e8f99890ac8a3c01262"
+  },
+  "policyStatus": "provisional_historical_calibration_cohort",
+  "scoreSchemaVersion": "cortex-percentile-score/v1",
+  "warnings": [
+    "Provisional historical calibration-cohort percentile; not representative clinician norms.",
+    "The 95% interval excludes unknown population-mismatch and source-composition bias.",
+    "Historical fit rows are the sampling units and are not asserted to be unique governed people across sources.",
+    "Percentile does not affect or replace the criterion-referenced CORTEX verdict.",
+    "Percentile is not percent correct and is not readiness/pass probability."
+  ]
+}

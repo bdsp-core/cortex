@@ -8,6 +8,9 @@ import { useTheme } from "../theme/ThemeProvider";
 import { binormalSteps } from "../roc";
 import { Button, Card, Heading, Stage } from "./ui";
 import type { TerminationPolicyName } from "../../engine";
+import type {
+  PercentileDomain, PercentileReport,
+} from "../percentile/types";
 
 export interface RocDatum {
   auroc: number;
@@ -31,6 +34,7 @@ export interface ResultSummary {
   // Report-only response-tendency flags (engine-index-aligned); informational
   // and independent of the certification verdicts above.
   biasFlags?: (string | null)[];
+  percentile?: PercentileReport | null;
 }
 
 const BIAS_FLAG_LABEL: Record<string, string> = {
@@ -105,6 +109,9 @@ export function Results({ summary, onFinish, onReturn }: {
             const open = openRoc === o.idx;
             const flag = summary.biasFlags?.[o.idx];
             const flagLabel = flag ? BIAS_FLAG_LABEL[flag] : undefined;
+            const percentile = summary.percentile?.status === "available"
+              ? summary.percentile.domains?.[o.code as PercentileDomain]
+              : undefined;
             return (
               <div key={o.code} className="cx-reveal-in"
                 style={{ borderBottom: `1px solid ${COLORS.borderInactive}`,
@@ -118,6 +125,17 @@ export function Results({ summary, onFinish, onReturn }: {
                     )}
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    {summary.percentile?.profile.display && percentile && (
+                      <span style={{ color: COLORS.textPrimary, fontSize: 13,
+                                     textAlign: "right" }}>
+                        <b>{formatPercentile(percentile.estimate)}</b>
+                        <span style={{ display: "block", color: COLORS.textTertiary,
+                                       fontSize: 11 }}>
+                          {summary.percentile.profile.displayCopy.intervalLabel}{" "}
+                          {formatRange(percentile.lower, percentile.upper)}
+                        </span>
+                      </span>
+                    )}
                     {roc && (
                       <button onClick={() => setOpenRoc(open ? null : o.idx)}
                         style={{ background: "none", border: "none", color: COLORS.textTertiary,
@@ -156,6 +174,19 @@ export function Results({ summary, onFinish, onReturn }: {
           })}
         </div>
 
+        {summary.percentile?.profile.display && (
+          <div className="cx-reveal-in"
+            style={{ color: COLORS.textTertiary, fontSize: 12, lineHeight: 1.5,
+                     marginTop: 18, animationDelay: `${footDelay - 0.2}s` }}>
+            <b style={{ color: COLORS.textSecondary }}>
+              {summary.percentile.profile.displayCopy.label}.
+            </b>{" "}
+            {summary.percentile.status === "available"
+              ? summary.percentile.profile.displayCopy.disclosure
+              : "The preliminary percentile preview could not be calculated for this sitting. Your assessment determination is unaffected."}
+          </div>
+        )}
+
         {(onFinish || onReturn) && (
           <div className="cx-reveal-in"
             style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24,
@@ -168,6 +199,27 @@ export function Results({ summary, onFinish, onReturn }: {
       </div>
     </Stage>
   );
+}
+
+function ordinal(value: number): string {
+  const n = Math.round(value);
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13
+    ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd"
+      : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
+function formatPercentile(value: number): string {
+  if (value < 5) return "Below 5th percentile";
+  if (value > 95) return "Above 95th percentile";
+  return `${ordinal(value)} percentile`;
+}
+
+function formatRange(lower: number, upper: number): string {
+  const lo = lower < 5 ? "<5th" : ordinal(lower);
+  const hi = upper > 95 ? ">95th" : ordinal(upper);
+  return `${lo}–${hi}`;
 }
 
 // Square ROC plot: chance diagonal, binormal curve at AUROC, examinee dot.

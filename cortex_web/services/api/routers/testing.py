@@ -20,6 +20,8 @@ from ..policy_rollout import (
 from ..deps import require_auth
 from ..models import ProgressIn, ResultsIn, SessionIn
 from ..nway_profile import production_nway_profile
+from ..percentile_rollout import profile_for as percentile_profile_for
+from ..percentile_runtime import validate_percentile_report
 
 router = APIRouter(prefix="/api")
 
@@ -68,6 +70,9 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
     db, cfg = req.app.state.db, req.app.state.cfg
     termination_policy = termination_policy_for(db, cfg, code)
     compute_mode = compute_mode_for(db, cfg, code, termination_policy)
+    participant_record = db.get_participant(code)
+    percentile_profile = percentile_profile_for(
+        req.app.state.percentile_runtime, cfg, code, participant_record)
     bank = (req.app.state.get_precision_bank()
             if termination_policy == PRECISION_POLICY
             else req.app.state.get_bank())
@@ -120,10 +125,12 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                       candidate_bank_sha256=(
                           bank.manifest_sha256
                           if termination_policy == PRECISION_POLICY else None),
-                      nway_profile=nway_profile)
+                      nway_profile=nway_profile,
+                      norm_profile=percentile_profile)
     return {"sessionId": session_id, "sampleSeed": seed,
             "terminationPolicy": termination_policy,
-            "computeMode": compute_mode, "bank": drawn}
+            "computeMode": compute_mode, "bank": drawn,
+            "percentileProfile": percentile_profile}
 
 
 # Sessions older than this aren't offered for resume — the participant's
@@ -219,12 +226,23 @@ def active_session(req: Request, code: str = Depends(require_auth)):
         if stored_nway_profile != production_nway_profile(bank.manifest_sha256):
             return {"active": None, "washout": washout}
         payload["nwayProfile"] = stored_nway_profile
+    stored_percentile_profile = None
+    if row.get("norm_profile"):
+        try:
+            stored_percentile_profile = json.loads(row["norm_profile"])
+        except (TypeError, ValueError):
+            return {"active": None, "washout": washout}
+        if not req.app.state.percentile_runtime.profile_matches(
+            stored_percentile_profile
+        ):
+            return {"active": None, "washout": washout}
     return {"active": {
         "sessionId": row["session_id"],
         "startedUtc": row["started_utc"],
         "computeMode": row.get("compute_mode") or "serial",
         "bank": payload,
         "trials": replay,
+        "percentileProfile": stored_percentile_profile,
     }, "washout": washout}
 
 
@@ -255,6 +273,24 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
         raise HTTPException(409, "stored n-way profile is invalid")
     if body.result.get("nwayProfile") != stored_nway_profile:
         raise HTTPException(409, "n-way profile does not match session stamp")
+    try:
+        stored_percentile_profile = (
+            json.loads(sess["norm_profile"]) if sess.get("norm_profile") else None)
+    except (TypeError, ValueError):
+        raise HTTPException(409, "stored percentile profile is invalid")
+    if stored_percentile_profile is not None \
+            and body.result.get("percentile") is None:
+        # A browser tab loaded before the percentile-capable SPA was deployed
+        # cannot calculate the new report. Preserve the core assessment result
+        # and persist the absence explicitly; malformed reports still fail.
+        body.result["percentile"] = {
+            "status": "unavailable_legacy_client",
+            "profile": stored_percentile_profile,
+        }
+    percentile_errors = validate_percentile_report(
+        stored_percentile_profile, body.result.get("percentile"))
+    if percentile_errors:
+        raise HTTPException(409, "; ".join(percentile_errors))
     # Derive the EVAL operating points (ℓ/θ/σ + median RT per task) BEFORE
     # writing, then store-result + finalize-session + trajectory-replace land
     # as ONE transaction — no half-finalized session can survive a crash

@@ -5,7 +5,7 @@ missing a codebook row, so this file is the contract that keeps the published
 dataset self-describing for a Nature Medicine data-availability statement.
 """
 
-CODEBOOK_VERSION = "r1.0"
+CODEBOOK_VERSION = "r1.1"
 
 # table -> { column: {type, desc, unit/enum} }
 CODEBOOK: dict[str, dict[str, dict]] = {
@@ -45,6 +45,9 @@ CODEBOOK: dict[str, dict[str, dict]] = {
         "n_questions": {"type": "int", "desc": "questions asked in the session"},
         "sample_seed": {"type": "int", "desc": "RNG seed for the served-segment sample"},
         "provenance_inferred": {"type": "bool", "desc": "True = engine/bundle/calibration version was inferred, not recorded (pilot)"},
+        "percentile_norm_id": {"type": "str|null", "desc": "immutable provisional norm identifier; NULL for legacy/unstamped sessions"},
+        "percentile_norm_sha256": {"type": "str|null", "desc": "SHA-256 of the governed source norm artifact"},
+        "percentile_score_schema_version": {"type": "str|null", "desc": "version of the percentile score record contract"},
     },
     "fact_test_task_outcome": {
         "session_sk": {"type": "str", "desc": "session FK"},
@@ -60,6 +63,13 @@ CODEBOOK: dict[str, dict[str, dict]] = {
         "binarized_correct_rate": {"type": "float", "desc": "mean one-vs-rest correctness over this task's items"},
         "final_auroc": {"type": "float|null", "desc": "NULL in R1 — not stored; requires the engine re-run (Phase O3)"},
         "ell_star": {"type": "float|null", "desc": "NULL in R1 — Youden cut-score; joined from the bundle manifest later"},
+        "percentile_status": {"type": "str|null", "desc": "available | unavailable_runtime_error; NULL for legacy/unstamped sessions"},
+        "percentile_estimate": {"type": "float|null", "desc": "provisional historical calibration-cohort percentile estimate (0..100)"},
+        "percentile_lower_95": {"type": "float|null", "desc": "lower endpoint of the approximate 95% candidate-plus-reference uncertainty range"},
+        "percentile_upper_95": {"type": "float|null", "desc": "upper endpoint of the approximate 95% candidate-plus-reference uncertainty range"},
+        "percentile_norm_id": {"type": "str|null", "desc": "immutable provisional norm identifier"},
+        "percentile_norm_sha256": {"type": "str|null", "desc": "SHA-256 of the governed source norm artifact"},
+        "percentile_score_schema_version": {"type": "str|null", "desc": "version of the percentile score contract"},
     },
     "fact_trial": {
         "session_sk": {"type": "str", "desc": "session FK"},
@@ -93,6 +103,10 @@ CODEBOOK: dict[str, dict[str, dict]] = {
         "started_utc": {"type": "str", "desc": "start time"},
         "finished_utc": {"type": "str", "desc": "end time"},
         "n_items": {"type": "int", "desc": "items reviewed"},
+        "percentile_status": {"type": "str|null", "desc": "server-authoritative training percentile summary status"},
+        "percentile_norm_id": {"type": "str|null", "desc": "immutable provisional norm identifier"},
+        "percentile_norm_sha256": {"type": "str|null", "desc": "SHA-256 of the governed source norm artifact"},
+        "percentile_score_schema_version": {"type": "str|null", "desc": "version of the percentile score contract"},
     },
     "fact_trajectory_point": {
         "participant_sk": {"type": "str", "desc": "pseudonym FK"},

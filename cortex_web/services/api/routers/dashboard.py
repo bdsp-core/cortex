@@ -8,6 +8,7 @@ response shape.
 """
 from __future__ import annotations
 
+import json
 import random
 import uuid
 from typing import Callable
@@ -15,6 +16,7 @@ from typing import Callable
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import awards, dashboard_logic, engine_trainer
+from ..percentile_rollout import profile_for as percentile_profile_for
 from ..deps import require_auth
 from ..models import (
     SessionIn, TrainingFinalizeIn, TrainingProgressIn, TrainingStartIn)
@@ -81,7 +83,35 @@ def dashboard_payload(req: Request, code: str,
     latest_traj: dict[int, dict] = {}
     for r in get_traj():
         latest_traj[int(r["task_k"])] = r
-    tasks = dashboard_logic.dashboard_tasks(result, latest_traj)
+    # A completed training sitting may be a newer authoritative percentile
+    # measurement than the certification result. Walk newest-first and take
+    # the newest touched-domain endpoint; untouched domains retain their cert
+    # percentile. Shadow/non-display profiles never reach this surface.
+    training_percentiles: dict[str, dict] = {}
+    for row in db.list_training_sessions(code):
+        if row.get("status") != "complete" or not row.get("summary"):
+            continue
+        try:
+            report = json.loads(row["summary"]).get("percentile")
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(report, dict) or report.get("status") != "available":
+            continue
+        profile, domains = report.get("profile"), report.get("domains")
+        if not isinstance(profile, dict) or not profile.get("display") \
+                or not isinstance(domains, dict):
+            continue
+        for domain, entry in domains.items():
+            if domain in training_percentiles or not isinstance(entry, dict):
+                continue
+            if int(entry.get("items") or 0) > 0 and isinstance(
+                entry.get("end"), dict
+            ):
+                training_percentiles[domain] = {
+                    "score": entry["end"], "profile": profile,
+                }
+    tasks = dashboard_logic.dashboard_tasks(
+        result, latest_traj, training_percentiles)
     return {
         # Slimmed: the raw per-trial bulk (~95% of a ~370 KB blob) never
         # reaches the dashboard — the Shell reads only hasResult/tasks/kpis.
@@ -175,10 +205,15 @@ def training_start(body: TrainingStartIn, req: Request, code: str = Depends(requ
     db = req.app.state.db
     training_id = uuid.uuid4().hex
     reg = db.get_active_regimen(code)   # link the sitting to its regimen (Phase O2)
+    participant_record = db.get_participant(code)
+    percentile_profile = percentile_profile_for(
+        req.app.state.percentile_runtime, req.app.state.cfg,
+        code, participant_record)
     db.create_training_session(
         training_id, code, body.taskFocus,
         regimen_id=(reg["regimen_id"] if reg else None),
-        source_session_id=(reg.get("source_session_id") if reg else None))
+        source_session_id=(reg.get("source_session_id") if reg else None),
+        norm_profile=percentile_profile)
     # Phase L3: tell the client which trainer drives this sitting — the
     # server-side learning engine (POST /api/training-engine/*) or the
     # incumbent client-side trainer. Same reversible-flag pattern as
@@ -187,7 +222,8 @@ def training_start(body: TrainingStartIn, req: Request, code: str = Depends(requ
     participant = (db.get_participant(code)
                    if cfg.get("trainer_engine") == "cohort" else None)
     return {"trainingId": training_id,
-            "engineMode": engine_trainer.enabled(cfg, code, participant)}
+            "engineMode": engine_trainer.enabled(cfg, code, participant),
+            "percentileProfile": percentile_profile}
 
 
 @router.post("/training-bank")
@@ -228,8 +264,30 @@ def training_bank(body: SessionIn, req: Request, code: str = Depends(require_aut
 
 @router.post("/training-sessions/finalize")
 def training_finalize(body: TrainingFinalizeIn, req: Request, code: str = Depends(require_auth)):
-    ok = req.app.state.db.finalize_training_session(
-        body.trainingId, code, body.nItems, body.summary)
+    db = req.app.state.db
+    row = db.get_training_session(body.trainingId)
+    if row is None or row["code"] != code:
+        raise HTTPException(404, "unknown training session")
+    percentile = engine_trainer.MANAGER.percentile_summary(body.trainingId)
+    if percentile is None and row.get("norm_profile"):
+        try:
+            profile = json.loads(row["norm_profile"])
+        except (TypeError, ValueError):
+            profile = None
+        percentile = {
+            "status": "unavailable_engine_session",
+            "profile": profile,
+        }
+    # Client input cannot author a longitudinal percentile. It may retain only
+    # the non-statistical mode/scored markers; start/end scores come from the
+    # server's own particle belief.
+    summary = {
+        "mode": "training",
+        "scored": True,
+        "percentile": percentile,
+    }
+    ok = db.finalize_training_session(
+        body.trainingId, code, body.nItems, summary)
     if not ok:
         raise HTTPException(404, "unknown training session")
     # Recognition AFTER the sitting lands: session-count / training-day
