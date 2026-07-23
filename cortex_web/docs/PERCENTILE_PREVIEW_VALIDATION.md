@@ -1,8 +1,8 @@
 # Preliminary percentile preview: local validation report
 
 Date: 2026-07-22
-Status: release-qualified candidate; one-user cohort rollout was explicitly
-authorized for `elikeldsen@icloud.com` on 2026-07-23
+Status: release-qualified candidate; all-user rollout was explicitly
+authorized on 2026-07-23
 
 ## Candidate and statistical scope
 
@@ -108,12 +108,13 @@ flakiness while protecting against accidental algorithmic complexity drift.
 
 This is not a representative physician or clinician norm. The historical fit
 rows are not established as unique governed people across studies, and the
-95% ranges do not quantify population mismatch. Those limitations are stated
-next to participant-facing scores.
+95% ranges do not quantify population mismatch. Those limitations remain
+documented here and are stated on dashboard, history, and training surfaces.
+Per explicit direction on 2026-07-23, the assessment-complete disclosure was
+removed while its seven estimates and approximate 95% ranges were retained.
 
 At the time this pre-deployment validation was completed, no production action
 had been taken and `CORTEX_PERCENTILE_MODE=off` remained the safe default.
 Commit, push, deployment, shadow exposure, cohort exposure, and all-user
 exposure remain separately auditable governed operations. The authorization
-above applies only to the named one-user cohort; it does not authorize
-all-user exposure.
+above explicitly includes all-user exposure.

@@ -174,19 +174,6 @@ export function Results({ summary, onFinish, onReturn }: {
           })}
         </div>
 
-        {summary.percentile?.profile.display && (
-          <div className="cx-reveal-in"
-            style={{ color: COLORS.textTertiary, fontSize: 12, lineHeight: 1.5,
-                     marginTop: 18, animationDelay: `${footDelay - 0.2}s` }}>
-            <b style={{ color: COLORS.textSecondary }}>
-              {summary.percentile.profile.displayCopy.label}.
-            </b>{" "}
-            {summary.percentile.status === "available"
-              ? summary.percentile.profile.displayCopy.disclosure
-              : "The preliminary percentile preview could not be calculated for this sitting. Your assessment determination is unaffected."}
-          </div>
-        )}
-
         {(onFinish || onReturn) && (
           <div className="cx-reveal-in"
             style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24,

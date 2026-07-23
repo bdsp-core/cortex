@@ -202,10 +202,12 @@ try {
       await page.waitForTimeout(350);
     }
     await page.getByText("Assessment Complete").waitFor({ timeout: 30000 });
-    const labels = await page.getByText(
-      "Preliminary historical calibration-cohort percentile.",
+    const disclosure = await page.getByText(
+      /This preview compares you with quality-screened historical calibration records/,
     ).count();
-    if (labels !== 1) throw new Error(`expected one percentile disclosure, got ${labels}`);
+    if (disclosure !== 0) {
+      throw new Error(`expected no assessment-complete percentile disclaimer, got ${disclosure}`);
+    }
     const ranges = await page.getByText(/Approximate 95% range/).count();
     if (ranges !== 7) throw new Error(`expected seven percentile ranges, got ${ranges}`);
     const body = await page.locator("body").innerText();
