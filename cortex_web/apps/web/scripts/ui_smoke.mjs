@@ -214,6 +214,21 @@ try {
     if (/\b(?:0th|100th) percentile\b/.test(body)) {
       throw new Error("provisional tail suppression exposed a 0th/100th percentile");
     }
+    await page.getByRole("button", { name: "Return to dashboard" }).click();
+    await page.getByRole("heading", { name: /Mastery/ }).waitFor({ timeout: 15000 });
+    const dashboardDisclosure = await page.getByText(
+      /This preview compares you with quality-screened historical calibration records/,
+    ).count();
+    if (dashboardDisclosure !== 0) {
+      throw new Error(`expected no dashboard percentile disclaimer, got ${dashboardDisclosure}`);
+    }
+    const dashboardScores = await page
+      .getByRole("region", { name: "Per-task mastery grid" })
+      .getByText(/historical percentile/)
+      .count();
+    if (dashboardScores !== 7) {
+      throw new Error(`expected seven dashboard percentile scores, got ${dashboardScores}`);
+    }
     log("percentile artifact → score → ingest → seven-domain result display ✓");
   }
 

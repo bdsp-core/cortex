@@ -109,9 +109,10 @@ flakiness while protecting against accidental algorithmic complexity drift.
 This is not a representative physician or clinician norm. The historical fit
 rows are not established as unique governed people across studies, and the
 95% ranges do not quantify population mismatch. Those limitations remain
-documented here and are stated on dashboard, history, and training surfaces.
-Per explicit direction on 2026-07-23, the assessment-complete disclosure was
-removed while its seven estimates and approximate 95% ranges were retained.
+documented here and in the immutable profile. Per explicit direction on
+2026-07-23, the disclaimer was removed from assessment-complete, dashboard,
+history, and training surfaces while the seven estimates, “historical
+percentile” labels, and approximate 95% ranges were retained.
 
 At the time this pre-deployment validation was completed, no production action
 had been taken and `CORTEX_PERCENTILE_MODE=off` remained the safe default.

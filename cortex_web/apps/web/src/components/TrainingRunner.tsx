@@ -270,13 +270,6 @@ export function TrainingRunner({
                 <RevealRowView key={r.taskK} r={r} delayS={0.4 + i * 0.45}
                   showPercentile={!!percentileProfile?.display} />
               ))}
-              {percentileProfile?.display && (
-                <div style={{ fontSize: 12, color: COLORS.textBody, opacity: 0.8,
-                              lineHeight: 1.5, marginTop: 12 }}>
-                  <b>{percentileProfile.displayCopy.label}.</b>{" "}
-                  {percentileProfile.displayCopy.disclosure}
-                </div>
-              )}
             </div>
           )}
           <div className="cx-reveal-in" style={{ animationDelay: `${empty ? 0 : footDelay}s` }}>

@@ -3,7 +3,7 @@
 ## 1. Status and permitted claim
 
 `historical-calibration-k7-provisional-v1` is a preliminary reporting
-approximation. It may be exposed only as a clearly disclosed preview under the
+approximation. It may be exposed only as a clearly labeled historical preview under the
 fail-closed product rollout described in the production runbook.
 Its permitted claim is:
 
@@ -64,7 +64,9 @@ Required display:
 > 73rd historical calibration-cohort percentile
 > Approximate 95% range: 65th–80th
 
-Required nearby disclosure:
+Governance disclosure retained in the immutable profile and documentation
+(participant-facing rendering was removed by explicit product-owner direction
+on 2026-07-23):
 
 > This provisional comparison uses heterogeneous historical calibration data,
 > not representative clinician norms. Its uncertainty range does not measure

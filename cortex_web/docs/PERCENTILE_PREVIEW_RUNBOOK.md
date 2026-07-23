@@ -8,15 +8,20 @@ assessment verdict, stop rule, question choice, training allocation, mastery,
 or readiness. It is not a clinician-population norm, percent correct, or an IQ
 score.
 
-The public label is:
+The governed metadata label is:
 
 > Preliminary historical calibration-cohort percentile
 
-The nearby disclosure is:
+The governed disclosure retained in the immutable profile is:
 
 > This preview compares you with quality-screened historical calibration
 > records—not representative clinician norms. It is not percent correct or
 > readiness and does not affect the assessment determination.
+
+Per explicit product-owner direction on 2026-07-23, the application does not
+render that disclaimer on assessment-complete, dashboard, history, or training
+surfaces. Domain rows retain the shorter “historical percentile” label and
+their approximate 95% ranges.
 
 ## Immutable candidate
 
@@ -82,9 +87,9 @@ Acceptance checks:
 2. A nonallowlisted session has `percentileProfile=null`.
 3. An allowlisted session returns the exact profile and renders all seven
    scores only after completion.
-4. Every row says historical calibration-cohort, shows an approximate 95%
-   range, suppresses tails as `<5th`/`>95th`, and keeps AUROC available only
-   as technical detail.
+4. Every row says historical percentile, shows an approximate 95% range,
+   suppresses tails as `<5th`/`>95th`, and keeps AUROC available only as
+   technical detail.
 5. Refresh/resume preserves the exact session stamp.
 6. Altering a metadata byte, binary byte, reported profile, domain set, range,
    or schema causes a fail-closed load/409.
@@ -104,7 +109,8 @@ No step below is authorized merely by completing local tests.
 3. Merge/deploy with `CORTEX_PERCENTILE_MODE=off`.
 4. Verify production deep health and static artifact checksums.
 5. After separate explicit exposure approval, use `shadow`; inspect ingest,
-   unavailable rates, latency, score distributions, and disclosure rendering.
+   unavailable rates, latency, score distributions, and participant-facing
+   label rendering.
 6. After clinician/product review, use `cohort` with a named allowlist and the
    exact release SHA acknowledgement.
 7. Expand to `all` only through a separately recorded governance decision.

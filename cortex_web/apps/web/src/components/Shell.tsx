@@ -516,15 +516,6 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                 })}
               </div>
             </section>
-            {tasks.find((task) => task.percentileProfile)?.percentileProfile && (
-              <div style={{ fontSize: 12, color: "var(--ink-subtle)",
-                            lineHeight: 1.5, margin: "-8px 0 16px" }}>
-                <b>Preliminary historical calibration-cohort percentile.</b>{" "}
-                {tasks.find((task) => task.percentileProfile)!
-                  .percentileProfile!.displayCopy.disclosure}
-              </div>
-            )}
-
             {/* ── detail trajectory ── */}
             {hasData && sel && (
               <section className="cx-panel" aria-label="Skill trajectory detail">

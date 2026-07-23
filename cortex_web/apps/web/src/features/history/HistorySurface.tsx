@@ -117,15 +117,6 @@ export function HistorySurface() {
                         );
                       })}
                     </div>
-                    {session.result.percentile?.profile.display && (
-                      <div style={{ fontSize: 12, opacity: 0.78,
-                                    lineHeight: 1.5, marginTop: 10 }}>
-                        <b>
-                          {session.result.percentile.profile.displayCopy.label}.
-                        </b>{" "}
-                        {session.result.percentile.profile.displayCopy.disclosure}
-                      </div>
-                    )}
                     <div className="cx-q-section">
                       <div className="cx-q-title">Per-question breakdown</div>
                       {questionsBySession[session.session_id] === "loading" && (
