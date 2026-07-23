@@ -34,9 +34,9 @@ export function verdictPresentation(verdict: string): VerdictPresentation {
     case "FAIL": return { cls: "fail", text: "Fail" };
     case "REFER_BORDERLINE": return { cls: "referb", text: "Refer · borderline" };
     case "REFER_UNINFORMATIVE": return { cls: "referu", text: "Refer · uninformative" };
-    case "ABOVE_CUT": return { cls: "pass", text: "Above cut" };
-    case "BELOW_CUT": return { cls: "fail", text: "Below cut" };
-    case "INDETERMINATE_AT_CUT": return { cls: "referb", text: "Indeterminate at cut" };
+    case "ABOVE_CUT": return { cls: "pass", text: "At Expert" };
+    case "BELOW_CUT": return { cls: "fail", text: "Below Expert" };
+    case "INDETERMINATE_AT_CUT": return { cls: "referb", text: "Indeterminate" };
     case "UNDETERMINABLE_CAP": return { cls: "referu", text: "Insufficient precision · cap" };
     case "UNDETERMINABLE_BANK": return { cls: "referu", text: "Insufficient precision · bank" };
     case "IN_TRAINING": return { cls: "train", text: "In training" };

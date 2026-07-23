@@ -12,9 +12,9 @@ import {
 
 describe("dashboard verdict presentation boundary", () => {
   it.each([
-    ["ABOVE_CUT", "pass", "Above cut"],
-    ["BELOW_CUT", "fail", "Below cut"],
-    ["INDETERMINATE_AT_CUT", "referb", "Indeterminate at cut"],
+    ["ABOVE_CUT", "pass", "At Expert"],
+    ["BELOW_CUT", "fail", "Below Expert"],
+    ["INDETERMINATE_AT_CUT", "referb", "Indeterminate"],
     ["UNDETERMINABLE_CAP", "referu", "Insufficient precision · cap"],
     ["UNDETERMINABLE_BANK", "referu", "Insufficient precision · bank"],
   ])("maps %s without exposing engine diagnostics", (verdict, cls, text) => {
