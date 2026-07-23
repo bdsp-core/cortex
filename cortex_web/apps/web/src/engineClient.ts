@@ -7,6 +7,7 @@ import type {
   EngineWorkerResponse, RequestedComputeMode, SessionResult, TrialDiag,
 } from "../engine";
 import { computePayloadTransferables, packComputeInputs } from "../engine";
+import { recoverFromStaleAsset } from "./preloadRecovery";
 
 export interface EngineClientHandlers {
   onItem: (item: { trialIndex: number; taskK: number; segId: number }) => void;
@@ -34,12 +35,14 @@ export class EngineClient {
   private heartbeatSamples = 0;
   private heartbeatDelayTotal = 0;
   private heartbeatDelayMax = 0;
+  private receivedWorkerMessage = false;
 
   constructor(private handlers: EngineClientHandlers) {
     this.worker = new Worker(new URL("../engine/worker.ts", import.meta.url), {
       type: "module",
     });
     this.worker.onmessage = (ev: MessageEvent<EngineWorkerResponse>) => {
+      this.receivedWorkerMessage = true;
       const m = ev.data;
       switch (m.type) {
         case "item":
@@ -82,6 +85,13 @@ export class EngineClient {
       e.preventDefault();
       this.clearPendingAnswerTimings();
       this.stopHeartbeat(true);
+      // The coordinator worker is a lazy content-hashed asset. A tab kept
+      // across a release can request the previous hash after dist/ rotates;
+      // Caddy then returns the SPA HTML fallback and browsers emit a blank
+      // worker ErrorEvent. Refresh once to acquire the current asset graph.
+      // A genuine startup failure repeats inside the loop-guard window and is
+      // surfaced normally on the second load.
+      if (!this.receivedWorkerMessage && recoverFromStaleAsset()) return;
       this.handlers.onError?.(e.message || "engine worker crashed");
     };
     this.worker.onmessageerror = () => {

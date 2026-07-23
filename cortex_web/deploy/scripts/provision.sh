@@ -95,6 +95,7 @@ sudo -u "$CORTEX_USER" "$APP/.venv/bin/pip" install -r "$WEB/services/api/requir
 # ── SPA build ──────────────────────────────────────────────────────
 say "building the SPA (npm ci + vite build)…"
 sudo -u "$CORTEX_USER" bash -c "cd $WEB && npm ci && npm run build"
+"$WEB/deploy/scripts/publish_assets.sh" "$WEB"
 
 # Bundle is gitignored — operator drops it in or rsyncs it manually after
 # provision (see README §"After provisioning"). We don't fetch the bank

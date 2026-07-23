@@ -19,24 +19,34 @@
 // SECOND deploy during the same long-lived tab session recovers again (these
 // sittings are long and the test/train washout invites leaving the tab open).
 
-const STAMP_KEY = "cortex:preload-reloaded-at";
+const STAMP_KEY = "cortex:stale-asset-reloaded-at";
 // If a reload does not fix it within this window, stop looping and surface.
 const LOOP_GUARD_MS = 15_000;
 
+/**
+ * Reload once when a lazy, content-hashed asset may have disappeared during
+ * a deploy. Shared by Vite chunk failures and the separately loaded engine
+ * worker. Returns true when recovery took ownership of the failure.
+ */
+export function recoverFromStaleAsset(now: () => number = Date.now): boolean {
+  let last = 0;
+  try { last = Number(sessionStorage.getItem(STAMP_KEY)) || 0; }
+  catch { /* sessionStorage can throw in private mode — treat as no stamp */ }
+  const t = now();
+  if (t - last < LOOP_GUARD_MS) return false;
+  try { sessionStorage.setItem(STAMP_KEY, String(t)); }
+  catch { /* private mode: skip the stamp, still worth one reload attempt */ }
+  window.location.reload();
+  return true;
+}
+
 export function installPreloadRecovery(now: () => number = Date.now): void {
   window.addEventListener("vite:preloadError", (event) => {
-    let last = 0;
-    try { last = Number(sessionStorage.getItem(STAMP_KEY)) || 0; }
-    catch { /* sessionStorage can throw in private mode — treat as no stamp */ }
-    const t = now();
-    if (t - last < LOOP_GUARD_MS) {
+    if (!recoverFromStaleAsset(now)) {
       // Already reloaded recently and it still failed: not a stale tab. Let
       // Vite throw so the ErrorBoundary surfaces + reports the real failure.
       return;
     }
     event.preventDefault();   // pre-empt Vite's re-throw; we recover by reloading
-    try { sessionStorage.setItem(STAMP_KEY, String(t)); }
-    catch { /* private mode: skip the stamp, still worth one reload attempt */ }
-    window.location.reload();
   });
 }

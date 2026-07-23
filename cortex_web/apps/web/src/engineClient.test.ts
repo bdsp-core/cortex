@@ -56,4 +56,62 @@ describe("engine client render-boundary telemetry", () => {
     client.dispose();
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
+
+  it("reloads once when the lazy worker asset fails before its first message", () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    const reload = vi.fn();
+    const store: Record<string, string> = {};
+    vi.stubGlobal("window", { location: { reload } });
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => { store[key] = value; },
+    });
+    const onError = vi.fn();
+    new EngineClient({ onItem: vi.fn(), onDone: vi.fn(), onError });
+    const worker = FakeWorker.latest!;
+    const preventDefault = vi.fn();
+
+    worker.onerror?.({
+      message: "", preventDefault,
+    } as unknown as ErrorEvent);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+
+    worker.onerror?.({
+      message: "", preventDefault,
+    } as unknown as ErrorEvent);
+    expect(reload).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith("engine worker crashed");
+  });
+
+  it("surfaces a worker crash after the worker has started", () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    vi.stubGlobal("window", { location: { reload: vi.fn() } });
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => null, setItem: vi.fn(),
+    });
+    const onError = vi.fn();
+    new EngineClient({ onItem: vi.fn(), onDone: vi.fn(), onError });
+    const worker = FakeWorker.latest!;
+    worker.emit({
+      type: "performance",
+      event: {
+        kind: "execution_profile",
+        requested: "serial",
+        executionMode: "serial",
+        reason: "rollout_disabled",
+        hardwareConcurrency: 4,
+        selectedWorkerCount: 1,
+        calibrationResult: "not_run",
+        estimatedWorkerMemoryBytes: 1,
+      },
+    });
+
+    worker.onerror?.({
+      message: "runtime failure", preventDefault: vi.fn(),
+    } as unknown as ErrorEvent);
+    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith("runtime failure");
+  });
 });

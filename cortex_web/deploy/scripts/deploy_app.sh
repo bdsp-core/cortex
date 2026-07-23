@@ -29,16 +29,6 @@ readiness_gate() {
   return 1
 }
 
-caddy_drift_warn() {
-  local template_path="$1" template live
-  template=$(ssh "$SSH_HOST" "cat '$template_path'" 2>/dev/null || true)
-  live=$(ssh "$SSH_HOST" 'sudo cat /etc/caddy/Caddyfile' 2>/dev/null || true)
-  if [ -n "$template" ] && [ -n "$live" ] && [ "$template" != "$live" ]; then
-    say "NOTE: the release Caddy template differs from the live configuration."
-    printf '%s\n' "  The deploy does not overwrite hand-maintained Caddy settings." >&2
-  fi
-}
-
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WEB_LOCAL=$(cd "$SCRIPT_DIR/../.." && pwd)
 REPO_ROOT=$(git -C "$WEB_LOCAL" rev-parse --show-toplevel)
@@ -120,14 +110,44 @@ sudo -u "$CORTEX_USER" /opt/cortex/.venv/bin/python -m compileall -q \
 
 test -f "$RELEASE/apps/web/dist/index.html"
 test -f "$RELEASE/RELEASE"
+"$RELEASE/deploy/scripts/publish_assets.sh" "$RELEASE"
+
+# Apply a governed Caddy change only when the live file still byte-matches the
+# currently active release's template. Unexpected hand-maintained drift fails
+# closed instead of being overwritten. Validate before switching application
+# code and retain an exact config rollback until reload succeeds.
+CURRENT=$(readlink -f /opt/cortex/cortex_web)
+LIVE_CADDY=/etc/caddy/Caddyfile
+CURRENT_CADDY="$CURRENT/deploy/Caddyfile.template"
+NEXT_CADDY="$RELEASE/deploy/Caddyfile.template"
+CADDY_BACKUP=""
+if ! cmp -s "$NEXT_CADDY" "$LIVE_CADDY"; then
+  if [ ! -f "$CURRENT_CADDY" ] || ! cmp -s "$CURRENT_CADDY" "$LIVE_CADDY"; then
+    printf '%s\n' \
+      "refusing to overwrite a live Caddyfile that drifted from the active release" >&2
+    exit 2
+  fi
+  caddy validate --adapter caddyfile --config "$NEXT_CADDY"
+  CADDY_BACKUP=$(mktemp /tmp/cortex-Caddyfile.XXXXXX)
+  cp "$LIVE_CADDY" "$CADDY_BACKUP"
+fi
+
 "$RELEASE/deploy/scripts/release_switch.sh" activate "$RELEASE"
+if [ -n "$CADDY_BACKUP" ]; then
+  install -m 0644 "$NEXT_CADDY" "$LIVE_CADDY"
+fi
 if ! systemctl reload caddy; then
+  if [ -n "$CADDY_BACKUP" ]; then
+    install -m 0644 "$CADDY_BACKUP" "$LIVE_CADDY"
+    systemctl reload caddy || true
+  fi
   "$RELEASE/deploy/scripts/release_switch.sh" rollback
+  [ -z "$CADDY_BACKUP" ] || rm -f "$CADDY_BACKUP"
   exit 1
 fi
+[ -z "$CADDY_BACKUP" ] || rm -f "$CADDY_BACKUP"
 REMOTE
 
-caddy_drift_warn "$REMOTE_RELEASE/deploy/Caddyfile.template"
 DOMAIN=$(ssh "$SSH_HOST" 'sudo grep ^CORTEX_DOMAIN= /etc/cortex/cortex.env | cut -d= -f2-')
 
 say "checking public database-backed health"

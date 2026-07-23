@@ -53,19 +53,23 @@ app.cortexeeg.org {
         file_server
     }
 
+    # Vite's content-hashed assets live in an append-only path outside the
+    # active release. Old tabs can therefore lazy-load their coordinator
+    # worker/chunks after a deployment instead of receiving the new SPA HTML
+    # fallback at an obsolete JavaScript URL.
+    handle /assets/* {
+        root * /opt/cortex
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server {
+            precompressed br gzip
+        }
+    }
+
     # SPA (everything else) — single-page app, fall back to index.html.
-    # Vite's /assets/* output is content-hashed (index-CBRFzSfR.js), so
-    # existing files there are immutable — same contract as the bundle blobs.
-    # The `file` guard keeps the header off the index.html fallback (a stale
-    # hashed URL must not cache HTML forever). index.html, theme-init.js and
-    # the logo PNGs are NOT hashed and stay on default revalidation.
+    # index.html, theme-init.js and the logo PNGs are NOT hashed and stay on
+    # default revalidation.
     handle {
         root * /opt/cortex/cortex_web/apps/web/dist
-        @hashed_assets {
-            path /assets/*
-            file
-        }
-        header @hashed_assets Cache-Control "public, max-age=31536000, immutable"
         try_files {path} /index.html
         # .br/.gz siblings are written at build time (scripts/precompress.mjs,
         # brotli q11) — served straight off disk, no per-request encode CPU.

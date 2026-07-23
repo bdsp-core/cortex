@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installPreloadRecovery } from "./preloadRecovery";
+import { installPreloadRecovery, recoverFromStaleAsset } from "./preloadRecovery";
 
 // A stale tab whose deploy rotated the chunk hashes must auto-refresh once,
 // but a genuine outage must NOT reload-loop. Drive the window listener
@@ -45,7 +45,7 @@ describe("installPreloadRecovery", () => {
     const prevented = firePreloadError();
     expect(prevented).toBe(true);          // Vite's throw is pre-empted
     expect(reloads).toBe(1);
-    expect(store["cortex:preload-reloaded-at"]).toBe(String(clock));
+    expect(store["cortex:stale-asset-reloaded-at"]).toBe(String(clock));
   });
 
   it("stands down on a repeat within the guard window (no reload loop)", () => {
@@ -72,5 +72,12 @@ describe("installPreloadRecovery", () => {
     const prevented = firePreloadError();
     expect(prevented).toBe(true);
     expect(reloads).toBe(1);
+  });
+
+  it("exposes the same guarded recovery to non-Vite lazy assets", () => {
+    expect(recoverFromStaleAsset(() => clock)).toBe(true);
+    expect(recoverFromStaleAsset(() => clock + 5_000)).toBe(false);
+    expect(recoverFromStaleAsset(() => clock + 20_000)).toBe(true);
+    expect(reloads).toBe(2);
   });
 });
