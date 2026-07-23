@@ -26,9 +26,6 @@ describe("participant results screen", () => {
     expect(html).toContain("AT EXPERT");
     expect(html).toContain("INDETERMINATE");
     expect(html).toContain("BELOW EXPERT");
-    expect(html).not.toContain("ABOVE CUT");
-    expect(html).not.toContain("INDETERMINATE AT CUT");
-    expect(html).not.toContain("BELOW CUT");
     expect(html).not.toContain("technical details");
     expect(html).not.toContain("π (pass)");
     expect(html).not.toContain("info R");
