@@ -17,7 +17,7 @@ Layout (one module per concern; routers are thin over these):
 
 Endpoint surface (all JSON, prefix /api). Public: health, register,
 verify/{confirm,resend,status}, auth, auth/google, forgot, reset, report,
-client-error (SPA crash telemetry; rate-limited, log-only),
+client-error (SPA crash telemetry; rate-limited, anonymous daily digest),
 ses/events (SNS webhook; capability-token-gated, 404 unless enabled). Bearer-
 gated: tutorial-example, session, progress, results, dashboard,
 bootstrap (the dashboard-entry sections in one round-trip),
@@ -52,7 +52,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, digest
+from . import client_error_digest, config, digest
+from .client_error_policy import ClientErrorPolicy
 from .db import Database
 from .ops_alerts import OpsAlerter
 from .percentile_runtime import PercentileRuntime
@@ -70,13 +71,18 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         # short-lived test clients never run a pass; CORTEX_DIGEST_DISABLED=1
         # is the ops kill switch.
         digest_task = None
+        client_error_digest_task = None
         if not os.environ.get("CORTEX_DIGEST_DISABLED"):
             digest_task = asyncio.create_task(digest.scheduler_loop(db))
+        if not os.environ.get("CORTEX_CLIENT_ERROR_DIGEST_DISABLED"):
+            client_error_digest_task = asyncio.create_task(
+                client_error_digest.scheduler_loop(db))
         yield
-        if digest_task is not None:
-            digest_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await digest_task
+        for task in (digest_task, client_error_digest_task):
+            if task is not None:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
         db.close()   # release the DB pool/connection on clean shutdown
 
     app = FastAPI(title="CORTEX Web API", version="1.0", lifespan=_lifespan)
@@ -117,6 +123,7 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
     from .deps import RateLimiter
     app.state.db = db
     app.state.limiter = RateLimiter()
+    app.state.client_error_policy = ClientErrorPolicy(db)
     app.state.get_bank = get_session_bank
     app.state.get_precision_bank = get_precision_session_bank
     percentile_runtime = PercentileRuntime(Path(os.environ.get(
@@ -124,11 +131,13 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
         str(config.PERCENTILE_NORM_METADATA),
     )))
     app.state.percentile_runtime = percentile_runtime
-    # Ops error alerting (ops_alerts.py): backend 500s + SPA crash telemetry
-    # email the operator, cooldown-collapsed. Empty CORTEX_OPS_ALERT_TO
-    # disables it.
+    # Ops error alerting (ops_alerts.py): backend 500s + authenticated
+    # application crashes email the operator, cooldown-collapsed with durable
+    # state. Anonymous telemetry is handled by the daily digest instead.
+    # Empty CORTEX_OPS_ALERT_TO disables both email channels.
     app.state.alerts = OpsAlerter(
         to_addr=os.environ.get("CORTEX_OPS_ALERT_TO", config.REPORT_TO),
+        db=db,
         cooldown_s=int(os.environ.get("CORTEX_OPS_ALERT_COOLDOWN_S",
                                       str(6 * 3600))),
     )

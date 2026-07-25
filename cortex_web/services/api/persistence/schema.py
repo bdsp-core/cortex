@@ -227,6 +227,51 @@ SCHEMA_STATEMENTS = [
         sent_utc  TEXT NOT NULL,
         PRIMARY KEY (code, day)
     )""",
+    # Operational-alert cooldown state is durable so a service restart cannot
+    # reset a noisy signal's email window.
+    """CREATE TABLE IF NOT EXISTS ops_alert_state (
+        kind             TEXT PRIMARY KEY,
+        last_sent_utc    TEXT NOT NULL,
+        suppressed       INTEGER NOT NULL DEFAULT 0
+    )""",
+    # Public crash telemetry has two durable, process-independent budgets:
+    # one global and one per normalized error fingerprint. The existing
+    # request limiter remains the third (per-IP) layer.
+    """CREATE TABLE IF NOT EXISTS client_error_rate_state (
+        bucket_key          TEXT PRIMARY KEY,
+        window_started_utc  TEXT NOT NULL,
+        count               INTEGER NOT NULL DEFAULT 0,
+        suppressed          INTEGER NOT NULL DEFAULT 0,
+        last_seen_utc       TEXT NOT NULL
+    )""",
+    # Privacy-limited daily aggregates. No raw IP, Origin, user agent, token,
+    # email, participant code, or query string is stored here.
+    """CREATE TABLE IF NOT EXISTS client_error_daily (
+        day                  TEXT NOT NULL,
+        fingerprint          TEXT NOT NULL,
+        classification       TEXT NOT NULL,
+        authenticated        INTEGER NOT NULL DEFAULT 0,
+        count                INTEGER NOT NULL DEFAULT 0,
+        suppressed           INTEGER NOT NULL DEFAULT 0,
+        first_utc            TEXT NOT NULL,
+        last_utc             TEXT NOT NULL,
+        sample_surface       TEXT,
+        sample_url           TEXT,
+        sample_message       TEXT,
+        ua_family            TEXT,
+        origin_class         TEXT,
+        sec_fetch_site       TEXT,
+        request_fingerprint  TEXT,
+        PRIMARY KEY (day, fingerprint, authenticated)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_client_error_daily_day "
+    "ON client_error_daily(day, authenticated)",
+    # One digest per completed UTC day. As with the training digest, the row is
+    # claimed before email so a crash can never duplicate a digest.
+    """CREATE TABLE IF NOT EXISTS client_error_digest_log (
+        day       TEXT PRIMARY KEY,
+        sent_utc  TEXT NOT NULL
+    )""",
     # Recognition ledger (awards.py): domain badges + milestones. Badges are
     # per-domain certification credentials; losing one sets revoked_utc and a
     # re-earn APPENDS a new row (the earned/lost history is the point).

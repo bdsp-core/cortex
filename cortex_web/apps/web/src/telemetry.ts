@@ -9,6 +9,8 @@
 // and nothing is retried. Only the pathname is sent (never query params,
 // which can carry auth-deep-link codes before boot consumes them).
 
+import { getToken } from "./api/core";
+
 const MAX_PER_LOAD = 5;
 let sent = new Set<string>();
 
@@ -24,9 +26,19 @@ export function reportClientError(
     const key = message.slice(0, 200);
     if (!key || sent.size >= MAX_PER_LOAD || sent.has(key)) return;
     sent.add(key);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    // Authentication is optional: failures before sign-in still report, while
+    // a valid session lets the server distinguish trusted application crashes
+    // from public telemetry. Storage can throw in locked-down/private modes.
+    try {
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch { /* anonymous telemetry still works */ }
     void fetch("/api/client-error", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       keepalive: true,   // survives page unload mid-crash
       body: JSON.stringify({
         message: message.slice(0, 500),

@@ -14,6 +14,8 @@ Tables (schema is SQL-92, identical on both engines):
   consent_events      auditable consent ledger (Phase O1).
   cohorts             manager-run peer groups (isolated pods).
   cohort_members      cohort membership + pending invites.
+  ops_alert_state     durable immediate-alert cooldown counters.
+  client_error_*      privacy-limited crash aggregates, budgets, digest ledger.
 
 `CORTEX_DB` selects the backend:
   unset / a filesystem path  → SQLite (WAL).
@@ -1245,6 +1247,142 @@ class Database:
         with self._connection() as conn:
             cur = conn.execute(self._q(sql), (code, day, utc_now()))
             return cur.rowcount > 0
+
+    # ── operational alert + client-error telemetry state ─────────
+    def claim_ops_alert(self, kind: str, now_s: float,
+                        cooldown_s: int) -> Optional[int]:
+        """Claim an immediate-alert window for ``kind``.
+
+        Returns the number accumulated during the preceding cooldown when an
+        email may be sent, or ``None`` when this event was durably suppressed.
+        OpsAlerter serializes callers in-process; keeping the timestamps and
+        counter here makes that contract survive service restarts.
+        """
+        now_utc = timeutil.iso_at(now_s)
+        with self._connection() as conn:
+            row = conn.execute(self._q(
+                "SELECT last_sent_utc, suppressed FROM ops_alert_state "
+                "WHERE kind=?"), (kind,)).fetchone()
+            if row is None:
+                conn.execute(self._q(
+                    "INSERT INTO ops_alert_state(kind, last_sent_utc, suppressed) "
+                    "VALUES (?,?,0)"), (kind, now_utc))
+                return 0
+            state = dict(row)
+            try:
+                last_s = timeutil.parse_iso(state["last_sent_utc"])
+            except (TypeError, ValueError):
+                last_s = float("-inf")
+            if now_s - last_s < cooldown_s:
+                conn.execute(self._q(
+                    "UPDATE ops_alert_state SET suppressed=suppressed+1 "
+                    "WHERE kind=?"), (kind,))
+                return None
+            suppressed = int(state.get("suppressed") or 0)
+            conn.execute(self._q(
+                "UPDATE ops_alert_state SET last_sent_utc=?, suppressed=0 "
+                "WHERE kind=?"), (now_utc, kind))
+            return suppressed
+
+    def consume_client_error_budget(
+            self, bucket_key: str, max_count: int, window_s: int,
+            now_s: float) -> bool:
+        """Consume one durable telemetry budget unit.
+
+        ``False`` means the event is counted as suppressed and must not be
+        journaled or alerted. The window state persists across app restarts.
+        """
+        now_utc = timeutil.iso_at(now_s)
+        with self._connection() as conn:
+            row = conn.execute(self._q(
+                "SELECT window_started_utc, count FROM client_error_rate_state "
+                "WHERE bucket_key=?"), (bucket_key,)).fetchone()
+            if row is None:
+                conn.execute(self._q(
+                    "INSERT INTO client_error_rate_state("
+                    "bucket_key, window_started_utc, count, suppressed, last_seen_utc"
+                    ") VALUES (?,?,1,0,?)"),
+                    (bucket_key, now_utc, now_utc))
+                return True
+            state = dict(row)
+            try:
+                started_s = timeutil.parse_iso(state["window_started_utc"])
+            except (TypeError, ValueError):
+                started_s = float("-inf")
+            if now_s - started_s >= window_s:
+                conn.execute(self._q(
+                    "UPDATE client_error_rate_state SET window_started_utc=?, "
+                    "count=1, suppressed=0, last_seen_utc=? WHERE bucket_key=?"),
+                    (now_utc, now_utc, bucket_key))
+                return True
+            if int(state.get("count") or 0) >= max_count:
+                conn.execute(self._q(
+                    "UPDATE client_error_rate_state SET suppressed=suppressed+1, "
+                    "last_seen_utc=? WHERE bucket_key=?"), (now_utc, bucket_key))
+                return False
+            conn.execute(self._q(
+                "UPDATE client_error_rate_state SET count=count+1, "
+                "last_seen_utc=? WHERE bucket_key=?"), (now_utc, bucket_key))
+            return True
+
+    def record_client_error_event(
+            self, *, day: str, fingerprint: str, classification: str,
+            authenticated: bool, suppressed: bool, now_utc: str,
+            surface: str, url: str, message: str, ua_family: str,
+            origin_class: str, sec_fetch_site: str,
+            request_fingerprint: str) -> None:
+        """Add one event to its privacy-limited daily aggregate."""
+        auth_i = 1 if authenticated else 0
+        suppressed_i = 1 if suppressed else 0
+        with self._connection() as conn:
+            row = conn.execute(self._q(
+                "SELECT count, suppressed FROM client_error_daily "
+                "WHERE day=? AND fingerprint=? AND authenticated=?"),
+                (day, fingerprint, auth_i)).fetchone()
+            if row is None:
+                conn.execute(self._q(
+                    "INSERT INTO client_error_daily("
+                    "day, fingerprint, classification, authenticated, count, "
+                    "suppressed, first_utc, last_utc, sample_surface, sample_url, "
+                    "sample_message, ua_family, origin_class, sec_fetch_site, "
+                    "request_fingerprint) VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?,?)"),
+                    (day, fingerprint, classification, auth_i, suppressed_i,
+                     now_utc, now_utc, surface, url, message, ua_family,
+                     origin_class, sec_fetch_site, request_fingerprint))
+                return
+            conn.execute(self._q(
+                "UPDATE client_error_daily SET count=count+1, "
+                "suppressed=suppressed+?, last_utc=? "
+                "WHERE day=? AND fingerprint=? AND authenticated=?"),
+                (suppressed_i, now_utc, day, fingerprint, auth_i))
+
+    def client_error_digest_rows(self, day: str) -> list[dict]:
+        """Unauthenticated aggregates for one completed UTC day."""
+        return self._fetchall(
+            "SELECT * FROM client_error_daily "
+            "WHERE day=? AND authenticated=0 ORDER BY count DESC, fingerprint",
+            (day,))
+
+    def claim_client_error_digest_day(self, day: str) -> bool:
+        """Atomically claim one anonymous-telemetry digest day."""
+        columns = (("day", "?"), ("sent_utc", "?"))
+        sql = _upsert_sql("client_error_digest_log", columns, ("day",),
+                          pg=self._pg, on_conflict="nothing")
+        with self._connection() as conn:
+            cur = conn.execute(self._q(sql), (day, utc_now()))
+            return cur.rowcount > 0
+
+    def prune_client_error_telemetry(self, before_day: str,
+                                     rates_before_utc: str) -> None:
+        """Bound operational telemetry storage (called by the daily pass)."""
+        with self._connection() as conn:
+            conn.execute(self._q(
+                "DELETE FROM client_error_daily WHERE day<?"), (before_day,))
+            conn.execute(self._q(
+                "DELETE FROM client_error_digest_log WHERE day<?"), (before_day,))
+            conn.execute(self._q(
+                "DELETE FROM client_error_rate_state WHERE last_seen_utc<?"),
+                (rates_before_utc,))
 
     # ── awards: domain badges + milestones (awards.py) ────────────
     def award_badge(self, code: str, key: str, label: str,

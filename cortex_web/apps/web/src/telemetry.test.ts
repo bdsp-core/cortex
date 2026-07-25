@@ -21,8 +21,22 @@ describe("reportClientError", () => {
     reportClientError("boom", "at line 1", "desktop");
     reportClientError("boom", "at line 1", "desktop");
     expect(calls).toHaveLength(1);
-    const body = JSON.parse((calls[0][1] as RequestInit).body as string);
+    const init = calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string);
     expect(body).toMatchObject({ message: "boom", surface: "desktop", ua: "test-agent" });
+    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+  });
+
+  it("attaches the session bearer token when one is available", () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => key === "cortex_token" ? "signed-token" : null,
+    });
+    reportClientError("authenticated boom");
+    const init = calls[0][1] as RequestInit;
+    expect(init.headers).toEqual({
+      "Content-Type": "application/json",
+      Authorization: "Bearer signed-token",
+    });
   });
 
   it("caps total reports per page load", () => {

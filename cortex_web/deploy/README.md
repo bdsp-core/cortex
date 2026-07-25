@@ -141,6 +141,8 @@ release directory, or restore persistent state merely to roll back code.
 | Roll back one release | `ssh cortex-prod 'sudo /opt/cortex/cortex_web/deploy/scripts/release_switch.sh rollback'` |
 | Service status | `sudo systemctl status cortex.service` |
 | Tail service logs | `sudo journalctl -u cortex.service -f` |
+| Client-error stream | `sudo journalctl -u cortex.service \| grep cortex.clienterr` |
+| Sampled entry/privacy/telemetry access log | `sudo tail -f /var/log/caddy/cortex-telemetry-access.json` |
 | Deep health | `curl --fail --silent --show-error https://app.cortexeeg.org/api/health?deep=1` |
 | Verify the live CSP | `node cortex_web/apps/web/scripts/csp_verify_live.mjs` (loads the deployed site in Chromium and fails on a CSP violation or a missing Google sign-in button; run after any CSP or auth-provider change) |
 | Verify the live phone surface | `node cortex_web/apps/web/scripts/phone_smoke.mjs https://app.cortexeeg.org` (also runs automatically at the end of every deploy) |
@@ -155,6 +157,25 @@ release directory, or restore persistent state merely to roll back code.
 The rollout observation SQL emits aggregate, privacy-safe telemetry only. Its
 interpretation and rollback thresholds are documented in
 `../docs/WEB_WORKER_ROLLOUT_OPERATIONS.md`.
+
+### Client-error alert policy
+
+`POST /api/client-error` is intentionally public so failures before sign-in
+remain visible, but public input never enters immediate email alerting.
+Unauthenticated events are normalized, journaled within global,
+per-fingerprint, and per-IP limits, then summarized once for the preceding UTC
+day. A valid bearer token permits an ordinary application crash to use the
+immediate, cooldown-limited alert channel. The known
+`HTMLAnchorElement`/`__reactFiber$...` circular-JSON injected-DOM signature is
+always journal-only.
+
+Cooldown and aggregate rate state survive service restarts in Postgres. Stored
+request metadata is deliberately coarse: Origin relationship, Sec-Fetch-Site,
+browser-major/OS family, and a daily rotating HMAC request fingerprint. Raw
+IP, raw Origin, raw user agent, credentials, and query strings are not stored
+in the aggregate. Caddy separately samples only `/`, `/privacy`, and
+`/api/client-error`, with subnet-masked IPs, hashed user agents, sensitive
+headers removed, query strings redacted, and three-day log rotation.
 
 ## Participant-code and administrative commands
 
