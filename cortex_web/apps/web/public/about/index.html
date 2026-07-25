@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CORTEX skill and bias model and team.">
+    <title>About CORTEX</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/cortex-tab-logo.svg">
+    <script src="./theme-init.js"></script>
+    <link rel="stylesheet" href="./styles.css?v=20260724-white-cortex-engine-legend">
+  </head>
+  <body>
+    <button
+      class="theme-toggle global-theme-toggle"
+      id="theme-toggle"
+      type="button"
+      aria-label="Switch to dark theme"
+      title="Dark theme"
+    >
+      <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+      </svg>
+      <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
+      </svg>
+    </button>
+
+    <main>
+      <div class="title-stage" id="title-stage">
+        <section
+          class="title-section"
+          aria-labelledby="title-reveal-heading"
+          aria-describedby="title-status"
+        >
+          <div class="title-frame">
+            <h1
+              class="title-heading"
+              id="title-reveal-heading"
+              aria-label="CORTEX: the future of EEG training for physicians"
+            >
+              <span class="title-line" aria-hidden="true">
+                <span
+                  class="title-word title-brand-word"
+                  data-title-word
+                >
+                  <span class="title-logo-slot">
+                    <img
+                      class="title-inline-logo"
+                      src="./assets/cortex-logo-word-horizontal@2x.png"
+                      srcset="
+                        ./assets/cortex-logo-word-horizontal@2x.png 2x,
+                        ./assets/cortex-logo-word-horizontal@3x.png 3x
+                      "
+                      alt=""
+                      width="980"
+                      height="180"
+                      fetchpriority="high"
+                      decoding="async"
+                    >
+                  </span><span class="title-colon">:</span>
+                </span>
+                <span class="title-word" data-title-word>the</span>
+                <span class="title-word" data-title-word>future</span>
+                <span class="title-word" data-title-word>of</span>
+              </span>
+              <span class="title-line" aria-hidden="true">
+                <span class="title-word" data-title-word>EEG</span>
+                <span class="title-word" data-title-word>training</span>
+                <span class="title-word" data-title-word>for</span>
+                <span
+                  class="title-word title-physicians"
+                  data-title-word
+                >physicians</span>
+              </span>
+            </h1>
+          </div>
+
+          <p class="visually-hidden" id="title-status" aria-live="polite">
+            CORTEX: the future of EEG training for physicians.
+          </p>
+        </section>
+        <div
+          class="title-scroll-track"
+          id="title-scroll-track"
+          aria-hidden="true"
+        ></div>
+      </div>
+
+      <div class="graph-stage" id="graph-stage">
+        <section class="graph-section" aria-label="Seven-domain skill and bias graph">
+          <header class="site-header">
+            <a class="cortex-logo" href="/" aria-label="CORTEX home">
+              <img
+                src="./assets/cortex-logo-word-horizontal@2x.png"
+                srcset="
+                  ./assets/cortex-logo-word-horizontal@2x.png 2x,
+                  ./assets/cortex-logo-word-horizontal@3x.png 3x
+                "
+                alt="CORTEX"
+                width="980"
+                height="180"
+              >
+            </a>
+
+          </header>
+
+          <div class="graph-frame">
+            <canvas
+              id="particle-canvas"
+              width="1200"
+              height="800"
+              aria-label="Scroll-driven SMC graph with bias on the horizontal axis, skill on the vertical axis, seven EEG domain posteriors, symmetric axes from -2 to 2, a transparent quadrant-three mean RMS decay spiral with every question colored by its selected domain, and quadrant-four domain particle-radius curves across 250 questions"
+            ></canvas>
+            <div class="graph-legend" aria-label="EEG domains legend">
+              <span><i class="domain-swatch domain-spike" aria-hidden="true"></i>Spike</span>
+              <span><i class="domain-swatch domain-seizure" aria-hidden="true"></i>Seizure</span>
+              <span><i class="domain-swatch domain-lpd" aria-hidden="true"></i>LPD</span>
+              <span><i class="domain-swatch domain-gpd" aria-hidden="true"></i>GPD</span>
+              <span><i class="domain-swatch domain-lrda" aria-hidden="true"></i>LRDA</span>
+              <span><i class="domain-swatch domain-grda" aria-hidden="true"></i>GRDA</span>
+              <span><i class="domain-swatch domain-other" aria-hidden="true"></i>Other</span>
+            </div>
+            <output class="question-counter" id="question-counter">
+              <span>Questions asked</span>
+              <strong>
+                <span id="question-count">0</span>
+                <span class="question-total">/ 250</span>
+              </strong>
+            </output>
+          </div>
+          <p class="visually-hidden" id="graph-status" aria-live="polite">
+            No questions asked. Seven broad domain priors are ready.
+          </p>
+        </section>
+        <div class="scroll-track" id="scroll-track" aria-hidden="true"></div>
+      </div>
+
+      <div class="curves-stage" id="curves-stage">
+        <section
+          class="curves-section"
+          aria-label="Scroll-driven stopping trajectories and individual reader distributions"
+        >
+          <div class="curves-frame">
+            <canvas
+              id="curves-canvas"
+              width="1440"
+              height="900"
+              aria-label="Two evolving graphs showing readers still testing and all 250 individual stopping counts for each of five assessment methods"
+            ></canvas>
+
+            <div class="method-legend" aria-label="Assessment methods legend">
+              <span aria-label="CORTEX production">
+                <i class="method-line method-cortex" aria-hidden="true"></i>CORTEX
+              </span>
+              <span aria-label="Hierarchical midlevel">
+                <i class="method-line method-hierarchical" aria-hidden="true"></i>Hierarchical
+              </span>
+              <span aria-label="Brute-force independent">
+                <i class="method-line method-brute-force" aria-hidden="true"></i>Brute force
+              </span>
+              <span aria-label="Inefficient random SMC">
+                <i class="method-line method-random-smc" aria-hidden="true"></i>Random SMC
+              </span>
+              <span aria-label="Random-question quota">
+                <i class="method-line method-random-quota" aria-hidden="true"></i>Random quota
+              </span>
+            </div>
+
+            <output class="evidence-counter" id="evidence-counter">
+              <span>Question horizon</span>
+              <strong>
+                <span id="evidence-count">0</span>
+                <span class="evidence-total">/ 931</span>
+              </strong>
+            </output>
+          </div>
+
+          <p class="visually-hidden" id="curves-status" aria-live="polite">
+            The stopping curves and five reader distributions are ready. Scroll
+            after the full figure enters the viewport to reveal all 1,250 outcomes.
+          </p>
+        </section>
+        <div class="curves-scroll-track" id="curves-scroll-track" aria-hidden="true"></div>
+      </div>
+
+      <div class="roc-stage" id="roc-stage">
+        <section
+          class="roc-section"
+          aria-label="Scroll-driven domain-specific CORTEX discrimination and AUROC density graphs"
+        >
+          <div class="roc-frame">
+            <canvas
+              id="roc-canvas"
+              width="1440"
+              height="900"
+              aria-label="Seven full-screen domain-specific semicircular graphs paired with AUROC density plots. In each semicircle, radius represents questions asked and angle represents AUROC from 0.50 to 1.00. Every density plot repeats its numeric AUROC and proportion scales, while Spike and LRDA carry the shared axis titles. Expert, experienced, and novice distributions overlap while retaining distinct group means."
+            ></canvas>
+
+            <div class="polar-legend" aria-label="CORTEX Engine simulated reader cohorts legend">
+              <span class="polar-legend-prefix">CORTEX Engine:</span>
+              <span><i class="roc-line roc-experts" aria-hidden="true"></i>Experts</span>
+              <span><i class="roc-line roc-experienced" aria-hidden="true"></i>Experienced</span>
+              <span><i class="roc-line roc-novices" aria-hidden="true"></i>Novices</span>
+            </div>
+
+            <output class="roc-counter" id="roc-counter">
+              <span>Questions asked</span>
+              <strong>
+                <span id="roc-count">0</span>
+                <span class="roc-total">/ 250</span>
+              </strong>
+            </output>
+          </div>
+
+          <p class="visually-hidden" id="roc-status" aria-live="polite">
+            Seven CORTEX discrimination and AUROC density graph pairs are ready.
+            Scroll after the full figure enters the viewport to reveal them.
+          </p>
+        </section>
+        <div class="roc-scroll-track" id="roc-scroll-track" aria-hidden="true"></div>
+      </div>
+
+      <div class="context-stage" id="context-stage">
+        <section
+          class="context-section"
+          aria-label="Why CORTEX exists and how it works"
+          aria-describedby="context-status"
+        >
+          <div class="context-frame">
+            <div class="context-columns">
+              <p class="context-column" data-context-column="one">
+                Daniel Kahneman, Olivier Sibony, and Cass Sunstein describe
+                noise as unwanted variability in judgments that should agree.
+                In EEG interpretation, two physicians can inspect the same
+                record and reach different conclusions because their
+                thresholds for declaring a spike, seizure, or rhythmic pattern
+                are not identical. That insight inspired CORTEX to estimate a
+                learner profile with skill, bias, and residual noise rather
+                than reduce performance to one score. Skill describes how
+                reliably a reader separates clinically meaningful EEG patterns
+                from plausible alternatives across domains. Bias describes the
+                reader's response threshold: whether uncertain evidence is more
+                likely to be called positive or negative. Together they
+                distinguish not knowing from using a systematically liberal or
+                conservative threshold. <span
+                  class="context-acronym-source"
+                  data-context-acronym="C"
+                >Continuous</span> measurement lets those quantities update as
+                evidence arrives, while <span
+                  class="context-acronym-source"
+                  data-context-acronym="O"
+                >Optimization</span> directs the test toward the uncertainty
+                that matters most. The resulting <span
+                  class="context-acronym-source"
+                  data-context-acronym="R"
+                >Response</span> history becomes an interpretable record of
+                competence, threshold, and residual noise.
+              </p>
+
+              <p class="context-column" data-context-column="two">
+                At the same time, extraordinary resources are training models
+                to detect EEG abnormalities. Physicians still need the
+                expertise to verify outputs, recognize edge cases, and correct
+                systems when distribution shift, artifact, rare morphology, or
+                missing clinical context defeats automation. CORTEX treats
+                assessment as a sequential Bayesian inference problem. A prior
+                over domain-level skill and bias is represented by an SMC
+                particle cloud. After each answer, the <span
+                  class="context-acronym-source"
+                  data-context-acronym="T"
+                >Test</span> engine evaluates the response likelihood,
+                reweights particles, monitors effective sample size, resamples
+                when degeneracy increases, and can rejuvenate the posterior
+                with Metropolis-Hastings steps related to Markov chain Monte
+                Carlo. Expected information gain then selects the next <span
+                  class="context-acronym-source"
+                  data-context-acronym="E"
+                >EEG</span> item, and posterior precision supports adaptive
+                stopping when remaining uncertainty is small enough. That loop
+                makes <span
+                  class="context-acronym-source"
+                  data-context-acronym="X"
+                >eXpertise</span> measurable without administering every
+                possible question. The approach is being implemented with
+                epilepsy monitoring unit teams at Stanford, Beth Israel
+                Deaconess Medical Center, and Massachusetts General Hospital.
+                We invite other EMUs, educators, and clinical neurophysiology
+                programs to participate in validation, local calibration, and
+                collaborative deployment.
+              </p>
+            </div>
+
+            <div class="context-acronym-layer" aria-hidden="true"></div>
+          </div>
+
+          <p class="visually-hidden" id="context-status" aria-live="polite">
+            The CORTEX narrative is ready. Scroll to reveal both columns, then
+            watch the six highlighted CORTEX words fall in sequence.
+          </p>
+        </section>
+        <div
+          class="context-scroll-track"
+          id="context-scroll-track"
+          aria-hidden="true"
+        ></div>
+      </div>
+
+      <section class="people" id="people" aria-labelledby="people-title">
+        <img
+          class="people-logo"
+          src="./assets/cortex-logo-word-horizontal@2x.png"
+          srcset="
+            ./assets/cortex-logo-word-horizontal@2x.png 2x,
+            ./assets/cortex-logo-word-horizontal@3x.png 3x
+          "
+          alt="CORTEX"
+          width="980"
+          height="180"
+          loading="lazy"
+          decoding="async"
+        >
+
+        <header class="people-heading">
+          <p class="eyebrow">The people behind CORTEX</p>
+          <h1 id="people-title">Meet the team</h1>
+          <p>
+            CORTEX is developed through the Westover Lab at Stanford University
+            School of Medicine, with support from the Clinical Data Animation
+            Center.
+          </p>
+          <a
+            class="people-cta"
+            href="/?auth=signup"
+          >
+            Join the CORTEX protocol
+            <span aria-hidden="true">|</span>
+            Create an account
+          </a>
+        </header>
+
+        <div class="people-grid">
+          <article class="person-card">
+            <div class="portrait-wrap">
+              <img
+                class="portrait-sketch"
+                src="./assets/eli-face-sketch.png"
+                alt="Elijah W. Keldsen"
+                width="1254"
+                height="1254"
+                loading="lazy"
+                decoding="async"
+              >
+              <span class="portrait-initials" aria-hidden="true">EK</span>
+            </div>
+            <div class="person-copy">
+              <span class="person-role">Co-developer</span>
+              <h2>Elijah W. Keldsen</h2>
+              <p>
+                Works at the intersection of mathematics, computational
+                neuroscience, and product engineering to make adaptive
+                assessment useful and understandable.
+              </p>
+            </div>
+          </article>
+
+          <article class="person-card">
+            <div class="portrait-wrap">
+              <img
+                class="portrait-sketch"
+                src="./assets/brandon-face-sketch.png"
+                alt="M. Brandon Westover, MD, PhD"
+                width="1254"
+                height="1254"
+                loading="lazy"
+                decoding="async"
+              >
+              <span class="portrait-initials" aria-hidden="true">BW</span>
+            </div>
+            <div class="person-copy">
+              <span class="person-role">Principal investigator / Co-developer</span>
+              <h2>M. Brandon Westover, MD, PhD</h2>
+              <p>
+                Neurologist and clinical neurophysiologist developing AI
+                systems that improve how EEG expertise is measured, taught,
+                and made accessible.
+              </p>
+            </div>
+          </article>
+        </div>
+
+      </section>
+    </main>
+
+    <script type="module" src="./app.js?v=20260724-post-fall-prose-exit"></script>
+  </body>
+</html>

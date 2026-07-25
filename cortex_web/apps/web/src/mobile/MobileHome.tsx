@@ -185,7 +185,8 @@ export function MobileHome({ onSettings, onSignOut, inviteHighlightId }: {
       </main>
 
       <footer style={{ padding: "12px 16px", textAlign: "center", ...S.faint }}>
-        CORTEX · <a href="/privacy" style={{ color: "inherit" }}>Privacy</a> ·{" "}
+        CORTEX · <a href="/about/" style={{ color: "inherit" }}>About Us</a> ·{" "}
+        <a href="/privacy" style={{ color: "inherit" }}>Privacy</a> ·{" "}
         <a href="/report" style={{ color: "inherit" }}>Report an issue</a>
       </footer>
     </div>

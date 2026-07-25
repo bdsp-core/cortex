@@ -49,3 +49,27 @@ export function consumeCohortDeepLink(): string | null {
   if (id) window.history.replaceState(null, "", window.location.pathname);
   return id;
 }
+
+// Public navigation can open the first step of account creation without
+// coupling a static/info page to AuthFlow's internal screen state. Unknown
+// values are ignored, and consuming the flag preserves unrelated query params
+// (notably cohort invitations).
+export type AuthStartScreen = "signup";
+
+export function parseAuthStartScreen(search: string): AuthStartScreen | null {
+  return new URLSearchParams(search).get("auth") === "signup" ? "signup" : null;
+}
+
+export function consumeAuthStartScreen(): AuthStartScreen | null {
+  const screen = parseAuthStartScreen(window.location.search);
+  if (!screen) return null;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("auth");
+  window.history.replaceState(
+    null,
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+  return screen;
+}

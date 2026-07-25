@@ -1019,6 +1019,8 @@ function DashboardFooter() {
   return (
     <footer className="cx-foot-bar">
         <div className="links">
+          <a href="/about/">{t("footer.about")}</a>
+          <span className="sep" aria-hidden="true">·</span>
           <a href="/privacy">{t("footer.privacy")}</a>
           <span className="sep" aria-hidden="true">·</span>
           <a href="/terms">{t("footer.terms")}</a>

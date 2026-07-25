@@ -15,7 +15,11 @@
 import { useState } from "react";
 import * as api from "../api";
 import { AuthFlow } from "../components/AuthFlow";
-import { consumeAuthDeepLink, consumeCohortDeepLink } from "../deepLink";
+import {
+  consumeAuthDeepLink,
+  consumeAuthStartScreen,
+  consumeCohortDeepLink,
+} from "../deepLink";
 import { MobileHome } from "./MobileHome";
 import { MobileSettings } from "./MobileSettings";
 
@@ -26,6 +30,10 @@ export function MobileApp() {
     const link = consumeAuthDeepLink();
     return api.isAuthed() ? null : link;
   });
+  const [authStartScreen] = useState(() => {
+    const screen = consumeAuthStartScreen();
+    return api.isAuthed() ? null : screen;
+  });
   // Cohort-invite email deep link (/?cohort=...): survives the sign-in so
   // the home banner can pulse the matching invitation.
   const [cohortDeepLink] = useState(() => consumeCohortDeepLink());
@@ -33,7 +41,13 @@ export function MobileApp() {
   const [screen, setScreen] = useState<"home" | "settings">("home");
 
   if (!authed) {
-    return <AuthFlow onAuthed={() => { setScreen("home"); setAuthed(true); }} deepLink={authDeepLink} />;
+    return (
+      <AuthFlow
+        onAuthed={() => { setScreen("home"); setAuthed(true); }}
+        deepLink={authDeepLink}
+        initialScreen={authStartScreen}
+      />
+    );
   }
   if (screen === "settings") {
     return <MobileSettings onBack={() => setScreen("home")} />;

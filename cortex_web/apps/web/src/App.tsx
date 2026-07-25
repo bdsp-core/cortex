@@ -17,7 +17,11 @@ import { TrialDiag } from "../engine";
 import * as api from "./api";
 import { bootstrapOnce, invalidateBootstrap } from "./bootstrapStore";
 import { AuthFlow } from "./components/AuthFlow";
-import { consumeAuthDeepLink, consumeCohortDeepLink } from "./deepLink";
+import {
+  consumeAuthDeepLink,
+  consumeAuthStartScreen,
+  consumeCohortDeepLink,
+} from "./deepLink";
 import { ReplayDriver, ReplayTrial } from "./resume";
 import { reportClientError } from "./telemetry";
 import { Consent, CONSENT_VERSION, IRB_PROTOCOL_ID } from "./components/Consent";
@@ -69,6 +73,10 @@ export function App() {
   const [authDeepLink] = useState(() => {
     const link = consumeAuthDeepLink();
     return api.isAuthed() ? null : link;
+  });
+  const [authStartScreen] = useState(() => {
+    const screen = consumeAuthStartScreen();
+    return api.isAuthed() ? null : screen;
   });
   // Cohort-invite email deep link (/?cohort=...): kept through the auth flow
   // so the dashboard banner can pulse the matching invitation after sign-in.
@@ -509,7 +517,13 @@ export function App() {
 
   switch (phase) {
     case "auth":
-      return <AuthFlow onAuthed={() => setPhase("dashboard")} deepLink={authDeepLink} />;
+      return (
+        <AuthFlow
+          onAuthed={() => setPhase("dashboard")}
+          deepLink={authDeepLink}
+          initialScreen={authStartScreen}
+        />
+      );
     case "dashboard":
       return (
         <>

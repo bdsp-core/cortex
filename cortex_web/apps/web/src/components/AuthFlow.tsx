@@ -26,7 +26,7 @@ import { useI18n, TFn, LANGS, Lang } from "../i18n/LanguageProvider";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { PROFILE_SECTIONS } from "../profileFields";
 import { suggestEmail } from "../emailSuggest";
-import type { AuthDeepLink } from "../deepLink";
+import type { AuthDeepLink, AuthStartScreen } from "../deepLink";
 import {
   AuthButton,
   AuthField as Field,
@@ -211,7 +211,12 @@ function AuthFooter() {
   };
   const placeholder: CSSProperties = { ...link, cursor: "default" };
   const dot: CSSProperties = { color: COLORS.borderInactive2, fontSize: 12 };
-  const group: CSSProperties = { display: "flex", alignItems: "center", gap: 16 };
+  const group: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 16,
+  };
   return (
     <footer style={{
       // minHeight (not height) + wrap: on phone widths the three groups
@@ -223,6 +228,8 @@ function AuthFooter() {
       padding: "6px 24px", boxSizing: "border-box", fontFamily: FONTS.sans,
     }}>
       <div style={group}>
+        <a href="/about/" style={link}>{t("footer.about")}</a>
+        <span aria-hidden="true" style={dot}>·</span>
         <a href="/privacy" style={link}>{t("footer.privacy")}</a>
         <span aria-hidden="true" style={dot}>·</span>
         <a href="/terms" style={link}>{t("footer.terms")}</a>
@@ -267,16 +274,21 @@ function AuthFooter() {
   );
 }
 
-export function AuthFlow({ onAuthed, deepLink }: {
+export function AuthFlow({ onAuthed, deepLink, initialScreen }: {
   onAuthed: () => void;
   // One-click email link (src/deepLink.ts): land directly on the verify
   // screen (code pre-filled, auto-submits) or the reset screen (code
   // pre-filled, user types the new password).
   deepLink?: AuthDeepLink | null;
+  // Public links such as /?auth=signup may open account creation directly.
+  // Verify/reset email links take precedence when both are present.
+  initialScreen?: AuthStartScreen | null;
 }) {
   const { t } = useI18n();
   const [screen, setScreen] = useState<Screen>(
-    deepLink ? (deepLink.kind === "verify" ? "verify" : "reset") : "signin");
+    deepLink
+      ? (deepLink.kind === "verify" ? "verify" : "reset")
+      : initialScreen ?? "signin");
 
   // sign in
   const [siEmail, setSiEmail] = useState("");

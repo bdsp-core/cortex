@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthDeepLink, parseCohortDeepLink } from "./deepLink";
+import {
+  parseAuthDeepLink,
+  parseAuthStartScreen,
+  parseCohortDeepLink,
+} from "./deepLink";
 
 describe("parseCohortDeepLink", () => {
   it("parses a cohort-invite link", () => {
@@ -41,5 +45,18 @@ describe("parseAuthDeepLink", () => {
   it("is quiet on unrelated or empty queries", () => {
     expect(parseAuthDeepLink("")).toBeNull();
     expect(parseAuthDeepLink("?utm_source=x")).toBeNull();
+  });
+});
+
+describe("parseAuthStartScreen", () => {
+  it("opens account creation only for the declared public route", () => {
+    expect(parseAuthStartScreen("?auth=signup")).toBe("signup");
+    expect(parseAuthStartScreen("?cohort=ch-abcdef&auth=signup")).toBe("signup");
+  });
+
+  it("ignores unknown or missing auth screens", () => {
+    expect(parseAuthStartScreen("?auth=signin")).toBeNull();
+    expect(parseAuthStartScreen("?auth=unknown")).toBeNull();
+    expect(parseAuthStartScreen("")).toBeNull();
   });
 });
