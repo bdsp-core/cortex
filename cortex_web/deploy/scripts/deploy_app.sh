@@ -134,6 +134,18 @@ if ! cmp -s "$NEXT_CADDY" "$LIVE_CADDY"; then
     exit 2
   fi
   caddy validate --adapter caddyfile --config "$NEXT_CADDY"
+  # The service runs as `caddy`; validation does not open file writers, so
+  # establish the runtime sink with explicit ownership before reload. Preserve
+  # any existing log contents, and refuse a symlink target.
+  CADDY_ACCESS_LOG=/var/log/caddy/cortex-telemetry-access.json
+  if [ -L "$CADDY_ACCESS_LOG" ]; then
+    printf 'refusing symlinked Caddy access log: %s\n' "$CADDY_ACCESS_LOG" >&2
+    exit 2
+  fi
+  install -d -o caddy -g caddy -m 0750 /var/log/caddy
+  touch "$CADDY_ACCESS_LOG"
+  chown caddy:caddy "$CADDY_ACCESS_LOG"
+  chmod 0640 "$CADDY_ACCESS_LOG"
   CADDY_BACKUP=$(mktemp /tmp/cortex-Caddyfile.XXXXXX)
   cp "$LIVE_CADDY" "$CADDY_BACKUP"
 fi
