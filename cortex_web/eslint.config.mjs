@@ -18,8 +18,10 @@ export default tseslint.config(
     extends: [
       js.configs.recommended,
       ...tseslint.configs.recommended,
-      reactHooks.configs["recommended-latest"],
     ],
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -36,6 +38,13 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-empty-object-type": "off",
+      // Preserve the ESLint 9 recommended-rule contract while the two existing
+      // assignment sites are reviewed independently of this security upgrade.
+      "no-useless-assignment": "off",
+      // React Hooks 7 adds compiler-oriented rules to its recommended presets.
+      // Keep the pre-upgrade hook contract without forcing an application
+      // refactor as part of this dependency-only security change.
+      "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },
   },
