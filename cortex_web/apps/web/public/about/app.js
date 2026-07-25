@@ -6,6 +6,17 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const demos = [];
 const titleStage = document.querySelector("#title-stage");
 const graphStage = document.querySelector("#graph-stage");
+const languageSelect = document.querySelector("#about-language");
+const supportedLanguages = new Set([
+  "en",
+  "es",
+  "fr",
+  "de",
+  "pt",
+  "it",
+  "zh-Hans",
+  "ja",
+]);
 
 titleStage.dataset.initialization = "loading";
 demos.push(initTitleReveal());
@@ -102,5 +113,24 @@ themeToggle.addEventListener("click", () => {
 document.querySelectorAll(".portrait-wrap img").forEach((image) => {
   image.addEventListener("error", () => image.classList.add("is-missing"));
 });
+
+if (languageSelect) {
+  try {
+    const storedLanguage = localStorage.getItem("cortex-lang");
+    if (supportedLanguages.has(storedLanguage)) {
+      languageSelect.value = storedLanguage;
+    }
+  } catch {
+    // The page remains usable when storage is unavailable.
+  }
+
+  languageSelect.addEventListener("change", () => {
+    try {
+      localStorage.setItem("cortex-lang", languageSelect.value);
+    } catch {
+      // The selection still updates for the active page.
+    }
+  });
+}
 
 syncThemeToggle();
