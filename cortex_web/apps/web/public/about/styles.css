@@ -920,15 +920,15 @@ html[data-theme="dark"] .theme-icon-moon {
   position: relative;
   z-index: 1;
   width: 100%;
-  min-height: 56px;
-  padding: 10px var(--ledger-gutter);
+  min-height: 48px;
+  padding: 6px 24px;
   border-top: 1px solid var(--border);
   background: var(--figure-field);
   color: var(--ink-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px 32px;
+  gap: 4px 32px;
   flex-wrap: wrap;
   font-family: var(--sans);
   font-size: 12px;
@@ -1194,12 +1194,11 @@ html[data-theme="dark"] .theme-icon-moon {
   }
 
   .about-footer {
-    padding: 14px 20px;
-    align-items: flex-start;
+    padding: 6px 20px;
   }
 
   .about-footer-links {
-    row-gap: 8px;
+    row-gap: 4px;
   }
 
   .about-footer-links i {
