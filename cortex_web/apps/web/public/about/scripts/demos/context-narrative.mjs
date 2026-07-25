@@ -120,7 +120,7 @@ export function initContextNarrative() {
   stage.dataset.technicalTermCount = "9";
   stage.dataset.revealSequence = (
     "column-one,column-two,acronym-highlight,sequential-word-fall,"
-    + "paragraph-exit,team-rise,people-logo"
+    + "paragraph-exit,team-rise,people-intro-lockup"
   );
   stage.dataset.acronym = "CORTEX";
   stage.dataset.acronymPhrase = (
@@ -128,8 +128,8 @@ export function initContextNarrative() {
   );
   stage.dataset.acronymWords = sources.map((source) => source.textContent).join(",");
   stage.dataset.institutions = "stanford,bidmc,mgh,other-emus";
-  stage.dataset.logoAsset = "cortex-logo-word-horizontal";
-  stage.dataset.logoDestination = "people-section-top";
+  stage.dataset.logoAsset = "cortex-logo-only";
+  stage.dataset.logoDestination = "people-intro-left";
   stage.dataset.acronymDestination = "below-viewport";
   stage.dataset.acronymMotion = "sequential-downward-fall";
   stage.dataset.fallOrder = sources.map((source) => source.textContent).join(",");
@@ -142,7 +142,7 @@ export function initContextNarrative() {
   stage.dataset.paragraphExitDurationDvh = textExitDurationDvh.toFixed(1);
   stage.dataset.paragraphExitDistanceDvh = String(textExitDistanceDvh);
   stage.dataset.fastScrollGuard = "people-center-intersection";
-  stage.dataset.teamHandoff = "opaque-rise";
+  stage.dataset.teamHandoff = "fade-rise";
   stage.dataset.teamOverlapDvh = teamOverlapDvh.toFixed(2);
   stage.dataset.completionGate = "render-before-release";
   stage.dataset.completionHoldDvh = String(completionHoldDvh);
@@ -290,11 +290,20 @@ export function initContextNarrative() {
     stage.dataset.activeFallWord = (
       activeFallIndex >= 0 ? sources[activeFallIndex].textContent : "none"
     );
-    stage.dataset.teamHandoffProgress = (
+    const teamHandoff = (
       reduced
         ? 1
         : windowProgress(visibleProgress, { start: teamEntryStart, end: 1 })
-    ).toFixed(3);
+    );
+    stage.dataset.teamHandoffProgress = teamHandoff.toFixed(3);
+    people.style.setProperty(
+      "--people-intro-opacity",
+      teamHandoff.toFixed(4),
+    );
+    people.style.setProperty(
+      "--people-intro-offset",
+      `${((1 - teamHandoff) * 7).toFixed(3)}dvh`,
+    );
     stage.dataset.columnsOpacity = columnsOpacity.toFixed(3);
     stage.dataset.paragraphExitProgress = textExit.toFixed(3);
     stage.dataset.completionState = complete ? "complete" : "running";

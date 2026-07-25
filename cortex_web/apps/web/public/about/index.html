@@ -7,7 +7,7 @@
     <title>About CORTEX</title>
     <link rel="icon" type="image/svg+xml" href="./assets/cortex-tab-logo.svg">
     <script src="./theme-init.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=20260725-slim-footer">
+    <link rel="stylesheet" href="./styles.css?v=20260725-team-lockup">
   </head>
   <body>
     <button
@@ -307,37 +307,38 @@
       </div>
 
       <section class="people" id="people" aria-labelledby="people-title">
-        <img
-          class="people-logo"
-          src="./assets/cortex-logo-word-horizontal@2x.png"
-          srcset="
-            ./assets/cortex-logo-word-horizontal@2x.png 2x,
-            ./assets/cortex-logo-word-horizontal@3x.png 3x
-          "
-          alt="CORTEX"
-          width="980"
-          height="180"
-          loading="lazy"
-          decoding="async"
-        >
+        <div class="people-intro">
+          <div class="people-mark-frame" aria-hidden="true">
+            <img
+              class="people-mark"
+              src="./assets/cortex-logo-only.png"
+              alt=""
+              width="3200"
+              height="2594"
+              loading="eager"
+              fetchpriority="low"
+              decoding="async"
+            >
+          </div>
 
-        <header class="people-heading">
-          <p class="eyebrow">The people behind CORTEX</p>
-          <h1 id="people-title">Meet the team</h1>
-          <p>
-            CORTEX is developed through the Westover Lab at Stanford University
-            School of Medicine, with support from the Clinical Data Animation
-            Center.
-          </p>
-          <a
-            class="people-cta"
-            href="/?auth=signup"
-          >
-            Join the CORTEX protocol
-            <span aria-hidden="true">|</span>
-            Create an account
-          </a>
-        </header>
+          <header class="people-heading">
+            <p class="eyebrow">The people behind CORTEX</p>
+            <h1 id="people-title">Meet the team</h1>
+            <p>
+              CORTEX is developed through the Westover Lab at Stanford University
+              School of Medicine, with support from the Clinical Data Animation
+              Center.
+            </p>
+            <a
+              class="people-cta"
+              href="/?auth=signup"
+            >
+              Join the CORTEX protocol
+              <span aria-hidden="true">|</span>
+              Create an account
+            </a>
+          </header>
+        </div>
 
         <div class="people-grid">
           <article class="person-card">
@@ -441,6 +442,6 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=20260725-about-footer"></script>
+    <script type="module" src="./app.js?v=20260725-team-lockup"></script>
   </body>
 </html>

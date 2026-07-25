@@ -84,7 +84,7 @@ deferDemo("#roc-stage", async () => {
 
 deferDemo("#context-stage", async () => {
   const { initContextNarrative } = await import(
-    "./scripts/demos/context-narrative.mjs?v=20260724-post-fall-prose-exit"
+    "./scripts/demos/context-narrative.mjs?v=20260725-team-lockup"
   );
   return initContextNarrative();
 });
