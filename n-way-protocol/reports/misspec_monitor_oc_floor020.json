@@ -1,0 +1,85 @@
+{
+  "alternatives": {
+    "half_drift_beta": {
+      "median_wrong_picks_to_trip": 41.0,
+      "p90_wrong_picks_to_trip": 79.0,
+      "trip_rate": 0.6355,
+      "truth_beta_scale": 0.5,
+      "truth_lapse": 0.0
+    },
+    "half_drift_lapse": {
+      "median_wrong_picks_to_trip": 38.0,
+      "p90_wrong_picks_to_trip": 77.70000000000005,
+      "trip_rate": 0.712,
+      "truth_beta_scale": 1.0,
+      "truth_lapse": 0.5
+    },
+    "uniform_n3b": {
+      "median_wrong_picks_to_trip": 13.0,
+      "p90_wrong_picks_to_trip": 26.0,
+      "trip_rate": 1.0,
+      "truth_beta_scale": 1.0,
+      "truth_lapse": 1.0
+    }
+  },
+  "config": {
+    "artifact": "iiic_conditional_f1_integrated_ensemble9_rd_floor020.json",
+    "draws": [
+      [
+        0.8722308125877214,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        0.95165593450824,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        0.9765851716341936,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        0.9945610869560302,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        1.0173203953763694,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        1.0418629877991512,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        1.0637853303885672,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        1.0915479400184864,
+        0.2,
+        0.1111111111111111
+      ],
+      [
+        1.1945942284733333,
+        0.2,
+        0.1111111111111111
+      ]
+    ],
+    "false_trip_target": 0.01,
+    "n_axes": 4000,
+    "seed": 63800001,
+    "sessions": 2000,
+    "wrong_picks_per_session": 90
+  },
+  "null_false_trip_rate": 0.01,
+  "null_mean_increment": 0.43193657744019825,
+  "schema_version": 1,
+  "status": "research_only_reference_monitor",
+  "threshold": 4.513824989762403
+}
