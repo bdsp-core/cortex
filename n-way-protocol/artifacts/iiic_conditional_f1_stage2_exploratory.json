@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "artifactId": "iiic-f1-stage2-exploratory",
+  "model": "iiic_conditional_f1_v1",
+  "qualification": "exploratory_unqualified",
+  "beta": 0.9912,
+  "distractorLapse": 0.0,
+  "binaryLapse": 0.025,
+  "sha256": "95be4585f3327d3f2ff393abac608bf541d1ceca2e4cd6dd3bde1d9536f50056",
+  "provenance": {
+    "source": "cortex_web_python_reference/nway_link_rd/results/stage2_distractor_fit.json",
+    "fitSplit": "exploratory pooled fit; not leakage-controlled for promotion",
+    "dr07": "not_qualified"
+  },
+  "promotionForbidden": true
+}
+

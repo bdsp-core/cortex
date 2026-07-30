@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "artifactId": "iiic-f1-crossfit-ensemble9-rd-20260720",
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "qualification": "exploratory_unqualified",
+  "draws": [
+    {
+      "beta": 0.8722308125877214,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.95165593450824,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.9765851716341936,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.9945610869560302,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0173203953763694,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0418629877991512,
+      "distractorLapse": 0.013049422609172988,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0637853303885672,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0915479400184864,
+      "distractorLapse": 0.0,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.1945942284733333,
+      "distractorLapse": 0.018631450805286682,
+      "weight": 0.1111111111111111
+    }
+  ],
+  "binaryLapse": 0.025,
+  "sha256": "0654fc210e67ece152dcaef6b40641fc9c94cb259d100ed3829d90224bc5ef8b",
+  "provenance": {
+    "source": "artifacts/iiic_conditional_f1_crossfit_rd.json (SHA-256 7c2d5b30ff81bfec1c96e3ccbf337c54a22f9052d97197595296a0af288b3069)",
+    "fitSplit": "nine deterministic beta-order quantiles; sha256 stamps canonical draws array",
+    "dr07": "not_qualified"
+  },
+  "promotionForbidden": true
+}

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "status": "research_only_unqualified_artifact",
+  "purpose": "parallel adaptive-frontier implementation smoke; not a promotion qualification",
+  "workers": 46,
+  "host_logical_cpus": 48,
+  "resource_headroom": {
+    "reserved_logical_cpus": 2,
+    "reserved_available_memory_fraction": 0.2,
+    "blas_threads_per_worker": 1
+  },
+  "config": {
+    "bank_segments": 72,
+    "beta": 0.9912,
+    "distractor_lapse": 0.0,
+    "ess_fraction": 0.5,
+    "mh_steps": 2,
+    "own_cap": 4,
+    "particles": 192,
+    "replicates": 48,
+    "selector_per_domain": 5
+  },
+  "arms": {
+    "binary": {
+      "bias_coverage": 0.9479166666666666,
+      "bias_rmse": 0.5679682458737195,
+      "bias_sbc": {
+        "n": 288,
+        "formal_sbc": false,
+        "interpretation": "population-stress posterior-rank diagnostic; truth prior differs from inference prior",
+        "ks_distance_from_uniform": 0.0843589554587415,
+        "decile_histogram": [27, 32, 16, 19, 31, 29, 36, 35, 30, 33]
+      },
+      "bias_width": 2.4451974118229214,
+      "mean_acceptance": 0.2973368003885582,
+      "mean_ancestry": 0.4587624524636243,
+      "questions": 24.0,
+      "resamples": 5.020833333333333,
+      "skill_coverage": 0.9444444444444443,
+      "skill_rmse": 0.6828808898559503,
+      "skill_sbc": {
+        "n": 288,
+        "formal_sbc": false,
+        "interpretation": "population-stress posterior-rank diagnostic; truth prior differs from inference prior",
+        "ks_distance_from_uniform": 0.07377081046184564,
+        "decile_histogram": [15, 23, 30, 29, 31, 27, 33, 31, 34, 34]
+      },
+      "skill_width": 3.0517209892694885
+    },
+    "categorical_f1": {
+      "bias_coverage": 0.892361111111111,
+      "bias_rmse": 0.4909366152887853,
+      "bias_sbc": {
+        "n": 288,
+        "formal_sbc": false,
+        "interpretation": "population-stress posterior-rank diagnostic; truth prior differs from inference prior",
+        "ks_distance_from_uniform": 0.06489277263352089,
+        "decile_histogram": [34, 16, 24, 35, 24, 36, 21, 28, 25, 45]
+      },
+      "bias_width": 1.7668242264048721,
+      "mean_acceptance": 0.3256115160941007,
+      "mean_ancestry": 0.43244896650658377,
+      "questions": 24.0,
+      "resamples": 8.854166666666666,
+      "skill_coverage": 0.90625,
+      "skill_rmse": 0.5425438981651903,
+      "skill_sbc": {
+        "n": 288,
+        "formal_sbc": false,
+        "interpretation": "population-stress posterior-rank diagnostic; truth prior differs from inference prior",
+        "ks_distance_from_uniform": 0.1446426096443033,
+        "decile_histogram": [35, 11, 21, 22, 23, 22, 29, 37, 32, 56]
+      },
+      "skill_width": 1.7874845667810197
+    }
+  },
+  "ratios": {
+    "bias_rmse_nway_over_binary": 0.8643733498402986,
+    "bias_width_nway_over_binary": 0.7225691544829852,
+    "skill_rmse_nway_over_binary": 0.7944927237305421,
+    "skill_width_nway_over_binary": 0.5857300103994443
+  },
+  "interpretation": "The isolated implementation realizes the expected tightening and lower planted-truth RMSE at this smoke scale, but categorical skill and bias coverage are under nominal. This is an explicit nonpromotion result and confirms that powered SBC, particle/MCSE requalification, DR07, and the locked stopping-policy run remain mandatory."
+}

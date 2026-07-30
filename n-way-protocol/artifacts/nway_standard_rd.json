@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "standardId": "nway_ensemble9_fisher_1200p30_v1",
+  "status": "isolated_standard_not_production_authorized",
+  "engineProfilePath": "artifacts/engine_profile_integrated_ensemble9_fisher_rd.json",
+  "engineProfileId": "precision_nway_f1_ensemble9_fisher_rd_v1",
+  "responseArtifactPath": "artifacts/iiic_conditional_f1_integrated_ensemble9_rd.json",
+  "responseArtifactId": "iiic-f1-crossfit-ensemble9-rd-20260720",
+  "selectorVersion": "categorical_fisher_totalvar_v1",
+  "particles": 1200,
+  "mhSteps": 30,
+  "essFraction": 0.5,
+  "frozenRollbackArchive": "frozen/F1_1200P30_20260720.tar.gz",
+  "evidenceReport": "reports/FINAL_INTEGRATION_COMPARISON.md",
+  "productionAuthorized": false
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "engineering_smoke_only",
+  "host_logical_cpus": 48,
+  "particle_count": 1200,
+  "bank_segments": 35000,
+  "response_group_size": 6,
+  "shortlist_upper_bound": 456,
+  "selector_test_elapsed_ms": 1074,
+  "test_timeout_ms": 30000,
+  "shortlist_sla_ms": 5000,
+  "exact_refinement_sla_ms": 20000,
+  "result": "pass",
+  "note": "Single-session selector microbenchmark after one-softmax-per-particle optimization. Browser/device distributions and selector regret qualification remain required."
+}
