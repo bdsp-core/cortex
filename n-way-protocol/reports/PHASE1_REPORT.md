@@ -116,13 +116,37 @@ sensitivity to *partial* drift (which is also far less damaging). Combined
 with A3: floor bounds damage per update, monitor bounds duration, binary
 replay erases the window — the three-layer design holds.
 
-## Gate C1 — tier-stratified leakage-controlled refit (PENDING — queued behind A3)
+## Gate C1 — refit verification + tier stratification (commit 1702ad1)
 
-`artifact_tiers.py` refits the distractor layer per reader tier (expert /
-novice) with the same leakage controls, and measures how much of each
-tier's bootstrap β mass falls outside the deployed ensemble span
-(0.872–1.195). Also includes a byte-reproducibility re-run of the committed
-pooled crossfit artifact. Results to be inserted.
+**Integrity: the committed pooled crossfit artifact is fully
+bit-reproducible from the staged data** — dual held-out panels, full fit,
+and all 200 bootstrap draws regenerate identically (the only payload
+difference is the recorded worker count). The existing artifact chain
+satisfies the leakage-control prerequisite the N3 report thought was still
+open; no pooled refit was needed.
+
+**Tier stratification** (`reports/artifact_tier_stratification.json`),
+same leakage controls per tier:
+
+| tier | wrong-picks | readers | β (full fit) | β 95% (reader-clustered boot) | λ_d | boot mass above ensemble span |
+|---|---|---|---|---|---|---|
+| pooled | 68,783 | 685 | 1.030 | [0.915, 1.137] | 0.000 | 0% |
+| novice | 63,707 | 681 | 0.977 | [0.858, 1.060] | 0.000 | 0% |
+| expert | 5,076 | 4 | **1.746** | [1.572, 2.109] | 0.000 | **100%** |
+
+The deployed ensemble (span 0.872–1.195) under-models expert distractor
+sharpness by ~70% — even steeper than the N3c preliminary's 1.32, and it
+validates out-of-reader (4-fold expert held-out crossfit populated).
+Honest caveats: 4 expert readers, so the clustered bootstrap interval is
+optimistic, and expert gold is leave-one-expert-out while novice gold is
+full plurality. Directionally unambiguous regardless: for a skill
+certification instrument, β is not one number — it varies with the very
+trait being certified. A skill-linked or tier-mixture β is a Phase-2
+modeling question; meanwhile the fixed pooled β under-extracts expert
+information (conservative, not anti-conservative), and the campaign's
+misspecification stress family should include tier-β drift explicitly.
+λ_d pins at zero in every tier — the floor remains an imposed margin, never
+a fitted one, in all populations.
 
 ## Gate C2 — bank categorical state coverage (commit 522a10e): STRONG PASS
 
@@ -149,11 +173,24 @@ at λ_d = 0 or at either candidate floor.
 
 ## Owner decisions requested
 
-1. **λ_d floor value** — recommendation finalized with the A3 table below.
-2. **Commit the n-way-protocol stack** (flag 1 above)?
-3. **Phase 2 authorization scope**: TS engine port of the floor (constant
-   regeneration in `nway_profile.ts`) + monitor — production changes,
-   awaiting your explicit go.
+1. **λ_d floor value — recommendation: 0.15.** Rationale: best absolute
+   skill coverage under the well-specified world (0.9549, at/above nominal
+   where the gate has sat open), retains ×3.54 skill information over
+   binary, and detection latency under collapse is identical to 0.20
+   (median 14 vs 13 wrong-picks). 0.20 buys nothing the monitor doesn't
+   already provide, at a further −6% information.
+2. **Commit the n-way-protocol stack** (repo-state flag above)?
+3. **Phase 2 authorization scope** — production changes awaiting your
+   explicit go: TS engine port of the floored artifact (constant
+   regeneration in `nway_profile.ts`) and of the monitor + binary-replay
+   trip path; then the preregistered campaign with the floored artifact.
 4. **Noninferiority margins** for the preregistered campaign
    (QUALIFICATION.md requires owner-approved margins before the locked
-   run).
+   run). Suggest the campaign also carry: (a) the absolute-coverage gate
+   re-test with floor 0.15 — A3 suggests the floor itself may close it;
+   (b) tier-β drift in the misspecification stress family, per the C1
+   expert finding; (c) the gate/floor hybrid standard-point arms from N3a.
+5. **Tier-β modeling** (C1): fixed pooled β under-extracts expert
+   information (β_expert ≈ 1.75 vs ensemble span ≤ 1.19). Skill-linked or
+   tier-mixture β is the follow-on modeling question — flagging now so it
+   enters Phase-2 scoping rather than surfacing mid-campaign.
