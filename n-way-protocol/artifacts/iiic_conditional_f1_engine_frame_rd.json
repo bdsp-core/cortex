@@ -1,0 +1,92 @@
+{
+  "bootstrap": {
+    "betaInterval95": [
+      0.6507521668020948,
+      1.474731514148047
+    ],
+    "clusterBy": "reader",
+    "distractorLapseInterval95": [
+      0.15,
+      0.15
+    ],
+    "draws": [
+      {
+        "beta": 0.6507521668020948,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 0.7641768734924311,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 0.8420506304235982,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 0.9111635676885641,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 0.9796349974777218,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.0532518664214154,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.1396995544085053,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.2558411037712216,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.474731514148047,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      }
+    ]
+  },
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "nWrongPicks": 58358,
+  "promotionForbidden": true,
+  "provenance": {
+    "adopted_subset": "stable_core",
+    "method": "engine_frame_hierarchical_v1",
+    "population_model": "dersimonian_laird_log_beta;draw_spread=sqrt(tau^2+se_mu^2)",
+    "reader_model": "per_domain_t_scalar_l_map_standard_normal_prior_binary_margins",
+    "source_sha256": {
+      "../data/labels/external/centaur_2025/case_id_to_seg_id.csv": "a16a9cabd6982d2459ccc060acb2e2964b3fe1e60696cb1ee92545bf60b9d48d",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_expert_labels.xlsx": "385392a74543e251c4e803142668fe0d238b4d493781e50ad3d19eccb6426cb7",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_novice_labels.csv": "869fc749a305f3452a168ac55135b37e15ffee148c0f282a90da7b7f0101d9e9",
+      "../data/labels/segment_signals.csv": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5"
+    },
+    "subset_rule": {
+      "interior_abs_l_max": 2.5,
+      "min_reads": 100,
+      "min_wrong_picks": 30
+    }
+  },
+  "randomEffects": {
+    "cochran_q": 1816.196014776925,
+    "mu_log_beta": -0.020575228248171405,
+    "n_readers_used": 124,
+    "se_mu_log_beta": 0.02646174635139151,
+    "tau_log_beta": 0.25537783624586124
+  },
+  "robustnessFloor": 0.15,
+  "schemaVersion": 1,
+  "status": "research_only_not_promoted",
+  "subsetReaders": 124,
+  "variant": "engine_frame_hierarchical"
+}
