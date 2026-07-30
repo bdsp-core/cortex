@@ -1,0 +1,1131 @@
+{
+  "bootstrap": {
+    "betaInterval95": [
+      0.9153823613431276,
+      1.1369837029583028
+    ],
+    "clusterBy": "reader",
+    "distractorLapseInterval95": [
+      0.2,
+      0.2
+    ],
+    "draws": [
+      {
+        "beta": 1.0703338924796104,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9951977227178641,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9744212488763841,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9846132523582897,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0107396414298404,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9641058325235863,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0295857421373114,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1076273245081465,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.05855631951185,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1086758717960747,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.939478931096001,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9716808635975183,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0869414782307474,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.113378194879144,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.087311392319927,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0337208459533547,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9945610869560302,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9891429581367361,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0381192058664357,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0418629877991512,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9808430943777041,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1161120502572244,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9584280307080236,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0699699971509589,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.938187377193105,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0938946025444647,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9957160002669816,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9689561860498555,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9871021401577194,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0715516000750926,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0592072252574003,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0303752575042324,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9421980036396382,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9525348374813076,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0144794892072568,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0897943169587738,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0199517969498932,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.094511918935352,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.033684770771278,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9491348345786675,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9235713359363771,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1945942284733333,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9607003031307838,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0982686594886946,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1133961900377647,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9154667422237441,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9485573384512311,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9651988936076898,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1110257195148439,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0811562516931335,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.123563170755132,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9939519945977833,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9786875576504053,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9492880989257018,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9335310277563764,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0712798969674278,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0480426315061058,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0304331648239886,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9833519860200812,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0484555710216295,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9523691718911211,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0188116510580782,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0716089599108887,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9954754631472504,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.8903806365491811,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9484307125899528,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0693032484253717,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.974004856298418,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.02839294457912,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0430687293937422,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0451281903711913,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0902161365368979,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0531692560963384,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0523243118352403,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9748235657729475,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1377516437609765,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0028756401370265,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9773705966358068,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0066981641389594,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9848195558570321,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0568813044194985,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9669310760727202,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.977879726419584,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9240741713176437,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0362839780655329,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1092287168208124,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1273187747562687,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0208053221601896,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0489345242586192,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9313821046395699,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.066251847372434,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9183546427399076,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0512594483045627,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0350149458299915,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0791215957524802,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9904535231771279,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0253094779237586,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9938953570478729,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9765851716341936,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9527303359888324,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9988677489512107,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.8737331238975469,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0791821875043899,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9900400813162059,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0967001041059121,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9721023450374668,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0167562005331412,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.95165593450824,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9810517899083299,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9724151095602115,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.053453675565304,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0461453676496237,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.080797721980089,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9853451988300169,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0784814637361477,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0915479400184864,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0042918586834122,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0025850112005525,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9769413249381077,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0991270684977372,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1591433759299656,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9476194409848095,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0196294463341182,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0772488210706679,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9864435246284651,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9346619457611234,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0640278076075151,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9500318535300348,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0570454792648358,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0086965752392032,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0504667203057436,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9201354645799196,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0596580065686574,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0034050311414675,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0595351862672444,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9120915069990789,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0109910156941464,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9718411406278638,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.039701697134954,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9640010951461885,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9841565313384498,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0023542975450839,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0577034773732537,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.073387842768562,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0498590014107794,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0637853303885672,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1369640121684905,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0674812779017704,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9654585329578023,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.8722308125877214,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9781250766103987,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1118514121374623,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0978470055096154,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0060038943719505,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0140019944771856,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9445564936475602,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.01825190427248,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0895590686574446,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9828573024293394,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9906883814844601,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0519685145708046,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.037145662885741,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0414560723621809,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0569550891996031,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0933555212508053,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0170617566983782,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9727612977982821,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.161311029333391,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0795075156947085,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0301437503597857,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.027745957349158,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.060494249698209,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9381747708216809,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0208828112571389,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.010118719635682,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.002003683119003,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9886490739208877,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0536808710547778,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9633971603580371,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9754159920724946,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0367215170390136,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0414103704793745,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0023521571179939,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9612931372639983,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1187008655270492,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0036347252091136,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9623270661554029,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0126251957240984,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0652414893617224,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1547012722857573,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0130478111731875,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0173203953763694,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9847876948420216,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9806833877263831,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9352839150653784,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.8915629065064804,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 0.9682637730331344,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0811407694642898,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.0549087151421435,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      },
+      {
+        "beta": 1.1173690637999267,
+        "distractor_lapse": 0.2,
+        "weight": 0.005
+      }
+    ],
+    "seed": 63300001,
+    "workers": 46
+  },
+  "crossfit": {
+    "note": "Panels are separate because densely crossed reader/source data can form one connected component and make simultaneous holdout impossible.",
+    "reader_held_out": {
+      "crossfit_mean_log_score": -1.3861141907014694,
+      "folds": [
+        {
+          "beta": 1.0118993062245771,
+          "distractor_lapse": 0.0,
+          "fold": 0,
+          "n_train": 55151,
+          "n_validation": 13632,
+          "validation_mean_log_score": -1.3427108893781412
+        },
+        {
+          "beta": 1.0646883074622602,
+          "distractor_lapse": 0.012223984840734493,
+          "fold": 1,
+          "n_train": 53400,
+          "n_validation": 15383,
+          "validation_mean_log_score": -1.4286347071624594
+        },
+        {
+          "beta": 1.065885593222706,
+          "distractor_lapse": 0.0,
+          "fold": 2,
+          "n_train": 52253,
+          "n_validation": 16530,
+          "validation_mean_log_score": -1.4394045369896424
+        },
+        {
+          "beta": 1.0319284276243854,
+          "distractor_lapse": 0.0,
+          "fold": 3,
+          "n_train": 58026,
+          "n_validation": 10757,
+          "validation_mean_log_score": -1.3914895942854817
+        },
+        {
+          "beta": 0.990057410389249,
+          "distractor_lapse": 0.0,
+          "fold": 4,
+          "n_train": 56302,
+          "n_validation": 12481,
+          "validation_mean_log_score": -1.3059017124083427
+        }
+      ],
+      "full_fit": {
+        "beta": 1.0303243343107302,
+        "distractor_lapse": 0.0,
+        "weight": 1.0
+      },
+      "salt": "nway-artifact-v1:reader",
+      "split": "reader"
+    },
+    "source_held_out": {
+      "crossfit_mean_log_score": -1.3848455602452514,
+      "folds": [
+        {
+          "beta": 1.0280721309769751,
+          "distractor_lapse": 0.0,
+          "fold": 0,
+          "n_train": 55541,
+          "n_validation": 13242,
+          "validation_mean_log_score": -1.3939925687460346
+        },
+        {
+          "beta": 1.037727505509278,
+          "distractor_lapse": 0.0,
+          "fold": 1,
+          "n_train": 54469,
+          "n_validation": 14314,
+          "validation_mean_log_score": -1.3921428711807187
+        },
+        {
+          "beta": 1.0290783643731705,
+          "distractor_lapse": 0.0,
+          "fold": 2,
+          "n_train": 54814,
+          "n_validation": 13969,
+          "validation_mean_log_score": -1.3842482347316696
+        },
+        {
+          "beta": 1.0278494321073728,
+          "distractor_lapse": 0.0,
+          "fold": 3,
+          "n_train": 55242,
+          "n_validation": 13541,
+          "validation_mean_log_score": -1.3772821129274362
+        },
+        {
+          "beta": 1.0290562678590012,
+          "distractor_lapse": 0.0,
+          "fold": 4,
+          "n_train": 55066,
+          "n_validation": 13717,
+          "validation_mean_log_score": -1.3764750918434216
+        }
+      ],
+      "full_fit": {
+        "beta": 1.0303243343107302,
+        "distractor_lapse": 0.0,
+        "weight": 1.0
+      },
+      "salt": "nway-artifact-v1:source",
+      "split": "source"
+    }
+  },
+  "flooredFrom": "iiic_conditional_f1_crossfit_rd.json",
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "nWrongPicks": 68783,
+  "promotionForbidden": true,
+  "robustnessFloor": 0.2,
+  "schemaVersion": 1,
+  "status": "research_only_not_promoted"
+}

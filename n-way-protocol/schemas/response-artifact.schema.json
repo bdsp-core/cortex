@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cortex.local/schemas/iiic-conditional-f1-artifact-v1.json",
+  "title": "IIIC conditional F1 response artifact",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion", "artifactId", "model", "qualification",
+    "binaryLapse", "sha256", "provenance"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "artifactId": { "type": "string", "minLength": 1 },
+    "model": {
+      "enum": [
+        "iiic_conditional_f1_v1",
+        "iiic_conditional_f1_v1_artifact_ensemble"
+      ]
+    },
+    "qualification": { "enum": ["exploratory_unqualified", "qualified"] },
+    "beta": { "type": "number", "exclusiveMinimum": 0 },
+    "distractorLapse": { "type": "number", "minimum": 0, "maximum": 1 },
+    "draws": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["beta", "distractorLapse", "weight"],
+        "properties": {
+          "beta": { "type": "number", "exclusiveMinimum": 0 },
+          "distractorLapse": { "type": "number", "minimum": 0, "maximum": 1 },
+          "weight": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "binaryLapse": { "const": 0.025 },
+    "robustnessFloor": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "fitSplit", "dr07"],
+      "properties": {
+        "source": { "type": "string" },
+        "fitSplit": { "type": "string" },
+        "dr07": { "enum": ["not_qualified", "qualified"] }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": { "model": { "const": "iiic_conditional_f1_v1" } },
+      "required": ["beta", "distractorLapse"]
+    },
+    {
+      "properties": {
+        "model": { "const": "iiic_conditional_f1_v1_artifact_ensemble" }
+      },
+      "required": ["draws"]
+    }
+  ]
+}
