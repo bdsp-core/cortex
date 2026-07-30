@@ -1,0 +1,509 @@
+{
+  "by_floor": {
+    "0.0": {
+      "by_asked_class": {
+        "gpd": {
+          "informative_fraction": 0.9706857867525119,
+          "informative_items": 19901,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.37756597218594756
+        },
+        "grda": {
+          "informative_fraction": 0.9780021461320847,
+          "informative_items": 20051,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.3761260402295721
+        },
+        "iic": {
+          "informative_fraction": 0.9387376841283778,
+          "informative_items": 19246,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.36083642866709603
+        },
+        "lpd": {
+          "informative_fraction": 0.9671251585211199,
+          "informative_items": 19828,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.3764163926543236
+        },
+        "lrda": {
+          "informative_fraction": 0.9897570968685981,
+          "informative_items": 20292,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.39201403528230416
+        },
+        "sz": {
+          "informative_fraction": 0.95941859330797,
+          "informative_items": 19670,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.37384591688133395
+        }
+      },
+      "by_confusion_pair": {
+        "gpd->grda": {
+          "modal_items": 4412,
+          "strong_support_items": 4819
+        },
+        "gpd->iic": {
+          "modal_items": 4894,
+          "strong_support_items": 5338
+        },
+        "gpd->lpd": {
+          "modal_items": 3974,
+          "strong_support_items": 4393
+        },
+        "gpd->lrda": {
+          "modal_items": 3600,
+          "strong_support_items": 4038
+        },
+        "gpd->sz": {
+          "modal_items": 3622,
+          "strong_support_items": 3887
+        },
+        "grda->gpd": {
+          "modal_items": 4429,
+          "strong_support_items": 4771
+        },
+        "grda->iic": {
+          "modal_items": 5123,
+          "strong_support_items": 5555
+        },
+        "grda->lpd": {
+          "modal_items": 3406,
+          "strong_support_items": 3994
+        },
+        "grda->lrda": {
+          "modal_items": 4356,
+          "strong_support_items": 4767
+        },
+        "grda->sz": {
+          "modal_items": 3188,
+          "strong_support_items": 3594
+        },
+        "iic->gpd": {
+          "modal_items": 4235,
+          "strong_support_items": 4313
+        },
+        "iic->grda": {
+          "modal_items": 4624,
+          "strong_support_items": 5027
+        },
+        "iic->lpd": {
+          "modal_items": 3791,
+          "strong_support_items": 4307
+        },
+        "iic->lrda": {
+          "modal_items": 4386,
+          "strong_support_items": 4605
+        },
+        "iic->sz": {
+          "modal_items": 3466,
+          "strong_support_items": 3784
+        },
+        "lpd->gpd": {
+          "modal_items": 4268,
+          "strong_support_items": 4371
+        },
+        "lpd->grda": {
+          "modal_items": 3746,
+          "strong_support_items": 4270
+        },
+        "lpd->iic": {
+          "modal_items": 4685,
+          "strong_support_items": 5105
+        },
+        "lpd->lrda": {
+          "modal_items": 4415,
+          "strong_support_items": 4697
+        },
+        "lpd->sz": {
+          "modal_items": 3388,
+          "strong_support_items": 3681
+        },
+        "lrda->gpd": {
+          "modal_items": 3402,
+          "strong_support_items": 3952
+        },
+        "lrda->grda": {
+          "modal_items": 4491,
+          "strong_support_items": 4953
+        },
+        "lrda->iic": {
+          "modal_items": 4845,
+          "strong_support_items": 5387
+        },
+        "lrda->lpd": {
+          "modal_items": 4561,
+          "strong_support_items": 4974
+        },
+        "lrda->sz": {
+          "modal_items": 3203,
+          "strong_support_items": 3631
+        },
+        "sz->gpd": {
+          "modal_items": 4107,
+          "strong_support_items": 4331
+        },
+        "sz->grda": {
+          "modal_items": 4033,
+          "strong_support_items": 4403
+        },
+        "sz->iic": {
+          "modal_items": 4824,
+          "strong_support_items": 5161
+        },
+        "sz->lpd": {
+          "modal_items": 3706,
+          "strong_support_items": 4225
+        },
+        "sz->lrda": {
+          "modal_items": 3832,
+          "strong_support_items": 4308
+        }
+      },
+      "empty_modal_pairs": [],
+      "pairs_below_100_strong_support": {}
+    },
+    "0.15": {
+      "by_asked_class": {
+        "gpd": {
+          "informative_fraction": 0.9550287776802263,
+          "informative_items": 19580,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.27127410655522466
+        },
+        "grda": {
+          "informative_fraction": 0.9643449419568823,
+          "informative_items": 19771,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.271085328739656
+        },
+        "iic": {
+          "informative_fraction": 0.9135206321334504,
+          "informative_items": 18729,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.259911389320891
+        },
+        "lpd": {
+          "informative_fraction": 0.9455175104867818,
+          "informative_items": 19385,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.27044487842470777
+        },
+        "lrda": {
+          "informative_fraction": 0.9803921568627451,
+          "informative_items": 20100,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.2819164194627863
+        },
+        "sz": {
+          "informative_fraction": 0.9465905765291192,
+          "informative_items": 19407,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.26883503110989826
+        }
+      },
+      "by_confusion_pair": {
+        "gpd->grda": {
+          "modal_items": 4412,
+          "strong_support_items": 4557
+        },
+        "gpd->iic": {
+          "modal_items": 4894,
+          "strong_support_items": 5041
+        },
+        "gpd->lpd": {
+          "modal_items": 3974,
+          "strong_support_items": 4116
+        },
+        "gpd->lrda": {
+          "modal_items": 3600,
+          "strong_support_items": 3787
+        },
+        "gpd->sz": {
+          "modal_items": 3622,
+          "strong_support_items": 3698
+        },
+        "grda->gpd": {
+          "modal_items": 4429,
+          "strong_support_items": 4553
+        },
+        "grda->iic": {
+          "modal_items": 5123,
+          "strong_support_items": 5257
+        },
+        "grda->lpd": {
+          "modal_items": 3406,
+          "strong_support_items": 3743
+        },
+        "grda->lrda": {
+          "modal_items": 4356,
+          "strong_support_items": 4487
+        },
+        "grda->sz": {
+          "modal_items": 3188,
+          "strong_support_items": 3398
+        },
+        "iic->gpd": {
+          "modal_items": 4235,
+          "strong_support_items": 4116
+        },
+        "iic->grda": {
+          "modal_items": 4624,
+          "strong_support_items": 4780
+        },
+        "iic->lpd": {
+          "modal_items": 3791,
+          "strong_support_items": 4032
+        },
+        "iic->lrda": {
+          "modal_items": 4386,
+          "strong_support_items": 4334
+        },
+        "iic->sz": {
+          "modal_items": 3466,
+          "strong_support_items": 3633
+        },
+        "lpd->gpd": {
+          "modal_items": 4268,
+          "strong_support_items": 4164
+        },
+        "lpd->grda": {
+          "modal_items": 3746,
+          "strong_support_items": 4020
+        },
+        "lpd->iic": {
+          "modal_items": 4685,
+          "strong_support_items": 4793
+        },
+        "lpd->lrda": {
+          "modal_items": 4415,
+          "strong_support_items": 4468
+        },
+        "lpd->sz": {
+          "modal_items": 3388,
+          "strong_support_items": 3488
+        },
+        "lrda->gpd": {
+          "modal_items": 3402,
+          "strong_support_items": 3755
+        },
+        "lrda->grda": {
+          "modal_items": 4491,
+          "strong_support_items": 4712
+        },
+        "lrda->iic": {
+          "modal_items": 4845,
+          "strong_support_items": 5100
+        },
+        "lrda->lpd": {
+          "modal_items": 4561,
+          "strong_support_items": 4723
+        },
+        "lrda->sz": {
+          "modal_items": 3203,
+          "strong_support_items": 3423
+        },
+        "sz->gpd": {
+          "modal_items": 4107,
+          "strong_support_items": 4118
+        },
+        "sz->grda": {
+          "modal_items": 4033,
+          "strong_support_items": 4155
+        },
+        "sz->iic": {
+          "modal_items": 4824,
+          "strong_support_items": 4882
+        },
+        "sz->lpd": {
+          "modal_items": 3706,
+          "strong_support_items": 3964
+        },
+        "sz->lrda": {
+          "modal_items": 3832,
+          "strong_support_items": 4044
+        }
+      },
+      "empty_modal_pairs": [],
+      "pairs_below_100_strong_support": {}
+    },
+    "0.2": {
+      "by_asked_class": {
+        "gpd": {
+          "informative_fraction": 0.9470295580918935,
+          "informative_items": 19416,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.24024261880827363
+        },
+        "grda": {
+          "informative_fraction": 0.9562969466393523,
+          "informative_items": 19606,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.24050358609035405
+        },
+        "iic": {
+          "informative_fraction": 0.9055701882743147,
+          "informative_items": 18566,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.23062502365372306
+        },
+        "lpd": {
+          "informative_fraction": 0.936250121939323,
+          "informative_items": 19195,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.23951870281951693
+        },
+        "lrda": {
+          "informative_fraction": 0.9736611062335382,
+          "informative_items": 19962,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.2501692788884135
+        },
+        "sz": {
+          "informative_fraction": 0.9400058530875036,
+          "informative_items": 19272,
+          "items": 20502,
+          "median_kl_vs_uniform_nats": 0.2384055688439644
+        }
+      },
+      "by_confusion_pair": {
+        "gpd->grda": {
+          "modal_items": 4412,
+          "strong_support_items": 4438
+        },
+        "gpd->iic": {
+          "modal_items": 4894,
+          "strong_support_items": 4920
+        },
+        "gpd->lpd": {
+          "modal_items": 3974,
+          "strong_support_items": 4010
+        },
+        "gpd->lrda": {
+          "modal_items": 3600,
+          "strong_support_items": 3673
+        },
+        "gpd->sz": {
+          "modal_items": 3622,
+          "strong_support_items": 3618
+        },
+        "grda->gpd": {
+          "modal_items": 4429,
+          "strong_support_items": 4459
+        },
+        "grda->iic": {
+          "modal_items": 5123,
+          "strong_support_items": 5151
+        },
+        "grda->lpd": {
+          "modal_items": 3406,
+          "strong_support_items": 3647
+        },
+        "grda->lrda": {
+          "modal_items": 4356,
+          "strong_support_items": 4365
+        },
+        "grda->sz": {
+          "modal_items": 3188,
+          "strong_support_items": 3324
+        },
+        "iic->gpd": {
+          "modal_items": 4235,
+          "strong_support_items": 4032
+        },
+        "iic->grda": {
+          "modal_items": 4624,
+          "strong_support_items": 4684
+        },
+        "iic->lpd": {
+          "modal_items": 3791,
+          "strong_support_items": 3921
+        },
+        "iic->lrda": {
+          "modal_items": 4386,
+          "strong_support_items": 4151
+        },
+        "iic->sz": {
+          "modal_items": 3466,
+          "strong_support_items": 3555
+        },
+        "lpd->gpd": {
+          "modal_items": 4268,
+          "strong_support_items": 4079
+        },
+        "lpd->grda": {
+          "modal_items": 3746,
+          "strong_support_items": 3920
+        },
+        "lpd->iic": {
+          "modal_items": 4685,
+          "strong_support_items": 4689
+        },
+        "lpd->lrda": {
+          "modal_items": 4415,
+          "strong_support_items": 4356
+        },
+        "lpd->sz": {
+          "modal_items": 3388,
+          "strong_support_items": 3406
+        },
+        "lrda->gpd": {
+          "modal_items": 3402,
+          "strong_support_items": 3666
+        },
+        "lrda->grda": {
+          "modal_items": 4491,
+          "strong_support_items": 4608
+        },
+        "lrda->iic": {
+          "modal_items": 4845,
+          "strong_support_items": 4989
+        },
+        "lrda->lpd": {
+          "modal_items": 4561,
+          "strong_support_items": 4621
+        },
+        "lrda->sz": {
+          "modal_items": 3203,
+          "strong_support_items": 3359
+        },
+        "sz->gpd": {
+          "modal_items": 4107,
+          "strong_support_items": 4029
+        },
+        "sz->grda": {
+          "modal_items": 4033,
+          "strong_support_items": 4065
+        },
+        "sz->iic": {
+          "modal_items": 4824,
+          "strong_support_items": 4771
+        },
+        "sz->lpd": {
+          "modal_items": 3706,
+          "strong_support_items": 3866
+        },
+        "sz->lrda": {
+          "modal_items": 3832,
+          "strong_support_items": 3944
+        }
+      },
+      "empty_modal_pairs": [],
+      "pairs_below_100_strong_support": {}
+    }
+  },
+  "config": {
+    "beta": 0.9912,
+    "floors": [
+      0.0,
+      0.15,
+      0.2
+    ],
+    "informative_kl_nats": 0.05,
+    "items": 20502,
+    "strong_support_probability": 0.3
+  },
+  "schema_version": 1,
+  "status": "audit_only_no_bank_mutation"
+}
