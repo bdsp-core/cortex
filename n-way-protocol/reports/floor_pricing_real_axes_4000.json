@@ -1,0 +1,74 @@
+{
+  "by_lapse": {
+    "0.0": {
+      "mean_bias_information": 0.7076756170866357,
+      "mean_skill_information": 0.3555164181389253,
+      "multiple_vs_binary_bias": 1.752838399707455,
+      "multiple_vs_binary_skill": 4.869589370085746,
+      "retention_vs_unfloored_bias": 1.0,
+      "retention_vs_unfloored_skill": 1.0
+    },
+    "0.05": {
+      "mean_bias_information": 0.6631206477668408,
+      "mean_skill_information": 0.3127684062390281,
+      "multiple_vs_binary_bias": 1.6424804062484784,
+      "multiple_vs_binary_skill": 4.284060112591107,
+      "retention_vs_unfloored_bias": 0.9370404063047711,
+      "retention_vs_unfloored_skill": 0.8797579810134322
+    },
+    "0.1": {
+      "mean_bias_information": 0.6309079882005256,
+      "mean_skill_information": 0.2833631533698404,
+      "multiple_vs_binary_bias": 1.5626930216315114,
+      "multiple_vs_binary_skill": 3.881289665178114,
+      "retention_vs_unfloored_bias": 0.8915214442428472,
+      "retention_vs_unfloored_skill": 0.7970466029479135
+    },
+    "0.15": {
+      "mean_bias_information": 0.6036412074489607,
+      "mean_skill_information": 0.2586116384922366,
+      "multiple_vs_binary_bias": 1.4951560609340284,
+      "multiple_vs_binary_skill": 3.5422625272122965,
+      "retention_vs_unfloored_bias": 0.852991388814603,
+      "retention_vs_unfloored_skill": 0.7274253038608721
+    },
+    "0.2": {
+      "mean_bias_information": 0.5795860774832897,
+      "mean_skill_information": 0.23678348532769067,
+      "multiple_vs_binary_bias": 1.435574022927172,
+      "multiple_vs_binary_skill": 3.2432773406065407,
+      "retention_vs_unfloored_bias": 0.8189996426178057,
+      "retention_vs_unfloored_skill": 0.6660268647147617
+    },
+    "0.3": {
+      "mean_bias_information": 0.5382874878344908,
+      "mean_skill_information": 0.19920081050640012,
+      "multiple_vs_binary_bias": 1.333281740923462,
+      "multiple_vs_binary_skill": 2.7284988818023406,
+      "retention_vs_unfloored_bias": 0.7606415635040765,
+      "retention_vs_unfloored_skill": 0.56031395553878
+    }
+  },
+  "config": {
+    "beta": 0.9912,
+    "lapse_grid": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.3
+    ],
+    "segments": 4000,
+    "skill_profiles": [
+      -1.0,
+      0.0,
+      1.0
+    ],
+    "workers": 40
+  },
+  "mean_binary_bias_information": 0.40373123797649874,
+  "mean_binary_skill_information": 0.07300747375597816,
+  "schema_version": 1,
+  "status": "audit_only_no_bank_mutation"
+}
