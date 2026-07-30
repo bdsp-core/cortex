@@ -1,0 +1,377 @@
+{
+  "rows": [
+    {
+      "acceptance": 0.2682291666666667,
+      "ancestry": 0.42708333333333337,
+      "bias_coverage": 0.8333333333333334,
+      "bias_rmse": 1.0142984031069397,
+      "bias_width": 2.7552557469662795,
+      "questions": 6,
+      "resamples": 2,
+      "seed": 63500000,
+      "selector": "frozen_total_variance",
+      "skill_coverage": 1.0,
+      "skill_rmse": 0.6077413267638037,
+      "skill_width": 3.0617011522744915
+    },
+    {
+      "acceptance": 0.33203125,
+      "ancestry": 0.40625,
+      "bias_coverage": 0.8333333333333334,
+      "bias_rmse": 1.0362962732236547,
+      "bias_width": 2.4975904829397755,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500000,
+      "selector": "fisher_augmented_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.7399126796343926,
+      "skill_width": 2.56888277200316
+    },
+    {
+      "acceptance": 0.31380208333333337,
+      "ancestry": 0.4348958333333333,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.6399841018548724,
+      "bias_width": 2.8160711343585074,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500000,
+      "selector": "bias_weighted_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.5727887950487905,
+      "skill_width": 2.6246081880503866
+    },
+    {
+      "acceptance": 0.3107638888888889,
+      "ancestry": 0.42013888888888884,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.6100532802944157,
+      "bias_width": 2.120354515308556,
+      "questions": 6,
+      "resamples": 3,
+      "seed": 63500000,
+      "selector": "mutual_information",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.7079771820733065,
+      "skill_width": 2.360245225118418
+    },
+    {
+      "acceptance": 0.30859375,
+      "ancestry": 0.4088541666666667,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.4124877963098923,
+      "bias_width": 2.765462183685855,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500001,
+      "selector": "frozen_total_variance",
+      "skill_coverage": 1.0,
+      "skill_rmse": 0.4657189163741492,
+      "skill_width": 2.703253725405576
+    },
+    {
+      "acceptance": 0.36111111111111116,
+      "ancestry": 0.3194444444444444,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.5926334261381124,
+      "bias_width": 2.2233556552472735,
+      "questions": 6,
+      "resamples": 3,
+      "seed": 63500001,
+      "selector": "fisher_augmented_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.8964748812289944,
+      "skill_width": 2.3614039403535787
+    },
+    {
+      "acceptance": 0.30859375,
+      "ancestry": 0.44010416666666663,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.5237860924264085,
+      "bias_width": 2.785292150449879,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500001,
+      "selector": "bias_weighted_total_variance",
+      "skill_coverage": 1.0,
+      "skill_rmse": 0.42876494481995053,
+      "skill_width": 2.675167701265075
+    },
+    {
+      "acceptance": 0.3038194444444445,
+      "ancestry": 0.43402777777777773,
+      "bias_coverage": 1.0,
+      "bias_rmse": 0.41535374048190155,
+      "bias_width": 2.284951947259485,
+      "questions": 6,
+      "resamples": 3,
+      "seed": 63500001,
+      "selector": "mutual_information",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.7403565265654213,
+      "skill_width": 2.1827217089417523
+    },
+    {
+      "acceptance": 0.32291666666666663,
+      "ancestry": 0.4296875,
+      "bias_coverage": 0.6666666666666666,
+      "bias_rmse": 1.5134915742552655,
+      "bias_width": 2.6737766326391603,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500002,
+      "selector": "frozen_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.9349247466283817,
+      "skill_width": 2.9134357424375463
+    },
+    {
+      "acceptance": 0.34375,
+      "ancestry": 0.3888888888888889,
+      "bias_coverage": 0.5,
+      "bias_rmse": 1.4122052150743691,
+      "bias_width": 2.287335115358795,
+      "questions": 6,
+      "resamples": 3,
+      "seed": 63500002,
+      "selector": "fisher_augmented_total_variance",
+      "skill_coverage": 0.6666666666666666,
+      "skill_rmse": 0.9374410820151324,
+      "skill_width": 2.084806649090412
+    },
+    {
+      "acceptance": 0.3333333333333333,
+      "ancestry": 0.4427083333333333,
+      "bias_coverage": 0.5,
+      "bias_rmse": 1.611432226101826,
+      "bias_width": 2.4253943765830033,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500002,
+      "selector": "bias_weighted_total_variance",
+      "skill_coverage": 0.6666666666666666,
+      "skill_rmse": 0.930505548759333,
+      "skill_width": 2.2421323588824404
+    },
+    {
+      "acceptance": 0.32942708333333337,
+      "ancestry": 0.4244791666666667,
+      "bias_coverage": 0.5,
+      "bias_rmse": 1.4649777680894362,
+      "bias_width": 3.0544334290705586,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500002,
+      "selector": "mutual_information",
+      "skill_coverage": 0.5,
+      "skill_rmse": 1.0519786907902111,
+      "skill_width": 2.5161332851661933
+    },
+    {
+      "acceptance": 0.3828125,
+      "ancestry": 0.375,
+      "bias_coverage": 0.6666666666666666,
+      "bias_rmse": 0.7799538386537677,
+      "bias_width": 2.373572081120099,
+      "questions": 6,
+      "resamples": 2,
+      "seed": 63500003,
+      "selector": "frozen_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.9889835789034523,
+      "skill_width": 2.164082107640477
+    },
+    {
+      "acceptance": 0.3111979166666667,
+      "ancestry": 0.41927083333333337,
+      "bias_coverage": 0.6666666666666666,
+      "bias_rmse": 0.7954678563115327,
+      "bias_width": 2.8055628958641248,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500003,
+      "selector": "fisher_augmented_total_variance",
+      "skill_coverage": 0.8333333333333334,
+      "skill_rmse": 0.9262890849806936,
+      "skill_width": 2.571410225162977
+    },
+    {
+      "acceptance": 0.34765625,
+      "ancestry": 0.359375,
+      "bias_coverage": 0.8333333333333334,
+      "bias_rmse": 0.9775591165723597,
+      "bias_width": 3.0649615548335354,
+      "questions": 6,
+      "resamples": 4,
+      "seed": 63500003,
+      "selector": "bias_weighted_total_variance",
+      "skill_coverage": 1.0,
+      "skill_rmse": 0.5962421147307294,
+      "skill_width": 2.310203072076449
+    },
+    {
+      "acceptance": 0.3350694444444445,
+      "ancestry": 0.3541666666666667,
+      "bias_coverage": 0.8333333333333334,
+      "bias_rmse": 0.5512383977743283,
+      "bias_width": 2.55661154582257,
+      "questions": 6,
+      "resamples": 3,
+      "seed": 63500003,
+      "selector": "mutual_information",
+      "skill_coverage": 0.6666666666666666,
+      "skill_rmse": 0.7970757897848847,
+      "skill_width": 1.9535255717873927
+    }
+  ],
+  "summary": {
+    "config": {
+      "bank_segments": 18,
+      "beta": 0.9912,
+      "bias_weight": 1.5,
+      "distractor_lapse": 0.0,
+      "ess_fraction": 0.5,
+      "fisher_per_domain": 1,
+      "mh_steps": 2,
+      "own_cap": 1,
+      "particles": 96,
+      "replicates": 4,
+      "seed_base": 63500000,
+      "selector_per_domain": 2,
+      "selectors": [
+        "frozen_total_variance",
+        "fisher_augmented_total_variance",
+        "bias_weighted_total_variance",
+        "mutual_information"
+      ]
+    },
+    "paired_vs_frozen": {
+      "bias_weighted_total_variance": {
+        "bias_coverage_difference": {
+          "ci95": [
+            -0.11471309426686854,
+            0.1980464276002019
+          ],
+          "mean": 0.041666666666666685,
+          "standard_error": 0.07978559231302818
+        },
+        "bias_coverage_noninferiority_lcb_pass": false,
+        "bias_rmse_ratio": 1.0547128003187358,
+        "bias_width_ratio": 1.0569084761240404,
+        "skill_coverage_difference": {
+          "ci95": [
+            -0.1980464276002019,
+            0.11471309426686854
+          ],
+          "mean": -0.041666666666666685,
+          "standard_error": 0.07978559231302818
+        },
+        "skill_coverage_noninferiority_lcb_pass": false,
+        "skill_rmse_ratio": 0.865324131425586,
+        "skill_width_ratio": 0.9209883508323303
+      },
+      "fisher_augmented_total_variance": {
+        "bias_coverage_difference": {
+          "ci95": [
+            -0.12333333333333331,
+            0.039999999999999994
+          ],
+          "mean": -0.04166666666666666,
+          "standard_error": 0.04166666666666666
+        },
+        "bias_coverage_noninferiority_lcb_pass": false,
+        "bias_rmse_ratio": 1.1028464993480762,
+        "bias_width_ratio": 0.9369812213547476,
+        "skill_coverage_difference": {
+          "ci95": [
+            -0.20666666666666667,
+            -0.043333333333333335
+          ],
+          "mean": -0.125,
+          "standard_error": 0.041666666666666664
+        },
+        "skill_coverage_noninferiority_lcb_pass": false,
+        "skill_rmse_ratio": 1.2704262930967523,
+        "skill_width_ratio": 0.9040961852341696
+      },
+      "mutual_information": {
+        "bias_coverage_difference": {
+          "ci95": [
+            -0.11471309426686854,
+            0.1980464276002019
+          ],
+          "mean": 0.041666666666666685,
+          "standard_error": 0.07978559231302818
+        },
+        "bias_coverage_noninferiority_lcb_pass": false,
+        "bias_rmse_ratio": 0.820776224313772,
+        "bias_width_ratio": 0.9538238769354073,
+        "skill_coverage_difference": {
+          "ci95": [
+            -0.29000000000000004,
+            -0.12666666666666665
+          ],
+          "mean": -0.20833333333333334,
+          "standard_error": 0.04166666666666668
+        },
+        "skill_coverage_noninferiority_lcb_pass": false,
+        "skill_rmse_ratio": 1.1714486389505556,
+        "skill_width_ratio": 0.8361676919636016
+      }
+    },
+    "promotion_note": "No selector is promoted by this development run. A locked served-bank stopping-time qualification remains mandatory.",
+    "schema_version": 1,
+    "selectors": {
+      "bias_weighted_total_variance": {
+        "acceptance": 0.3258463541666667,
+        "ancestry": 0.4192708333333333,
+        "bias_coverage": 0.8333333333333334,
+        "bias_rmse": 0.9381903842388666,
+        "bias_width": 2.7729298040562314,
+        "questions": 6.0,
+        "resamples": 4.0,
+        "skill_coverage": 0.875,
+        "skill_rmse": 0.6320753508397009,
+        "skill_width": 2.463027830068588
+      },
+      "fisher_augmented_total_variance": {
+        "acceptance": 0.3370225694444445,
+        "ancestry": 0.38346354166666663,
+        "bias_coverage": 0.75,
+        "bias_rmse": 0.9591506926869172,
+        "bias_width": 2.453461037352492,
+        "questions": 6.0,
+        "resamples": 3.5,
+        "skill_coverage": 0.7916666666666667,
+        "skill_rmse": 0.8750294319648032,
+        "skill_width": 2.396625896652532
+      },
+      "frozen_total_variance": {
+        "acceptance": 0.32063802083333337,
+        "ancestry": 0.41015625,
+        "bias_coverage": 0.7916666666666666,
+        "bias_rmse": 0.9300579030814663,
+        "bias_width": 2.6420166611028484,
+        "questions": 6.0,
+        "resamples": 3.0,
+        "skill_coverage": 0.9166666666666667,
+        "skill_rmse": 0.7493421421674467,
+        "skill_width": 2.7106181819395228
+      },
+      "mutual_information": {
+        "acceptance": 0.3197699652777778,
+        "ancestry": 0.408203125,
+        "bias_coverage": 0.8333333333333334,
+        "bias_rmse": 0.7604057966600205,
+        "bias_width": 2.5040878593652924,
+        "questions": 6.0,
+        "resamples": 3.25,
+        "skill_coverage": 0.7083333333333334,
+        "skill_rmse": 0.8243470473034559,
+        "skill_width": 2.2531564477534394
+      }
+    },
+    "status": "research_only_not_promoted"
+  }
+}

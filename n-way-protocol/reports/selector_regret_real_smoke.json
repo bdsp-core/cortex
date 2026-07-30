@@ -1,0 +1,57 @@
+{
+  "bank_scope": "deterministic samples from the >=10-vote eligible empirical axis bank",
+  "baseline_exact_recall": 1.0,
+  "challenger_exact_recall": 1.0,
+  "config": {
+    "bank_sample": 12,
+    "beta": 1.0303243343107302,
+    "coarse_per_task": 3,
+    "distractor_lapse": 0.0,
+    "entropy_per_task": 1,
+    "ess_fraction": 0.5,
+    "fisher_per_task": 1,
+    "mh_steps": 1,
+    "particles": 48,
+    "seed_base": 63700000,
+    "states": 2
+  },
+  "mean_baseline_regret": 0.0,
+  "mean_baseline_shortlist": 34.5,
+  "mean_challenger_regret": 0.0,
+  "mean_challenger_shortlist": 35.0,
+  "p95_baseline_regret": 0.0,
+  "p95_challenger_regret": 0.0,
+  "rows": [
+    {
+      "baseline_exact": true,
+      "baseline_loss": 12.705369172387133,
+      "baseline_regret": 0.0,
+      "baseline_shortlist": 36,
+      "candidate_count": 72,
+      "challenger_exact": true,
+      "challenger_loss": 12.705369172387133,
+      "challenger_regret": 0.0,
+      "challenger_shortlist": 37,
+      "exact_loss": 12.705369172387133,
+      "history_length": 0,
+      "state": 0
+    },
+    {
+      "baseline_exact": true,
+      "baseline_loss": 7.36418316789651,
+      "baseline_regret": 0.0,
+      "baseline_shortlist": 33,
+      "candidate_count": 72,
+      "challenger_exact": true,
+      "challenger_loss": 7.36418316789651,
+      "challenger_regret": 0.0,
+      "challenger_shortlist": 33,
+      "exact_loss": 7.36418316789651,
+      "history_length": 4,
+      "state": 1
+    }
+  ],
+  "schema_version": 1,
+  "states": 2,
+  "status": "research_only_not_promoted"
+}

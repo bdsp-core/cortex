@@ -1,0 +1,267 @@
+{
+  "arms": {
+    "binary": {
+      "bias_coverage": 0.9557291666666666,
+      "bias_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.944228595848185,
+            0.9672297374851483
+          ],
+          "clusters": 192,
+          "mean": 0.9557291666666666,
+          "standard_error": 0.005867638172694713
+        },
+        "successes": 1101,
+        "trials": 1152,
+        "wilson95": [
+          0.9422595516867405,
+          0.9661694233562066
+        ]
+      },
+      "bias_rmse": 0.6781677679669972,
+      "bias_sbc": {
+        "decile_histogram": [
+          113,
+          129,
+          114,
+          115,
+          131,
+          97,
+          113,
+          114,
+          120,
+          104
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.025622013429527524,
+        "n": 1152
+      },
+      "bias_width": 2.8587158029066244,
+      "mean_acceptance": 0.2353452217330798,
+      "mean_ancestry": 0.45818729848710316,
+      "questions": 24.0,
+      "resamples": 5.395833333333333,
+      "skill_coverage": 0.9583333333333334,
+      "skill_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.9465149481135572,
+            0.9701517185531096
+          ],
+          "clusters": 192,
+          "mean": 0.9583333333333334,
+          "standard_error": 0.006029788377436846
+        },
+        "successes": 1104,
+        "trials": 1152,
+        "wilson95": [
+          0.9451895302130265,
+          0.9684304675444518
+        ]
+      },
+      "skill_rmse": 0.8122294793243517,
+      "skill_sbc": {
+        "decile_histogram": [
+          104,
+          112,
+          123,
+          124,
+          109,
+          111,
+          118,
+          109,
+          144,
+          98
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.01865001561168489,
+        "n": 1152
+      },
+      "skill_width": 3.497338589185547
+    },
+    "categorical_f1": {
+      "bias_coverage": 0.9574652777777778,
+      "bias_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.9453436535872308,
+            0.9695869019683248
+          ],
+          "clusters": 192,
+          "mean": 0.9574652777777778,
+          "standard_error": 0.006184502138034183
+        },
+        "successes": 1103,
+        "trials": 1152,
+        "wilson95": [
+          0.944211598528997,
+          0.9676780583236374
+        ]
+      },
+      "bias_rmse": 0.5981587284353325,
+      "bias_sbc": {
+        "decile_histogram": [
+          100,
+          116,
+          116,
+          114,
+          113,
+          122,
+          125,
+          127,
+          102,
+          117
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.023524213977329178,
+        "n": 1152
+      },
+      "bias_width": 2.467186419198576,
+      "mean_acceptance": 0.2227715805526135,
+      "mean_ancestry": 0.42979041043591826,
+      "questions": 24.0,
+      "resamples": 9.953125,
+      "skill_coverage": 0.943576388888889,
+      "skill_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.9304741848336587,
+            0.9566785929441192
+          ],
+          "clusters": 192,
+          "mean": 0.943576388888889,
+          "standard_error": 0.006684797987362329
+        },
+        "successes": 1087,
+        "trials": 1152,
+        "wilson95": [
+          0.9287183792838217,
+          0.9554858230913134
+        ]
+      },
+      "skill_rmse": 0.5935052016663253,
+      "skill_sbc": {
+        "decile_histogram": [
+          106,
+          112,
+          93,
+          105,
+          102,
+          118,
+          123,
+          126,
+          135,
+          131
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.05552083333333335,
+        "n": 1152
+      },
+      "skill_width": 2.422007915154145
+    }
+  },
+  "config": {
+    "artifact_draws": [
+      [
+        0.8722308125877214,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        0.95165593450824,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        0.9765851716341936,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        0.9945610869560302,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        1.0173203953763694,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        1.0418629877991512,
+        0.013049422609172988,
+        0.1111111111111111
+      ],
+      [
+        1.0637853303885672,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        1.0915479400184864,
+        0.0,
+        0.1111111111111111
+      ],
+      [
+        1.1945942284733333,
+        0.018631450805286682,
+        0.1111111111111111
+      ]
+    ],
+    "bank_segments": 72,
+    "beta": 1.0303243343107302,
+    "distractor_lapse": 0.0,
+    "ess_fraction": 0.5,
+    "formal_sbc": true,
+    "mh_steps": 30,
+    "own_cap": 4,
+    "particles": 1200,
+    "replicates": 192,
+    "selector_per_domain": 5,
+    "truth_beta": 0.9153823613431276,
+    "truth_distractor_lapse": 0.012577975625078681,
+    "truth_l_mean": 0.0,
+    "truth_sd": 1.0,
+    "truth_t_mean": 0.0
+  },
+  "paired_comparisons": {
+    "bias_coverage_nway_minus_binary": {
+      "ci95": [
+        -0.013132992439859131,
+        0.016605214662081348
+      ],
+      "clusters": 192,
+      "confidence_pass": true,
+      "mean": 0.0017361111111111084,
+      "noninferiority_margin": -0.03,
+      "point_pass": true,
+      "standard_error": 0.007586277321923592
+    },
+    "skill_coverage_nway_minus_binary": {
+      "ci95": [
+        -0.029578576183002435,
+        6.468729411354852e-05
+      ],
+      "clusters": 192,
+      "confidence_pass": true,
+      "mean": -0.014756944444444442,
+      "noninferiority_margin": -0.03,
+      "point_pass": true,
+      "standard_error": 0.007562057009468363
+    }
+  },
+  "ratios": {
+    "bias_rmse_nway_over_binary": 0.8820217602327005,
+    "bias_width_nway_over_binary": 0.8630401163662519,
+    "skill_rmse_nway_over_binary": 0.7307112297377202,
+    "skill_width_nway_over_binary": 0.6925288625595091
+  },
+  "schema_version": 1,
+  "status": "research_only_unqualified_artifact",
+  "workers": 11
+}

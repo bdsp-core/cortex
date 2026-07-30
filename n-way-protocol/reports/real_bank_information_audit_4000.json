@@ -1,0 +1,902 @@
+{
+  "candidate_rows": 24000,
+  "config": {
+    "beta": 0.9912,
+    "distractor_lapse": 0.0,
+    "skill_profiles": [
+      -1.0,
+      0.0,
+      1.0
+    ],
+    "top_per_task": 20,
+    "uncertainty_scale": 0.75,
+    "workers": 46
+  },
+  "information_quantiles": {
+    "bias_information": {
+      "0.1": 0.12899644550708836,
+      "0.5": 0.6720949693071652,
+      "0.9": 1.2941525903524396,
+      "0.99": 1.7279521627555552
+    },
+    "reduced_uncertainty_information_ratio": {
+      "0.1": 1.0101190487390912,
+      "0.5": 1.1275134953322103,
+      "0.9": 1.2543779054428568,
+      "0.99": 1.3474925081819997
+    },
+    "skill_information": {
+      "0.1": 0.15339172479961313,
+      "0.5": 0.25347037622185653,
+      "0.9": 0.7279155859980951,
+      "0.99": 1.4173125825325055
+    },
+    "total_information": {
+      "0.1": 0.32378835875539275,
+      "0.5": 0.9462742608165835,
+      "0.9": 1.9764725417226892,
+      "0.99": 2.9289135114599594
+    }
+  },
+  "mean_bias_information": 0.7066320816325998,
+  "mean_skill_information": 0.3577522510599115,
+  "median_reduced_uncertainty_information_ratio": 1.1275134953322103,
+  "promotion_note": "Information rank is not an authorization to prune. Content, exposure, source, and held-out coverage gates remain mandatory.",
+  "schema_version": 1,
+  "segments": 4000,
+  "status": "audit_only_no_bank_mutation",
+  "top_by_asked_task": {
+    "1": [
+      {
+        "bias_information": 1.5724542238161032,
+        "mean_signal_sd": 0.26782856666666666,
+        "seg_id": 37406,
+        "skill_information": 1.7396135847191438,
+        "total_information": 3.312067808535247
+      },
+      {
+        "bias_information": 1.5258478127842956,
+        "mean_signal_sd": 0.38048486666666664,
+        "seg_id": 42971,
+        "skill_information": 1.7682222886146644,
+        "total_information": 3.29407010139896
+      },
+      {
+        "bias_information": 1.402134498399917,
+        "mean_signal_sd": 0.3825045333333333,
+        "seg_id": 94665,
+        "skill_information": 1.8669794190765103,
+        "total_information": 3.269113917476427
+      },
+      {
+        "bias_information": 1.4460131361834587,
+        "mean_signal_sd": 0.3690968833333333,
+        "seg_id": 94883,
+        "skill_information": 1.8009897386150595,
+        "total_information": 3.2470028747985182
+      },
+      {
+        "bias_information": 1.3947820796246824,
+        "mean_signal_sd": 0.43137161666666674,
+        "seg_id": 60923,
+        "skill_information": 1.8515816951101305,
+        "total_information": 3.246363774734813
+      },
+      {
+        "bias_information": 1.4656074852806948,
+        "mean_signal_sd": 0.29780541666666666,
+        "seg_id": 94292,
+        "skill_information": 1.7168750543764322,
+        "total_information": 3.1824825396571272
+      },
+      {
+        "bias_information": 1.87752586144145,
+        "mean_signal_sd": 0.22512918333333332,
+        "seg_id": 94372,
+        "skill_information": 1.3038450982279173,
+        "total_information": 3.1813709596693673
+      },
+      {
+        "bias_information": 1.3812346985569803,
+        "mean_signal_sd": 0.3547536666666667,
+        "seg_id": 69180,
+        "skill_information": 1.7977848997889774,
+        "total_information": 3.179019598345958
+      },
+      {
+        "bias_information": 1.3992637935536794,
+        "mean_signal_sd": 0.34579470000000007,
+        "seg_id": 53541,
+        "skill_information": 1.7129404053411177,
+        "total_information": 3.112204198894797
+      },
+      {
+        "bias_information": 2.2212236362755773,
+        "mean_signal_sd": 0.105592,
+        "seg_id": 36888,
+        "skill_information": 0.8783457194842827,
+        "total_information": 3.09956935575986
+      },
+      {
+        "bias_information": 1.4671732871353766,
+        "mean_signal_sd": 0.3293005,
+        "seg_id": 36135,
+        "skill_information": 1.554124140555837,
+        "total_information": 3.0212974276912137
+      },
+      {
+        "bias_information": 1.363224925515009,
+        "mean_signal_sd": 0.36855466666666664,
+        "seg_id": 38978,
+        "skill_information": 1.6482977841414412,
+        "total_information": 3.0115227096564503
+      },
+      {
+        "bias_information": 1.2852545614946431,
+        "mean_signal_sd": 0.38984894999999997,
+        "seg_id": 59407,
+        "skill_information": 1.7172423630548186,
+        "total_information": 3.0024969245494617
+      },
+      {
+        "bias_information": 1.4125426846111366,
+        "mean_signal_sd": 0.4528625833333333,
+        "seg_id": 62094,
+        "skill_information": 1.5877693931112473,
+        "total_information": 3.000312077722384
+      },
+      {
+        "bias_information": 1.473230281006681,
+        "mean_signal_sd": 0.4100536666666667,
+        "seg_id": 69656,
+        "skill_information": 1.5207664110107384,
+        "total_information": 2.9939966920174195
+      },
+      {
+        "bias_information": 1.8756219216550647,
+        "mean_signal_sd": 0.27815396666666664,
+        "seg_id": 38491,
+        "skill_information": 1.1042872795404883,
+        "total_information": 2.979909201195553
+      },
+      {
+        "bias_information": 1.5600316428280552,
+        "mean_signal_sd": 0.3231640833333333,
+        "seg_id": 48265,
+        "skill_information": 1.4081223241771916,
+        "total_information": 2.9681539670052466
+      },
+      {
+        "bias_information": 1.6745276907690654,
+        "mean_signal_sd": 0.32478049999999997,
+        "seg_id": 64022,
+        "skill_information": 1.2921138288551288,
+        "total_information": 2.9666415196241944
+      },
+      {
+        "bias_information": 1.2465817694577024,
+        "mean_signal_sd": 0.4655466666666666,
+        "seg_id": 41278,
+        "skill_information": 1.697534039889596,
+        "total_information": 2.9441158093472986
+      },
+      {
+        "bias_information": 1.190419196834541,
+        "mean_signal_sd": 0.3735774166666666,
+        "seg_id": 34947,
+        "skill_information": 1.7312970878916794,
+        "total_information": 2.9217162847262204
+      }
+    ],
+    "2": [
+      {
+        "bias_information": 1.6668513605923347,
+        "mean_signal_sd": 0.24842496666666666,
+        "seg_id": 46278,
+        "skill_information": 1.5842640822114156,
+        "total_information": 3.2511154428037505
+      },
+      {
+        "bias_information": 1.75374469136976,
+        "mean_signal_sd": 0.31183331666666664,
+        "seg_id": 33394,
+        "skill_information": 1.4856742961458274,
+        "total_information": 3.239418987515587
+      },
+      {
+        "bias_information": 1.639062032217227,
+        "mean_signal_sd": 0.26782856666666666,
+        "seg_id": 37406,
+        "skill_information": 1.5469760411503959,
+        "total_information": 3.186038073367623
+      },
+      {
+        "bias_information": 1.5277713894773852,
+        "mean_signal_sd": 0.39452043333333336,
+        "seg_id": 33357,
+        "skill_information": 1.655786978959936,
+        "total_information": 3.183558368437321
+      },
+      {
+        "bias_information": 1.6213882779471909,
+        "mean_signal_sd": 0.38048486666666664,
+        "seg_id": 42971,
+        "skill_information": 1.550997090883228,
+        "total_information": 3.172385368830419
+      },
+      {
+        "bias_information": 1.4701705035227264,
+        "mean_signal_sd": 0.43137161666666674,
+        "seg_id": 60923,
+        "skill_information": 1.691711720898437,
+        "total_information": 3.1618822244211633
+      },
+      {
+        "bias_information": 1.2331887491559967,
+        "mean_signal_sd": 0.4960538333333333,
+        "seg_id": 46957,
+        "skill_information": 1.9161325687482185,
+        "total_information": 3.1493213179042154
+      },
+      {
+        "bias_information": 1.6139977305151818,
+        "mean_signal_sd": 0.3825045333333333,
+        "seg_id": 94665,
+        "skill_information": 1.5171414216449124,
+        "total_information": 3.1311391521600944
+      },
+      {
+        "bias_information": 1.3488265779025062,
+        "mean_signal_sd": 0.47497921666666665,
+        "seg_id": 59490,
+        "skill_information": 1.7017148961275332,
+        "total_information": 3.050541474030039
+      },
+      {
+        "bias_information": 1.5271968234496673,
+        "mean_signal_sd": 0.3380965333333334,
+        "seg_id": 50106,
+        "skill_information": 1.5103599917694581,
+        "total_information": 3.0375568152191255
+      },
+      {
+        "bias_information": 1.492448746640726,
+        "mean_signal_sd": 0.2987943166666667,
+        "seg_id": 55519,
+        "skill_information": 1.5392269771850875,
+        "total_information": 3.0316757238258134
+      },
+      {
+        "bias_information": 1.4088596509352806,
+        "mean_signal_sd": 0.4100127,
+        "seg_id": 37903,
+        "skill_information": 1.6210913194024397,
+        "total_information": 3.0299509703377203
+      },
+      {
+        "bias_information": 1.6538149403202722,
+        "mean_signal_sd": 0.27763865000000004,
+        "seg_id": 37841,
+        "skill_information": 1.3503704070512723,
+        "total_information": 3.0041853473715445
+      },
+      {
+        "bias_information": 1.4920318509097816,
+        "mean_signal_sd": 0.4528625833333333,
+        "seg_id": 62094,
+        "skill_information": 1.510537802101494,
+        "total_information": 3.0025696530112755
+      },
+      {
+        "bias_information": 1.2604142709239072,
+        "mean_signal_sd": 0.4681321666666666,
+        "seg_id": 62902,
+        "skill_information": 1.7387128389567064,
+        "total_information": 2.9991271098806136
+      },
+      {
+        "bias_information": 1.4700230963648542,
+        "mean_signal_sd": 0.39917331666666667,
+        "seg_id": 47647,
+        "skill_information": 1.5241215495394,
+        "total_information": 2.994144645904254
+      },
+      {
+        "bias_information": 1.4333820196874756,
+        "mean_signal_sd": 0.4050152,
+        "seg_id": 45479,
+        "skill_information": 1.5423667883930519,
+        "total_information": 2.975748808080527
+      },
+      {
+        "bias_information": 1.2725996437499736,
+        "mean_signal_sd": 0.5081213333333333,
+        "seg_id": 86729,
+        "skill_information": 1.6947721810847554,
+        "total_information": 2.967371824834729
+      },
+      {
+        "bias_information": 1.3340734371954042,
+        "mean_signal_sd": 0.31982170000000004,
+        "seg_id": 52242,
+        "skill_information": 1.616512437230436,
+        "total_information": 2.9505858744258404
+      },
+      {
+        "bias_information": 1.6027215875948038,
+        "mean_signal_sd": 0.41489468333333335,
+        "seg_id": 86228,
+        "skill_information": 1.346117642466857,
+        "total_information": 2.948839230061661
+      }
+    ],
+    "3": [
+      {
+        "bias_information": 1.522947828041305,
+        "mean_signal_sd": 0.2800264333333333,
+        "seg_id": 56576,
+        "skill_information": 2.070670138485912,
+        "total_information": 3.5936179665272165
+      },
+      {
+        "bias_information": 1.7674592440792694,
+        "mean_signal_sd": 0.24842496666666666,
+        "seg_id": 46278,
+        "skill_information": 1.5928923225034533,
+        "total_information": 3.3603515665827226
+      },
+      {
+        "bias_information": 1.691935617667637,
+        "mean_signal_sd": 0.3825045333333333,
+        "seg_id": 94665,
+        "skill_information": 1.5952503722994418,
+        "total_information": 3.287185989967079
+      },
+      {
+        "bias_information": 2.009432692326467,
+        "mean_signal_sd": 0.26099781666666666,
+        "seg_id": 27921,
+        "skill_information": 1.2154594082375503,
+        "total_information": 3.224892100564017
+      },
+      {
+        "bias_information": 1.4760900680034552,
+        "mean_signal_sd": 0.3952417,
+        "seg_id": 47248,
+        "skill_information": 1.7347842078272973,
+        "total_information": 3.2108742758307525
+      },
+      {
+        "bias_information": 1.6333223354176507,
+        "mean_signal_sd": 0.3380989666666667,
+        "seg_id": 70016,
+        "skill_information": 1.5666143106977781,
+        "total_information": 3.199936646115429
+      },
+      {
+        "bias_information": 1.772755386127277,
+        "mean_signal_sd": 0.30899333333333334,
+        "seg_id": 37027,
+        "skill_information": 1.396272764451863,
+        "total_information": 3.1690281505791402
+      },
+      {
+        "bias_information": 1.7103072887741628,
+        "mean_signal_sd": 0.2254556833333333,
+        "seg_id": 51915,
+        "skill_information": 1.4581620841083687,
+        "total_information": 3.1684693728825315
+      },
+      {
+        "bias_information": 1.6338832847547062,
+        "mean_signal_sd": 0.3293005,
+        "seg_id": 36135,
+        "skill_information": 1.5312288560431553,
+        "total_information": 3.1651121407978615
+      },
+      {
+        "bias_information": 1.734737078635753,
+        "mean_signal_sd": 0.2900026666666667,
+        "seg_id": 51578,
+        "skill_information": 1.4019881404789398,
+        "total_information": 3.136725219114693
+      },
+      {
+        "bias_information": 2.0019194204532873,
+        "mean_signal_sd": 0.20901899999999998,
+        "seg_id": 56392,
+        "skill_information": 1.1337124296004537,
+        "total_information": 3.1356318500537412
+      },
+      {
+        "bias_information": 1.4201427026063405,
+        "mean_signal_sd": 0.30362985,
+        "seg_id": 61421,
+        "skill_information": 1.7124965889375214,
+        "total_information": 3.132639291543862
+      },
+      {
+        "bias_information": 1.6836778999554387,
+        "mean_signal_sd": 0.41489468333333335,
+        "seg_id": 86228,
+        "skill_information": 1.4162795048495245,
+        "total_information": 3.099957404804963
+      },
+      {
+        "bias_information": 1.6307705525589304,
+        "mean_signal_sd": 0.34096683333333333,
+        "seg_id": 61691,
+        "skill_information": 1.4552040735791902,
+        "total_information": 3.0859746261381207
+      },
+      {
+        "bias_information": 1.633796833681271,
+        "mean_signal_sd": 0.3229518666666667,
+        "seg_id": 40056,
+        "skill_information": 1.4351274281494557,
+        "total_information": 3.068924261830727
+      },
+      {
+        "bias_information": 2.045059032970267,
+        "mean_signal_sd": 0.23565550000000002,
+        "seg_id": 67926,
+        "skill_information": 1.0118464945444963,
+        "total_information": 3.0569055275147634
+      },
+      {
+        "bias_information": 1.8812855189355184,
+        "mean_signal_sd": 0.289772,
+        "seg_id": 41822,
+        "skill_information": 1.1680431379532343,
+        "total_information": 3.0493286568887528
+      },
+      {
+        "bias_information": 1.4048434567759063,
+        "mean_signal_sd": 0.3231640833333333,
+        "seg_id": 48265,
+        "skill_information": 1.640436063805452,
+        "total_information": 3.0452795205813583
+      },
+      {
+        "bias_information": 1.6912891256908054,
+        "mean_signal_sd": 0.23523331666666666,
+        "seg_id": 52069,
+        "skill_information": 1.352334326774771,
+        "total_information": 3.0436234524655763
+      },
+      {
+        "bias_information": 1.80024793281539,
+        "mean_signal_sd": 0.26713618333333333,
+        "seg_id": 63779,
+        "skill_information": 1.2302303865445239,
+        "total_information": 3.030478319359914
+      }
+    ],
+    "4": [
+      {
+        "bias_information": 1.4685943707770492,
+        "mean_signal_sd": 0.38048486666666664,
+        "seg_id": 42971,
+        "skill_information": 1.9892540973181492,
+        "total_information": 3.4578484680951984
+      },
+      {
+        "bias_information": 1.4338044265146068,
+        "mean_signal_sd": 0.39452043333333336,
+        "seg_id": 33357,
+        "skill_information": 1.929980562017762,
+        "total_information": 3.3637849885323687
+      },
+      {
+        "bias_information": 1.816091024039678,
+        "mean_signal_sd": 0.31183331666666664,
+        "seg_id": 33394,
+        "skill_information": 1.528471604817221,
+        "total_information": 3.344562628856899
+      },
+      {
+        "bias_information": 1.7772736805826856,
+        "mean_signal_sd": 0.29123119999999997,
+        "seg_id": 44993,
+        "skill_information": 1.507039481264047,
+        "total_information": 3.2843131618467325
+      },
+      {
+        "bias_information": 1.552336337214017,
+        "mean_signal_sd": 0.3461531666666667,
+        "seg_id": 42047,
+        "skill_information": 1.6769651764652913,
+        "total_information": 3.2293015136793084
+      },
+      {
+        "bias_information": 1.568668985846127,
+        "mean_signal_sd": 0.36876194999999995,
+        "seg_id": 50047,
+        "skill_information": 1.6333191452273355,
+        "total_information": 3.2019881310734624
+      },
+      {
+        "bias_information": 1.5811325111649144,
+        "mean_signal_sd": 0.43137161666666674,
+        "seg_id": 60923,
+        "skill_information": 1.6194072506419446,
+        "total_information": 3.200539761806859
+      },
+      {
+        "bias_information": 1.6776501614390504,
+        "mean_signal_sd": 0.26824713333333333,
+        "seg_id": 43010,
+        "skill_information": 1.5143225093220767,
+        "total_information": 3.1919726707611273
+      },
+      {
+        "bias_information": 1.4078809704965671,
+        "mean_signal_sd": 0.47497921666666665,
+        "seg_id": 59490,
+        "skill_information": 1.7490565787569852,
+        "total_information": 3.156937549253552
+      },
+      {
+        "bias_information": 1.5881228425223881,
+        "mean_signal_sd": 0.34579470000000007,
+        "seg_id": 53541,
+        "skill_information": 1.56005089104885,
+        "total_information": 3.1481737335712383
+      },
+      {
+        "bias_information": 1.60581258309573,
+        "mean_signal_sd": 0.23944563333333335,
+        "seg_id": 68659,
+        "skill_information": 1.5185356256405695,
+        "total_information": 3.1243482087362997
+      },
+      {
+        "bias_information": 1.4328665337309454,
+        "mean_signal_sd": 0.39256789999999997,
+        "seg_id": 53792,
+        "skill_information": 1.668399966457893,
+        "total_information": 3.1012665001888386
+      },
+      {
+        "bias_information": 1.500326366285246,
+        "mean_signal_sd": 0.4100127,
+        "seg_id": 37903,
+        "skill_information": 1.591216854970556,
+        "total_information": 3.091543221255802
+      },
+      {
+        "bias_information": 1.4487502892052655,
+        "mean_signal_sd": 0.38984894999999997,
+        "seg_id": 59407,
+        "skill_information": 1.6361435195509522,
+        "total_information": 3.0848938087562177
+      },
+      {
+        "bias_information": 1.5978794815114885,
+        "mean_signal_sd": 0.4050152,
+        "seg_id": 45479,
+        "skill_information": 1.4760664600494149,
+        "total_information": 3.073945941560903
+      },
+      {
+        "bias_information": 1.6501810687873046,
+        "mean_signal_sd": 0.3935286666666667,
+        "seg_id": 94487,
+        "skill_information": 1.4229963421251046,
+        "total_information": 3.0731774109124093
+      },
+      {
+        "bias_information": 1.7677067054568012,
+        "mean_signal_sd": 0.35437516666666663,
+        "seg_id": 50033,
+        "skill_information": 1.2954222276934988,
+        "total_information": 3.0631289331503
+      },
+      {
+        "bias_information": 1.4389241242429447,
+        "mean_signal_sd": 0.31982170000000004,
+        "seg_id": 52242,
+        "skill_information": 1.6174541286273127,
+        "total_information": 3.0563782528702577
+      },
+      {
+        "bias_information": 1.555589813617688,
+        "mean_signal_sd": 0.4296393333333333,
+        "seg_id": 94718,
+        "skill_information": 1.4973955795371907,
+        "total_information": 3.052985393154879
+      },
+      {
+        "bias_information": 1.4556587935605487,
+        "mean_signal_sd": 0.43610598333333334,
+        "seg_id": 95000,
+        "skill_information": 1.5773579503432993,
+        "total_information": 3.033016743903848
+      }
+    ],
+    "5": [
+      {
+        "bias_information": 2.213731935106635,
+        "mean_signal_sd": 0.105592,
+        "seg_id": 36888,
+        "skill_information": 1.3934388026987943,
+        "total_information": 3.607170737805429
+      },
+      {
+        "bias_information": 1.4837698147781662,
+        "mean_signal_sd": 0.29123119999999997,
+        "seg_id": 44993,
+        "skill_information": 1.9071102349379798,
+        "total_information": 3.390880049716146
+      },
+      {
+        "bias_information": 1.8015489421021396,
+        "mean_signal_sd": 0.39452043333333336,
+        "seg_id": 33357,
+        "skill_information": 1.5597541072652217,
+        "total_information": 3.3613030493673612
+      },
+      {
+        "bias_information": 1.4995840694155618,
+        "mean_signal_sd": 0.3461531666666667,
+        "seg_id": 42047,
+        "skill_information": 1.846330713694868,
+        "total_information": 3.3459147831104294
+      },
+      {
+        "bias_information": 1.5408349554036678,
+        "mean_signal_sd": 0.3547536666666667,
+        "seg_id": 69180,
+        "skill_information": 1.748479665440631,
+        "total_information": 3.2893146208442987
+      },
+      {
+        "bias_information": 1.8193806958364924,
+        "mean_signal_sd": 0.26099781666666666,
+        "seg_id": 27921,
+        "skill_information": 1.461991229801512,
+        "total_information": 3.2813719256380045
+      },
+      {
+        "bias_information": 1.6411184561103787,
+        "mean_signal_sd": 0.3380989666666667,
+        "seg_id": 70016,
+        "skill_information": 1.6286458915547462,
+        "total_information": 3.2697643476651246
+      },
+      {
+        "bias_information": 2.0874972084896375,
+        "mean_signal_sd": 0.22898016666666665,
+        "seg_id": 37993,
+        "skill_information": 1.1594627141490994,
+        "total_information": 3.246959922638737
+      },
+      {
+        "bias_information": 1.926032596887483,
+        "mean_signal_sd": 0.21403425,
+        "seg_id": 68822,
+        "skill_information": 1.3143003445274128,
+        "total_information": 3.240332941414896
+      },
+      {
+        "bias_information": 1.6413884269810508,
+        "mean_signal_sd": 0.3952417,
+        "seg_id": 47248,
+        "skill_information": 1.5811989218816918,
+        "total_information": 3.2225873488627426
+      },
+      {
+        "bias_information": 1.7487612780030386,
+        "mean_signal_sd": 0.30899333333333334,
+        "seg_id": 37027,
+        "skill_information": 1.4517842639229535,
+        "total_information": 3.200545541925992
+      },
+      {
+        "bias_information": 1.7498667204890008,
+        "mean_signal_sd": 0.2340315666666667,
+        "seg_id": 39280,
+        "skill_information": 1.4416777036912274,
+        "total_information": 3.191544424180228
+      },
+      {
+        "bias_information": 1.3737803778206237,
+        "mean_signal_sd": 0.3423414,
+        "seg_id": 45022,
+        "skill_information": 1.8083639794877777,
+        "total_information": 3.1821443573084016
+      },
+      {
+        "bias_information": 1.4355005687701163,
+        "mean_signal_sd": 0.34096683333333333,
+        "seg_id": 61691,
+        "skill_information": 1.7449285268333128,
+        "total_information": 3.1804290956034293
+      },
+      {
+        "bias_information": 1.6638169826193654,
+        "mean_signal_sd": 0.2900026666666667,
+        "seg_id": 51578,
+        "skill_information": 1.5028008903111,
+        "total_information": 3.1666178729304653
+      },
+      {
+        "bias_information": 1.5873288512357595,
+        "mean_signal_sd": 0.29338233333333336,
+        "seg_id": 32655,
+        "skill_information": 1.5696563292392047,
+        "total_information": 3.1569851804749645
+      },
+      {
+        "bias_information": 1.5781377385931814,
+        "mean_signal_sd": 0.31183396666666663,
+        "seg_id": 45050,
+        "skill_information": 1.571055287885195,
+        "total_information": 3.1491930264783763
+      },
+      {
+        "bias_information": 1.9215913363068247,
+        "mean_signal_sd": 0.2254556833333333,
+        "seg_id": 51915,
+        "skill_information": 1.2274582600131718,
+        "total_information": 3.1490495963199967
+      },
+      {
+        "bias_information": 1.425721848414341,
+        "mean_signal_sd": 0.30362985,
+        "seg_id": 61421,
+        "skill_information": 1.70063488165135,
+        "total_information": 3.126356730065691
+      },
+      {
+        "bias_information": 1.7846228131260229,
+        "mean_signal_sd": 0.22395683333333335,
+        "seg_id": 42226,
+        "skill_information": 1.3195035861972721,
+        "total_information": 3.1041263993232953
+      }
+    ],
+    "6": [
+      {
+        "bias_information": 1.8443213932059326,
+        "mean_signal_sd": 0.2800264333333333,
+        "seg_id": 56576,
+        "skill_information": 1.8187256551221784,
+        "total_information": 3.663047048328111
+      },
+      {
+        "bias_information": 2.227018660074965,
+        "mean_signal_sd": 0.105592,
+        "seg_id": 36888,
+        "skill_information": 1.395135470397115,
+        "total_information": 3.6221541304720803
+      },
+      {
+        "bias_information": 1.4867134961793693,
+        "mean_signal_sd": 0.3461531666666667,
+        "seg_id": 42047,
+        "skill_information": 2.0330051771885223,
+        "total_information": 3.5197186733678913
+      },
+      {
+        "bias_information": 1.1599754297272098,
+        "mean_signal_sd": 0.4960538333333333,
+        "seg_id": 46957,
+        "skill_information": 2.311292370035612,
+        "total_information": 3.4712677997628214
+      },
+      {
+        "bias_information": 1.4035191537012108,
+        "mean_signal_sd": 0.38048486666666664,
+        "seg_id": 42971,
+        "skill_information": 2.0647330111936633,
+        "total_information": 3.4682521648948743
+      },
+      {
+        "bias_information": 1.4196249582602434,
+        "mean_signal_sd": 0.43137161666666674,
+        "seg_id": 60923,
+        "skill_information": 2.0357485187122024,
+        "total_information": 3.455373476972446
+      },
+      {
+        "bias_information": 1.7540769480441079,
+        "mean_signal_sd": 0.2561888833333333,
+        "seg_id": 50104,
+        "skill_information": 1.6723733919964883,
+        "total_information": 3.426450340040596
+      },
+      {
+        "bias_information": 1.4253583015273232,
+        "mean_signal_sd": 0.4655466666666666,
+        "seg_id": 41278,
+        "skill_information": 1.9976139276654934,
+        "total_information": 3.4229722291928164
+      },
+      {
+        "bias_information": 1.4327740437035452,
+        "mean_signal_sd": 0.3547536666666667,
+        "seg_id": 69180,
+        "skill_information": 1.9523085506178868,
+        "total_information": 3.3850825943214318
+      },
+      {
+        "bias_information": 1.6938286665847848,
+        "mean_signal_sd": 0.34579470000000007,
+        "seg_id": 53541,
+        "skill_information": 1.6858232295492075,
+        "total_information": 3.3796518961339923
+      },
+      {
+        "bias_information": 1.6921588148580031,
+        "mean_signal_sd": 0.31183331666666664,
+        "seg_id": 33394,
+        "skill_information": 1.6515691012065223,
+        "total_information": 3.3437279160645255
+      },
+      {
+        "bias_information": 1.5393410561942105,
+        "mean_signal_sd": 0.3380989666666667,
+        "seg_id": 70016,
+        "skill_information": 1.8003005762178361,
+        "total_information": 3.3396416324120466
+      },
+      {
+        "bias_information": 1.3667403320670857,
+        "mean_signal_sd": 0.39452043333333336,
+        "seg_id": 33357,
+        "skill_information": 1.9669328095476544,
+        "total_information": 3.33367314161474
+      },
+      {
+        "bias_information": 1.6153186882097204,
+        "mean_signal_sd": 0.4681321666666666,
+        "seg_id": 62902,
+        "skill_information": 1.702528606782132,
+        "total_information": 3.3178472949918523
+      },
+      {
+        "bias_information": 1.5167866968491157,
+        "mean_signal_sd": 0.3690968833333333,
+        "seg_id": 94883,
+        "skill_information": 1.8001878462864724,
+        "total_information": 3.316974543135588
+      },
+      {
+        "bias_information": 1.8752581721124406,
+        "mean_signal_sd": 0.26824713333333333,
+        "seg_id": 43010,
+        "skill_information": 1.4298624545784466,
+        "total_information": 3.3051206266908872
+      },
+      {
+        "bias_information": 1.4563141256356564,
+        "mean_signal_sd": 0.3825045333333333,
+        "seg_id": 94665,
+        "skill_information": 1.842285200411097,
+        "total_information": 3.2985993260467534
+      },
+      {
+        "bias_information": 1.8029848289420898,
+        "mean_signal_sd": 0.29123119999999997,
+        "seg_id": 44993,
+        "skill_information": 1.467410607214508,
+        "total_information": 3.2703954361565977
+      },
+      {
+        "bias_information": 1.8801500068054038,
+        "mean_signal_sd": 0.22898016666666665,
+        "seg_id": 37993,
+        "skill_information": 1.3717663677414123,
+        "total_information": 3.2519163745468163
+      },
+      {
+        "bias_information": 1.8472006946840989,
+        "mean_signal_sd": 0.2900026666666667,
+        "seg_id": 51578,
+        "skill_information": 1.395226891616965,
+        "total_information": 3.242427586301064
+      }
+    ]
+  }
+}

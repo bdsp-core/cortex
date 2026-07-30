@@ -1,0 +1,15 @@
+{
+  "name": "cortex-n-way-protocol",
+  "private": true,
+  "version": "0.2.0-rd.1",
+  "type": "module",
+  "description": "Isolated production-shaped implementation of the conditional F1 n-way CORTEX certification response protocol",
+  "scripts": {
+    "typecheck": "../cortex_web/node_modules/.bin/tsc --noEmit -p tsconfig.json",
+    "test:ts": "../cortex_web/node_modules/.bin/vitest run tests",
+    "test:py": "python3 -m pytest -q python/tests",
+    "test": "bash scripts/test.sh",
+    "bench": "CORTEX_NWAY_BENCH=1 ../cortex_web/node_modules/.bin/vitest run tests/performance.test.ts",
+    "audit:selector": "CORTEX_NWAY_SELECTOR_RD=1 ../cortex_web/node_modules/.bin/vitest run tests/selector_regret_rd.test.ts"
+  }
+}

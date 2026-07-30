@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Research-only conditional F1 artifact ensemble",
+  "type": "object",
+  "required": [
+    "schemaVersion", "status", "model", "nWrongPicks", "crossfit",
+    "bootstrap", "promotionForbidden"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "status": { "const": "research_only_not_promoted" },
+    "model": { "const": "iiic_conditional_f1_v1_artifact_ensemble" },
+    "nWrongPicks": { "type": "integer", "minimum": 1 },
+    "crossfit": { "type": "object" },
+    "bootstrap": { "type": "object" },
+    "promotionForbidden": { "const": true }
+  },
+  "additionalProperties": false
+}

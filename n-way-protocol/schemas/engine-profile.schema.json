@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cortex.local/schemas/nway-engine-profile-v1.json",
+  "title": "CORTEX immutable certification engine profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "engineProfileId", "terminationPolicy", "responseModel",
+    "responseArtifactId", "responseArtifactSha256", "selectorVersion",
+    "particleProfileVersion", "engineAlgorithmVersion", "candidateBankSha256",
+    "responseGroups"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "engineProfileId": { "type": "string", "minLength": 1 },
+    "terminationPolicy": { "const": "precision_v1" },
+    "responseModel": { "enum": ["binary_ovr_v1", "iiic_conditional_f1_v1"] },
+    "responseArtifactId": { "type": ["string", "null"] },
+    "responseArtifactSha256": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      ]
+    },
+    "selectorVersion": {
+      "enum": [
+        "binary_totalvar_v1",
+        "categorical_totalvar_v1",
+        "categorical_fisher_totalvar_v1"
+      ]
+    },
+    "particleProfileVersion": { "type": "string", "minLength": 1 },
+    "engineAlgorithmVersion": { "type": "string", "minLength": 1 },
+    "candidateBankSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "responseGroups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "link", "taskIndices"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "link": { "enum": ["binary", "categorical_f1"] },
+          "taskIndices": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

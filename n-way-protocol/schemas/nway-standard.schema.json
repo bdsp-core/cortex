@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Isolated standard n-way approach pointer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "standardId", "status", "engineProfilePath",
+    "engineProfileId", "responseArtifactPath", "responseArtifactId",
+    "selectorVersion", "particles", "mhSteps", "essFraction",
+    "frozenRollbackArchive", "evidenceReport", "productionAuthorized"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "standardId": { "const": "nway_ensemble9_fisher_1200p30_v1" },
+    "status": { "const": "isolated_standard_not_production_authorized" },
+    "engineProfilePath": { "type": "string", "minLength": 1 },
+    "engineProfileId": { "type": "string", "minLength": 1 },
+    "responseArtifactPath": { "type": "string", "minLength": 1 },
+    "responseArtifactId": { "type": "string", "minLength": 1 },
+    "selectorVersion": { "const": "categorical_fisher_totalvar_v1" },
+    "particles": { "const": 1200 },
+    "mhSteps": { "const": 30 },
+    "essFraction": { "const": 0.5 },
+    "frozenRollbackArchive": { "type": "string", "minLength": 1 },
+    "evidenceReport": { "type": "string", "minLength": 1 },
+    "productionAuthorized": { "const": false }
+  }
+}
