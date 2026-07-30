@@ -1,0 +1,268 @@
+{
+  "arms": {
+    "binary": {
+      "bias_coverage": 0.946,
+      "bias_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.94200468112275,
+            0.9499953188772499
+          ],
+          "clusters": 2000,
+          "mean": 0.946,
+          "standard_error": 0.0020384279985969193
+        },
+        "successes": 11352,
+        "trials": 12000,
+        "wilson95": [
+          0.9418114250978505,
+          0.9499031073564929
+        ]
+      },
+      "bias_rmse": 0.49201286091058355,
+      "bias_sbc": {
+        "decile_histogram": [
+          1271,
+          1167,
+          1183,
+          1183,
+          1251,
+          1179,
+          1175,
+          1191,
+          1219,
+          1178
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.007157979570569656,
+        "n": 12000
+      },
+      "bias_width": 1.93718673499743,
+      "mean_acceptance": 0.22607919419792602,
+      "mean_ancestry": 0.4640371663113127,
+      "questions": 90.0,
+      "resamples": 14.562,
+      "skill_coverage": 0.9464166666666668,
+      "skill_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.942387329699514,
+            0.9504460036338196
+          ],
+          "clusters": 2000,
+          "mean": 0.9464166666666668,
+          "standard_error": 0.002055784166914692
+        },
+        "successes": 11357,
+        "trials": 12000,
+        "wilson95": [
+          0.9422426870267707,
+          0.9503049120685055
+        ]
+      },
+      "skill_rmse": 0.5690507584776412,
+      "skill_sbc": {
+        "decile_histogram": [
+          1279,
+          1176,
+          1127,
+          1185,
+          1217,
+          1192,
+          1184,
+          1204,
+          1185,
+          1244
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.008276123704586677,
+        "n": 12000
+      },
+      "skill_width": 2.373945743779508
+    },
+    "categorical_f1": {
+      "bias_coverage": 0.9426666666666668,
+      "bias_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.9384336419266937,
+            0.9468996914066399
+          ],
+          "clusters": 2000,
+          "mean": 0.9426666666666668,
+          "standard_error": 0.0021597064999862923
+        },
+        "successes": 11312,
+        "trials": 12000,
+        "wilson95": [
+          0.9383636862120834,
+          0.9466863131147987
+        ]
+      },
+      "bias_rmse": 0.4047258249322975,
+      "bias_sbc": {
+        "decile_histogram": [
+          1367,
+          1269,
+          1205,
+          1174,
+          1164,
+          1188,
+          1177,
+          1151,
+          1129,
+          1172
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.022702962120404346,
+        "n": 12000
+      },
+      "bias_width": 1.516556881636685,
+      "mean_acceptance": 0.2193550739542158,
+      "mean_ancestry": 0.4635517894822765,
+      "questions": 90.0,
+      "resamples": 23.062,
+      "skill_coverage": 0.9515833333333333,
+      "skill_coverage_uncertainty": {
+        "seed_cluster95": {
+          "ci95": [
+            0.9475941268694005,
+            0.9555725397972662
+          ],
+          "clusters": 2000,
+          "mean": 0.9515833333333333,
+          "standard_error": 0.0020353094203739083
+        },
+        "successes": 11419,
+        "trials": 12000,
+        "wilson95": [
+          0.9475962215722611,
+          0.9552814038705804
+        ]
+      },
+      "skill_rmse": 0.3456730203528447,
+      "skill_sbc": {
+        "decile_histogram": [
+          1857,
+          1545,
+          1465,
+          1370,
+          1230,
+          1174,
+          1028,
+          965,
+          812,
+          553
+        ],
+        "formal_sbc": true,
+        "interpretation": "prior-predictive SBC rank diagnostic",
+        "ks_distance_from_uniform": 0.12358116667259145,
+        "n": 12000
+      },
+      "skill_width": 1.4157559103709383
+    }
+  },
+  "config": {
+    "artifact_draws": [
+      [
+        0.8722308125877214,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.95165593450824,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.9765851716341936,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.9945610869560302,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.0173203953763694,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.0418629877991512,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.0637853303885672,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.0915479400184864,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.1945942284733333,
+        0.15,
+        0.1111111111111111
+      ]
+    ],
+    "bank_segments": 420,
+    "beta": 0.9912,
+    "distractor_lapse": 0.0,
+    "ess_fraction": 0.5,
+    "formal_sbc": true,
+    "mh_steps": 30,
+    "own_cap": 15,
+    "particles": 1200,
+    "replicates": 2000,
+    "selector_per_domain": 32,
+    "signal_sd_scale": 1.0,
+    "truth_beta": null,
+    "truth_distractor_lapse": null,
+    "truth_l_mean": 0.0,
+    "truth_sd": 1.0,
+    "truth_t_mean": 0.0
+  },
+  "paired_comparisons": {
+    "bias_coverage_nway_minus_binary": {
+      "ci95": [
+        -0.008910115283089323,
+        0.002243448616422656
+      ],
+      "clusters": 2000,
+      "confidence_pass": true,
+      "mean": -0.0033333333333333335,
+      "noninferiority_margin": -0.03,
+      "point_pass": true,
+      "standard_error": 0.002845296913140811
+    },
+    "skill_coverage_nway_minus_binary": {
+      "ci95": [
+        -0.0005632690760045307,
+        0.010896602409337859
+      ],
+      "clusters": 2000,
+      "confidence_pass": true,
+      "mean": 0.005166666666666664,
+      "noninferiority_margin": -0.03,
+      "point_pass": true,
+      "standard_error": 0.002923436603403671
+    }
+  },
+  "ratios": {
+    "bias_rmse_nway_over_binary": 0.822591962704509,
+    "bias_width_nway_over_binary": 0.782865613437466,
+    "skill_rmse_nway_over_binary": 0.6074555128923999,
+    "skill_width_nway_over_binary": 0.5963724799021496
+  },
+  "schema_version": 1,
+  "status": "research_only_unqualified_artifact",
+  "workers": 46
+}
