@@ -62,6 +62,10 @@
   "promotionForbidden": true,
   "provenance": {
     "adopted_subset": "stable_core",
+    "dr07": "qualified",
+    "dr07_criterion": "docs/DR07_CRITERION.md (v2, owner ratification pending)",
+    "dr07_gate_report": "dr07_gate_engine_frame.json",
+    "dr07_gate_report_sha256": "c1e52472ec89eb31a0e1b491e4e38e446d45b71cf5b35e81a2d53cb013c21f79",
     "method": "engine_frame_hierarchical_v1",
     "population_model": "dersimonian_laird_log_beta;draw_spread=sqrt(tau^2+se_mu^2)",
     "reader_model": "per_domain_t_scalar_l_map_standard_normal_prior_binary_margins",
