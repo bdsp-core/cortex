@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "engineProfileId": "precision_nway_f1_ensemble9_floor015_fisher_rd_v1",
+  "terminationPolicy": "precision_v1",
+  "responseModel": "iiic_conditional_f1_v1",
+  "responseArtifactId": "iiic-f1-crossfit-ensemble9-rd-20260720-floor015",
+  "responseArtifactSha256": "2e35c400739d74778c33c6a9b2f2b8590a9c6f96f3b83841fc3fc6091db8457c",
+  "selectorVersion": "categorical_fisher_totalvar_v1",
+  "particleProfileVersion": "production_1200p_ess050_30mh_rd",
+  "engineAlgorithmVersion": "nway_protocol_0.2.0-rd",
+  "candidateBankSha256": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5",
+  "responseGroups": [
+    {
+      "id": "spike",
+      "link": "binary",
+      "taskIndices": [0]
+    },
+    {
+      "id": "iiic",
+      "link": "categorical_f1",
+      "taskIndices": [1, 2, 3, 4, 5, 6]
+    }
+  ]
+}

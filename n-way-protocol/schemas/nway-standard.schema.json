@@ -11,7 +11,7 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "standardId": { "const": "nway_ensemble9_fisher_1200p30_v1" },
+    "standardId": { "const": "nway_ensemble9_floor015_fisher_1200p30_v2" },
     "status": { "const": "isolated_standard_not_production_authorized" },
     "engineProfilePath": { "type": "string", "minLength": 1 },
     "engineProfileId": { "type": "string", "minLength": 1 },

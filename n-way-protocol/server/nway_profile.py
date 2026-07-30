@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 
 BINARY_PROFILE_ID = "precision_binary_ovr_v1"
-NWAY_PROFILE_ID = "precision_nway_f1_ensemble9_fisher_v1"
+NWAY_PROFILE_ID = "precision_nway_f1_ensemble9_floor015_fisher_v1"
 BINARY_RESPONSE_MODEL = "binary_ovr_v1"
 NWAY_RESPONSE_MODEL = "iiic_conditional_f1_v1"
 NWAY_ARTIFACT_MODEL = "iiic_conditional_f1_v1_artifact_ensemble"

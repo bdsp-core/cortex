@@ -1,16 +1,16 @@
 {
-  "schemaVersion": 1,
-  "standardId": "nway_ensemble9_fisher_1200p30_v1",
-  "status": "isolated_standard_not_production_authorized",
-  "engineProfilePath": "artifacts/engine_profile_integrated_ensemble9_fisher_rd.json",
-  "engineProfileId": "precision_nway_f1_ensemble9_fisher_rd_v1",
-  "responseArtifactPath": "artifacts/iiic_conditional_f1_integrated_ensemble9_rd.json",
-  "responseArtifactId": "iiic-f1-crossfit-ensemble9-rd-20260720",
-  "selectorVersion": "categorical_fisher_totalvar_v1",
-  "particles": 1200,
-  "mhSteps": 30,
+  "engineProfileId": "precision_nway_f1_ensemble9_floor015_fisher_rd_v1",
+  "engineProfilePath": "artifacts/engine_profile_integrated_ensemble9_floor015_fisher_rd.json",
   "essFraction": 0.5,
+  "evidenceReport": "reports/PHASE1_REPORT.md",
   "frozenRollbackArchive": "frozen/F1_1200P30_20260720.tar.gz",
-  "evidenceReport": "reports/FINAL_INTEGRATION_COMPARISON.md",
-  "productionAuthorized": false
+  "mhSteps": 30,
+  "particles": 1200,
+  "productionAuthorized": false,
+  "responseArtifactId": "iiic-f1-crossfit-ensemble9-rd-20260720-floor015",
+  "responseArtifactPath": "artifacts/iiic_conditional_f1_integrated_ensemble9_rd_floor015.json",
+  "schemaVersion": 1,
+  "selectorVersion": "categorical_fisher_totalvar_v1",
+  "standardId": "nway_ensemble9_floor015_fisher_1200p30_v2",
+  "status": "isolated_standard_not_production_authorized"
 }

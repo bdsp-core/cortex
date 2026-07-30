@@ -73,8 +73,13 @@ describe("production native n-way integration", () => {
   it("freezes and validates the exact integrated artifact/profile stamp", () => {
     expect(NWAY_ARTIFACT.draws).toHaveLength(9);
     expect(NWAY_ARTIFACT.sha256).toBe(
-      "0654fc210e67ece152dcaef6b40641fc9c94cb259d100ed3829d90224bc5ef8b",
+      "2e35c400739d74778c33c6a9b2f2b8590a9c6f96f3b83841fc3fc6091db8457c",
     );
+    // Owner-approved robustness floor: no deployed draw may fall below it.
+    expect(NWAY_ARTIFACT.robustnessFloor).toBe(0.15);
+    for (const draw of NWAY_ARTIFACT.draws) {
+      expect(draw.distractorLapse).toBeGreaterThanOrEqual(NWAY_ARTIFACT.robustnessFloor);
+    }
     expect(validateNWayInputs(inputs()).selectorVersion)
       .toBe("categorical_fisher_totalvar_v1");
     const altered = inputs();
@@ -117,12 +122,12 @@ describe("production native n-way integration", () => {
     st.logPrior = new Float64Array(3);
     st.logLik = new Float64Array(3);
     const expected = [
-      [0.02842462526964153, 0.06987883358206612, 0.7357329395211821,
-        0.06750360211709902, 0.06556667172352094, 0.03289332778649028],
-      [0.04173144519701685, 0.03873151599576798, 0.6826694882233317,
-        0.02610982947406671, 0.1913818089834033, 0.01937591212641342],
-      [0.03164000823759353, 0.0835950632990778, 0.625116461074542,
-        0.05644863148961285, 0.15217266168866855, 0.05102717421050528],
+      [0.03200949401500406, 0.06738090105814203, 0.7357329395211821,
+        0.06535389832924456, 0.06370095993873531, 0.03582180713769192],
+      [0.04491535232190181, 0.04235634643070489, 0.6826694882233317,
+        0.03159066754163628, 0.17262043396356688, 0.0258477115188584],
+      [0.03800051931217403, 0.08232692428739724, 0.625116461074542,
+        0.0591643977862024, 0.14085264795419603, 0.05453904958548825],
     ];
     for (let n = 0; n < st.N; n++) {
       const actual = responseProbabilities(
@@ -133,9 +138,9 @@ describe("production native n-way integration", () => {
     }
     expect(Math.abs(expectedNWayLoss(
       st, inputs([referenceSegment]), { k: 3, segment: referenceSegment },
-    ) - 0.9024135503263186)).toBeLessThanOrEqual(5e-7);
+    ) - 0.9066009381118382)).toBeLessThanOrEqual(5e-7);
     updateObservation(st, makeResponseObservation(3, referenceSegment, 5, "iiic"));
-    const expectedWeights = [0.08944108851356372, 0.3916028570738769, 0.5189560544125595];
+    const expectedWeights = [0.09440490683833434, 0.3837355669929388, 0.5218595261687269];
     Array.from(st.w).forEach((value, index) =>
       expect(Math.abs(value - expectedWeights[index])).toBeLessThanOrEqual(5e-7));
   });
