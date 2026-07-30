@@ -226,7 +226,7 @@ def _select(cloud, selector, remaining, counts, s_mean, s_sd, config):
 
 
 def _run_selector(seed: int, selector: SelectorName, config: SelectorExperimentConfig) -> dict:
-    truth_t, truth_l, s_mean, s_sd = _truth_and_bank(seed, _qualification_config(config))
+    truth_t, truth_l, s_mean, s_sd, _ = _truth_and_bank(seed, _qualification_config(config))
     cloud = make_cloud(
         config.particles, np.eye(7), np.eye(7),
         np.random.default_rng(seed + 10_000),

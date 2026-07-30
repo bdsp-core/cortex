@@ -1,11 +1,15 @@
 # Qualification contract
 
 The included harness is executable adaptive-selection/frontier infrastructure,
-not a completed scientific qualification. Its current stopping point is the
-configured direct-domain cap; it deliberately does not claim to reproduce the
-locked Precision stopping rule. The TypeScript `precision_bridge.ts` exercises
-that unchanged policy boundary. A promotion run must join the two in the
-governed harness, be preregistered, and use a newly qualified response artifact.
+not a completed scientific qualification. Its default stopping point is the
+configured direct-domain cap. With `--stopping precision` the harness instead
+consults the UNCHANGED production Precision policy after every update through
+the `src/precision_cli.ts` sidecar (built by `scripts/build_precision_cli.sh`,
+golden-parity-tested against a direct TypeScript invocation of
+`precision_bridge.ts`), with the direct-domain cap retained only as a hard
+safety cap; `--real-bank` swaps the synthetic generator for a seeded draw from
+the staged served-bank axes. A promotion run must use that join, be
+preregistered, and use a newly qualified response artifact.
 
 ## Prerequisites
 
