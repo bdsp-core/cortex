@@ -49,6 +49,10 @@ class QualificationConfig:
     distractor_lapse: float = 0.0
     artifact_draws: tuple[tuple[float, float, float], ...] = ()
     truth_beta: float | None = None
+    # (mu, sigma) of log truth beta: each replicate's world draws its own beta
+    # from the fitted reader population, matching label-agnostic serving where
+    # any point on the continuum may sit down. Overrides truth_beta.
+    truth_beta_lognormal: tuple[float, float] | None = None
     truth_distractor_lapse: float | None = None
     truth_t_mean: float = 0.0
     truth_l_mean: float = 0.2
@@ -221,6 +225,13 @@ def _precision_bank_view(
 
 def _run_arm(seed: int, arm: Literal["binary", "categorical_f1"], config: QualificationConfig):
     truth_t, truth_l, s_mean, s_sd, seg_ids = _truth_and_bank(seed, config)
+    world_beta = config.beta if config.truth_beta is None else config.truth_beta
+    if config.truth_beta_lognormal is not None:
+        mu, sigma = config.truth_beta_lognormal
+        # Seed-only derivation: both CRN arms face the identical world beta.
+        world_beta = float(np.exp(
+            mu + sigma * np.random.default_rng(seed + 70_000).standard_normal()
+        ))
     prior_corr = np.eye(7)
     cloud = make_cloud(
         config.particles, prior_corr, prior_corr,
@@ -257,7 +268,7 @@ def _run_arm(seed: int, arm: Literal["binary", "categorical_f1"], config: Qualif
         truth_probabilities = f1_probabilities(
             truth_t, truth_l, s_mean[segment_index], s_sd[segment_index],
             asked_k, IIIC_GROUP,
-            config.beta if config.truth_beta is None else config.truth_beta,
+            world_beta,
             (
                 config.distractor_lapse
                 if config.truth_distractor_lapse is None
@@ -516,6 +527,9 @@ def main() -> None:
     parser.add_argument("--beta", type=float)
     parser.add_argument("--distractor-lapse", type=float)
     parser.add_argument("--truth-beta", type=float)
+    parser.add_argument(
+        "--truth-beta-lognormal", type=float, nargs=2, metavar=("MU", "SIGMA"),
+    )
     parser.add_argument("--truth-distractor-lapse", type=float)
     parser.add_argument("--signal-sd-scale", type=float)
     parser.add_argument("--stopping", choices=("own-cap", "precision"), default="own-cap")
@@ -556,6 +570,10 @@ def main() -> None:
     )
     if args.real_bank:
         config = replace(config, real_bank=str(args.real_bank))
+    if args.truth_beta_lognormal is not None:
+        config = replace(
+            config, truth_beta_lognormal=tuple(args.truth_beta_lognormal),
+        )
     if args.stopping == "precision":
         # The unchanged production policy owns the stop decision; unless the
         # operator narrows the safety cap explicitly, align it with the frozen
