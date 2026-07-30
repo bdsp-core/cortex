@@ -19,8 +19,8 @@
 import type { Choice, TaskSnapshot } from "./types";
 import * as api from "../src/api";
 
-// Choice plus the engine's link tag (binary one-vs-rest vs native n-way
-// identification — Phase L4); the incumbent's local Choice never sets it.
+// Choice plus the server engine's link tag (binary one-vs-rest vs native
+// n-way identification — Phase L4).
 export type EngineChoice = Choice & { link?: "binary" | "nway" };
 
 function toChoice(it: api.EngineItem): EngineChoice {

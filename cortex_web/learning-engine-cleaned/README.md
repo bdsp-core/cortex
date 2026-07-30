@@ -10,6 +10,11 @@ authenticated start/record requests; `cortex_web/services/api/engine_trainer.py`
 owns the deployed session state and uses this package for belief updates and
 item selection.
 
+The package owns the model contract, not mutable host configuration. The
+verified live release, allocation mode, share cap, practice-mode setting, and
+rollback assumptions are recorded in
+[`../docs/PRODUCTION_BASELINE.md`](../docs/PRODUCTION_BASELINE.md).
+
 ## Deployed path
 
 1. `learning_engine.registry.Registry` defines one binary domain plus the

@@ -11,6 +11,8 @@ export interface Choice {
 }
 
 // Per-task belief snapshot (engine coordinates).
+import type { PercentileDomainScore } from "../src/percentile/types";
+
 export interface TaskSnapshot {
   task: number;
   mastered: boolean;
@@ -19,4 +21,5 @@ export interface TaskSnapshot {
   sd: number;          // posterior SD of ℓ
   passMass: number;    // π = P(ℓ > ℓ*)
   trainability: number | null;
+  percentile?: PercentileDomainScore | null;
 }

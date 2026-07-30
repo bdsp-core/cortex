@@ -11,7 +11,18 @@ the v1.6 deploy 2026-06-25, extended by `sessions.drawn_seg_ids` 2026-07-01.
 L1 shipped when the server-side learning engine became the sole trainer on
 2026-07-17. O4 (engine SD/AUROC persistence — optional and re-derivable)
 remains open. This document is now a design/history record; current runtime
-ownership is defined by `REPOSITORY_STRUCTURE.md` and `../README.md`.
+ownership is defined by `PRODUCTION_BASELINE.md`, `REPOSITORY_STRUCTURE.md`,
+and `../README.md`.
+
+**Live-reading rule (2026-07-22):** present-tense statements and source line
+numbers below describe the original review, not the current API. The synthetic
+trajectory write was removed and quarantined; `POST /api/trajectories` no
+longer exists, `GET /api/trajectories` is read-only, and real learning rows are
+server-authored through owned `POST /api/training-progress` sessions.
+`GET /api/manifest` was not adopted because `POST /api/session` already
+returns the stamped per-sitting bank/profile. The retired
+`GET /api/training-sessions` route also remains absent. Do not recreate any of
+those endpoints merely because the historical plan proposed or audited them.
 
 **Original status:** proposal, revision 2 (post-adversarial-review). No files modified. Grounded in current `main`; where the five audits disagreed, code was the tiebreaker (see §0.3 "adjudicated facts"). Every Critical (C1–C5) and Important (I1–I6) item from the adversarial review is resolved inline; the four Minors (M1–M5) are folded into the relevant sections. A change-log is in §9.
 

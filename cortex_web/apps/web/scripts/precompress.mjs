@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 import { join, extname } from "node:path";
 
 const ROOT = fileURLToPath(new URL("../dist", import.meta.url));
-const COMPRESSIBLE = new Set([".js", ".css", ".html", ".svg", ".json", ".map", ".txt"]);
+const COMPRESSIBLE = new Set([
+  ".js", ".css", ".html", ".svg", ".json", ".map", ".txt",
+  // Versioned percentile quantile arrays are float32 but highly structured;
+  // transfer compression materially reduces their one-time browser load.
+  ".bin",
+]);
 const MIN_BYTES = 1024; // below this the headers outweigh the savings
 
 let files = 0, rawTotal = 0, brTotal = 0;

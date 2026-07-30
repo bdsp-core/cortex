@@ -370,7 +370,8 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
                               n_mh_steps=15, proposal_scale=1.5,
                               ess_threshold_frac=0.5,
                               bank_signals=None, select="ev",
-                              n_subsample=None):
+                              n_subsample=None,
+                              log_parameter_trajectory=False):
     """Methodology-compliant brute force session with MCMC-rejuvenation SMC.
 
     Args:
@@ -403,7 +404,15 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
         los, his = [lo.copy()], [hi.copy()]
     n_q = 0
     stop_step = None
+    stop_per_domain_n = None
     accept_rates = []
+    per_domain_n = np.zeros(K, dtype=int)
+    if log_parameter_trajectory:
+        t_mean_trajectory = [np.array([
+            np.dot(state["w"], state["t"]) for state in states])]
+        l_mean_trajectory = [np.array([
+            np.dot(state["w"], state["l"]) for state in states])]
+        per_domain_n_trajectory = [per_domain_n.copy()]
 
     for q in range(max_q):
         if select == "random":
@@ -415,9 +424,16 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
         l_true = true_params[k * 2 + 1]
         y = simulate_response(s, t_true, l_true, rng)
         update_brute_k(states, k, s, y)
+        per_domain_n[k] += 1
         if ess(states[k]["w"]) < ess_threshold_frac * N:
             ar = resample_and_rejuvenate_2d(states[k], rng, n_mh_steps, proposal_scale)
             accept_rates.append(ar)
+        if log_parameter_trajectory:
+            t_mean_trajectory.append(np.array([
+                np.dot(state["w"], state["t"]) for state in states]))
+            l_mean_trajectory.append(np.array([
+                np.dot(state["w"], state["l"]) for state in states]))
+            per_domain_n_trajectory.append(per_domain_n.copy())
         n_q += 1
         lo, hi = auroc_ci_brute_k(states, alpha)
         if log_trajectory:
@@ -427,6 +443,7 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
             hw = (hi - lo) / 2.0
             if np.max(hw) < delta_auroc:
                 stop_step = n_q
+                stop_per_domain_n = per_domain_n.copy()
                 if not run_until_max:
                     break
 
@@ -440,10 +457,16 @@ def run_session_mcmc_brute_k(true_params, K, max_q=400, delta_auroc=0.05,
         "n_rejuvenations": len(accept_rates),
         "delta_auroc": float(delta_auroc),
         "method": "random" if select == "random" else "brute",
+        "per_domain_n": (stop_per_domain_n if stop_per_domain_n is not None
+                         else per_domain_n),
     }
     if log_trajectory:
         out["lo_traj"] = np.array(los)
         out["hi_traj"] = np.array(his)
+    if log_parameter_trajectory:
+        out["t_mean_traj"] = np.asarray(t_mean_trajectory)
+        out["l_mean_traj"] = np.asarray(l_mean_trajectory)
+        out["per_domain_n_traj"] = np.asarray(per_domain_n_trajectory)
     return out
 
 

@@ -7,7 +7,7 @@
 // into the main chunk).
 
 import { Bundle, SessionBank } from "./bundle";
-import type { RegimenPlan } from "./api";
+import type { PercentileProfile, RegimenPlan } from "./api";
 import { ServerTrainerSession } from "../trainer/serverSession";
 import type { TrainerSessionLike } from "./trainingController";
 
@@ -28,6 +28,7 @@ export interface TrainingState {
   bundle: Bundle;
   // R5: seed-time attainability, prepared for display (engine mode only).
   attainability?: AttainabilityTier[];
+  percentileProfile: PercentileProfile | null;
 }
 
 export interface AttainabilityTier {
@@ -65,6 +66,7 @@ export async function buildServerTrainingState(
   plan: RegimenPlan | null | undefined,
   bank: SessionBank,
   trainingId: string,
+  percentileProfile: PercentileProfile | null = null,
 ): Promise<TrainingState> {
   const b = Bundle.fromSessionBank(bank);
   const segIds = b.inputs.segments.map((s) => s.segId);
@@ -76,6 +78,7 @@ export async function buildServerTrainingState(
     trainingId, segIds, restrict, ellStarsOf(ellStar));
   return {
     session, trainingId, labels: b.inputs.taskLabels, bundle: b,
+    percentileProfile,
     attainability: attainabilityTiers(
       session.attainability, b.inputs.taskCodes, b.inputs.taskLabels),
   };

@@ -103,3 +103,22 @@ PRECISION_COMPUTE_EMAILS = frozenset(
     for x in os.environ.get("CORTEX_PRECISION_COMPUTE_EMAILS", "").split(",")
     if x.strip()
 )
+
+# Provisional historical percentile rollout. OFF is deliberately the default.
+# Public exposure (cohort/all) also requires CORTEX_PERCENTILE_RELEASE_SHA256
+# to equal the verified runtime binary hash; shadow calculates and stores
+# scores but never returns display=true.
+PERCENTILE_MODE = os.environ.get("CORTEX_PERCENTILE_MODE", "off").strip().lower()
+PERCENTILE_ALLOWLIST = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_PERCENTILE_ALLOWLIST", "").split(",")
+    if x.strip()
+)
+PERCENTILE_RELEASE_SHA256 = os.environ.get(
+    "CORTEX_PERCENTILE_RELEASE_SHA256", ""
+).strip().lower()
+PERCENTILE_NORM_METADATA = Path(os.environ.get(
+    "CORTEX_PERCENTILE_NORM_METADATA",
+    str(CORTEX_WEB / "apps" / "web" / "public" / "norms"
+        / "historical-calibration-k7-provisional-v1.json"),
+))

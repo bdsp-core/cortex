@@ -158,6 +158,9 @@ def build_gold(raw: dict, salt: bytes) -> dict[str, list[dict]]:
             "n_questions": s.get("n_questions"),
             "sample_seed": s.get("sample_seed"),
             "provenance_inferred": True,   # no version stamping yet (Phase O3)
+            "percentile_norm_id": s.get("norm_id"),
+            "percentile_norm_sha256": s.get("norm_sha256"),
+            "percentile_score_schema_version": s.get("score_schema_version"),
         })
 
     # fact_trial (trial grain) + fact_trial_task (trial×task long, SMC evolution)
@@ -167,6 +170,17 @@ def build_gold(raw: dict, salt: bytes) -> dict[str, list[dict]]:
         sid = s["session_id"]
         res = raw["results"].get(sid) or {}
         verdicts = res.get("verdicts") or []
+        percentile_report = res.get("percentile") or {}
+        percentile_profile = (
+            percentile_report.get("profile")
+            if isinstance(percentile_report, dict) else {}
+        ) or {}
+        percentile_domains = (
+            percentile_report.get("domains")
+            if isinstance(percentile_report, dict)
+            and percentile_report.get("status") == "available"
+            else {}
+        ) or {}
         tbl = raw["trials_by_session"].get(sid, [])
         # per-task accumulators for binarized correctness
         correct_n = [0] * K
@@ -231,14 +245,45 @@ def build_gold(raw: dict, salt: bytes) -> dict[str, list[dict]]:
                 "binarized_correct_rate": (correct_n[k] / correct_d[k]) if correct_d[k] else None,
                 "final_auroc": None,   # not stored anywhere — needs engine re-run (Phase O3)
                 "ell_star": None,      # from the bundle manifest — deferred enrichment
+                "percentile_status": (
+                    percentile_report.get("status")
+                    if isinstance(percentile_report, dict) else None
+                ),
+                "percentile_estimate": (
+                    percentile_domains.get(TASK_CODES[k], {}).get("estimate")
+                ),
+                "percentile_lower_95": (
+                    percentile_domains.get(TASK_CODES[k], {}).get("lower")
+                ),
+                "percentile_upper_95": (
+                    percentile_domains.get(TASK_CODES[k], {}).get("upper")
+                ),
+                "percentile_norm_id": percentile_profile.get("normId"),
+                "percentile_norm_sha256": percentile_profile.get("normSha256"),
+                "percentile_score_schema_version": percentile_profile.get(
+                    "scoreSchemaVersion"),
             })
 
     # fact_training_session + fact_trajectory_point (empty today; is_real guard)
-    fact_training = [{
-        "training_sk": tr["training_id"], "participant_sk": sk.get(tr["code"]),
-        "started_utc": tr.get("started_utc"), "finished_utc": tr.get("finished_utc"),
-        "n_items": tr.get("n_items"),
-    } for tr in raw["training"]]
+    fact_training = []
+    for tr in raw["training"]:
+        summary = _loads(tr.get("summary")) or {}
+        percentile = summary.get("percentile") or {}
+        fact_training.append({
+            "training_sk": tr["training_id"],
+            "participant_sk": sk.get(tr["code"]),
+            "started_utc": tr.get("started_utc"),
+            "finished_utc": tr.get("finished_utc"),
+            "n_items": tr.get("n_items"),
+            "percentile_status": (
+                percentile.get("status")
+                if isinstance(percentile, dict) else None
+            ),
+            "percentile_norm_id": tr.get("norm_id"),
+            "percentile_norm_sha256": tr.get("norm_sha256"),
+            "percentile_score_schema_version": tr.get(
+                "score_schema_version"),
+        })
     fact_trajectory = [{
         "participant_sk": sk.get(p["code"]), "task_k": p.get("task_k"),
         "phase": p.get("phase"), "ell": p.get("ell"), "theta": p.get("theta"),

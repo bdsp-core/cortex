@@ -23,7 +23,7 @@ import { isNWaySession, validateNWayInputs } from "./nway_profile";
 import { predictedOutcomeDistribution, rankOutcomes } from "./nway_selector";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
 import {
-  PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
+  PRECISION_N_MIN, PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
 } from "./precision_policy";
 import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
@@ -98,6 +98,13 @@ export interface SessionOptions {
   selectionExecutor?: NWaySelectionExecutor;
   /** Qualification control; production defaults to bounded rank-two expansion. */
   rankedSpeculation?: boolean;
+  /**
+   * Research/qualification-only ceiling override. The shipped production path
+   * leaves this unset and remains frozen at PRECISION_PER_DOMAIN_CAP.
+   */
+  qualificationPrecisionPerDomainCap?: number;
+  /** Qualification-only override for the production 20-question evidence floor. */
+  qualificationPrecisionNMin?: number;
 }
 
 export interface SessionResult {
@@ -153,6 +160,8 @@ export class WebCortexSession {
   private branchExecutor?: BranchExecutor;
   private selectionExecutor?: NWaySelectionExecutor;
   private rankedSpeculation: boolean;
+  private qualificationPrecisionPerDomainCap?: number;
+  private qualificationPrecisionNMin?: number;
   private cb: SessionCallbacks;
   private answerResolver: ((answer: SubmittedAnswer) => void) | null = null;
   private selectionRecovery: Promise<void> | null = null;
@@ -171,6 +180,20 @@ export class WebCortexSession {
     this.branchExecutor = opts.branchExecutor;
     this.selectionExecutor = opts.selectionExecutor;
     this.rankedSpeculation = opts.rankedSpeculation ?? true;
+    this.qualificationPrecisionPerDomainCap = opts.qualificationPrecisionPerDomainCap;
+    this.qualificationPrecisionNMin = opts.qualificationPrecisionNMin;
+    if (this.qualificationPrecisionPerDomainCap !== undefined
+        && (!Number.isInteger(this.qualificationPrecisionPerDomainCap)
+          || this.qualificationPrecisionPerDomainCap < PRECISION_PER_DOMAIN_CAP)) {
+      throw new Error(
+        `qualificationPrecisionPerDomainCap must be an integer >= ${PRECISION_PER_DOMAIN_CAP}`,
+      );
+    }
+    if (this.qualificationPrecisionNMin !== undefined
+        && (!Number.isInteger(this.qualificationPrecisionNMin)
+          || this.qualificationPrecisionNMin < 0)) {
+      throw new Error("qualificationPrecisionNMin must be a nonnegative integer");
+    }
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
@@ -258,9 +281,11 @@ export class WebCortexSession {
       if ((this.inputs.perDomainCap ?? PER_DOMAIN_CAP) !== PRECISION_PER_DOMAIN_CAP) {
         throw new Error(`precision_v1 freezes perDomainCap=${PRECISION_PER_DOMAIN_CAP}`);
       }
-      policy = PrecisionPolicy.fromInputs(this.inputs);
+      perDomainCap = this.qualificationPrecisionPerDomainCap ?? PRECISION_PER_DOMAIN_CAP;
+      policy = PrecisionPolicy.fromInputs(
+        this.inputs, perDomainCap, this.qualificationPrecisionNMin ?? PRECISION_N_MIN,
+      );
       nParticles = PRECISION_N_PARTICLES;
-      perDomainCap = PRECISION_PER_DOMAIN_CAP;
     } else if (policyName === "ad6") {
       policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
       nParticles = this.inputs.nParticles ?? N_PARTICLES;

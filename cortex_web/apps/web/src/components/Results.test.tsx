@@ -8,7 +8,7 @@ const SUMMARY: ResultSummary = {
   nQuestions: 159,
   stopReason: "all_estimated_or_undeterminable",
   verdicts: [
-    "BELOW_CUT", "INDETERMINATE_AT_CUT", "BELOW_CUT", "BELOW_CUT",
+    "ABOVE_CUT", "INDETERMINATE_AT_CUT", "BELOW_CUT", "BELOW_CUT",
     "BELOW_CUT", "BELOW_CUT", "BELOW_CUT",
   ],
   terminationPolicy: "precision_v1",
@@ -23,7 +23,9 @@ describe("participant results screen", () => {
     const html = renderToStaticMarkup(createElement(Results, { summary: SUMMARY }));
     expect(html).toContain("Assessment Complete");
     expect(html).toContain("Seizure");
-    expect(html).toContain("INDETERMINATE AT CUT");
+    expect(html).toContain("AT EXPERT");
+    expect(html).toContain("INDETERMINATE");
+    expect(html).toContain("BELOW EXPERT");
     expect(html).not.toContain("technical details");
     expect(html).not.toContain("π (pass)");
     expect(html).not.toContain("info R");

@@ -161,6 +161,10 @@ EOF
 
 # ── Caddy ──────────────────────────────────────────────────────────
 say "installing Caddyfile (auto-TLS; domains fixed to cortexeeg.org in the template)…"
+install -d -o caddy -g caddy -m 0750 /var/log/caddy
+touch /var/log/caddy/cortex-telemetry-access.json
+chown caddy:caddy /var/log/caddy/cortex-telemetry-access.json
+chmod 0640 /var/log/caddy/cortex-telemetry-access.json
 cp "$WEB/deploy/Caddyfile.template" /etc/caddy/Caddyfile
 systemctl enable --now caddy
 systemctl reload caddy || systemctl restart caddy

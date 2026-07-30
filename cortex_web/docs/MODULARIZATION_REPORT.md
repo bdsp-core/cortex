@@ -1,6 +1,6 @@
 # Repository hygiene and modularization report
 
-Date: 2026-07-19; current-status clarification 2026-07-21
+Date: 2026-07-19; production addendum 2026-07-22
 Scope: developed in an isolated staging worktree, then promoted into canonical
 `cortex_web` on a clean release branch. The staging directory was disposable
 and is not part of the repository.
@@ -28,11 +28,12 @@ research changes could not enter the release.
 
 ### Backend
 
-- Moved additive schema declarations into
-  `services/api/persistence/migrations.py`; the existing database facade still
-  applies them in the original order.
-- Centralized fail-closed server-owned policy and compute-rollout decisions in
-  `services/api/policy_rollout.py`.
+- Moved canonical DDL into `services/api/persistence/schema.py` and retained
+  additive column evolution in `services/api/persistence/migrations.py`; the
+  database facade still applies them in the original order.
+- Kept the independent fail-closed policy and compute decisions in
+  `policy_rollout.py` and `compute_rollout.py`, while moving their shared
+  identity matching into `rollout.py`.
 - Added legacy-schema, migration-idempotence, uniqueness, allowlist, default,
   and unknown-configuration tests.
 
@@ -69,10 +70,34 @@ load-guarding, and persistent MH-history caches. Those runtime details are
 owned by `WEB_WORKER_ARCHITECTURE.md`; this report remains the modularization
 record rather than a second architecture specification.
 
+## 2026-07-22 production addendum
+
+Release `e68d59b` completed the next behavior-preserving extractions:
+
+- `engine/index.ts` now declares the only UI-facing engine surface, enforced by
+  `engine_public_surface.test.ts`.
+- The shared waveform pipeline lives in `features/eeg/useEegDisplay.ts`; the
+  trainer and both exam viewers now use the same tested filter path.
+- Result derivation and the washout banner moved out of `App.tsx` into
+  `features/exam/results.ts` and `components/exam/WashoutBanner.tsx`.
+- Read-only administrative aggregation moved to `reporting.py`, canonical UTC
+  formatting to `timeutil.py`, and shared backend helpers to `helpers.py`.
+- One upsert definition now generates both SQLite and PostgreSQL statements,
+  with dialect-specific contract tests.
+- Retired API routes and demo/sample surfaces were removed, validation errors
+  use one envelope, and the runtime release archive excludes test-module
+  patterns.
+- The UI smoke harness now builds the requested source and reliably terminates
+  its temporary server, preventing stale-build qualification.
+
+These commits do not alter certification formulas, RNG order, policy,
+selection, stopping, or results. The verified release relationship and
+rollback anchors are in `PRODUCTION_BASELINE.md`.
+
 ## Deliberate stopping point
 
-Large remaining files such as the shell orchestrator and database repository
-are cohesive integration surfaces. Splitting them further in this pass would
-increase migration surface without improving the accuracy or runtime boundary.
-Future extractions should be driven by an independently testable domain, not a
+At the original stopping point, the shell orchestrator and database repository
+remained cohesive integration surfaces. The addendum extracted only domains
+with independent tests and stable compatibility seams. Further decomposition
+should continue to be driven by an independently testable domain, not a
 line-count target.

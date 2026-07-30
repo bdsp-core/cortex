@@ -1,7 +1,8 @@
-// Backend API client. The server is intentionally small: authenticate once,
-// receive the per-session draw (bundle identity + question set travel inside
-// POST /api/session), ingest results — no per-question round-trips. All gated
-// calls carry the JWT as a Bearer token.
+// Backend API client. The server authenticates and returns the per-session draw
+// (bundle identity + question set travel inside POST /api/session); selection
+// and posterior updates stay browser-local. Per-answer progress checkpoints do
+// use a fire-and-forget outbox, but next-question computation never waits on
+// that network round trip. All gated calls carry the JWT as a Bearer token.
 //
 // Base URL: VITE_API_BASE if set, else same-origin "" (the SPA is served by
 // the same uvicorn that serves /api in the single-process local setup). In
@@ -13,6 +14,9 @@ import type {
   RequestedComputeMode, TerminationPolicyName,
 } from "../engine";
 import type { CohortSummary } from "./api/cohorts";
+import type {
+  PercentileDomainScore, PercentileProfile, PercentileReport,
+} from "./percentile/types";
 import { Outbox, transportFetch } from "./transport";
 import {
   API_BASE,
@@ -66,6 +70,7 @@ export interface StartSessionResult {
   bank: SessionBank;        // the server-drawn per-session question subset
   terminationPolicy: TerminationPolicyName;
   computeMode: RequestedComputeMode;
+  percentileProfile: PercentileProfile | null;
 }
 
 export interface ActiveSession {
@@ -74,6 +79,7 @@ export interface ActiveSession {
   computeMode: RequestedComputeMode;
   bank: SessionBank;        // the sitting's ORIGINAL drawn pool, verbatim order
   trials: { trialIndex: number; segId: number; pick: number }[];
+  percentileProfile: PercentileProfile | null;
 }
 
 export interface TrialCheckpoint {
@@ -310,6 +316,8 @@ export interface DashboardTask {
   theta: number | null;
   auroc: number | null;
   verdict: string;
+  percentile: PercentileDomainScore | null;
+  percentileProfile: PercentileProfile | null;
 }
 // A real certification result blob (latest for the participant). Only the
 // fields the dashboard reads are typed; the rest of the engine payload rides
@@ -320,6 +328,7 @@ export interface CertResult {
   domainStatuses?: string[];
   determinations?: string[];
   roc?: Array<{ auroc?: number } | null>;
+  percentile?: PercentileReport | null;
   [k: string]: unknown;
 }
 export interface DashboardData {
@@ -434,7 +443,10 @@ export function getQuestions(sessionId: string): Promise<{ sessionId: string; nQ
 }
 export function startTrainingSession(
   taskFocus?: string,
-): Promise<{ trainingId: string; engineMode?: boolean }> {
+): Promise<{
+  trainingId: string; engineMode?: boolean;
+  percentileProfile: PercentileProfile | null;
+}> {
   return authedFetch("/api/training-sessions", {
     method: "POST",
     body: JSON.stringify({ taskFocus: taskFocus ?? null }),
@@ -452,7 +464,10 @@ export interface EngineItem {
 export interface EngineTaskSnapshot {
   task: number; mastered: boolean; skill: number; theta: number; sd: number;
   passMass: number; trainability: number | null;
+  percentile?: PercentileDomainScore | null;
 }
+
+export type { PercentileDomainScore, PercentileProfile, PercentileReport };
 export interface EngineStepResponse {
   item: EngineItem | null;
   snapshot: EngineTaskSnapshot[];

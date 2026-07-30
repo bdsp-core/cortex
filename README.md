@@ -228,7 +228,7 @@ please cite the repository and the forthcoming manuscript.
 |---|---|
 | How does the math actually work? | [`docs/METHODS.md`](docs/METHODS.md) |
 | Is the engine calibrated and validated? | [`docs/PHASE7_CLOSEOUT.md`](docs/PHASE7_CLOSEOUT.md) |
-| What is the live deployment contract? | [`cortex_web/README.md`](cortex_web/README.md) + [`cortex_web/deploy/README.md`](cortex_web/deploy/README.md) |
+| What is the live deployment contract? | [`cortex_web/docs/PRODUCTION_BASELINE.md`](cortex_web/docs/PRODUCTION_BASELINE.md) + [`cortex_web/deploy/README.md`](cortex_web/deploy/README.md) |
 | What does the older Python deployment reference implement? | [`docs/DEPLOYMENT_INTEGRATION.md`](docs/DEPLOYMENT_INTEGRATION.md) |
 | How was the corpus built? | [`data/DATA_PROVENANCE.md`](data/DATA_PROVENANCE.md) |
 | What are the reference truth invariants? | [`docs/INVARIANT_AUDIT.md`](docs/INVARIANT_AUDIT.md) |

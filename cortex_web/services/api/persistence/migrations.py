@@ -33,6 +33,10 @@ PARAM_TRAJECTORIES: list[Column] = [
 TRAINING_SESSIONS: list[Column] = [
     ("regimen_id", "TEXT"),
     ("source_session_id", "TEXT"),
+    ("norm_id", "TEXT"),
+    ("norm_sha256", "TEXT"),
+    ("score_schema_version", "TEXT"),
+    ("norm_profile", "TEXT"),
 ]
 
 # Precision sessions reconstruct their manifest-ordered pool from the compact
@@ -45,6 +49,10 @@ SESSIONS: list[Column] = [
     ("candidate_exclusion", "TEXT"),
     ("candidate_bank_sha256", "TEXT"),
     ("nway_profile", "TEXT"),
+    ("norm_id", "TEXT"),
+    ("norm_sha256", "TEXT"),
+    ("score_schema_version", "TEXT"),
+    ("norm_profile", "TEXT"),
 ]
 
 TRAINING_TRIALS: list[Column] = [

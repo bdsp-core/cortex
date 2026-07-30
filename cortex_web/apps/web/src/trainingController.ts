@@ -1,18 +1,16 @@
 // Pure controller for the immersive training runner (no React/DOM/worker) — the
-// question → result → done state machine over a synchronous TrainerSession. Each
-// trial is a binary one-vs-rest decision ("is this <pattern k>?") that maps
-// directly to the trainer's belief update (y = yes/no, y* = the item's label).
+// question → result → done state machine over the trainer session surface.
+// Trials may be binary one-vs-rest or native n-way identification; both map
+// their raw answer onto the server trainer's declared link and gold label.
 // The daily session is bounded to a fixed item count. Kept UI-free so it is
 // unit-testable; TrainingRunner.tsx is a thin view over it.
 import type { Choice, TaskSnapshot } from "../trainer/types";
 
 export type RunnerPhase = "question" | "result" | "done";
 
-// The session surface the controller actually consumes — satisfied by the
-// local TrainerSession and by the server-driven ServerTrainerSession
-// (Phase L3). whenReady is the engine-mode prefetch barrier: it resolves
-// when the next item + snapshot have landed from the server; local
-// sessions omit it (immediate).
+// The session surface the controller actually consumes. Production supplies
+// ServerTrainerSession. whenReady is its prefetch barrier: it resolves when
+// the next item + snapshot have landed from the server.
 export interface TrainerSessionLike {
   next(now?: number): Choice | null;
   submit(choice: Choice, y: number): void;
@@ -20,7 +18,7 @@ export interface TrainerSessionLike {
   allMastered(): boolean;
   whenReady?(): Promise<void>;
   // The reveal screen reads the per-task mastery targets from here — the
-  // local TrainerPolicy satisfies this structurally.
+  // ServerTrainerSession exposes this structurally.
   policy: { ellStars: number[] };
 }
 

@@ -236,6 +236,27 @@ export function chooseNext(
     // an ESTIMATE_COMPLETE IIIC domain may absorb the variety question (and
     // can consequently reopen). Sticky terminal domains and domains at cap
     // are never revived.
+    //
+    // Phase A is bounded by the PER-DOMAIN CAP, and that is deliberate. Spike is
+    // binary and — unlike the IIIC domains, whose response is a softmax over
+    // every domain's z — carries no cross-domain likelihood information, so
+    // while phase A holds, the joint prior is spike's only other channel and it
+    // stays shut. The cost is a tail: a hard spike domain can consume the whole
+    // cap before any other domain is asked. Measured on a 174-reader panel, 15
+    // readers (9%) ended with spike unresolved and 3 spent the full 60 there.
+    //
+    // Bounding phase A by `nMin` instead was implemented, tested and MEASURED,
+    // and then reverted. It did what it was designed to do — burden 152.10 ->
+    // 148.04, spike cap-outs 15 -> 2 — but it cost decision accuracy:
+    // +1.23 pp [-0.33, +2.79] reader-paired, moving CORTEX from the most
+    // accurate of nine arms under native stopping (8.78%) to fourth (10.02%).
+    // For a certification instrument, being right outranks being short, so the
+    // shipped bound stands. See cortex-sim-policy/final-sim/docs/ and
+    // results/confirmatory-t1{,-prefix}/PRIMARY_RESULT.md.
+    //
+    // If this is revisited, the untested middle ground is a bound between nMin
+    // and the cap: enough to cut the pathological tail without surrendering the
+    // early depth that is buying the accuracy.
     const statuses = precisionPolicy.domainStatuses;
     let allowed: number[];
     const spikeActive = k7Spike
@@ -354,6 +375,10 @@ export async function chooseNextWithExecutor(
   core.lastOutcomes = precisionPolicy.domainStatuses;
   const statuses = precisionPolicy.domainStatuses;
   let allowed: number[];
+  // Phase A bound must stay identical to the `chooseNext` branch above, which
+  // documents why it is the per-domain cap and what bounding it by nMin cost
+  // when that was measured. This path is the async exact selector for native
+  // Precision sessions and its policy semantics are required to match.
   const spikeActive = k7Spike
     && statuses[spikeIdx] === PRECISION_STATUS.ACTIVE
     && core.nPerTask[spikeIdx] < precisionPolicy.perDomainCap

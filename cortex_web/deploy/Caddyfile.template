@@ -13,6 +13,41 @@
 app.cortexeeg.org {
     encode gzip zstd
 
+    # Sample only the public entry/privacy pages and the crash-telemetry POST
+    # so crawler sequences can be correlated without enabling a full access
+    # log. IPs are subnet-masked, UA is hashed, query strings are redacted, and
+    # potentially identifying headers are removed. Rotation bounds the file
+    # to a small, short-lived operational artifact.
+    log cortex_telemetry_access {
+        output file /var/log/caddy/cortex-telemetry-access.json {
+            mode 0640
+            roll_size 10MiB
+            roll_keep 3
+            roll_keep_for 72h
+        }
+        format filter {
+            request>remote_ip ip_mask 24 48
+            request>client_ip ip_mask 24 48
+            request>uri regexp \?.*$ ?redacted
+            request>headers>User-Agent hash
+            request>headers>Cookie delete
+            request>headers>Authorization delete
+            request>headers>Proxy-Authorization delete
+            request>headers>X-Forwarded-For delete
+            request>headers>Accept-Language delete
+            request>headers>Referer delete
+            request>headers>Origin delete
+            wrap json
+        }
+        sampling {
+            interval 1m
+            first 20
+            thereafter 100
+        }
+    }
+    @skip_telemetry_access not path / /privacy /api/client-error
+    log_skip @skip_telemetry_access
+
     # API → uvicorn (pure API service; no static served by uvicorn).
     # Request-body caps reject oversized uploads at the EDGE (413) before
     # uvicorn allocates — Starlette has no default body limit, so this is the
@@ -59,6 +94,17 @@ app.cortexeeg.org {
     # fallback at an obsolete JavaScript URL.
     handle /assets/* {
         root * /opt/cortex
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server {
+            precompressed br gzip
+        }
+    }
+
+    # Immutable, versioned percentile reference runtime. Browser and API also
+    # verify its SHA-256 before scoring; this cache rule only avoids repeatedly
+    # transferring the 2.7 MB binary between sittings.
+    handle /norms/* {
+        root * /opt/cortex/cortex_web/apps/web/dist
         header Cache-Control "public, max-age=31536000, immutable"
         file_server {
             precompressed br gzip

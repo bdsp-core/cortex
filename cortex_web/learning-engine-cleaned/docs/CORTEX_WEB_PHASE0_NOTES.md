@@ -2,7 +2,11 @@
 
 Historical record: these notes describe the staged rollout as it existed on
 2026-07-16. The server-side engine became the sole trainer on 2026-07-17; the
-incumbent browser-local trainer and rollout flag described below are retired.
+incumbent browser-local trainer and its fallback semantics are retired. The
+server exposure setting still exists, but disabling it does not restore a
+browser model; use the current operations baseline rather than the historical
+instructions below. See
+[`../../docs/PRODUCTION_BASELINE.md`](../../docs/PRODUCTION_BASELINE.md).
 See `INTEGRATION_PLAN_MIXED_TASKS.md` for the current request path.
 
 2026-07-16. This note documents the Phase-0 (instrumentation), Phase-1

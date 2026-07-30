@@ -136,9 +136,8 @@ def _engine():
 
 def enabled(cfg: dict, code: str, participant) -> bool:
     """The engine-trainer exposure gate: CORTEX_TRAINER_ENGINE ∈
-    off|cohort|all (mirrors dashboard_logic.training_enabled; default
-    OFF — the incumbent client trainer stays the production posture
-    until the team promotes the engine)."""
+    off|cohort|all (mirrors dashboard_logic.training_enabled; default ALL).
+    The browser has no local model fallback: `off` rejects engine starts."""
     mode = (cfg or {}).get("trainer_engine", "all")
     if mode == "off":
         return False
@@ -172,7 +171,8 @@ class EngineSession:
     """One participant sitting: belief + policy + pending-choice ledger."""
 
     def __init__(self, db, bank, training_id: str, code: str,
-                 seg_ids, restrict_ks=None, alloc="greedy"):
+                 seg_ids, restrict_ks=None, alloc="greedy",
+                 percentile_runtime=None, percentile_profile=None):
         np, MixedBelief, Registry, LETrainerPolicy = _engine()
         self.np = np
         self.alloc = alloc
@@ -180,6 +180,8 @@ class EngineSession:
         # greedy sittings are unchanged (share_cap=None)
         self.share_cap = SHARE_CAP if alloc == "thompson" else None
         self.training_id, self.code = training_id, code
+        self.percentile_runtime = percentile_runtime
+        self.percentile_profile = percentile_profile
         codes = list(bank.engine["taskCodes"])
         self.codes = codes
         art = json.loads(ARTIFACT_PATH.read_text())["artifact"]
@@ -259,6 +261,7 @@ class EngineSession:
         self._retention = {r["domain"]: dict(r)
                            for r in db.get_retention(code)}
         self._n_served = 0
+        self._served_by_code = {c: 0 for c in self.codes}
         self._reviews_served = 0
         self._consec = [None, 0]      # [domain, run length]
         self._seed_belief(db)
@@ -330,6 +333,7 @@ class EngineSession:
                 self.policy.bel.update(item, int(r["pick"]))
             self.policy.served.add(int(r["seg_id"]))
             self._n_served += 1
+            self._served_by_code[self.codes[k]] += 1
             self.seq = max(self.seq, int(r["seq_in_session"] or 0) + 1)
 
     def _contract_belief(self, n: int) -> None:
@@ -511,8 +515,21 @@ class EngineSession:
         self._consec = [ch["task"],
                         run + 1 if hot == ch["task"] else 1]
         self._n_served += 1
+        self._served_by_code[ch["task"]] += 1
         self.seq += 1
         return ch
+
+    def _percentile_for(self, code, samples, weights):
+        """Best-effort reporting: a norm failure must never stop training."""
+        if self.percentile_profile is None \
+                or self.percentile_runtime is None \
+                or not self.percentile_runtime.ready:
+            return None
+        try:
+            return self.percentile_runtime.score_domain(
+                code, samples, weights)
+        except Exception:
+            return None
 
     def snapshot(self):
         np, w = self.np, self.policy.bel.w
@@ -527,8 +544,36 @@ class EngineSession:
                 skill=mu,
                 theta=float(-(w @ self.policy.bel.t[:, j])),  # engine coords
                 sd=sd, passMass=float(self.policy.pass_mass(c)),
-                trainability=float(self.policy.trainability(c))))
+                trainability=float(self.policy.trainability(c)),
+                percentile=self._percentile_for(c, e, w)))
         return out
+
+    def percentile_summary(self):
+        if self.percentile_profile is None:
+            return None
+        end = self.snapshot()
+        start = getattr(self, "start_snapshot", None)
+        if not isinstance(start, list):
+            return {
+                "status": "unavailable_engine_session",
+                "profile": self.percentile_profile,
+            }
+        domains = {}
+        for k, code in enumerate(self.codes):
+            before = start[k].get("percentile") if k < len(start) else None
+            after = end[k].get("percentile") if k < len(end) else None
+            if before is not None and after is not None:
+                domains[code] = {
+                    "start": before,
+                    "end": after,
+                    "items": int(self._served_by_code.get(code, 0)),
+                }
+        return {
+            "status": "available" if len(domains) == len(self.codes)
+            else "unavailable_runtime_error",
+            "profile": self.percentile_profile,
+            "domains": domains if len(domains) == len(self.codes) else None,
+        }
 
     def all_mastered(self) -> bool:
         codes = (self.restrict if self.restrict is not None
@@ -546,12 +591,25 @@ class EngineManager:
         self._lock = threading.Lock()
 
     def start(self, db, bank, training_id, code, seg_ids, restrict_ks,
-              alloc="greedy"):
+              alloc="greedy", percentile_runtime=None,
+              percentile_profile=None):
         with self._lock:
             es = EngineSession(db, bank, training_id, code, seg_ids,
-                               restrict_ks, alloc=alloc)
+                               restrict_ks, alloc=alloc,
+                               percentile_runtime=percentile_runtime,
+                               percentile_profile=percentile_profile)
+            row = db.get_training_session(training_id)
+            prior_start = None
+            if row and row.get("engine_meta"):
+                try:
+                    prior_start = json.loads(row["engine_meta"]).get(
+                        "startSnapshot")
+                except (TypeError, ValueError):
+                    prior_start = None
+            current_snapshot = es.snapshot()
+            es.start_snapshot = prior_start or current_snapshot
             self._sessions[training_id] = es
-            return es, es.next_item(), es.snapshot()
+            return es, es.next_item(), current_snapshot
 
     def record(self, training_id, seg_id, pick):
         with self._lock:
@@ -560,3 +618,12 @@ class EngineManager:
                 raise LookupError(training_id)
             es.record(seg_id, pick)
             return es, es.next_item(), es.snapshot()
+
+    def percentile_summary(self, training_id):
+        with self._lock:
+            es = self._sessions.get(training_id)
+            return es.percentile_summary() if es is not None else None
+
+
+# One cache shared by both the engine routes and the training finalizer.
+MANAGER = EngineManager()

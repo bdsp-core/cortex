@@ -1,4 +1,5 @@
 import type { CertResult } from "../../api";
+import type { PercentileDomainScore } from "../../percentile/types";
 
 export const TASK_ORDER = ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"] as const;
 
@@ -33,9 +34,9 @@ export function verdictPresentation(verdict: string): VerdictPresentation {
     case "FAIL": return { cls: "fail", text: "Fail" };
     case "REFER_BORDERLINE": return { cls: "referb", text: "Refer · borderline" };
     case "REFER_UNINFORMATIVE": return { cls: "referu", text: "Refer · uninformative" };
-    case "ABOVE_CUT": return { cls: "pass", text: "Above cut" };
-    case "BELOW_CUT": return { cls: "fail", text: "Below cut" };
-    case "INDETERMINATE_AT_CUT": return { cls: "referb", text: "Indeterminate at cut" };
+    case "ABOVE_CUT": return { cls: "pass", text: "At Expert" };
+    case "BELOW_CUT": return { cls: "fail", text: "Below Expert" };
+    case "INDETERMINATE_AT_CUT": return { cls: "referb", text: "Indeterminate" };
     case "UNDETERMINABLE_CAP": return { cls: "referu", text: "Insufficient precision · cap" };
     case "UNDETERMINABLE_BANK": return { cls: "referu", text: "Insufficient precision · bank" };
     case "IN_TRAINING": return { cls: "train", text: "In training" };
@@ -56,6 +57,28 @@ export function verdictsOf(result: CertResult): string[] {
 export function aurocOf(result: CertResult, taskK: number): number | null {
   const value = result.roc?.[taskK]?.auroc;
   return typeof value === "number" ? value : null;
+}
+
+export function percentileOf(
+  result: CertResult, taskCode: string,
+): PercentileDomainScore | null {
+  const report = result.percentile;
+  if (report?.status !== "available" || !report.profile.display) return null;
+  return report.domains?.[taskCode as keyof typeof report.domains] ?? null;
+}
+
+export function formatPercentile(value: number): string {
+  if (value < 5) return "<5th";
+  if (value > 95) return ">95th";
+  const n = Math.round(value), mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th"
+    : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd"
+      : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
+export function formatPercentileRange(lower: number, upper: number): string {
+  return `${formatPercentile(lower)}–${formatPercentile(upper)}`;
 }
 
 export function formatAssessmentDate(iso: string | null): string {

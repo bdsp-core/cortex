@@ -11,6 +11,10 @@ trainer. The phase markers below preserve the adoption decision and validation
 record; they are not a second deployment checklist. Runtime ownership and
 focused verification commands are maintained in `../README.md` and
 `../../../docs/LIVE_TRAINER.md`.
+The 2026-07-22 host overlay is native n-way practice mode with Thompson domain
+allocation and a 0.34 exposure-share cap; it is documented in
+`../../docs/PRODUCTION_BASELINE.md`. Those serving controls do not refit the
+artifact or alter the certification engine.
 This document details what must be accomplished to (1) keep that
 cohesion intact, (2) measurably improve on the incumbent, (3) be
 acceptable to the current testing/learning implementation, and (4) stay

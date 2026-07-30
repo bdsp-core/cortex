@@ -6,7 +6,10 @@ import {
   TASK_ORDER,
   VerdictChip,
   aurocOf,
+  formatPercentile,
+  formatPercentileRange,
   formatAssessmentDate,
+  percentileOf,
   verdictPresentation,
   verdictsOf,
 } from "../dashboard/verdict";
@@ -91,11 +94,23 @@ export function HistorySurface() {
                     <div className="cx-hist-grid">
                       {verdicts.map((verdict, taskK) => {
                         const auroc = aurocOf(session.result, taskK);
+                        const percentile = percentileOf(
+                          session.result, TASK_ORDER[taskK] ?? "",
+                        );
                         return (
                           <div key={taskK} className="cx-hist-cell">
                             <span className="tk">
                               {FULL_NAMES[TASK_ORDER[taskK]] ? TASK_ORDER[taskK] : `task ${taskK}`}
                               {auroc !== null && <span className="au">AUROC {auroc.toFixed(2)}</span>}
+                              {percentile !== null && (
+                                <span className="au">
+                                  historical percentile{" "}
+                                  {formatPercentile(percentile.estimate)} · 95%{" "}
+                                  {formatPercentileRange(
+                                    percentile.lower, percentile.upper,
+                                  )}
+                                </span>
+                              )}
                             </span>
                             <VerdictChip verdict={verdict} />
                           </div>

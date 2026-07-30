@@ -4,6 +4,13 @@ The production adaptive trainer is the server-side learning engine vendored at
 `cortex_web/learning-engine-cleaned/`. It supersedes the retired root-level
 prototype and Python port.
 
+The verified non-secret production settings and release identity are recorded
+in [`../cortex_web/docs/PRODUCTION_BASELINE.md`](../cortex_web/docs/PRODUCTION_BASELINE.md).
+At the 2026-07-22 snapshot, training and the server engine are available to all
+accounts, native n-way serving is on, practice-mode `ALPHA=0` is in effect, and
+the allocator is Thompson with a 0.34 per-domain exposure-share cap. These are
+serving controls, not certification-policy inputs.
+
 ## Runtime ownership
 
 - Model and session engine: `cortex_web/learning-engine-cleaned/learning_engine/`
@@ -15,12 +22,21 @@ prototype and Python port.
 - Browser adapter: `cortex_web/apps/web/trainer/serverSession.ts`
 - Browser orchestration: `cortex_web/apps/web/src/trainingSetup.ts` and
   `cortex_web/apps/web/src/trainingController.ts`
+- Shared waveform display pipeline:
+  `cortex_web/apps/web/src/features/eeg/useEegDisplay.ts`
 
 The browser does not run a fallback learning model. It requests the next item
 from the authenticated server trainer, submits the response, and renders the
 returned posterior snapshot. The server loads the frozen artifact, reconstructs
 the learner belief from the certification and training ledgers, and supports
-native n-way training.
+native n-way training. Training, spike-exam, and IIIC-exam waveforms share one
+tested montage/filter pipeline; display filtering never enters the trainer or
+certification belief state.
+
+Known telemetry boundary: the browser's persisted trajectory point is built
+from the snapshot visible at answer time and trails the server's post-answer
+belief by one update. The next question is still selected from the updated
+server state; only the displayed/history trajectory lags.
 
 ## Reviewer entry points
 
@@ -50,7 +66,7 @@ the modular reviewer surface, not a second deployed entry point.
 
 ```bash
 cd cortex_web/services/api
-../../../.venv/bin/python -m pytest -q \
+../../.venv/bin/python -m pytest -q \
   ../../learning-engine-cleaned/tests/test_package_smoke.py \
   test_engine_trainer.py
 

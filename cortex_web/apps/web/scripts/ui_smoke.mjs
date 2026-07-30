@@ -181,6 +181,64 @@ try {
   if (after <= before) throw new Error(`counter did not advance (${before} → ${after})`);
   log(`answered IIIC via keyboard: question ${before} → ${after} ✓`);
 
+  // Optional percentile qualification: finish the tiny-bank assessment in a
+  // real browser and verify the end-to-end artifact fetch/hash/score/ingest/UI
+  // path. The normal smoke remains short; the release gate enables this with
+  // CORTEX_SMOKE_EXPECT_PERCENTILE=1 and a public local rollout stamp.
+  if (process.env.CORTEX_SMOKE_EXPECT_PERCENTILE === "1") {
+    let complete = false;
+    for (let i = 0; i < 120 && !complete; i++) {
+      complete = await page.getByText("Assessment Complete").isVisible()
+        .catch(() => false);
+      if (complete) break;
+      if (await page.getByText("Something went wrong").isVisible().catch(() => false)) {
+        throw new Error("assessment entered the error screen before percentile results");
+      }
+      const spike = await page.getByRole("button", { name: /^(?:1 · )?Spike$/i })
+        .isVisible().catch(() => false);
+      const seizure = await page.getByRole("button", { name: /Seizure/ })
+        .isVisible().catch(() => false);
+      if (spike || seizure) await page.keyboard.press(String((i % 6) + 1));
+      await page.waitForTimeout(350);
+    }
+    await page.getByText("Assessment Complete").waitFor({ timeout: 30000 });
+    const disclosure = await page.getByText(
+      /This preview compares you with quality-screened historical calibration records/,
+    ).count();
+    if (disclosure !== 0) {
+      throw new Error(`expected no assessment-complete percentile disclaimer, got ${disclosure}`);
+    }
+    const ranges = await page.getByText(/Approximate 95% range/).count();
+    if (ranges !== 7) throw new Error(`expected seven percentile ranges, got ${ranges}`);
+    const body = await page.locator("body").innerText();
+    if (/\b(?:0th|100th) percentile\b/.test(body)) {
+      throw new Error("provisional tail suppression exposed a 0th/100th percentile");
+    }
+    await page.getByRole("button", { name: "Return to dashboard" }).click();
+    await page.getByRole("heading", { name: /Mastery/ }).waitFor({ timeout: 15000 });
+    const dashboardDisclosure = await page.getByText(
+      /This preview compares you with quality-screened historical calibration records/,
+    ).count();
+    if (dashboardDisclosure !== 0) {
+      throw new Error(`expected no dashboard percentile disclaimer, got ${dashboardDisclosure}`);
+    }
+    const dashboardScores = await page
+      .getByRole("region", { name: "Per-task mastery grid" })
+      .getByText(/historical percentile/)
+      .count();
+    if (dashboardScores !== 7) {
+      throw new Error(`expected seven dashboard percentile scores, got ${dashboardScores}`);
+    }
+    const dashboardAurocs = await page
+      .getByRole("region", { name: "Per-task mastery grid" })
+      .getByText(/^AUROC /)
+      .count();
+    if (dashboardAurocs !== 7) {
+      throw new Error(`expected seven dashboard AUROC scores, got ${dashboardAurocs}`);
+    }
+    log("percentile artifact → score → ingest → seven-domain percentile and AUROC display ✓");
+  }
+
   console.log("UI SMOKE: PASS");
   await browser.close();
   process.exit(0);

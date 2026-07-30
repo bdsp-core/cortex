@@ -12,11 +12,13 @@ import re
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
-from . import awards, dashboard_logic, digest, helpers, reporting, security
+from . import (awards, client_error_digest, client_error_policy,
+               dashboard_logic, digest, helpers, reporting, security)
 from .app import create_app
 from .db import Database
 from .routers import dashboard as dashboard_router
@@ -346,6 +348,8 @@ def test_client_error_telemetry_logged_and_rate_limited(client, capfd):
     out = capfd.readouterr().err
     assert "[cortex.clienterr]" in out and "TypeError: x is undefined" in out
     assert "at a | at b" in out           # newlines collapse to one line
+    assert "auth=0" in out and "fp=" in out and "request_fp=" in out
+    assert "ua='Other Other'" in out       # never logs the raw body UA
     # over-limit posts 429 (bucket: 10/h/IP; one already spent above)
     for _ in range(9):
         assert client.post("/api/client-error", json=body).status_code == 200
@@ -355,39 +359,67 @@ def test_client_error_telemetry_logged_and_rate_limited(client, capfd):
                        json={"message": "x" * 501}).status_code == 422
 
 
-def test_ops_alerter_emails_with_per_kind_cooldown(monkeypatch):
+def test_ops_alerter_cooldown_persists_across_restart(tmp_path, monkeypatch):
     from . import ops_alerts
     sent = []
     monkeypatch.setattr(ops_alerts.mailer, "send_email",
                         lambda to, subject, body, reply_to=None:
                         sent.append((to, subject, body)))
-    a = ops_alerts.OpsAlerter("ops@example.test", cooldown_s=3600)
-    t = a.notify("server-error", "boom 1")
+    db = Database(tmp_path / "ops.db")
+    a = ops_alerts.OpsAlerter(
+        "ops@example.test", db, cooldown_s=3600)
+    t = a.notify("server-error", "boom 1", now_s=10_000)
     assert t is not None
     t.join(5)
-    # same kind inside the cooldown → suppressed, counted
-    assert a.notify("server-error", "boom 2") is None
-    assert a.notify("server-error", "boom 3") is None
+    # Reopen the DB and reconstruct the alerter as a service restart would:
+    # the cooldown and accumulated count must remain closed and durable.
+    db.close()
+    db = Database(tmp_path / "ops.db")
+    restarted = ops_alerts.OpsAlerter(
+        "ops@example.test", db, cooldown_s=3600)
+    assert restarted.notify("server-error", "boom 2", now_s=10_010) is None
+    assert restarted.notify("server-error", "boom 3", now_s=10_020) is None
     # a different kind has its own bucket
-    t2 = a.notify("client-error", "spa crash")
+    t2 = restarted.notify(
+        "client-error-authenticated", "spa crash", now_s=10_020)
     assert t2 is not None
     t2.join(5)
     assert len(sent) == 2
     assert sent[0][0] == "ops@example.test"
     assert "server-error" in sent[0][1] and "boom 1" in sent[0][2]
-    assert "client-error" in sent[1][1]
+    assert "client-error-authenticated" in sent[1][1]
     # cooldown lapse → next email carries the suppressed count
-    a._last_sent["server-error"] -= 7200
-    t3 = a.notify("server-error", "boom 4")
+    t3 = restarted.notify("server-error", "boom 4", now_s=14_000)
     assert t3 is not None
     t3.join(5)
     assert "+2 earlier server-error" in sent[2][2]
     # empty destination disables alerting entirely
-    off = ops_alerts.OpsAlerter("", cooldown_s=1)
+    off = ops_alerts.OpsAlerter("", db, cooldown_s=1)
     assert off.notify("server-error", "x") is None
+    db.close()
 
 
-def test_client_error_feeds_ops_alerter(client, monkeypatch):
+def test_ops_alerter_retains_emergency_cooldown_when_db_is_down(monkeypatch):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(
+        ops_alerts.mailer, "send_email",
+        lambda to, subject, body, reply_to=None: sent.append(subject))
+
+    class BrokenDB:
+        def claim_ops_alert(self, *args):
+            raise RuntimeError("database down")
+
+    alerts = ops_alerts.OpsAlerter(
+        "ops@example.test", BrokenDB(), cooldown_s=3600)
+    thread = alerts.notify("server-error", "first", now_s=10_000)
+    assert thread is not None
+    thread.join(5)
+    assert alerts.notify("server-error", "repeat", now_s=10_010) is None
+    assert sent == ["[cortex ops] server-error"]
+
+
+def test_anonymous_client_error_never_feeds_immediate_alerter(client, monkeypatch):
     from . import ops_alerts
     sent = []
     monkeypatch.setattr(ops_alerts.mailer, "send_email",
@@ -397,10 +429,188 @@ def test_client_error_feeds_ops_alerter(client, monkeypatch):
                     json={"message": "ReferenceError: y", "stack": "at z",
                           "url": "/train", "surface": "desktop", "ua": "t"})
     assert r.status_code == 200
+    assert client.app.state.alerts.last_send_thread is None
+    assert sent == []
+
+
+def test_forged_client_error_bearer_is_still_anonymous(client, monkeypatch):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda *args, **kwargs: sent.append(args))
+    r = client.post(
+        "/api/client-error",
+        headers={"Authorization": "Bearer attacker-controlled"},
+        json={"message": "public input", "stack": "at app", "url": "/"})
+    assert r.status_code == 200
+    assert client.app.state.alerts.last_send_thread is None
+    assert sent == []
+
+
+def test_public_client_error_policy_failure_cannot_become_server_alert(
+        client, monkeypatch, capfd):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda *args, **kwargs: sent.append(args))
+
+    def _fail(_observation):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(
+        client.app.state.client_error_policy, "admit_and_record", _fail)
+    r = client.post("/api/client-error", json={
+        "message": "anonymous during outage", "stack": "at app", "url": "/"})
+    assert r.status_code == 200
+    assert r.json()["accepted"] is False
+    assert "dropped=policy-unavailable" in capfd.readouterr().err
+    assert client.app.state.alerts.last_send_thread is None
+    assert sent == []
+
+
+def test_authenticated_application_error_feeds_ops_alerter(client, monkeypatch):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda to, subject, body, reply_to=None:
+                        sent.append(subject))
+    email, password = _make_participant(client)
+    headers = _auth_header(client, email, password)
+    r = client.post(
+        "/api/client-error", headers=headers,
+        json={"message": "ReferenceError: authenticated", "stack": "at app",
+              "url": "/dashboard?secret=no", "surface": "desktop"})
+    assert r.status_code == 200
     t = client.app.state.alerts.last_send_thread
     assert t is not None
     t.join(5)
-    assert any("client-error" in s for s in sent)
+    assert sent == ["[cortex ops] client-error-authenticated"]
+
+
+def test_injected_dom_signature_is_normalized_and_never_immediate(
+        client, monkeypatch, capfd):
+    from . import ops_alerts
+    sent = []
+    monkeypatch.setattr(ops_alerts.mailer, "send_email",
+                        lambda *args, **kwargs: sent.append(args))
+    email, password = _make_participant(client)
+    headers = _auth_header(client, email, password)
+    message = (
+        "Converting circular structure to JSON\n"
+        " --> starting at object with constructor 'HTMLAnchorElement'\n"
+        " | property '__reactFiber$zdyvk74use8' -> object\n"
+        " --- property 'stateNode' closes the circle")
+    stack = "at JSON.stringify (<anonymous>)\nat appendChild (<anonymous>)"
+    r = client.post("/api/client-error", headers=headers, json={
+        "message": message, "stack": stack, "url": "/", "surface": "desktop"})
+    assert r.status_code == 200
+    out = capfd.readouterr().err
+    assert "class=injected-dom" in out
+    assert "__reactFiber$<id>" in out
+    assert "zdyvk74use8" not in out
+    assert client.app.state.alerts.last_send_thread is None
+    assert sent == []
+
+
+def test_client_error_fingerprint_and_limits_persist(tmp_path, monkeypatch):
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "telemetry-test-secret")
+    monkeypatch.setenv("CORTEX_CLIENT_ERROR_GLOBAL_LIMIT", "10")
+    monkeypatch.setenv("CORTEX_CLIENT_ERROR_FINGERPRINT_LIMIT", "1")
+    db = Database(tmp_path / "telemetry.db")
+    app = SimpleNamespace(state=SimpleNamespace(db=db))
+    request = SimpleNamespace(
+        app=app,
+        headers={
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/146.0.0.0",
+            "origin": "https://app.cortexeeg.org",
+            "host": "app.cortexeeg.org",
+            "sec-fetch-site": "same-origin",
+        })
+    base = (
+        "Converting circular structure to JSON "
+        "starting at object with constructor 'HTMLAnchorElement' "
+        "property '__reactFiber${token}' -> object "
+        "property 'stateNode' closes the circle")
+    stack = "at JSON.stringify (<anonymous>)\nat appendChild (<anonymous>)"
+    first = client_error_policy.ClientErrorIn(
+        message=base.format(token="abc123"), stack=stack, url="/?private=1")
+    second = client_error_policy.ClientErrorIn(
+        message=base.format(token="xyz789"), stack=stack, url="/?private=2")
+    policy = client_error_policy.ClientErrorPolicy(db)
+    o1 = policy.observe(first, request, "203.0.113.44", now_s=20_000)
+    o2 = policy.observe(second, request, "203.0.113.44", now_s=20_001)
+    assert o1.fingerprint == o2.fingerprint
+    assert o1.url == "/"
+    assert o1.ua_family == "Chrome/146 Windows"
+    assert policy.admit_and_record(o1, now_s=20_000) is True
+    assert policy.admit_and_record(o2, now_s=20_001) is False
+    # Reopen the database as a restarted service would: the fingerprint
+    # budget, aggregate, and suppression counter remain durable.
+    db.close()
+    db = Database(tmp_path / "telemetry.db")
+    restarted = client_error_policy.ClientErrorPolicy(db)
+    assert restarted.admit_and_record(o2, now_s=20_002) is False
+    rows = db.client_error_digest_rows(o1.day)
+    assert rows[0]["count"] == 3
+    assert rows[0]["suppressed"] == 2
+    db.close()
+
+
+def test_client_error_global_budget_applies_across_fingerprints(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv("CORTEX_CLIENT_ERROR_GLOBAL_LIMIT", "1")
+    monkeypatch.setenv("CORTEX_CLIENT_ERROR_FINGERPRINT_LIMIT", "10")
+    db = Database(tmp_path / "global.db")
+    assert db.consume_client_error_budget("global:anonymous", 1, 3600, 30_000)
+    assert not db.consume_client_error_budget(
+        "global:anonymous", 1, 3600, 30_001)
+    assert db.consume_client_error_budget(
+        "global:authenticated", 1, 3600, 30_001)
+    # Distinct fingerprints have their own independent buckets, but cannot
+    # bypass the already-closed global one.
+    assert db.consume_client_error_budget("fingerprint:a", 10, 3600, 30_001)
+    assert db.consume_client_error_budget("fingerprint:b", 10, 3600, 30_001)
+    db.close()
+
+
+def test_anonymous_client_error_daily_digest_is_once_only_and_private(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "telemetry-test-secret")
+    db = Database(tmp_path / "digest.db")
+    app = SimpleNamespace(state=SimpleNamespace(db=db))
+    request = SimpleNamespace(
+        app=app,
+        headers={
+            "user-agent": "Mozilla/5.0 private detail Chrome/146.0.0.0 Windows",
+            "origin": "https://app.cortexeeg.org",
+            "host": "app.cortexeeg.org",
+            "sec-fetch-site": "same-origin",
+        })
+    event_s = calendar.timegm(time.strptime(
+        "2026-07-24T20:00:00", "%Y-%m-%dT%H:%M:%S"))
+    policy = client_error_policy.ClientErrorPolicy(db)
+    obs = policy.observe(
+        client_error_policy.ClientErrorIn(
+            message="ordinary anonymous crash", stack="at app", url="/privacy"),
+        request, "203.0.113.44", now_s=event_s)
+    assert policy.admit_and_record(obs, now_s=event_s)
+    sent = []
+    monkeypatch.setattr(
+        client_error_digest.mailer, "send_email",
+        lambda to, subject, body, reply_to=None: sent.append((subject, body)))
+    pass_s = calendar.timegm(time.strptime(
+        "2026-07-25T16:00:00", "%Y-%m-%dT%H:%M:%S"))
+    assert client_error_digest.run_client_error_digest(
+        db, now_s=pass_s, to_addr="ops@example.test") == 1
+    assert client_error_digest.run_client_error_digest(
+        db, now_s=pass_s, to_addr="ops@example.test") == 0
+    assert len(sent) == 1
+    assert "2026-07-24" in sent[0][0]
+    assert "203.0.113.44" not in sent[0][1]
+    assert "Mozilla/5.0" not in sent[0][1]
+    assert "https://app.cortexeeg.org" not in sent[0][1]
+    assert "Chrome/146 Windows" in sent[0][1]
+    db.close()
 
 
 def test_unhandled_exception_returns_clean_500_and_alerts(tmp_path, monkeypatch):

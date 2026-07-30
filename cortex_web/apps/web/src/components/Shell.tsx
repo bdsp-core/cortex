@@ -44,6 +44,8 @@ import {
   TASK_ORDER,
   VerdictChip as Chip,
   aurocOf,
+  formatPercentile,
+  formatPercentileRange,
   formatAssessmentDate as fmtDate,
   verdictPresentation as chipFor,
   verdictsOf,
@@ -115,6 +117,8 @@ interface TaskVM {
   theta: number | null;
   auroc: number | null;
   verdict: string;
+  percentile: api.PercentileDomainScore | null;
+  percentileProfile: api.PercentileProfile | null;
 }
 
 // Per-task trajectory series, grouped from the flat trajectory point list.
@@ -135,7 +139,9 @@ function buildTasks(d: api.DashboardData): TaskVM[] {
     const t = byCode.get(code);
     if (!t) {
       return { code, label: TASK_LABELS[code] ?? code, taskK: k,
-               ell: null, ellStar: null, theta: null, auroc: null, verdict: "NOT_ASSESSED" };
+               ell: null, ellStar: null, theta: null, auroc: null,
+               verdict: "NOT_ASSESSED", percentile: null,
+               percentileProfile: null };
     }
     return {
       code,
@@ -146,6 +152,8 @@ function buildTasks(d: api.DashboardData): TaskVM[] {
       theta: t.theta,
       auroc: t.auroc,
       verdict: t.verdict ?? "PENDING",
+      percentile: t.percentile,
+      percentileProfile: t.percentileProfile,
     };
   });
 }
@@ -495,9 +503,13 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                       </div>
                       <div className="foot">
                         <span className="auroc">
-                          {t.auroc != null
-                            ? <>AUROC <b>{t.auroc.toFixed(2)}</b></>
-                            : "not yet assessed"}
+                          {t.percentile != null && (
+                            <span>historical percentile <b>{formatPercentile(t.percentile.estimate)}</b></span>
+                          )}
+                          {t.auroc != null && (
+                            <span>AUROC <b>{t.auroc.toFixed(2)}</b></span>
+                          )}
+                          {t.percentile == null && t.auroc == null && <span>not yet assessed</span>}
                         </span>
                         {tr && tr.ell.length >= 2 && <Sparkline series={tr.ell} />}
                       </div>
@@ -506,7 +518,6 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                 })}
               </div>
             </section>
-
             {/* ── detail trajectory ── */}
             {hasData && sel && (
               <section className="cx-panel" aria-label="Skill trajectory detail">
@@ -537,6 +548,18 @@ function DashboardSurface({ onDrilldown, onStartTest }: { onDrilldown: (taskK: n
                         <span className="k">bias θ</span>
                       </div>
                       <div className="cx-metric"><span className="v">{sel.auroc != null ? sel.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
+                      <div className="cx-metric">
+                        <span className="v">{sel.percentile
+                          ? formatPercentile(sel.percentile.estimate) : "–"}</span>
+                        <span className="k">historical percentile</span>
+                        {sel.percentile && (
+                          <span className="k">approx. 95%{" "}
+                            {formatPercentileRange(
+                              sel.percentile.lower, sel.percentile.upper,
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -929,6 +952,18 @@ function DrilldownSurface({ taskK, onBack }: { taskK: number; onBack: () => void
                     <span className="k">bias θ</span>
                   </div>
                   <div className="cx-metric"><span className="v">{task.auroc != null ? task.auroc.toFixed(2) : "–"}</span><span className="k">AUROC</span></div>
+                  <div className="cx-metric">
+                    <span className="v">{task.percentile
+                      ? formatPercentile(task.percentile.estimate) : "–"}</span>
+                    <span className="k">historical percentile</span>
+                    {task.percentile && (
+                      <span className="k">approx. 95%{" "}
+                        {formatPercentileRange(
+                          task.percentile.lower, task.percentile.upper,
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -7,6 +7,27 @@ in `docs/README.md` and `cortex_web/docs/README.md`.
 
 ---
 
+## ▶ Production baseline refresh and release hygiene (2026-07-22)
+
+Release `e68d59b` is the current production standard. It retains the accepted
+`d7efd5a` certification latency/numerical path while adding behavior-preserving
+module boundaries, shared rollout matching, canonical schema/reporting/time
+helpers, generated cross-dialect upserts, dashboard request consolidation,
+consistent API validation errors, hot-path training indexes, runtime-only
+release packaging, explicit session-expiry UI, and reliable fresh-build smoke
+cleanup. The trainer now shares the tested EEG display pipeline with both exam
+viewers, fixing its previously bypassed default bandpass.
+
+The six exact low-effort latency commits ending at `d7efd5a` reuse invariant
+MH categorical terms, skip zero proposal terms, bulk-fill the unchanged
+Gaussian RNG stream, reuse worker history buffers, compact selector messages,
+and prefetch the rank-one media hint. No particle, policy, selector, stopping,
+or reporting invariant changed. The verified live configuration, latency-field
+interpretation, API surface, and rollback anchors are recorded in
+`cortex_web/docs/PRODUCTION_BASELINE.md`.
+
+---
+
 ## ▶ Native n-way production performance and wait-state UX (2026-07-21)
 
 The canonical web engine retained its 1,200-particle, ESS, 30-step MH,

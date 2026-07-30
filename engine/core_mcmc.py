@@ -816,7 +816,8 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
                             bank_signals=None,
                             Sigma_l=None, Sigma_t=None,
                             n_subsample=None, bank_sds=None,
-                            bank_segids=None, y_source=None):
+                            bank_segids=None, y_source=None,
+                            log_parameter_trajectory=False):
     """Session with MCMC-rejuvenation SMC + AUROC-based stopping (Mode-A).
 
     Multi-AUROC Precision Protocol (Paper 1, 2026-05-15):
@@ -876,6 +877,7 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
             bank_signals=bank_signals,
             select=("random" if method == "random" else "ev"),
             n_subsample=n_subsample,
+            log_parameter_trajectory=log_parameter_trajectory,
         )
 
     rng = np.random.default_rng(seed)
@@ -896,7 +898,13 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
         los, his = [lo.copy()], [hi.copy()]
     n_q = 0
     stop_step = None
+    stop_per_domain_n = None
     accept_rates = []
+    per_domain_n = np.zeros(K, dtype=int)
+    if log_parameter_trajectory:
+        t_mean_trajectory = [(state["w"][:, None] * state["t"]).sum(axis=0)]
+        l_mean_trajectory = [(state["w"][:, None] * state["l"]).sum(axis=0)]
+        per_domain_n_trajectory = [per_domain_n.copy()]
 
     for q in range(max_q):
         # Phase 7 sub-3-C: when `bank_segids` is provided, choose_item also
@@ -937,9 +945,14 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
             # y_source(k, seg_id, s) → int Y ∈ {0, 1}.
             y = int(y_source(k, seg_id, s))
         update(state, k, s, y, s_sd=s_sd)
+        per_domain_n[k] += 1
         if ess(state["w"]) < ess_threshold_frac * N:
             ar = resample_and_rejuvenate(state, rng, n_mh_steps, proposal_scale)
             accept_rates.append(ar)
+        if log_parameter_trajectory:
+            t_mean_trajectory.append((state["w"][:, None] * state["t"]).sum(axis=0))
+            l_mean_trajectory.append((state["w"][:, None] * state["l"]).sum(axis=0))
+            per_domain_n_trajectory.append(per_domain_n.copy())
         n_q += 1
         lo, hi = _auroc_ci(state, alpha)
         if log_trajectory:
@@ -949,6 +962,7 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
             hw = (hi - lo) / 2.0
             if np.max(hw) < delta_auroc:
                 stop_step = n_q
+                stop_per_domain_n = per_domain_n.copy()
                 if not run_until_max:
                     break
 
@@ -962,10 +976,16 @@ def run_session_mcmc_auroc(method, true_params, K, r_assumed,
         "n_rejuvenations": len(accept_rates),
         "delta_auroc": float(delta_auroc),
         "method": method,
+        "per_domain_n": (stop_per_domain_n if stop_per_domain_n is not None
+                         else per_domain_n),
     }
     if log_trajectory:
         out["lo_traj"] = np.array(los)
         out["hi_traj"] = np.array(his)
+    if log_parameter_trajectory:
+        out["t_mean_traj"] = np.asarray(t_mean_trajectory)
+        out["l_mean_traj"] = np.asarray(l_mean_trajectory)
+        out["per_domain_n_traj"] = np.asarray(per_domain_n_trajectory)
     return out
 
 

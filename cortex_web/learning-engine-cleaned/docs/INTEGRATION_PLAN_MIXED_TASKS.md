@@ -4,6 +4,11 @@ This package is the learning model used by the live server-side trainer. The
 older repository-root trainer prototype and its Python port were retired after
 the server-driven path became the sole trainer on 2026-07-17.
 
+The verified 2026-07-22 host posture uses native n-way serving, practice-mode
+`ALPHA=0`, Thompson domain allocation, and a 0.34 exposure-share cap. These are
+host serving settings, not frozen artifact fields; see
+[`../../docs/PRODUCTION_BASELINE.md`](../../docs/PRODUCTION_BASELINE.md).
+
 The active request path is:
 
 1. `cortex_web/apps/web/src/trainingSetup.ts` constructs a
@@ -24,7 +29,7 @@ focused integration checks are:
 
 ```bash
 cd cortex_web/services/api
-../../../.venv/bin/python -m pytest -q \
+../../.venv/bin/python -m pytest -q \
   ../../learning-engine-cleaned/tests/test_package_smoke.py \
   test_engine_trainer.py
 

@@ -13,6 +13,7 @@ import type {
   ComputeEngineInputs, EngineInputs, TrialDiag,
 } from "../../../engine";
 import { empiricalPoint, onCurvePoint } from "../../roc";
+import type { PercentileDomainScore } from "../../percentile/types";
 
 export interface RocDatum {
   auroc: number;
@@ -100,6 +101,7 @@ export interface PerTaskRecord {
   skillInterval: unknown;
   biasInterval: unknown;
   biasFlag: unknown;
+  percentile: PercentileDomainScore | null;
 }
 
 /**
@@ -120,6 +122,7 @@ export function buildPerTaskRecords(args: {
   skillIntervals?: unknown[];
   biasIntervals?: unknown[];
   biasFlags?: unknown[];
+  percentiles?: Record<string, PercentileDomainScore>;
 }): PerTaskRecord[] {
   const { inputs, lastDiag: d, sdPerTask, roc } = args;
   return (inputs.taskCodes ?? []).map((code, k) => ({
@@ -137,5 +140,6 @@ export function buildPerTaskRecords(args: {
     skillInterval: args.skillIntervals?.[k] ?? null,
     biasInterval: args.biasIntervals?.[k] ?? null,
     biasFlag: args.biasFlags?.[k] ?? null,
+    percentile: args.percentiles?.[code] ?? null,
   }));
 }

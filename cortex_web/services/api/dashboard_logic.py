@@ -83,7 +83,22 @@ def is_below_standard_verdict(value) -> bool:
     return str(value or "").upper() in {"FAIL", "BELOW_CUT"}
 
 
-def dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[dict]:
+def _visible_assessment_percentiles(result: dict) -> tuple[dict, dict | None]:
+    report = result.get("percentile")
+    if not isinstance(report, dict) or report.get("status") != "available":
+        return {}, None
+    profile = report.get("profile")
+    domains = report.get("domains")
+    if not isinstance(profile, dict) or not profile.get("display") \
+            or not isinstance(domains, dict):
+        return {}, None
+    return domains, profile
+
+
+def dashboard_tasks(
+    result: dict, latest_traj: Optional[dict] = None,
+    latest_training_percentiles: Optional[dict] = None,
+) -> list[dict]:
     """Per-task mastery summary derived from a real cert result. Reads the
     persisted `perTask` block (real ℓ/θ/ℓ*/AUROC + verdict) when present; for a
     legacy result (verdicts only) ℓ/ℓ*/AUROC come back None and just the verdict
@@ -94,6 +109,9 @@ def dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[di
     cert eval point (same value). ℓ* (the threshold), AUROC and verdict stay from
     the certification result."""
     latest_traj = latest_traj or {}
+    latest_training_percentiles = latest_training_percentiles or {}
+    assessment_percentiles, assessment_profile = \
+        _visible_assessment_percentiles(result)
     per = result.get("perTask")
     by_k: dict[int, dict] = {}
     if isinstance(per, list):
@@ -115,6 +133,17 @@ def dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[di
             if lt.get("theta") is not None:
                 theta = lt["theta"]
         if p is not None:
+            training_percentile = latest_training_percentiles.get(code)
+            percentile = (
+                training_percentile.get("score")
+                if isinstance(training_percentile, dict)
+                else assessment_percentiles.get(code)
+            )
+            percentile_profile = (
+                training_percentile.get("profile")
+                if isinstance(training_percentile, dict)
+                else assessment_profile
+            )
             out.append({
                 "taskK": k,
                 "code": p.get("code") or code,
@@ -124,12 +153,16 @@ def dashboard_tasks(result: dict, latest_traj: Optional[dict] = None) -> list[di
                 "theta": theta,
                 "auroc": p.get("auroc"),
                 "verdict": p.get("verdict") or legacy_verdict,
+                "percentile": percentile,
+                "percentileProfile": percentile_profile,
             })
         else:
             out.append({
                 "taskK": k, "code": code, "label": label,
                 "ell": ell, "ellStar": None, "theta": theta, "auroc": None,
                 "verdict": legacy_verdict,
+                "percentile": assessment_percentiles.get(code),
+                "percentileProfile": assessment_profile,
             })
     return out
 

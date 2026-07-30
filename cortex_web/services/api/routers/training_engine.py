@@ -1,8 +1,8 @@
 """Engine-trainer endpoints (Phase L3): the vendored learning engine as the
 server-side training decision-maker. Pure decision surface — the per-trial
 ledger keeps its single writer (the client checkpoint outbox). Gated by
-CORTEX_TRAINER_ENGINE (off|cohort|all; default off — the incumbent
-client-side trainer remains the production posture until promotion)."""
+CORTEX_TRAINER_ENGINE (off|cohort|all; default all). The browser has no local
+model fallback; an off gate rejects engine starts."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import engine_trainer
@@ -10,9 +10,6 @@ from ..deps import require_auth
 from ..models import EngineRecordIn, EngineStartIn
 
 router = APIRouter(prefix="/api")
-
-_manager = engine_trainer.EngineManager()
-
 
 def _gate(req: Request, code: str):
     cfg = req.app.state.cfg
@@ -43,20 +40,36 @@ def engine_start(body: EngineStartIn, req: Request,
         engine_trainer._engine()
     except ImportError as e:
         raise HTTPException(503, f"engine numeric stack unavailable: {e}")
-    # D62: allocation mode for THIS participant — greedy (validated
-    # default) for everyone, thompson only for the pilot allowlist.
+    # D62: allocation mode for THIS participant. Code defaults to greedy;
+    # production may set thompson globally or through the allowlist.
     alloc = engine_trainer.alloc_for(
         req.app.state.cfg, code, req.app.state.db.get_participant(code))
-    es, item, snap = _manager.start(
+    training_row = req.app.state.db.get_training_session(body.trainingId)
+    percentile_profile = None
+    if training_row and training_row.get("norm_profile"):
+        try:
+            import json
+            percentile_profile = json.loads(training_row["norm_profile"])
+        except (TypeError, ValueError):
+            raise HTTPException(409, "stored percentile profile is invalid")
+        if not req.app.state.percentile_runtime.profile_matches(
+            percentile_profile
+        ):
+            raise HTTPException(409, "percentile runtime does not match "
+                                    "training session stamp")
+    es, item, snap = engine_trainer.MANAGER.start(
         req.app.state.db, bank, body.trainingId, code,
-        body.segIds, body.restrictTaskKs, alloc=alloc)
+        body.segIds, body.restrictTaskKs, alloc=alloc,
+        percentile_runtime=req.app.state.percentile_runtime,
+        percentile_profile=percentile_profile)
     # L4: sitting-level engine metadata lands in the ledger (server-side
     # writer) so analyses never re-derive it from HTTP logs.
     req.app.state.db.set_training_engine_meta(body.trainingId, dict(
         seeded=es.n_seeded, seedUnique=es.seed_unique,
         attainability=es.attain0, alpha=engine_trainer.ALPHA,
         nway=engine_trainer.NWAY, artifact="nway_dynamics_v1_1",
-        alloc=es.alloc, shareCap=es.share_cap))
+        alloc=es.alloc, shareCap=es.share_cap,
+        startSnapshot=es.start_snapshot))
     return {"item": item, "snapshot": snap,
             "allMastered": es.all_mastered(), "seeded": es.n_seeded,
             "rebuiltSeq": es.seq,
@@ -76,8 +89,8 @@ def engine_record(body: EngineRecordIn, req: Request,
     _gate(req, code)
     _own(req, body.trainingId, code)
     try:
-        es, item, snap = _manager.record(body.trainingId, body.segId,
-                                         body.pick)
+        es, item, snap = engine_trainer.MANAGER.record(
+            body.trainingId, body.segId, body.pick)
     except LookupError:
         raise HTTPException(409, "engine session not started "
                                  "(POST /api/training-engine/start first)")
