@@ -327,4 +327,11 @@ export interface TrialDiag {
   guardedPrecisionStatistic?: number[];
   skillTolerance?: number[];
   lastRejuvenation?: RejuvenationTelemetry;
+  // Distractor-misspecification CUSUM after this trial (n-way sessions only).
+  distractorMonitor?: {
+    statistic: number;
+    tripped: boolean;
+    wrongPicks: number;
+    trippedAt: number | null;
+  };
 }

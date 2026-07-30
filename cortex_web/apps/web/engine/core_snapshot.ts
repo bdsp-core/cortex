@@ -1,4 +1,7 @@
 import type { SessionCore } from "./advance";
+import {
+  type DistractorMonitorState, cloneDistractorMonitor,
+} from "./misspec_monitor";
 import { AD6Policy, type PolicySnapshot } from "./policy";
 import { PrecisionPolicy } from "./precision_policy";
 import { Rng, type RngSnapshot } from "./rng";
@@ -30,6 +33,8 @@ export interface SessionCoreSnapshot {
   lastOutcomes: string[];
   lastTaskK: number;
   streakCount: number;
+  // Optional so pre-monitor snapshots restore unchanged.
+  distractorMonitor?: DistractorMonitorState;
 }
 
 export function snapshotCore(core: SessionCore): SessionCoreSnapshot {
@@ -58,6 +63,9 @@ export function snapshotCore(core: SessionCore): SessionCoreSnapshot {
     lastOutcomes: core.lastOutcomes.slice(),
     lastTaskK: core.lastTaskK,
     streakCount: core.streakCount,
+    ...(core.distractorMonitor
+      ? { distractorMonitor: cloneDistractorMonitor(core.distractorMonitor) }
+      : {}),
   };
 }
 
@@ -106,6 +114,9 @@ export function restoreCore(
     lastOutcomes: snapshot.lastOutcomes.slice(),
     lastTaskK: snapshot.lastTaskK,
     streakCount: snapshot.streakCount,
+    ...(snapshot.distractorMonitor
+      ? { distractorMonitor: cloneDistractorMonitor(snapshot.distractorMonitor) }
+      : {}),
   };
 }
 

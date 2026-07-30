@@ -24,6 +24,11 @@ import {
 import { makeResponseObservation } from "./nway_likelihood";
 import { isNWaySession } from "./nway_profile";
 import {
+  DistractorMonitorState, binaryReduction, cloneDistractorMonitor,
+  makeDistractorMonitor, monitorIncrement, observeDistractorMonitor,
+  rebuildBinaryReducedHistory,
+} from "./misspec_monitor";
+import {
   chooseFirstNWayItem, chooseFirstNWayItemWithExecutor,
   chooseNWayItem, chooseNWayItemWithExecutor,
 } from "./nway_selector";
@@ -52,6 +57,9 @@ export interface SessionCore {
   lastOutcomes: string[];
   lastTaskK: number;
   streakCount: number;
+  // Distractor-misspecification CUSUM (n-way sessions only). Lazily created on
+  // the first categorical wrong pick so pre-monitor snapshots restore cleanly.
+  distractorMonitor?: DistractorMonitorState;
 }
 
 // Engine constants + per-session derived values, passed in so this module never
@@ -132,7 +140,33 @@ export function cloneCore(c: SessionCore): SessionCore {
     lastOutcomes: c.lastOutcomes.slice(),
     lastTaskK: c.lastTaskK,
     streakCount: c.streakCount,
+    ...(c.distractorMonitor
+      ? { distractorMonitor: cloneDistractorMonitor(c.distractorMonitor) }
+      : {}),
   };
+}
+
+// Feed the distractor monitor and fail closed to binary evidence once it
+// trips: the trip transition importance-reweights the cloud onto the
+// binary-reduced history (past categorical evidence is suspect too), and every
+// later categorical observation is reduced to its asked-class margin before it
+// reaches the posterior. Deterministic given the pick sequence, so speculative
+// clones and server replays reconstruct the identical trip point.
+function monitoredResponse(
+  core: SessionCore, response: ReturnType<typeof makeResponseObservation> | {
+    kind: "binary"; k: number; s: number; sSd: number; y: 0 | 1; rawPick: number;
+  },
+) {
+  if (response.kind !== "categorical_f1") return response;
+  const monitor = core.distractorMonitor ??= makeDistractorMonitor();
+  if (!monitor.tripped && response.pickK !== response.askedK) {
+    observeDistractorMonitor(
+      monitor,
+      monitorIncrement(response.askedK, response.pickK, response.sMean),
+    );
+    if (monitor.tripped) rebuildBinaryReducedHistory(core.state);
+  }
+  return monitor.tripped ? binaryReduction(response) : response;
 }
 
 // Per-task candidate arrays over the remaining (unserved) bank. A segment only
@@ -421,7 +455,7 @@ export function advanceCore(
         kind: "binary" as const, k: chosen.k, s: chosen.s, sSd: chosen.sSd,
         y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
       };
-  updateObservation(state, response, phaseV2.particle);
+  updateObservation(state, monitoredResponse(core, response), phaseV2.particle);
   const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
   const updatedAt = performance.now();
   let rejuv = false;
@@ -489,6 +523,9 @@ export function advanceCore(
     ...(res.terminalReasons ? { terminalReasons: res.terminalReasons } : {}),
     ...(res.streakCounts ? { precisionStreakCounts: res.streakCounts } : {}),
     ...(state.lastRejuvenation ? { lastRejuvenation: { ...state.lastRejuvenation } } : {}),
+    ...(core.distractorMonitor
+      ? { distractorMonitor: { ...core.distractorMonitor } }
+      : {}),
   };
   const pd = res.diagnostics as PrecisionDiagnostics | undefined;
   if (pd) {

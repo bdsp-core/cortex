@@ -1,8 +1,10 @@
 # Distractor-misspecification monitor — design
 
-Status: **isolated design + Python reference implementation; not
-production-integrated**. The TypeScript engine port is a separate,
-explicitly authorized production change.
+Status: Python reference implementation plus the owner-authorized
+TypeScript engine port (2026-07-30,
+`cortex_web/apps/web/engine/misspec_monitor.ts` — parity-tested against
+this reference). Serving it in production remains gated by the fail-closed
+server rollout spec.
 
 ## Why this exists
 
