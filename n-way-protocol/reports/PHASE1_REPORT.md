@@ -100,9 +100,21 @@ continue binary-only; raw picks stay auditable. Floored artifacts bound the
 increment below by `log(floor)`, which is what makes threshold calibration
 stable — floor and monitor are complements.
 
-Operating characteristics (2,000 sessions × 90 wrong-picks, 1% false-trip
-target, real axes): PENDING — runs in flight
-(`reports/misspec_monitor_oc_*.json`).
+Operating characteristics (2,000 sessions × 90 wrong-picks, 1% per-session
+false-trip target, real axes; `reports/misspec_monitor_oc_*.json`):
+
+| deployed artifact | threshold | uniform (N3b) trip rate | median picks to trip | half-drift-λ trip | half-drift-β trip |
+|---|---|---|---|---|---|
+| unfloored | 7.41 | 100% | 14 | 79% @ 38 | 72% @ 41 |
+| floor 0.15 | 5.21 | 100% | 14 | 71% @ 38 | 63% @ 42 |
+| floor 0.20 | 4.51 | 100% | 13 | 71% @ 38 | 64% @ 41 |
+
+Under total collapse the monitor trips every session, at a median of ~14
+wrong-picks — with binary-replay trip semantics the damage window is small
+and self-erasing. The floor's only monitoring cost is mildly reduced
+sensitivity to *partial* drift (which is also far less damaging). Combined
+with A3: floor bounds damage per update, monitor bounds duration, binary
+replay erases the window — the three-layer design holds.
 
 ## Gate C1 — tier-stratified leakage-controlled refit (PENDING — queued behind A3)
 
