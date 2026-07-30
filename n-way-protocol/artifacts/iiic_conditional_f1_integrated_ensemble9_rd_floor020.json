@@ -1,0 +1,63 @@
+{
+  "artifactId": "iiic-f1-crossfit-ensemble9-rd-20260720-floor020",
+  "binaryLapse": 0.025,
+  "draws": [
+    {
+      "beta": 0.8722308125877214,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.95165593450824,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.9765851716341936,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 0.9945610869560302,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0173203953763694,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0418629877991512,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0637853303885672,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.0915479400184864,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    },
+    {
+      "beta": 1.1945942284733333,
+      "distractorLapse": 0.2,
+      "weight": 0.1111111111111111
+    }
+  ],
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "promotionForbidden": true,
+  "provenance": {
+    "dr07": "not_qualified",
+    "fitSplit": "nine deterministic beta-order quantiles; sha256 stamps canonical draws array",
+    "flooredFrom": "iiic_conditional_f1_integrated_ensemble9_rd.json (draws SHA-256 0654fc210e67ece152dcaef6b40641fc9c94cb259d100ed3829d90224bc5ef8b)",
+    "source": "artifacts/iiic_conditional_f1_crossfit_rd.json (SHA-256 7c2d5b30ff81bfec1c96e3ccbf337c54a22f9052d97197595296a0af288b3069)"
+  },
+  "qualification": "exploratory_unqualified",
+  "robustnessFloor": 0.2,
+  "schemaVersion": 1,
+  "sha256": "3addd634d5e89ff499b9df95a1bd715f2b05a4bafafe4a7f60bd90912695f3ef"
+}
