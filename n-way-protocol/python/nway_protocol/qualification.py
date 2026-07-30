@@ -333,16 +333,33 @@ def summarize(results: list[ReplicateResult], config: QualificationConfig) -> di
     }
 
 
-def run_parallel(config: QualificationConfig, workers: int | None = None) -> dict:
+DEFAULT_SEED_BASE = 62_100_000
+
+
+def run_rows(
+    config: QualificationConfig,
+    workers: int | None = None,
+    seed_base: int = DEFAULT_SEED_BASE,
+) -> tuple[list[ReplicateResult], int]:
     workers = workers or recommended_workers(config.replicates, config.particles)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         paired = list(executor.map(
             run_replicate,
-            range(62_100_000, 62_100_000 + config.replicates),
+            range(seed_base, seed_base + config.replicates),
             [config] * config.replicates,
         ))
-    summary = summarize([row for pair in paired for row in pair], config)
+    return [row for pair in paired for row in pair], workers
+
+
+def run_parallel(
+    config: QualificationConfig,
+    workers: int | None = None,
+    seed_base: int = DEFAULT_SEED_BASE,
+) -> dict:
+    rows, workers = run_rows(config, workers, seed_base)
+    summary = summarize(rows, config)
     summary["workers"] = workers
+    summary["seed_base"] = seed_base
     return summary
 
 
@@ -365,6 +382,8 @@ def main() -> None:
     parser.add_argument("--artifact-ensemble", type=Path)
     parser.add_argument("--ensemble-draws", type=int, default=9)
     parser.add_argument("--formal-sbc", action="store_true")
+    parser.add_argument("--seed-base", type=int, default=DEFAULT_SEED_BASE)
+    parser.add_argument("--rows-output", type=Path)
     args = parser.parse_args()
     if args.mode == "qualification":
         config = QualificationConfig(
@@ -418,7 +437,18 @@ def main() -> None:
             truth_sd=1.0,
             formal_sbc=True,
         )
-    summary = run_parallel(config, args.workers)
+    rows, workers = run_rows(config, args.workers, args.seed_base)
+    summary = summarize(rows, config)
+    summary["workers"] = workers
+    summary["seed_base"] = args.seed_base
+    if args.rows_output:
+        args.rows_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.rows_output.open("w") as handle:
+            handle.write(json.dumps({
+                "config": asdict(config), "seed_base": args.seed_base,
+            }, sort_keys=True) + "\n")
+            for row in rows:
+                handle.write(json.dumps(asdict(row), sort_keys=True) + "\n")
     rendered = json.dumps(summary, indent=2, sort_keys=True)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
