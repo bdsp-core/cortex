@@ -1,0 +1,235 @@
+{
+  "ensemble_beta_span": [
+    0.8722308125877214,
+    1.1945942284733333
+  ],
+  "model": "iiic_conditional_f1_v1_tier_stratified",
+  "promotionForbidden": true,
+  "provenance": {
+    "ensemble": "iiic_conditional_f1_integrated_ensemble9_rd.json",
+    "ensemble_artifact_id": "iiic-f1-crossfit-ensemble9-rd-20260720",
+    "input": "categorical_wrong_picks_leakage_controlled.csv",
+    "input_sha256": "e63ed6060a9849f8f4d59a2f4b33a7cbc2fbe9c600f38f6378cc5b3d3a1bdda8"
+  },
+  "schema_version": 1,
+  "status": "research_only_not_promoted",
+  "tiers": {
+    "expert": {
+      "bootstrap": {
+        "beta_interval95": [
+          1.5717893733775663,
+          2.1089105574249967
+        ],
+        "beta_mass_above_ensemble_span": 1.0,
+        "beta_mass_below_ensemble_span": 0.0,
+        "beta_median": 1.8037648792909613,
+        "distractor_lapse_interval95": [
+          0.0,
+          0.01871448584559545
+        ],
+        "draws": 200,
+        "seed": 63300002
+      },
+      "full_fit": {
+        "beta": 1.7454908654716434,
+        "distractor_lapse": 0.0
+      },
+      "n_readers": 4,
+      "n_wrong_picks": 5076,
+      "reader_held_out_crossfit": {
+        "crossfit_mean_log_score": -0.9855145359708264,
+        "folds": [
+          {
+            "beta": 1.7471463405240575,
+            "distractor_lapse": 0.0,
+            "fold": 0,
+            "n_train": 3921,
+            "n_validation": 1155,
+            "validation_mean_log_score": -0.9950976277294478
+          },
+          {
+            "beta": 1.645545911236878,
+            "distractor_lapse": 0.0,
+            "fold": 1,
+            "n_train": 3969,
+            "n_validation": 1107,
+            "validation_mean_log_score": -0.6909151607415045
+          },
+          {
+            "beta": 1.756741538645252,
+            "distractor_lapse": 0.0,
+            "fold": 2,
+            "n_train": 3859,
+            "n_validation": 1217,
+            "validation_mean_log_score": -1.0156820688539525
+          },
+          {
+            "beta": 1.8884038398713097,
+            "distractor_lapse": 0.008776239076614121,
+            "fold": 3,
+            "n_train": 3479,
+            "n_validation": 1597,
+            "validation_mean_log_score": -1.1598032960703177
+          }
+        ],
+        "full_fit": {
+          "beta": 1.7454908654716434,
+          "distractor_lapse": 0.0,
+          "weight": 1.0
+        },
+        "salt": "nway-artifact-v1:expert",
+        "split": "reader"
+      }
+    },
+    "novice": {
+      "bootstrap": {
+        "beta_interval95": [
+          0.8580401096668709,
+          1.059722458294503
+        ],
+        "beta_mass_above_ensemble_span": 0.0,
+        "beta_mass_below_ensemble_span": 0.03,
+        "beta_median": 0.9802306760045688,
+        "distractor_lapse_interval95": [
+          0.0,
+          0.013527768690721987
+        ],
+        "draws": 200,
+        "seed": 63300003
+      },
+      "full_fit": {
+        "beta": 0.9766165075986448,
+        "distractor_lapse": 0.0
+      },
+      "n_readers": 681,
+      "n_wrong_picks": 63707,
+      "reader_held_out_crossfit": {
+        "crossfit_mean_log_score": -1.4109659083733195,
+        "folds": [
+          {
+            "beta": 0.9776657385981458,
+            "distractor_lapse": 0.0,
+            "fold": 0,
+            "n_train": 53424,
+            "n_validation": 10283,
+            "validation_mean_log_score": -1.411523622085829
+          },
+          {
+            "beta": 0.9977948055978324,
+            "distractor_lapse": 0.0,
+            "fold": 1,
+            "n_train": 54332,
+            "n_validation": 9375,
+            "validation_mean_log_score": -1.461779932792427
+          },
+          {
+            "beta": 0.9962818069594302,
+            "distractor_lapse": 0.0,
+            "fold": 2,
+            "n_train": 50926,
+            "n_validation": 12781,
+            "validation_mean_log_score": -1.4413317466780577
+          },
+          {
+            "beta": 0.9744608392172711,
+            "distractor_lapse": 0.0,
+            "fold": 3,
+            "n_train": 45381,
+            "n_validation": 18326,
+            "validation_mean_log_score": -1.4133968280363791
+          },
+          {
+            "beta": 0.9350024358168108,
+            "distractor_lapse": 0.0,
+            "fold": 4,
+            "n_train": 50765,
+            "n_validation": 12942,
+            "validation_mean_log_score": -1.3402835360851904
+          }
+        ],
+        "full_fit": {
+          "beta": 0.9766165075986448,
+          "distractor_lapse": 0.0,
+          "weight": 1.0
+        },
+        "salt": "nway-artifact-v1:novice",
+        "split": "reader"
+      }
+    },
+    "pooled": {
+      "bootstrap": {
+        "beta_interval95": [
+          0.9153823613431276,
+          1.1369837029583028
+        ],
+        "beta_mass_above_ensemble_span": 0.0,
+        "beta_mass_below_ensemble_span": 0.0,
+        "beta_median": 1.0171910760373737,
+        "distractor_lapse_interval95": [
+          0.0,
+          0.012577975625078681
+        ],
+        "draws": 200,
+        "seed": 63300001
+      },
+      "full_fit": {
+        "beta": 1.0303243343107302,
+        "distractor_lapse": 0.0
+      },
+      "n_readers": 685,
+      "n_wrong_picks": 68783,
+      "reader_held_out_crossfit": {
+        "crossfit_mean_log_score": -1.386126612295696,
+        "folds": [
+          {
+            "beta": 0.9948548260917761,
+            "distractor_lapse": 0.0,
+            "fold": 0,
+            "n_train": 53735,
+            "n_validation": 15048,
+            "validation_mean_log_score": -1.3279126969824635
+          },
+          {
+            "beta": 1.047690158764845,
+            "distractor_lapse": 0.0,
+            "fold": 1,
+            "n_train": 56910,
+            "n_validation": 11873,
+            "validation_mean_log_score": -1.4196946279286742
+          },
+          {
+            "beta": 1.0178487738851143,
+            "distractor_lapse": 0.0,
+            "fold": 2,
+            "n_train": 56428,
+            "n_validation": 12355,
+            "validation_mean_log_score": -1.3611278382405172
+          },
+          {
+            "beta": 1.0137277670765847,
+            "distractor_lapse": 0.0,
+            "fold": 3,
+            "n_train": 50636,
+            "n_validation": 18147,
+            "validation_mean_log_score": -1.3668627758087826
+          },
+          {
+            "beta": 1.0733948901388097,
+            "distractor_lapse": 0.0,
+            "fold": 4,
+            "n_train": 57423,
+            "n_validation": 11360,
+            "validation_mean_log_score": -1.4861169857290508
+          }
+        ],
+        "full_fit": {
+          "beta": 1.0303243343107302,
+          "distractor_lapse": 0.0,
+          "weight": 1.0
+        },
+        "salt": "nway-artifact-v1:pooled",
+        "split": "reader"
+      }
+    }
+  }
+}
