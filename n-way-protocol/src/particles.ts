@@ -1,10 +1,12 @@
 import { cholesky, covRows, symSqrtClipped, type Mat } from "../../cortex_web/apps/web/engine/linalg";
 import { logPriorOne, samplePrior } from "../../cortex_web/apps/web/engine/prior";
 import { Rng } from "../../cortex_web/apps/web/engine/rng";
+import { normalizedArtifactDraws } from "./artifact";
 import { logProbability } from "./likelihood";
 import type {
-  ConditionalF1ResponseArtifact, EngineProfile, Observation, PriorPair,
-  ProtocolParticleState, ProtocolSegment,
+  ConditionalF1ArtifactDraw, ConditionalF1ResponseArtifact, EngineProfile,
+  Observation, PriorPair, ProtocolParticleState, ProtocolSegment,
+  ResponseAggregation,
 } from "./types";
 
 export class PosteriorUpdateError extends Error {}
@@ -14,6 +16,10 @@ export function makeProtocolState(
   taskCount: number,
   prior: PriorPair,
   rng: Rng,
+  options?: {
+    responseAggregation?: ResponseAggregation;
+    artifact?: ConditionalF1ResponseArtifact;
+  },
 ): ProtocolParticleState {
   const t = new Float64Array(particleCount * taskCount);
   const l = new Float64Array(particleCount * taskCount);
@@ -21,10 +27,90 @@ export function makeProtocolState(
   const logPrior = new Float64Array(particleCount);
   const logLik = new Float64Array(particleCount);
   samplePrior(particleCount, prior.tPieces, prior.lPieces, rng, t, l, logPrior);
-  return {
+  const state: ProtocolParticleState = {
     N: particleCount, K: taskCount, t, l, w, logPrior, logLik,
     history: [], prior,
   };
+  if ((options?.responseAggregation ?? "mixture") === "draw_latent") {
+    if (!options?.artifact) {
+      throw new Error("draw-latent cloud creation requires a response artifact");
+    }
+    state.atomIndex = sampleAtomLineage(particleCount, options.artifact, rng);
+  }
+  return state;
+}
+
+/**
+ * Atom init for draw-latent aggregation: one categorical draw per particle
+ * from the normalized artifact weights, taken at cloud creation (after the
+ * prior sample, mirroring make_draw_cloud in draw_latent_rd/engine.py).
+ */
+export function sampleAtomLineage(
+  particleCount: number,
+  artifact: ConditionalF1ResponseArtifact,
+  rng: Rng,
+): Int32Array {
+  const draws = normalizedArtifactDraws(artifact);
+  const atomIndex = new Int32Array(particleCount);
+  for (let n = 0; n < particleCount; n += 1) {
+    const u = rng.random();
+    let cumulative = 0;
+    let chosen = draws.length - 1;
+    for (let d = 0; d < draws.length; d += 1) {
+      cumulative += draws[d].weight;
+      if (u < cumulative) {
+        chosen = d;
+        break;
+      }
+    }
+    atomIndex[n] = chosen;
+  }
+  return atomIndex;
+}
+
+/**
+ * Resolve the per-particle atom table for draw-latent aggregation, or
+ * undefined for the shipping mixture path. Validates that the state carries
+ * a complete, in-range atom lineage before any likelihood is evaluated.
+ */
+function drawLatentAtoms(
+  state: ProtocolParticleState,
+  profile: EngineProfile,
+  artifact: ConditionalF1ResponseArtifact | undefined,
+): ConditionalF1ArtifactDraw[] | undefined {
+  if ((profile.responseAggregation ?? "mixture") !== "draw_latent") return undefined;
+  if (!artifact) throw new Error("draw-latent aggregation requires a response artifact");
+  if (!state.atomIndex || state.atomIndex.length !== state.N) {
+    throw new Error("draw-latent state is missing per-particle atom lineage");
+  }
+  const draws = normalizedArtifactDraws(artifact);
+  for (let n = 0; n < state.N; n += 1) {
+    const atom = state.atomIndex[n];
+    if (atom < 0 || atom >= draws.length) {
+      throw new Error("atom lineage index is outside the artifact draws");
+    }
+  }
+  return draws;
+}
+
+/** Posterior mass per artifact atom — the session's inferred draw distribution. */
+export function atomPosterior(
+  state: ProtocolParticleState,
+  artifact: ConditionalF1ResponseArtifact,
+): number[] {
+  const draws = normalizedArtifactDraws(artifact);
+  if (!state.atomIndex || state.atomIndex.length !== state.N) {
+    throw new Error("draw-latent state is missing per-particle atom lineage");
+  }
+  const mass = new Array<number>(draws.length).fill(0);
+  for (let n = 0; n < state.N; n += 1) {
+    const atom = state.atomIndex[n];
+    if (atom < 0 || atom >= draws.length) {
+      throw new Error("atom lineage index is outside the artifact draws");
+    }
+    mass[atom] += state.w[n];
+  }
+  return mass;
 }
 
 export function cloneProtocolState(state: ProtocolParticleState): ProtocolParticleState {
@@ -41,6 +127,7 @@ export function cloneProtocolState(state: ProtocolParticleState): ProtocolPartic
     ...(state.lastRejuvenation
       ? { lastRejuvenation: { ...state.lastRejuvenation } }
       : {}),
+    ...(state.atomIndex ? { atomIndex: state.atomIndex.slice() } : {}),
   };
 }
 
@@ -86,6 +173,7 @@ export function updateProtocol(
 ): void {
   validatePreUpdate(state);
   const segment = segmentFor(segments, observation);
+  const atoms = drawLatentAtoms(state, profile, artifact);
   const nextLogLik = new Float64Array(state.N);
   const likelihood = new Float64Array(state.N);
   let maximumLogWeight = -Infinity;
@@ -93,6 +181,7 @@ export function updateProtocol(
     const lp = logProbability(
       profile, artifact, observation, segment,
       state.t, state.l, n, state.K,
+      atoms && atoms[state.atomIndex![n]],
     );
     const cumulative = state.logLik[n] + lp;
     if (!Number.isFinite(lp) || !Number.isFinite(cumulative)) {
@@ -150,12 +239,14 @@ export function logLikelihoodHistory(
   output = new Float64Array(state.N),
 ): Float64Array {
   output.fill(0);
+  const atoms = drawLatentAtoms(state, profile, artifact);
   for (const observation of state.history) {
     const segment = segmentFor(segments, observation);
     for (let n = 0; n < state.N; n += 1) {
       output[n] += logProbability(
         profile, artifact, observation, segment,
         proposedT, proposedL, n, state.K,
+        atoms && atoms[state.atomIndex![n]],
       );
     }
   }
@@ -185,6 +276,13 @@ export function resampleAndRejuvenateProtocol(
     l.set(state.l.subarray(source * K, source * K + K), n * K);
     logPrior[n] = state.logPrior[source];
     logLik[n] = state.logLik[source];
+  }
+  if (state.atomIndex) {
+    // Atom indices ride ancestor selection as lineage; MH below proposes
+    // (t, l) only, so the lineage is fixed for the rest of this sweep.
+    const atomIndex = new Int32Array(N);
+    for (let n = 0; n < N; n += 1) atomIndex[n] = state.atomIndex[ancestors[n]];
+    state.atomIndex = atomIndex;
   }
   state.t = t;
   state.l = l;

@@ -96,6 +96,7 @@ export function logProbability(
   l: Float64Array,
   particleIndex: number,
   taskCount: number,
+  atomDraw?: ConditionalF1ArtifactDraw,
 ): number {
   if (segment.segmentIndex !== observation.segmentIndex) {
     throw new Error("observation/segment index mismatch");
@@ -109,6 +110,14 @@ export function logProbability(
     throw new Error("observation response group mismatch");
   }
   if (observation.pickK === observation.askedK) return logPBinary(ownZ, 1);
+  if (atomDraw) {
+    // Draw-latent aggregation: this particle scores the pick under its own
+    // atom's (beta, distractorLapse), not the fixed-weight mixture average.
+    return logPBinary(ownZ, 0) + logDistractorProbability(
+      group, observation.askedK, observation.pickK,
+      segment, t, l, offset, atomDraw,
+    );
+  }
   if (artifact.model === "iiic_conditional_f1_v1") {
     return logPBinary(ownZ, 0) + logDistractorProbability(
       group, observation.askedK, observation.pickK,
