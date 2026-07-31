@@ -1,8 +1,8 @@
 """Engine-trainer endpoints (Phase L3): the vendored learning engine as the
 server-side training decision-maker. Pure decision surface — the per-trial
 ledger keeps its single writer (the client checkpoint outbox). Gated by
-CORTEX_TRAINER_ENGINE (off|cohort|all; default off — the incumbent
-client-side trainer remains the production posture until promotion)."""
+CORTEX_TRAINER_ENGINE (off|cohort|all; default all). The browser has no local
+model fallback; an off gate rejects engine starts."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import engine_trainer
@@ -40,8 +40,8 @@ def engine_start(body: EngineStartIn, req: Request,
         engine_trainer._engine()
     except ImportError as e:
         raise HTTPException(503, f"engine numeric stack unavailable: {e}")
-    # D62: allocation mode for THIS participant — greedy (validated
-    # default) for everyone, thompson only for the pilot allowlist.
+    # D62: allocation mode for THIS participant. Code defaults to greedy;
+    # production may set thompson globally or through the allowlist.
     alloc = engine_trainer.alloc_for(
         req.app.state.cfg, code, req.app.state.db.get_participant(code))
     training_row = req.app.state.db.get_training_session(body.trainingId)

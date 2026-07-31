@@ -214,10 +214,9 @@ def training_start(body: TrainingStartIn, req: Request, code: str = Depends(requ
         regimen_id=(reg["regimen_id"] if reg else None),
         source_session_id=(reg.get("source_session_id") if reg else None),
         norm_profile=percentile_profile)
-    # Phase L3: tell the client which trainer drives this sitting — the
-    # server-side learning engine (POST /api/training-engine/*) or the
-    # incumbent client-side trainer. Same reversible-flag pattern as
-    # training_mode; default off.
+    # Phase L3 compatibility/observability field. The server learning engine
+    # is the sole browser trainer; False means its start route is disabled,
+    # not that the browser can fall back to a local model.
     cfg = req.app.state.cfg
     participant = (db.get_participant(code)
                    if cfg.get("trainer_engine") == "cohort" else None)

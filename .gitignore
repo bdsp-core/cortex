@@ -138,6 +138,30 @@ first-test-csv-results/
 # public repo; local bank backups are too large + redundant for git.
 paper/
 data/eeg_bank_pre_*.h5
+cortex_web_design/
+
+# Synthetic validation cohort — bootstrapped tier-realistic rater progressions.
+# Build scripts + generated CSVs + manifest + reports. Local-only; the CSVs carry
+# verbatim consent/IRB fields (a labeled synthetic-vs-real concern), so this must
+# never be committed or mistaken for real human data. Provenance:
+# synthetic_validation_cohort/out/manifest.json (synthetic=true).
+synthetic_validation_cohort/
+
+# AUROC-separated synthetic cohort — deliberately-separated tier progressions
+# (expert/experienced/novice) driven through the real SMC engine. Illustrative,
+# NOT empirical: the real data does NOT support this clean a separation. Local-
+# only; same synthetic-vs-real + de-identification concerns as the sibling above.
+# Provenance: synthetic_cohort_auroc_separated/out/manifest.json (synthetic=true).
+synthetic_cohort_auroc_separated/
+
+# REAL human-session data — PHI (real participant names + responses). Defensive
+# ignore so it can never be accidentally `git add`-ed (same policy as
+# results/sessions/ + first-test-csv-results/). Remove only if a de-identified
+# variant is intended for commit.
+live_expert_experienced_novice_data/
+
+# Estimator-discrimination R&D sandbox (compartmentalized, deletable).
+discrimination_rd/
 
 # Stray vite metadata from running vite outside apps/web.
 .vite/

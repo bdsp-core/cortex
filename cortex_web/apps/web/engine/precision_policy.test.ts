@@ -149,6 +149,25 @@ describe("PrecisionPolicy frozen boundary semantics", () => {
     );
   });
 
+  it("supports an explicit qualification-only nonbinding ceiling", () => {
+    const policy = PrecisionPolicy.fromInputs(inputs(), 1000);
+    policy.evaluate(state("broad"), new Array(7).fill(60), telemetry());
+    expect(policy.perDomainCap).toBe(1000);
+    expect(policy.domainStatuses).toEqual(new Array(7).fill(PRECISION_STATUS.ACTIVE));
+    expect(policy.clone().perDomainCap).toBe(1000);
+  });
+
+  it("can remove the evidence floor for a qualification-only experiment", () => {
+    const policy = PrecisionPolicy.fromInputs(inputs(), 1000, 0);
+    policy.evaluate(state("narrow"), new Array(7).fill(9), telemetry());
+    policy.evaluate(state("narrow"), new Array(7).fill(9), telemetry());
+    expect(policy.nMin).toBe(0);
+    expect(policy.domainStatuses).toEqual(
+      new Array(7).fill(PRECISION_STATUS.ESTIMATE_COMPLETE),
+    );
+    expect(policy.clone().nMin).toBe(0);
+  });
+
   it("can terminalize an infeasible bank before the first question", () => {
     const policy = PrecisionPolicy.fromInputs(inputs());
     const decision = policy.observeBankFeasibility({

@@ -25,7 +25,7 @@ _EXPECTED_KEYS = {
     "n_questions", "stopped_early", "true_auroc",
     "final_lo", "final_hi",
     "mean_acceptance_rate", "n_rejuvenations",
-    "delta_auroc", "method",
+    "delta_auroc", "method", "per_domain_n",
 }
 
 
@@ -48,6 +48,10 @@ def _check_mode_a_contract(out, K, expected_keys, runtime_s):
     assert np.all(final_hi >= final_lo), "CI inversion: hi < lo for some domain"
     assert np.all((final_lo >= 0.0) & (final_hi <= 1.0)), \
         "AUROC posterior CI outside [0, 1]"
+    per_domain_n = np.asarray(out["per_domain_n"])
+    assert per_domain_n.shape == (K,)
+    assert np.all(per_domain_n >= 0)
+    assert int(per_domain_n.sum()) == int(out["n_questions"])
     assert runtime_s < 90.0, f"Mode-A smoke too slow: {runtime_s:.2f}s > 90s"
 
 

@@ -11,6 +11,9 @@ historical plans are not mistaken for production instructions.
   the web documentation below for deployed runtime ownership.
 - [`../cortex_web/README.md`](../cortex_web/README.md) — canonical deployed
   application, qualification commands, and runtime controls.
+- [`../cortex_web/docs/PRODUCTION_BASELINE.md`](../cortex_web/docs/PRODUCTION_BASELINE.md)
+  — verified live release, configuration assumptions, telemetry semantics,
+  API surface, and rollback anchors.
 - [`../cortex_web/docs/README.md`](../cortex_web/docs/README.md) — current web
   architecture, operations, and product/data documentation.
 - [`LIVE_TRAINER.md`](LIVE_TRAINER.md) — deployed server trainer and the

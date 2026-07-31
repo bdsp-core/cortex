@@ -183,10 +183,10 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
             "CORTEX_PERCENTILE_RELEASE_SHA256",
             config.PERCENTILE_RELEASE_SHA256).strip().lower(),
         # Engine-trainer exposure. Default ALL (2026-07-17 integration
-        # decision: the learning engine IS the production trainer; the
-        # incumbent client-side trainer is ARCHIVED as the fallback).
-        # Kill switch: CORTEX_TRAINER_ENGINE=off reverts every sitting to
-        # the incumbent with zero deploys; "cohort" + allowlist scopes it.
+        # decision: the learning engine IS the sole browser trainer).
+        # `off` disables engine starts; it does not restore a client model, so
+        # pair it with CORTEX_TRAINING_MODE=off when hiding training globally.
+        # "cohort" + allowlist scopes engine starts to selected accounts.
         "trainer_engine": os.environ.get(
             "CORTEX_TRAINER_ENGINE", "all").strip().lower(),
         "trainer_engine_allowlist": frozenset(

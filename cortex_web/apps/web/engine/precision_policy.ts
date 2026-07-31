@@ -269,8 +269,8 @@ function cloneDiag(d: PrecisionDiagnostics | null): PrecisionDiagnostics | null 
 export class PrecisionPolicy implements EngineTerminationPolicy {
   readonly name = "precision_v1" as const;
   readonly activeLabel = PRECISION_STATUS.ACTIVE;
-  readonly nMin = PRECISION_N_MIN;
-  readonly perDomainCap = PRECISION_PER_DOMAIN_CAP;
+  readonly nMin: number;
+  readonly perDomainCap: number;
   readonly persistence = PRECISION_PERSISTENCE;
   readonly bandMin = PRECISION_BAND_MIN;
   readonly bandEdges: number[][];
@@ -285,9 +285,19 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   private constructor(
     private readonly varPrior: number[],
     bandEdges: number[][],
+    perDomainCap = PRECISION_PER_DOMAIN_CAP,
+    nMin = PRECISION_N_MIN,
   ) {
     assertFiniteVector(varPrior, "varPrior");
     if (varPrior.some((x) => x <= 0)) throw new Error("varPrior must be positive");
+    if (!Number.isInteger(nMin) || nMin < 0) {
+      throw new Error("precision_v1 minimum questions must be a nonnegative integer");
+    }
+    if (!Number.isInteger(perDomainCap) || perDomainCap < Math.max(nMin, 1)) {
+      throw new Error("precision_v1 per-domain ceiling must exceed its minimum questions");
+    }
+    this.perDomainCap = perDomainCap;
+    this.nMin = nMin;
     this.bandEdges = bandEdges.map((x) => x.slice());
     this.skillTolerance = varPrior.map(
       (v, k) => PRECISION_CONTRACTION_BY_DOMAIN[k] * Math.sqrt(v),
@@ -298,7 +308,10 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     this.bandAdministered = Array.from({ length: varPrior.length }, () => [0, 0, 0]);
   }
 
-  static fromInputs(inputs: ComputeEngineInputs): PrecisionPolicy {
+  static fromInputs(
+    inputs: ComputeEngineInputs, qualificationPerDomainCap = PRECISION_PER_DOMAIN_CAP,
+    qualificationNMin = PRECISION_N_MIN,
+  ): PrecisionPolicy {
     if (inputs.taskCodes.join(",") !== PRECISION_TASK_CODES.join(",")) {
       throw new Error(
         `precision_v1 requires task order ${PRECISION_TASK_CODES.join(",")}`,
@@ -310,7 +323,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     if (edges.length !== varPrior.length || edges.some(
       (x) => x.length !== 2 || !Number.isFinite(x[0]) || !Number.isFinite(x[1]) || x[0] >= x[1],
     )) throw new Error("precision_v1 requires two increasing band edges per domain");
-    return new PrecisionPolicy(varPrior, edges);
+    return new PrecisionPolicy(varPrior, edges, qualificationPerDomainCap, qualificationNMin);
   }
 
   reset(K: number): void {
@@ -325,7 +338,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   }
 
   clone(): PrecisionPolicy {
-    const p = new PrecisionPolicy(this.varPrior, this.bandEdges);
+    const p = new PrecisionPolicy(this.varPrior, this.bandEdges, this.perDomainCap, this.nMin);
     p.restore(this.snapshot());
     return p;
   }

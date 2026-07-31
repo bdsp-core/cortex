@@ -9,13 +9,19 @@ boundary and document the reason in the pull request.
 | Path | Owner | May depend on |
 |---|---|---|
 | `apps/web/engine/` | deterministic certification computation | engine modules and typed worker protocols; never React, API, cuts, or media rendering |
+| `apps/web/engine/index.ts` | declared engine public surface | stable value/type and worker-wire contracts only; UI imports may not bypass it |
 | `apps/web/src/features/` | participant-facing product features | shared UI/API contracts and feature-local modules |
+| `apps/web/src/features/eeg/` | shared exam/trainer display pipeline | bundle data, montage/DSP helpers, and UI theme; never inference state |
+| `apps/web/src/features/exam/` | result derivation/presentation helpers | public engine result types and pure UI-facing calculations |
 | `apps/web/src/api/` | authentication-aware transport and domain API clients | transport primitives only; feature code consumes the compatibility facade |
 | `apps/web/src/shared/` | reusable browser infrastructure | no feature-specific views |
 | `apps/web/src/components/` | compatibility entry points and genuinely shared components | features and shared infrastructure |
 | `apps/web/trainer/` | thin browser trainer adapter | authenticated server-session contracts; never a local learning-model fallback |
 | `services/api/routers/` | authenticated HTTP boundary | application services and repositories |
 | `services/api/persistence/` | additive schema declarations and migration registry | database-neutral schema metadata only |
+| `services/api/reporting.py` | read-only administrative aggregations | database query surface and dashboard interpretation; never persistence writes |
+| `services/api/rollout.py` | shared identity matching for server-owned gates | participant lookup values supplied by the independent policy/compute/trainer callers |
+| `services/api/timeutil.py` | canonical fixed-width UTC timestamps | Python standard library only |
 | `services/api/` | API services, persistence, security, and configuration | no browser implementation imports |
 | `learning-engine-cleaned/` | runtime-authoritative server training package | its own package and adapter tests |
 
@@ -32,6 +38,11 @@ assets only. Neither may become an implicit runtime dependency of the browser.
   and exact snapshots.
 - Existing exports from compatibility entry points remain stable while modules
   are decomposed; callers are migrated separately.
+- Browser code imports engine contracts through `engine/index.ts`. A new
+  deep import from `src/` is a deliberate boundary violation and is rejected
+  by `engine_public_surface.test.ts`.
+- The exam viewers and trainer share `features/eeg/useEegDisplay.ts`; display
+  filtering remains presentation-only and cannot enter inference.
 
 ## Generated and sensitive artifacts
 
@@ -66,7 +77,9 @@ are required:
 
 Production releases must also be clean, pushed `origin/main` commits. The
 deployment builds a versioned tree before changing the stable application path
-and retains the prior release for automatic or manual rollback.
+and retains the prior release for automatic or manual rollback. Test source
+patterns are qualification inputs and are intentionally not copied into the
+runtime release tree.
 
 The completed decomposition and its compatibility strategy are recorded in
 `MODULARIZATION_REPORT.md`.

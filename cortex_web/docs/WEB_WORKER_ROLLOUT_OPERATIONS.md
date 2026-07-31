@@ -6,18 +6,22 @@ evidence remains `WEB_WORKER_QUALIFICATION.md`.
 
 ## Production record
 
-This table preserves the initial rollout event and the latest tagged source
-known when this document was refreshed. The running release must always be
-verified from the release stamp and deep-health endpoint; do not assume a
-Markdown file proves current production state.
+This table preserves the initial rollout event and the production state
+verified on 2026-07-22. The running release must always be verified from the
+release stamp and deep-health endpoint; do not assume a Markdown file proves
+current production state. The complete handoff is in
+`PRODUCTION_BASELINE.md`.
 
 | Field | Value |
 |---|---|
 | Initial worker release | `dc2750853febe164716a8d1ba86ae982c755b64f` |
 | Initial release activated | 2026-07-20 04:43 UTC |
 | Public compute enabled | 2026-07-20 05:05 UTC |
-| Latest repository source at 2026-07-21 refresh | `016c6d8` (fixed calibrated worker pool for each session) |
-| Latest tagged deployed source recorded here | `c5d63567417b33a4d6a24e93de112d137a1862f8` (`cortex-web-prod-rejuvenation-loading-ux-2026-07-21`) |
+| Fixed-pool source | `016c6d8` (startup-selected worker count remains fixed for the sitting) |
+| Long-wait UX source | `c5d63567417b33a4d6a24e93de112d137a1862f8` (`cortex-web-prod-rejuvenation-loading-ux-2026-07-21`) |
+| Accepted latency/numerical baseline | `d7efd5a26ccd64920a6a4064f345ffb6ce08a3e9` |
+| Verified live source | `e68d59b528619e9ed809ac7033bb2fc79553251c` |
+| Verified live release | `/opt/cortex/releases/20260722T212609Z-e68d59b52861` |
 | Policy exposure | `CORTEX_PRECISION_POLICY_ROLLOUT=all` |
 | Compute exposure | `CORTEX_PRECISION_COMPUTE_ROLLOUT=all` |
 | Previous compute exposure | `email_allowlist` |
@@ -27,6 +31,11 @@ The compute flag affects only new sessions. A session's server-owned
 `compute_mode` stamp is immutable across resume. AD6, unsupported browsers,
 devices reporting fewer than four logical cores, and failures during worker
 startup or branch calculation retain the exact serial path.
+
+The source range from `d7efd5a` through `e68d59b` does not change the
+certification numerical implementation. Current live observations may
+therefore be compared with the accepted `d7efd5a` engine reference while still
+recording the actual live release SHA.
 
 ## Observation checklist
 
@@ -57,6 +66,37 @@ a gate `PENDING`; zero samples is never reported as a pass.
 The account activity immediately before public enablement was a training
 session. It verified the server trainer, persistence ledger, media inventory,
 and dashboard refresh, but it did not exercise the certification Web Worker.
+
+## Current latency interpretation
+
+Use `answerToMediaReady` as the participant-facing next-question measurement.
+It starts at answer dispatch and ends when `Bundle.segment` has fetched and
+decoded the selected media and the viewer accepts it. `answerToItem` stops at
+the earlier worker-to-UI item handoff and can understate a media-cache miss.
+Engine and phase timings explain compute only.
+
+A completed 2026-07-22 certification on the accepted `d7efd5a` baseline
+provided a privacy-safe reference observation:
+
+| Measure | Observation |
+|---|---:|
+| Questions / selected workers / serial fallbacks | 143 / 6 / 0 |
+| `answerToMediaReady` p50 / p95 / max | 520.0 / 2711.4 / 3372.3 ms |
+| `answerToItem` p50 / p95 | 446.5 / 2508.6 ms |
+| Engine total p95 | 2459.8 ms |
+| Selection p95 | 621.2 ms |
+| Rejuvenation count / p95 | 21 / 1919.0 ms |
+| MH-history likelihood p95 | 1013.9 ms |
+
+This single device/session is a comparison point, not an SLO. The remaining
+tail clusters around required rejuvenation. A one-second wait surfaces the
+teal “Optimizing Question Trajectory” status so a valid long calculation does
+not look stalled.
+
+Schema-v2 retains a `runtimePool` adjustment array for backward-compatible
+reading of earlier sessions. Current fixed-pool sessions should report zero
+adjustments; the selected count comes from the startup profile. Post-start
+heartbeat delay remains diagnostic only.
 
 ## Aggregate database observation
 

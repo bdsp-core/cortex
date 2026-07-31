@@ -111,19 +111,6 @@ app.cortexeeg.org {
         }
     }
 
-    # About is a deliberately isolated static experience: its long-form canvas
-    # runtime and page-scoped CSS do not enter the assessment SPA bundle.
-    # Canonicalize the directory URL, then serve its own index and relative
-    # modules before the generic SPA fallback below.
-    @about_bare path /about
-    redir @about_bare /about/ 308
-    handle /about/* {
-        root * /opt/cortex/cortex_web/apps/web/dist
-        file_server {
-            precompressed br gzip
-        }
-    }
-
     # SPA (everything else) — single-page app, fall back to index.html.
     # index.html, theme-init.js and the logo PNGs are NOT hashed and stay on
     # default revalidation.

@@ -138,9 +138,14 @@ categories, or content/exposure eligibility.
   sign-out. Pending jobs reject and timers are cleared.
 - Schema-v2 `_enginePerformance` stores bounded phase distributions, outcome
   ranks, branch lifecycle counts, heartbeat delay, selected worker count,
-  calibration summary, and a memory estimate. It records no new EEG or
+  calibration summary, `answerToItem`, `answerToMediaReady`, and a memory
+  estimate. `answerToMediaReady` includes the selected segment's fetch/decode
+  boundary and is the participant-facing transition measure; `answerToItem`
+  ends at the earlier engine handoff. Telemetry records no new EEG or
   participant content, is excluded from statistical state, and is stripped
   from participant dashboard/history responses.
+- The schema retains a runtime-adjustment array only for older summary
+  compatibility. Fixed-pool sessions emit no adjustment events.
 - Post-start heartbeat delay is observational telemetry only and does not feed
   worker-pool control.
 

@@ -5,6 +5,10 @@ trainer. It supersedes Version 1.1, whose section 2a introduced exclusive raw
 trial replay for the retired `adaptive_testing` and root-level trainer
 prototypes.
 
+This contract is configuration-independent. Current production serving values
+and release identity are maintained in
+[`../../docs/PRODUCTION_BASELINE.md`](../../docs/PRODUCTION_BASELINE.md).
+
 ## 1. Runtime owners
 
 - Browser assembly: `cortex_web/apps/web/src/trainingSetup.ts`
@@ -157,7 +161,7 @@ The focused production checks are:
 
 ```bash
 cd cortex_web/services/api
-python -m pytest -q \
+../../.venv/bin/python -m pytest -q \
   ../../learning-engine-cleaned/tests/test_package_smoke.py \
   test_engine_trainer.py
 

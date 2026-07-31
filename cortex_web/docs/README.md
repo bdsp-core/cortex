@@ -6,6 +6,8 @@ guess which document governs a release.
 
 ## Authoritative
 
+- `PRODUCTION_BASELINE.md` — verified live release, non-secret runtime
+  configuration, current API/telemetry assumptions, and rollback anchors.
 - `../README.md` — repository entry point and qualification commands.
 - `REPOSITORY_STRUCTURE.md` — ownership boundaries and dependency rules.
 - `PLATFORM_ARCHITECTURE.md` — application and deployment architecture.
@@ -29,8 +31,10 @@ guess which document governs a release.
 - `PRIVACY_POLICY_DRAFT.md`
 - `TERMS_OF_SERVICE_DRAFT.md`
 
-These records provide rationale but cannot override current code, tests, or
-the authoritative PrecisionPolicy contract in the Python reference.
+These records provide rationale but cannot override current code, tests,
+`PRODUCTION_BASELINE.md`, or the authoritative PrecisionPolicy contract. The
+data plan deliberately preserves its original proposal language; its status
+banner identifies the routes and assumptions superseded in production.
 
 ## Historical implementation record
 

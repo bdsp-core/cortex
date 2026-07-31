@@ -1,8 +1,8 @@
 """Phase L3 engine-trainer closed loop over HTTP (skipped in minimal CI —
 numpy is an engine dep, not a web-API dep).
 
-Covers: gating (default off), replay seeding from the cert sitting,
-engine-served items answered by a simulated learner through the real
+Covers: gating (default all, explicit off/cohort cases), replay seeding from
+the cert sitting, engine-served items answered by a simulated learner through the real
 endpoints, no-repeat serving, snapshot sanity, ledger-driven rebuild
 (restart recovery), and the engineMode flag on training-session start.
 """
@@ -50,8 +50,7 @@ def eclient(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def offclient(tmp_path, monkeypatch):
-    """The kill switch: CORTEX_TRAINER_ENGINE=off (the archived incumbent
-    fallback; since the 2026-07-17 integration the DEFAULT is 'all')."""
+    """The disabled gate: engine starts 403; the default remains `all`."""
     return _app(tmp_path, monkeypatch, "off")
 
 
@@ -85,7 +84,7 @@ def _cert_with_stream(client, hdr, n_trials=8):
 
 def test_engine_gated_off_by_killswitch(offclient):
     """CORTEX_TRAINER_ENGINE=off must 403 and report engineMode=False —
-    the zero-deploy reversion path to the archived incumbent trainer."""
+    it disables the sole trainer and does not select a browser fallback."""
     email, pw = _make_participant(offclient)
     hdr = _auth_header(offclient, email, pw)
     r = offclient.post("/api/training-sessions", headers=hdr,

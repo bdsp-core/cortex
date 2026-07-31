@@ -5,6 +5,12 @@ and rollback automation for the canonical `cortex_web` application. The
 runbook intentionally omits cloud account identifiers, instance addresses,
 credentials, and participant data.
 
+Read [`../docs/PRODUCTION_BASELINE.md`](../docs/PRODUCTION_BASELINE.md) before
+operating the live service. It records the latest verified release,
+non-secret environment assumptions, API surface, latency interpretation, and
+named rollback anchors. Re-check the live release stamp; the snapshot is not a
+substitute for runtime verification.
+
 ## Architecture
 
 ```text
@@ -61,6 +67,12 @@ database, generates initial secrets, installs systemd/Caddy configuration, and
 builds the application. It is intended to be idempotent, but every rerun must
 still be reviewed and followed by deep health and backup checks.
 
+Provisioning writes conservative bootstrap values (including compute `off`, a
+500-item sampled draw, and the legacy default bundle path); it is not a clone
+of the current live environment. Deliberately reconcile its non-secret values
+with [`../docs/PRODUCTION_BASELINE.md`](../docs/PRODUCTION_BASELINE.md) and the
+governed bundle before exposure.
+
 Never copy `.env.example` values into production unchanged. Keep the completed
 environment file mode 640 and owned by the service account.
 
@@ -108,14 +120,25 @@ Deploy only from a clean local checkout whose `HEAD` exactly matches
 `origin/main`:
 
 ```bash
+# From the repository root:
+(cd cortex_web && \
+  CORTEX_QUALITY_PYTHON=.venv/bin/python \
+  CORTEX_SMOKE_SYNTHETIC=1 \
+    npm run quality:browser)
 bash cortex_web/deploy/scripts/deploy_app.sh
 ```
+
+Run the full quality gate before deployment. `deploy_app.sh` intentionally
+does not rerun Vitest or pytest on the host; it verifies release provenance,
+buildability, Python compilation, readiness, and the live participant surface.
+The staged runtime excludes test source patterns, caches, local databases,
+secrets, build output, and the externally managed EEG bundle.
 
 The deployment workflow:
 
 1. rejects dirty, detached, or unpushed release input;
 2. completes a fresh backup;
-3. uploads a clean staged source tree;
+3. uploads a clean runtime-only staged source tree;
 4. installs locked dependencies and builds a versioned immutable release;
 5. switches the stable application path atomically;
 6. restarts the API and checks database-backed loopback health;
@@ -132,6 +155,25 @@ ssh cortex-prod \
 
 For Git history, use normal revert commits. Never rewrite `main`, edit an old
 release directory, or restore persistent state merely to roll back code.
+
+Immediately before and after an activation, resolve identity from all three
+places rather than trusting a branch name:
+
+```bash
+git fetch origin main
+git rev-parse HEAD origin/main
+ssh cortex-prod 'readlink -f /opt/cortex/cortex_web; \
+  cat /opt/cortex/cortex_web/RELEASE'
+curl --fail --silent --show-error \
+  'https://app.cortexeeg.org/api/health?deep=1'
+```
+
+An otherwise healthy deep response may report `bank=not_loaded_yet` after a
+restart because readiness deliberately avoids parsing the large manifest.
+Session creation is the lazy bank-availability check. `bank=missing` after a
+load attempt or a session-creation 503 is not a successful bank check. The
+health field reports the default-bank cache, not a separate Precision-bank
+cache.
 
 ## Day-to-day operations
 
@@ -176,6 +218,10 @@ IP, raw Origin, raw user agent, credentials, and query strings are not stored
 in the aggregate. Caddy separately samples only `/`, `/privacy`, and
 `/api/client-error`, with subnet-masked IPs, hashed user agents, sensitive
 headers removed, query strings redacted, and three-day log rotation.
+
+The one-release rollback target is mutable operational state. Inspect
+`/opt/cortex/release-state/previous` before running rollback; do not assume it
+is the accepted performance baseline named in the production snapshot.
 
 ## Participant-code and administrative commands
 

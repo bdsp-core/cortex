@@ -44,8 +44,7 @@ export function TrainingRunner({
   percentileProfile,
 }: {
   bundle: Bundle;
-  session: TrainerSessionLike;    // local TrainerSession or the Phase-L3
-                                  // server-driven ServerTrainerSession
+  session: TrainerSessionLike;    // production: server-driven session adapter
   trainingId: string;
   labels: string[];                 // per-task display label, e.g. "GPD"
   total?: number;
@@ -178,9 +177,8 @@ export function TrainingRunner({
 
   const proceed = useCallback(() => {
     void (async () => {
-      // Engine mode (Phase L3): the next item arrives from the server;
-      // waitForNext resolves immediately for the local trainer. The round
-      // trip normally lands while the participant reads the reveal.
+      // The next item arrives from the server. The round trip normally lands
+      // while the participant reads the reveal.
       await ctrl.waitForNext();
       ctrl.continue();                     // no-op unless on the result step (controller guards)
       if (ctrl.phase === "done") {

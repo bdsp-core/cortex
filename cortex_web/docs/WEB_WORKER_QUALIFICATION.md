@@ -79,6 +79,17 @@ fallback, and a 432 ms overall median; ordinary categorical work had a 460 ms
 median. These are paired observations from specified devices and streams, not
 an SLO for all hardware.
 
+The accepted six-change latency baseline ends at `d7efd5a`. It reuses
+invariant categorical MH terms, skips mathematically zero proposal terms,
+bulk-fills the unchanged Gaussian RNG stream, reuses persistent-worker history
+buffers, compacts selector messages, and prefetches one rank-one media hint.
+Exact goldens and RNG order remain pinned. A subsequent 143-question live
+certification selected six workers with zero fallback and measured
+participant-facing `answerToMediaReady` p50/p95/max of
+520.0/2711.4/3372.3 ms. The detailed phase observation and the current live
+descendant release are recorded in `PRODUCTION_BASELINE.md` and
+`WEB_WORKER_ROLLOUT_OPERATIONS.md`.
+
 ## Reported-core startup selection
 
 Short full-bank Chromium measurements, with exact serial/adaptive result

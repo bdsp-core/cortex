@@ -5,6 +5,10 @@ Status: implemented. `cortex_web/` is the canonical product monorepo;
 same-origin under `/api`. This document records the as-built ownership model,
 not the superseded migration plan.
 
+The dated live release/configuration snapshot is maintained separately in
+[`PRODUCTION_BASELINE.md`](PRODUCTION_BASELINE.md). Architecture changes must
+update that handoff when they change an operational assumption.
+
 ## Public topology
 
 ```text
@@ -49,6 +53,17 @@ engine and the repository-root Python research engine.
   is isolated behind `VITE_API_BASE` and the server CORS configuration.
 - Bundle location is configuration-owned rather than inferred from source-tree
   layout.
+- `POST /api/session` carries the authenticated per-sitting bank, profile, and
+  compute/policy stamps. There is no separate manifest API in the live surface.
+- Browser selection and posterior updates do not wait on the API. Progress
+  requests persist resumability checkpoints only.
+- `GET /api/bootstrap` is the dashboard-entry aggregate; independent routes
+  remain for section-specific refreshes. The full active-session payload is
+  loaded only at test preflight.
+- Training trajectories are server-authoritative: `GET /api/trajectories` is
+  read-only and owned `POST /api/training-progress` checkpoints write real
+  rows. The retired trajectory-write and training-session-list routes remain
+  absent.
 - `apps/web/engine/` never imports React, API routes, trainer code, media
   rendering, or certification cuts.
 - `learning-engine-cleaned/` owns the server trainer; `apps/web/trainer/` is a
@@ -67,9 +82,12 @@ configuration remain outside release directories. Activation changes one
 stable application pointer only after build and deep-health checks; the prior
 release is retained for health-gated rollback.
 
-The release gate runs locked dependency installation, lint, type checking,
-TypeScript and Python tests, production build, CSP verification, dependency
-audit, real-browser worker parity, and participant UI smoke. See
+A release candidate must first pass locked dependency installation, lint, type
+checking, TypeScript and Python tests, production build, CSP verification,
+dependency audit, real-browser worker parity, and participant UI smoke. The
+deployment script then stages a runtime-only tree, rebuilds on the host,
+compiles Python, activates atomically, and runs deep-health and live phone
+smoke. The deploy itself does not replace the pre-deploy test gate. See
 `WEB_WORKER_QUALIFICATION.md` for the numerical boundary.
 
 ## Future expansion hooks

@@ -1,7 +1,8 @@
-// Backend API client. The server is intentionally small: authenticate once,
-// receive the per-session draw (bundle identity + question set travel inside
-// POST /api/session), ingest results — no per-question round-trips. All gated
-// calls carry the JWT as a Bearer token.
+// Backend API client. The server authenticates and returns the per-session draw
+// (bundle identity + question set travel inside POST /api/session); selection
+// and posterior updates stay browser-local. Per-answer progress checkpoints do
+// use a fire-and-forget outbox, but next-question computation never waits on
+// that network round trip. All gated calls carry the JWT as a Bearer token.
 //
 // Base URL: VITE_API_BASE if set, else same-origin "" (the SPA is served by
 // the same uvicorn that serves /api in the single-process local setup). In

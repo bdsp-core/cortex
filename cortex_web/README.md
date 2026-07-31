@@ -10,6 +10,12 @@ to serial computation by default; the production exposure state and its
 post-rollout checks are recorded in
 `docs/WEB_WORKER_ROLLOUT_OPERATIONS.md`.
 
+The current production handoff is release `e68d59b` with the accepted
+certification latency/numerical baseline at `d7efd5a`. Before changing,
+measuring, deploying, or rolling back production, read and re-verify
+[`docs/PRODUCTION_BASELINE.md`](docs/PRODUCTION_BASELINE.md); a dated document
+never substitutes for the live release stamp and deep-health check.
+
 ## Architecture
 
 - `apps/web/src/` — participant UI, API client, bundle/media ownership.
@@ -25,6 +31,8 @@ post-rollout checks are recorded in
   evidence and the rollout gate.
 - `docs/WEB_WORKER_ROLLOUT_OPERATIONS.md` — production exposure record,
   privacy-safe observation queries, and rollback checklist.
+- `docs/PRODUCTION_BASELINE.md` — verified live release, configuration,
+  telemetry interpretation, API surface, and rollback anchors.
 - `docs/PERCENTILE_PREVIEW_RUNBOOK.md` — preliminary historical-percentile
   provenance, qualification, staged exposure, and rollback contract.
 - `docs/REPOSITORY_STRUCTURE.md` — module ownership, dependency rules, and

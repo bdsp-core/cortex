@@ -136,9 +136,8 @@ def _engine():
 
 def enabled(cfg: dict, code: str, participant) -> bool:
     """The engine-trainer exposure gate: CORTEX_TRAINER_ENGINE ∈
-    off|cohort|all (mirrors dashboard_logic.training_enabled; default
-    OFF — the incumbent client trainer stays the production posture
-    until the team promotes the engine)."""
+    off|cohort|all (mirrors dashboard_logic.training_enabled; default ALL).
+    The browser has no local model fallback: `off` rejects engine starts."""
     mode = (cfg or {}).get("trainer_engine", "all")
     if mode == "off":
         return False
