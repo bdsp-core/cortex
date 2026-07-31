@@ -98,6 +98,7 @@ export function profileStamp(profile: EngineProfile): ProfileStamp {
     engineAlgorithmVersion: profile.engineAlgorithmVersion,
     selectorVersion: profile.selectorVersion,
     candidateBankSha256: profile.candidateBankSha256,
+    responseAggregation: profile.responseAggregation ?? "mixture",
   };
 }
 

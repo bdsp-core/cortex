@@ -164,4 +164,5 @@ export interface ProfileStamp {
   engineAlgorithmVersion: string;
   selectorVersion: EngineProfile["selectorVersion"];
   candidateBankSha256: string;
+  responseAggregation: ResponseAggregation;
 }

@@ -5,7 +5,9 @@ import {
   atomPosterior, cloneProtocolState, makeProtocolState,
   resampleAndRejuvenateProtocol, updateProtocol,
 } from "../src/particles";
-import { validateProfile } from "../src/profile";
+import { profileStamp, validateProfile } from "../src/profile";
+import { restoreProtocolState, snapshotProtocolState } from "../src/snapshot";
+import { executeRankedBranches } from "../src/speculation";
 import type {
   ConditionalF1ArtifactEnsemble, EngineProfile, ProtocolParticleState,
 } from "../src/types";
@@ -152,6 +154,103 @@ describe("draw-latent response aggregation (construction B)", () => {
       state, drawLatentProfile, singleAtomArtifact, segments(1),
       makeObservation(drawLatentProfile, 2, 0, 5),
     )).toThrow(/outside the artifact draws/);
+  });
+
+  it("carries atom lineage through snapshot, restore, and resumed updates", () => {
+    const state = makeProtocolState(24, K, manualState().prior, new Rng(13), {
+      responseAggregation: "draw_latent", artifact: threeAtomArtifact,
+    });
+    const bank = segments(2);
+    updateProtocol(
+      state, drawLatentThreeProfile, threeAtomArtifact, bank,
+      makeObservation(drawLatentThreeProfile, 3, 0, 5),
+    );
+    const stamp = profileStamp(drawLatentThreeProfile);
+    expect(stamp.responseAggregation).toBe("draw_latent");
+    const snapshot = snapshotProtocolState(state, stamp);
+    expect(Array.from(snapshot.atomIndex!)).toEqual(Array.from(state.atomIndex!));
+    const restored = restoreProtocolState(snapshot, stamp, state.prior);
+    expect(Array.from(restored.atomIndex!)).toEqual(Array.from(state.atomIndex!));
+    restored.atomIndex![0] = 2;
+    expect(snapshot.atomIndex![0]).toBe(state.atomIndex![0]);
+    restored.atomIndex![0] = state.atomIndex![0];
+
+    // A resumed session must continue the exact per-atom likelihood stream.
+    const continued = cloneProtocolState(state);
+    const observation = makeObservation(drawLatentThreeProfile, 5, 1, 2);
+    updateProtocol(continued, drawLatentThreeProfile, threeAtomArtifact, bank, observation);
+    updateProtocol(restored, drawLatentThreeProfile, threeAtomArtifact, bank, observation);
+    expect(Array.from(restored.w)).toEqual(Array.from(continued.w));
+    expect(Array.from(restored.logLik)).toEqual(Array.from(continued.logLik));
+  });
+
+  it("fails closed when a draw-latent snapshot loses lineage or mode", () => {
+    const state = makeProtocolState(12, K, manualState().prior, new Rng(29), {
+      responseAggregation: "draw_latent", artifact: threeAtomArtifact,
+    });
+    const stamp = profileStamp(drawLatentThreeProfile);
+    const snapshot = snapshotProtocolState(state, stamp);
+    const { atomIndex: _dropped, ...withoutLineage } = snapshot;
+    expect(() => restoreProtocolState(
+      withoutLineage, stamp, state.prior,
+    )).toThrow(/missing per-particle atom lineage/);
+    const mixtureStamp = profileStamp(profileFor(threeAtomArtifact));
+    expect(() => restoreProtocolState(
+      snapshot, mixtureStamp, state.prior,
+    )).toThrow(/resume_incompatible:responseAggregation/);
+    const mixtureSnapshot = snapshotProtocolState(manualState(12), mixtureStamp);
+    expect(() => restoreProtocolState(
+      { ...mixtureSnapshot, atomIndex: state.atomIndex!.slice() },
+      mixtureStamp, state.prior,
+    )).toThrow(/mixture snapshot must not carry atom lineage/);
+  });
+
+  it("preserves atom lineage across speculation clones and ranked adoption", async () => {
+    const authoritative = makeProtocolState(16, K, manualState().prior, new Rng(41), {
+      responseAggregation: "draw_latent", artifact: threeAtomArtifact,
+    });
+    const lineage = Array.from(authoritative.atomIndex!);
+    const bank = segments(1);
+    const distribution = [1, 2, 3, 4, 5, 6].map((outcome) => ({
+      outcome, probability: outcome === 4 ? 0.4 : 0.12,
+    }));
+    const adopted = await executeRankedBranches({
+      authoritative,
+      distribution,
+      actualOutcome: Promise.resolve(6),
+      cloneCore: cloneProtocolState,
+      advance: async (core, outcome) => {
+        updateProtocol(
+          core, drawLatentThreeProfile, threeAtomArtifact, bank,
+          makeObservation(drawLatentThreeProfile, 3, 0, outcome),
+        );
+        return core;
+      },
+      helperAvailable: true,
+    });
+    expect(adopted.cacheHit).toBe(false);
+    expect(Array.from(adopted.result.atomIndex!)).toEqual(lineage);
+    expect(adopted.result.history).toHaveLength(1);
+    // The authoritative core and its lineage stay untouched by branches.
+    expect(authoritative.history).toHaveLength(0);
+    expect(Array.from(authoritative.atomIndex!)).toEqual(lineage);
+
+    const cached = await executeRankedBranches({
+      authoritative,
+      distribution,
+      actualOutcome: Promise.resolve(4),
+      cloneCore: cloneProtocolState,
+      advance: async (core, outcome) => {
+        updateProtocol(
+          core, drawLatentThreeProfile, threeAtomArtifact, bank,
+          makeObservation(drawLatentThreeProfile, 3, 0, outcome),
+        );
+        return core;
+      },
+      helperAvailable: true,
+    });
+    expect(cached.cacheHit).toBe(true);
+    expect(Array.from(cached.result.atomIndex!)).toEqual(lineage);
   });
 
   it("accepts a categorical draw-latent profile and rejects a binary one", () => {
