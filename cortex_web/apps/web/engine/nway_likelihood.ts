@@ -5,22 +5,17 @@ import {
 import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
 import type {
   BinaryParticleObservation, CategoricalParticleObservation,
-  ComputeSegmentMeta, ParticleObservation,
+  ComputeSegmentMeta, NWayPreparedAtom, NWayResponseAggregation,
+  NWayResponseRuntime, ParticleObservation,
 } from "./types";
 
 export const IIIC_TASK_INDICES = Object.freeze([1, 2, 3, 4, 5, 6]);
 
-interface PreparedHistoryDraw extends ArtifactDraw {
-  logWeight: number;
-  uniformLogProbability: number;
-  directedLogProbability: number;
-}
-
-// These terms are invariant across every particle, observation, and MH step.
-// Keep them on the log-domain history path only: the selector mixes response
-// probabilities and intentionally retains its existing arithmetic.
-const HISTORY_DRAWS: readonly PreparedHistoryDraw[] = Object.freeze(
-  NWAY_ARTIFACT.draws.map((draw) => ({
+/** Observation-invariant log-domain terms for one artifact draw. Shared by the
+ * frozen history table and profile-gated runtimes so both aggregation modes
+ * run the identical arithmetic. */
+export function prepareResponseDraw(draw: ArtifactDraw): NWayPreparedAtom {
+  return {
     ...draw,
     logWeight: Math.log(draw.weight),
     uniformLogProbability: draw.distractorLapse === 0
@@ -29,7 +24,14 @@ const HISTORY_DRAWS: readonly PreparedHistoryDraw[] = Object.freeze(
     directedLogProbability: draw.distractorLapse === 1
       ? -Infinity
       : Math.log1p(-draw.distractorLapse),
-  })),
+  };
+}
+
+// These terms are invariant across every particle, observation, and MH step.
+// Keep them on the log-domain history path only: the selector mixes response
+// probabilities and intentionally retains its existing arithmetic.
+const HISTORY_DRAWS: readonly NWayPreparedAtom[] = Object.freeze(
+  NWAY_ARTIFACT.draws.map(prepareResponseDraw),
 );
 
 function zFor(
@@ -53,7 +55,7 @@ function zFor(
 
 function logDistractorProbability(
   askedK: number, pickK: number,
-  draw: PreparedHistoryDraw,
+  draw: NWayPreparedAtom,
   workspace: ObservationLikelihoodWorkspace,
 ): number {
   if (pickK === askedK
@@ -93,9 +95,11 @@ export interface ObservationLikelihoodWorkspace {
   distractorLogits: Float64Array;
 }
 
-export function makeObservationLikelihoodWorkspace(): ObservationLikelihoodWorkspace {
+export function makeObservationLikelihoodWorkspace(
+  mixtureSize = NWAY_ARTIFACT.draws.length,
+): ObservationLikelihoodWorkspace {
   return {
-    mixture: new Float64Array(NWAY_ARTIFACT.draws.length),
+    mixture: new Float64Array(mixtureSize),
     distractorSignals: new Float64Array(IIIC_TASK_INDICES.length - 1),
     distractorLogits: new Float64Array(IIIC_TASK_INDICES.length - 1),
   };
@@ -119,14 +123,14 @@ function historySignalZ(
       );
 }
 
-function logSumExpMixture(values: Float64Array): number {
+function logSumExpMixture(values: Float64Array, count = values.length): number {
   let maximum = -Infinity;
-  for (let i = 0; i < values.length; i++) {
+  for (let i = 0; i < count; i++) {
     if (values[i] > maximum) maximum = values[i];
   }
   if (maximum === -Infinity) return -Infinity;
   let sum = 0;
-  for (let i = 0; i < values.length; i++) sum += Math.exp(values[i] - maximum);
+  for (let i = 0; i < count; i++) sum += Math.exp(values[i] - maximum);
   return maximum + Math.log(sum);
 }
 
@@ -136,6 +140,8 @@ export function logCategoricalObservationProbability(
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
   workspace = makeObservationLikelihoodWorkspace(),
   skillScale?: Float64Array,
+  runtime?: NWayResponseRuntime,
+  atomDraw?: NWayPreparedAtom,
 ): number {
   const particleOffset = particleIndex * K;
   const ownZ = historySignalZ(
@@ -150,19 +156,32 @@ export function logCategoricalObservationProbability(
       k, sMean, sSd, signalOffset, t, l, particleOffset, skillScale,
     );
   }
-  for (let i = 0; i < HISTORY_DRAWS.length; i++) {
-    const draw = HISTORY_DRAWS[i];
+  if (atomDraw) {
+    // Draw-latent aggregation: this particle scores the pick under its own
+    // atom's (beta, distractorLapse), never the fixed-weight mixture average.
+    return logPResponse(ownZ, 0) + logDistractorProbability(
+      askedK, pickK, atomDraw, workspace,
+    );
+  }
+  const draws = runtime ? runtime.atoms : HISTORY_DRAWS;
+  if (workspace.mixture.length < draws.length) {
+    throw new Error("observation likelihood workspace is too small for the mixture");
+  }
+  for (let i = 0; i < draws.length; i++) {
+    const draw = draws[i];
     workspace.mixture[i] = draw.logWeight + logDistractorProbability(
       askedK, pickK, draw, workspace,
     );
   }
-  return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture);
+  return logPResponse(ownZ, 0) + logSumExpMixture(workspace.mixture, draws.length);
 }
 
 export function logObservationProbability(
   observation: ParticleObservation,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
   workspace = makeObservationLikelihoodWorkspace(),
+  runtime?: NWayResponseRuntime,
+  atomDraw?: NWayPreparedAtom,
 ): number {
   const offset = particleIndex * K;
   if (observation.kind === "binary") {
@@ -175,7 +194,7 @@ export function logObservationProbability(
   return logCategoricalObservationProbability(
     observation.askedK, observation.pickK,
     observation.sMean, observation.sSd, 0,
-    t, l, particleIndex, K, workspace,
+    t, l, particleIndex, K, workspace, undefined, runtime, atomDraw,
   );
 }
 
@@ -246,6 +265,7 @@ export function fillResponseProbabilities(
   output: Float64Array, workspace: ResponseProbabilityWorkspace,
   screening = false,
   skillScale?: Float64Array,
+  runtime?: NWayResponseRuntime,
 ): void {
   const offset = particleIndex * K;
   if (taskClass === "spike") {
@@ -269,7 +289,9 @@ export function fillResponseProbabilities(
     );
   }
   const own = pResponseYes(workspace.z[askedK]);
-  const draws = screening ? SCREEN_DRAW : NWAY_ARTIFACT.draws;
+  const draws = screening
+    ? (runtime ? runtime.screen : SCREEN_DRAW)
+    : (runtime ? runtime.atoms : NWAY_ARTIFACT.draws);
   for (let drawIndex = 0; drawIndex < draws.length; drawIndex++) {
     const draw = draws[drawIndex];
     const beta = draw.beta;
@@ -333,6 +355,7 @@ export function fillScreeningProbabilitiesAndJacobians(
   taskClass: "iiic" | "spike", askedK: number, segment: ComputeSegmentMeta,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
   output: Float64Array, workspace: ScreeningJacobianWorkspace,
+  runtime?: NWayResponseRuntime,
 ): void {
   const outcomeCount = taskClass === "spike" ? 2 : IIIC_TASK_INDICES.length;
   if (output.length !== outcomeCount) {
@@ -345,7 +368,7 @@ export function fillScreeningProbabilitiesAndJacobians(
   }
   fillResponseProbabilities(
     taskClass, askedK, segment, t, l, particleIndex, K,
-    output, workspace, true,
+    output, workspace, true, undefined, runtime,
   );
   workspace.biasJacobian.fill(0, 0, matrixLength);
   workspace.skillJacobian.fill(0, 0, matrixLength);
@@ -371,7 +394,7 @@ export function fillScreeningProbabilitiesAndJacobians(
     fillSignalAndDerivatives(k, segment, t, l, offset, workspace);
   }
   const ownProbability = output[askedK - 1];
-  const draw = SCREEN_DRAW[0];
+  const draw = (runtime ? runtime.screen : SCREEN_DRAW)[0];
   let maximum = -Infinity;
   for (let taskIndex = 0; taskIndex < IIIC_TASK_INDICES.length; taskIndex++) {
     const k = IIIC_TASK_INDICES[taskIndex];
@@ -437,11 +460,12 @@ export function fillScreeningProbabilitiesAndJacobians(
 export function responseProbabilities(
   taskClass: "iiic" | "spike", askedK: number, segment: ComputeSegmentMeta,
   t: Float64Array, l: Float64Array, particleIndex: number, K: number,
+  runtime?: NWayResponseRuntime,
 ): { outcome: number; probability: number }[] {
   const output = new Float64Array(taskClass === "spike" ? 2 : 6);
   fillResponseProbabilities(
     taskClass, askedK, segment, t, l, particleIndex, K,
-    output, makeResponseProbabilityWorkspace(K), false,
+    output, makeResponseProbabilityWorkspace(K), false, undefined, runtime,
   );
   return Array.from(output, (probability, index) => ({
     outcome: taskClass === "spike" ? (index === 0 ? askedK : K) : index + 1,
@@ -449,10 +473,53 @@ export function responseProbabilities(
   }));
 }
 
-const SCREEN_DRAW: readonly ArtifactDraw[] = Object.freeze([{
-  beta: NWAY_ARTIFACT.draws.reduce((sum, draw) => sum + draw.weight * draw.beta, 0),
-  distractorLapse: NWAY_ARTIFACT.draws.reduce(
-    (sum, draw) => sum + draw.weight * draw.distractorLapse, 0,
-  ),
-  weight: 1,
-}]);
+/** Cheap deterministic single-draw surrogate used only by Fisher screening. */
+export function momentMatchedScreenDraw(
+  draws: readonly ArtifactDraw[],
+): ArtifactDraw {
+  return {
+    beta: draws.reduce((sum, draw) => sum + draw.weight * draw.beta, 0),
+    distractorLapse: draws.reduce(
+      (sum, draw) => sum + draw.weight * draw.distractorLapse, 0,
+    ),
+    weight: 1,
+  };
+}
+
+const SCREEN_DRAW: readonly ArtifactDraw[] = Object.freeze([
+  momentMatchedScreenDraw(NWAY_ARTIFACT.draws),
+]);
+
+/**
+ * Build a validated response-model runtime for a profile-gated artifact.
+ * Mirrors the isolated port's normalizedArtifactDraws fail-closed checks; the
+ * prepared log terms use the exact frozen history-draw arithmetic.
+ */
+export function buildNWayResponseRuntime(
+  aggregation: NWayResponseAggregation,
+  artifactId: string,
+  draws: readonly ArtifactDraw[],
+): NWayResponseRuntime {
+  if (draws.length === 0) throw new Error("response runtime requires at least one draw");
+  let weightSum = 0;
+  for (const draw of draws) {
+    if (!Number.isFinite(draw.beta) || draw.beta <= 0) {
+      throw new Error("artifact beta must be finite and positive");
+    }
+    if (!Number.isFinite(draw.distractorLapse)
+        || draw.distractorLapse < 0 || draw.distractorLapse > 1) {
+      throw new Error("artifact distractor lapse must be in [0, 1]");
+    }
+    if (!Number.isFinite(draw.weight) || draw.weight <= 0) {
+      throw new Error("artifact draw weights must be finite and positive");
+    }
+    weightSum += draw.weight;
+  }
+  const normalized = draws.map((draw) => ({ ...draw, weight: draw.weight / weightSum }));
+  return {
+    aggregation,
+    artifactId,
+    atoms: Object.freeze(normalized.map(prepareResponseDraw)),
+    screen: Object.freeze([momentMatchedScreenDraw(normalized)]),
+  };
+}

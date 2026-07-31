@@ -53,6 +53,8 @@ export interface NWaySelectionExecutor {
   historyLikelihood(
     history: PackedParticleHistory, N: number, K: number,
     t: Float64Array, l: Float64Array,
+    /** Per-particle atom lineage — present exactly on draw-latent sessions. */
+    atomIndex?: Int32Array,
   ): Promise<Float64Array>;
   restartAfterCancellation?(): NWayCancellationRestart;
   dispose(): void;
