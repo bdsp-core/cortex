@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draw-latent n-way local session console</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-1-soft: #9ec5f4;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --series-1-soft: #1c5cab;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header p { margin: 0 0 4px; color: var(--text-secondary); }
+  header .fine { color: var(--text-muted); font-size: 12px; }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 2px; }
+  .card .sub { color: var(--text-muted); font-size: 12px; margin: 0 0 12px; }
+  .controls-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  label.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); }
+  select, input[type=number], input[type=text] {
+    font: inherit; color: var(--text-primary);
+    background: var(--page); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; min-width: 110px;
+  }
+  button {
+    font: inherit; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--page); color: var(--text-primary);
+    padding: 7px 14px;
+  }
+  button:hover:not(:disabled) { border-color: var(--series-1); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--series-1); border-color: var(--series-1); color: #ffffff; }
+  .answer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .answer-grid button { padding: 14px 8px; font-size: 15px; }
+  .asked { font-size: 26px; font-weight: 650; margin: 2px 0 0; }
+  .qmeta { color: var(--text-muted); font-size: 12px; }
+  .two-col { display: grid; grid-template-columns: minmax(340px, 3fr) minmax(260px, 2fr); gap: 16px; }
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 10px; font-size: 12px; color: var(--text-secondary);
+    background: var(--page);
+  }
+  .chip .dot { font-size: 12px; line-height: 1; }
+  .chip b { color: var(--text-primary); font-weight: 600; }
+  .chip .n { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+  /* dot-and-interval skill chart */
+  .skill-rows { display: grid; gap: 8px; }
+  .skill-row { display: grid; grid-template-columns: 74px 1fr 150px; gap: 10px; align-items: center; }
+  .skill-row .name { font-size: 12px; color: var(--text-secondary); text-align: right; }
+  .skill-row .value { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .track { position: relative; height: 22px; }
+  .track .gridline, .track .zero {
+    position: absolute; top: 0; bottom: 0; width: 1px; background: var(--grid);
+  }
+  .track .zero { background: var(--baseline); }
+  .track .ci {
+    position: absolute; top: 50%; height: 2px; margin-top: -1px;
+    background: var(--series-1-soft); border-radius: 1px;
+  }
+  .track .mean {
+    position: absolute; top: 50%; width: 10px; height: 10px;
+    margin: -5px 0 0 -5px; border-radius: 50%;
+    background: var(--series-1); border: 2px solid var(--surface-1);
+  }
+  .axis-caption { display: grid; grid-template-columns: 74px 1fr 150px; gap: 10px; }
+  .axis-caption .lab { grid-column: 2; display: flex; justify-content: space-between; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  /* atom posterior bars */
+  .atoms {
+    position: relative; height: 170px; margin-top: 6px;
+    display: flex; align-items: flex-end; gap: 2px;
+    border-bottom: 1px solid var(--baseline);
+  }
+  .atom-slot { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; }
+  .atom-bar {
+    width: 100%; background: var(--series-1);
+    border-radius: 4px 4px 0 0; min-height: 0;
+  }
+  .atom-slot .maplab {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: var(--text-secondary); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .uniform-line {
+    position: absolute; left: 0; right: 0; height: 0;
+    border-top: 1px dashed var(--grid); pointer-events: none;
+  }
+  .uniform-line span {
+    position: absolute; right: 0; top: -16px;
+    font-size: 11px; color: var(--text-muted); background: var(--surface-1); padding: 0 2px;
+  }
+  .atom-x { display: flex; gap: 2px; margin-top: 4px; }
+  .atom-x span {
+    flex: 1 1 0; text-align: center; font-size: 10px;
+    color: var(--text-muted); font-variant-numeric: tabular-nums;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  #tooltip {
+    position: fixed; z-index: 10; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-size: 12px; color: var(--text-primary);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+  }
+  .banner {
+    border: 1px solid var(--border); border-left: 3px solid var(--status-good);
+    border-radius: 6px; padding: 8px 12px; margin-top: 10px;
+    color: var(--text-secondary); font-size: 13px;
+  }
+  .busy { color: var(--text-muted); font-size: 12px; }
+  details { margin-top: 10px; color: var(--text-secondary); font-size: 12px; }
+  details table { margin-top: 6px; }
+  .error { color: var(--status-critical); font-size: 13px; margin-top: 8px; min-height: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Draw-latent n-way local session console</h1>
+    <p>Adaptive IIIC certification session against the isolated TS engine with
+       per-particle artifact-atom lineage (responseAggregation: draw_latent).</p>
+    <p class="fine" id="boot-line">Connecting to server…</p>
+  </header>
+
+  <section class="card" id="setup">
+    <h2>New session</h2>
+    <p class="sub">Stopping is the unchanged production Precision policy: per-domain cap 60,
+       minimum 20 questions per domain, full-bank tercile content bands.</p>
+    <div class="controls-row">
+      <label class="field">Mode
+        <select id="mode">
+          <option value="manual">Manual (you answer)</option>
+          <option value="simulated">Simulated reader</option>
+        </select>
+      </label>
+      <label class="field">Simulated reader preset
+        <select id="preset">
+          <option value="sharp_expert">Sharp expert (beta 1.6)</option>
+          <option value="typical">Typical (beta 1.0)</option>
+          <option value="diffuse">Diffuse (beta 0.7)</option>
+          <option value="guesser">Guesser (lapse 1.0)</option>
+        </select>
+      </label>
+      <label class="field">Seed (blank = time-derived)
+        <input type="text" id="seed" inputmode="numeric" placeholder="e.g. 20260731">
+      </label>
+      <button class="primary" id="start">Start session</button>
+    </div>
+    <div class="error" id="setup-error"></div>
+  </section>
+
+  <main id="console" hidden>
+    <div class="two-col">
+      <section class="card" id="question-card">
+        <h2>Current question</h2>
+        <p class="sub" id="session-line"></p>
+        <div id="question-live">
+          <div class="qmeta" id="qmeta"></div>
+          <div class="asked" id="asked-class"></div>
+          <div class="qmeta">Which class does this segment show?</div>
+          <div class="answer-grid" id="answers"></div>
+          <details>
+            <summary>Segment signals (local testing aid; a served session would show the EEG instead)</summary>
+            <table id="signal-table"></table>
+          </details>
+        </div>
+        <div id="stop-banner" class="banner" hidden></div>
+        <div class="controls-row" style="margin-top:12px">
+          <button data-steps="1" class="sim-step">Simulate 1</button>
+          <button data-steps="10" class="sim-step">Simulate 10</button>
+          <button data-steps="50" class="sim-step">Simulate 50</button>
+          <button data-steps="1000" class="sim-step">Run to stop</button>
+          <span class="busy" id="busy"></span>
+        </div>
+        <div class="error" id="session-error"></div>
+      </section>
+
+      <section class="card">
+        <h2>Domain status</h2>
+        <p class="sub">Precision selection states; n of 60 per-domain cap.</p>
+        <div class="chips" id="chips"></div>
+        <table id="domain-table" style="margin-top:12px"></table>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Per-domain skill estimates (l)</h2>
+      <p class="sub">Posterior mean with equal-tailed 95% credible interval, prior-SD units.</p>
+      <div class="skill-rows" id="skill-rows"></div>
+      <div class="axis-caption"><div class="lab"><span>-3.5</span><span>0</span><span>+3.5</span></div></div>
+    </section>
+
+    <section class="card">
+      <h2>Inferred distractor sharpness</h2>
+      <p class="sub">Posterior mass over the 17 artifact atoms (beta; every atom carries the 0.15
+         lapse floor). Dashed line marks the uniform prior weight.</p>
+      <div class="atoms" id="atoms"></div>
+      <div class="atom-x" id="atom-x"></div>
+    </section>
+
+    <section class="card">
+      <h2>Per-domain bias estimates (t)</h2>
+      <p class="sub">Report-only response-tendency coordinate; never consulted by stopping.</p>
+      <table id="bias-table"></table>
+    </section>
+
+    <section class="card" id="summary-card" hidden>
+      <h2>Session summary</h2>
+      <p class="sub" id="summary-sub"></p>
+      <table id="summary-table"></table>
+      <p id="summary-atoms" style="color:var(--text-secondary)"></p>
+    </section>
+  </main>
+</div>
+<div id="tooltip"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const tooltip = $("tooltip");
+const CLASSES = [null, "Seizure", "LPD", "GPD", "LRDA", "GRDA", "IIC/Other"];
+const STATUS_META = {
+  ACTIVE: { glyph: "●", color: "var(--text-muted)", text: "active" },
+  ESTIMATE_COMPLETE: { glyph: "✓", color: "var(--status-good)", text: "estimate complete" },
+  UNDETERMINABLE_CAP: { glyph: "⚠", color: "var(--status-serious)", text: "cap reached" },
+  UNDETERMINABLE_BANK: { glyph: "∅", color: "var(--status-warning)", text: "bank exhausted" },
+  DETERMINED: { glyph: "✓", color: "var(--status-good)", text: "determined" },
+};
+let sessionId = null;
+let pollTimer = null;
+
+function fmt(x, digits = 2) {
+  return (x === null || x === undefined || Number.isNaN(x)) ? "-" : Number(x).toFixed(digits);
+}
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || response.statusText);
+  return body;
+}
+function showTooltip(event, text) {
+  tooltip.textContent = text;
+  tooltip.style.display = "block";
+  tooltip.style.left = Math.min(event.clientX + 12, window.innerWidth - 180) + "px";
+  tooltip.style.top = (event.clientY + 12) + "px";
+}
+function hideTooltip() { tooltip.style.display = "none"; }
+
+async function boot() {
+  try {
+    const health = await api("/healthz");
+    $("boot-line").textContent =
+      `Engine profile ${health.engineProfileId} · artifact ${health.artifactId} ` +
+      `(${health.atomCount} atoms) · served bank ${health.bankRows} segments · fully local`;
+  } catch (error) {
+    $("boot-line").textContent = "Server unreachable: " + error.message;
+  }
+}
+
+async function startSession() {
+  $("setup-error").textContent = "";
+  const mode = $("mode").value;
+  const body = { mode };
+  if (mode === "simulated") body.reader = { preset: $("preset").value };
+  const seedText = $("seed").value.trim();
+  if (seedText !== "") {
+    const seed = Number(seedText);
+    if (!Number.isInteger(seed)) { $("setup-error").textContent = "Seed must be an integer."; return; }
+    body.seed = seed;
+  }
+  try {
+    $("start").disabled = true;
+    const status = await api("/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    sessionId = status.sessionId;
+    $("console").hidden = false;
+    render(status);
+    $("console").scrollIntoView({ behavior: "smooth" });
+  } catch (error) {
+    $("setup-error").textContent = error.message;
+  } finally {
+    $("start").disabled = false;
+  }
+}
+
+async function answer(pick) {
+  try {
+    $("session-error").textContent = "";
+    setButtonsEnabled(false);
+    const status = await api(`/session/${sessionId}/answer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pick }),
+    });
+    render(status);
+  } catch (error) {
+    $("session-error").textContent = error.message;
+  } finally {
+    setButtonsEnabled(true);
+  }
+}
+
+async function autostep(n) {
+  $("session-error").textContent = "";
+  setButtonsEnabled(false);
+  $("busy").textContent = "Simulating…";
+  pollTimer = setInterval(async () => {
+    try { render(await api(`/session/${sessionId}`)); } catch { /* transient */ }
+  }, 1200);
+  try {
+    const body = { n };
+    // Manual sessions hand off to a simulated reader using the selected preset.
+    body.reader = { preset: $("preset").value };
+    const status = await api(`/session/${sessionId}/autostep`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    render(status);
+  } catch (error) {
+    $("session-error").textContent = error.message;
+  } finally {
+    clearInterval(pollTimer);
+    $("busy").textContent = "";
+    setButtonsEnabled(true);
+  }
+}
+
+function setButtonsEnabled(enabled) {
+  for (const button of document.querySelectorAll("#answers button, .sim-step")) {
+    button.disabled = !enabled;
+  }
+}
+
+function render(s) {
+  $("session-line").textContent =
+    `Session ${s.sessionId} · seed ${s.config.seed} · ${s.config.particles} particles · ` +
+    `${s.config.bankSegments}-segment draw · mode ${s.mode}` +
+    (s.reader ? ` · reader beta ${s.reader.beta}, lapse ${s.reader.lapse}` : "");
+
+  const live = $("question-live");
+  if (s.currentItem) {
+    live.hidden = false;
+    $("stop-banner").hidden = true;
+    $("qmeta").textContent =
+      `Question ${s.currentItem.questionNumber} · segment ${s.currentItem.segId} · ` +
+      `${s.remainingSegments} segments remaining`;
+    $("asked-class").textContent = s.currentItem.askedClass;
+    const answers = $("answers");
+    if (!answers.childElementCount) {
+      for (let k = 1; k <= 6; k += 1) {
+        const button = document.createElement("button");
+        button.textContent = CLASSES[k];
+        button.addEventListener("click", () => answer(k));
+        answers.appendChild(button);
+      }
+    }
+    const rows = ["<tr><th>Class</th><th>s mean</th><th>s sd</th></tr>"];
+    for (const signal of s.currentItem.segmentSignals) {
+      rows.push(`<tr><td>${signal.label}</td><td>${fmt(signal.sMean, 3)}</td><td>${fmt(signal.sSd, 3)}</td></tr>`);
+    }
+    $("signal-table").innerHTML = rows.join("");
+  } else {
+    live.hidden = true;
+    const banner = $("stop-banner");
+    banner.hidden = false;
+    banner.textContent = `Session stopped after ${s.questionsAsked} questions: ${s.stopReason}.`;
+  }
+
+  const chips = [];
+  for (const domain of s.domains) {
+    const meta = STATUS_META[domain.status] || STATUS_META.ACTIVE;
+    chips.push(
+      `<span class="chip"><span class="dot" style="color:${meta.color}">${meta.glyph}</span>` +
+      `<b>${domain.label}</b> <span class="n">${domain.n}/60</span> ${meta.text}</span>`,
+    );
+  }
+  $("chips").innerHTML = chips.join("");
+
+  const domainRows = ["<tr><th>Domain</th><th>n</th><th>radius</th><th>guarded</th><th>target</th><th>streak</th></tr>"];
+  for (const domain of s.domains) {
+    if (domain.k === 0) continue;
+    domainRows.push(
+      `<tr><td>${domain.label}</td><td>${domain.n}</td><td>${fmt(domain.radius)}</td>` +
+      `<td>${fmt(domain.guardedRadius)}</td><td>${fmt(domain.tolerance)}</td><td>${domain.streak}</td></tr>`,
+    );
+  }
+  $("domain-table").innerHTML = domainRows.join("");
+
+  const LO = -3.5, HI = 3.5;
+  const pct = (x) => Math.max(0, Math.min(100, (x - LO) / (HI - LO) * 100));
+  const skillRows = [];
+  for (const domain of s.domains) {
+    if (domain.k === 0) continue;
+    const [lo, hi] = domain.skill.ci95;
+    skillRows.push(
+      `<div class="skill-row"><div class="name">${domain.label}</div>` +
+      `<div class="track" data-tip="${domain.label}: mean ${fmt(domain.skill.mean)} ` +
+      `[${fmt(lo)}, ${fmt(hi)}]">` +
+      `<div class="gridline" style="left:${pct(-2)}%"></div>` +
+      `<div class="gridline" style="left:${pct(2)}%"></div>` +
+      `<div class="zero" style="left:${pct(0)}%"></div>` +
+      `<div class="ci" style="left:${pct(lo)}%;width:${Math.max(0.5, pct(hi) - pct(lo))}%"></div>` +
+      `<div class="mean" style="left:${pct(domain.skill.mean)}%"></div>` +
+      `</div><div class="value">${fmt(domain.skill.mean)} [${fmt(lo)}, ${fmt(hi)}]</div></div>`,
+    );
+  }
+  $("skill-rows").innerHTML = skillRows.join("");
+
+  const atoms = $("atoms");
+  const mass = s.atomPosterior.mass;
+  const maxMass = Math.max(...mass, 1e-9);
+  const mapIndex = mass.indexOf(Math.max(...mass));
+  const uniform = 1 / mass.length;
+  const slots = [`<div class="uniform-line" style="bottom:${uniform / maxMass * 100}%"><span>uniform ${(uniform * 100).toFixed(1)}%</span></div>`];
+  for (let index = 0; index < mass.length; index += 1) {
+    const height = (mass[index] / maxMass * 100).toFixed(2);
+    const beta = s.atomPosterior.betas[index];
+    const label = index === mapIndex
+      ? `<span class="maplab">${(mass[index] * 100).toFixed(1)}%</span>` : "";
+    slots.push(
+      `<div class="atom-slot" data-tip="beta ${fmt(beta, 3)} · lapse ${fmt(s.atomPosterior.lapses[index], 2)} · ` +
+      `mass ${(mass[index] * 100).toFixed(2)}%">${label}` +
+      `<div class="atom-bar" style="height:${height}%"></div></div>`,
+    );
+  }
+  atoms.innerHTML = slots.join("");
+  $("atom-x").innerHTML = s.atomPosterior.betas
+    .map((beta) => `<span>${beta.toFixed(2)}</span>`).join("");
+
+  const biasRows = ["<tr><th>Domain</th><th>t mean</th><th>95% CI</th></tr>"];
+  for (const domain of s.domains) {
+    if (domain.k === 0) continue;
+    biasRows.push(
+      `<tr><td>${domain.label}</td><td>${fmt(domain.bias.mean)}</td>` +
+      `<td>[${fmt(domain.bias.ci95[0])}, ${fmt(domain.bias.ci95[1])}]</td></tr>`,
+    );
+  }
+  $("bias-table").innerHTML = biasRows.join("");
+
+  const summary = $("summary-card");
+  if (s.stopped) {
+    summary.hidden = false;
+    $("summary-sub").textContent =
+      `Stopped after ${s.questionsAsked} questions (${s.stopReason}); ` +
+      `engine time ${(s.timing.totalMs / 1000).toFixed(1)} s.`;
+    const summaryRows = ["<tr><th>Domain</th><th>n</th><th>Status</th><th>Skill mean</th><th>95% CI</th></tr>"];
+    for (const domain of s.domains) {
+      if (domain.k === 0) continue;
+      summaryRows.push(
+        `<tr><td>${domain.label}</td><td>${domain.n}</td><td style="text-align:left">${(STATUS_META[domain.status] || {}).text || domain.status}</td>` +
+        `<td>${fmt(domain.skill.mean)}</td><td>[${fmt(domain.skill.ci95[0])}, ${fmt(domain.skill.ci95[1])}]</td></tr>`,
+      );
+    }
+    $("summary-table").innerHTML = summaryRows.join("");
+    $("summary-atoms").textContent =
+      `Atom posterior: MAP beta ${fmt(s.atomPosterior.mapBeta, 3)}, ` +
+      `posterior-mean beta ${fmt(s.atomPosterior.meanBeta, 3)}.`;
+  } else {
+    summary.hidden = true;
+  }
+}
+
+document.addEventListener("mousemove", (event) => {
+  const target = event.target.closest("[data-tip]");
+  if (target) showTooltip(event, target.getAttribute("data-tip"));
+  else hideTooltip();
+});
+$("start").addEventListener("click", startSession);
+for (const button of document.querySelectorAll(".sim-step")) {
+  button.addEventListener("click", () => autostep(Number(button.dataset.steps)));
+}
+boot();
+</script>
+</body>
+</html>

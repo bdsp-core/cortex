@@ -1,4 +1,5 @@
 .artifacts/
+.local-server-dist/
 .precision-cli-dist/
 .pytest_cache/
 __pycache__/
