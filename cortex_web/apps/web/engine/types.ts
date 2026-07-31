@@ -118,6 +118,8 @@ export interface NWayProfileStamp {
   particleProfileVersion: string;
   engineAlgorithmVersion: string;
   candidateBankSha256: string;
+  /** Absent means "mixture", so every existing stamp is untouched. */
+  responseAggregation?: NWayResponseAggregation;
 }
 
 export interface BinaryParticleObservation {

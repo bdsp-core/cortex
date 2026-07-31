@@ -2,11 +2,14 @@ import { logSumExp2 } from "./mathfns";
 import {
   LAPSE_RATE, logPResponse, pResponseYes, signalZ, signalZFromScale,
 } from "./likelihood";
-import { NWAY_ARTIFACT, type ArtifactDraw } from "./nway_profile";
+import {
+  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, nwayResponseAggregationOf,
+  type ArtifactDraw,
+} from "./nway_profile";
 import type {
   BinaryParticleObservation, CategoricalParticleObservation,
-  ComputeSegmentMeta, NWayPreparedAtom, NWayResponseAggregation,
-  NWayResponseRuntime, ParticleObservation,
+  ComputeEngineInputs, ComputeSegmentMeta, NWayPreparedAtom,
+  NWayResponseAggregation, NWayResponseRuntime, ParticleObservation,
 } from "./types";
 
 export const IIIC_TASK_INDICES = Object.freeze([1, 2, 3, 4, 5, 6]);
@@ -522,4 +525,33 @@ export function buildNWayResponseRuntime(
     atoms: Object.freeze(normalized.map(prepareResponseDraw)),
     screen: Object.freeze([momentMatchedScreenDraw(normalized)]),
   };
+}
+
+// Built lazily once; the atoms17 constant is frozen for the process lifetime.
+let drawLatentRuntime: NWayResponseRuntime | null = null;
+
+/**
+ * Resolve the profile-stamped response runtime for a session's inputs.
+ * Mixture stamps (or absent stamps) resolve to undefined — the frozen
+ * NWAY_ARTIFACT path, byte-identical to the shipped engine. A draw-latent
+ * stamp resolves to the research atoms17 runtime, fail-closed against any
+ * stamp/constant divergence: coordinator, selector workers, and branch
+ * workers all derive the same runtime from the same server-authoritative
+ * stamp, so no serialized state ever carries the table itself.
+ */
+export function nwayResponseRuntimeFor(
+  inputs: ComputeEngineInputs,
+): NWayResponseRuntime | undefined {
+  if (nwayResponseAggregationOf(inputs) !== "draw_latent") return undefined;
+  const stamp = inputs.nwayProfile;
+  if (stamp?.responseArtifactId !== NWAY_DRAW_LATENT_ARTIFACT.artifactId
+      || stamp.responseArtifactSha256 !== NWAY_DRAW_LATENT_ARTIFACT.sha256) {
+    throw new Error("draw-latent stamp does not name the registered artifact");
+  }
+  drawLatentRuntime ??= buildNWayResponseRuntime(
+    "draw_latent",
+    NWAY_DRAW_LATENT_ARTIFACT.artifactId,
+    NWAY_DRAW_LATENT_ARTIFACT.draws,
+  );
+  return drawLatentRuntime;
 }

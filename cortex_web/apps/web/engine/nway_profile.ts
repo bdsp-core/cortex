@@ -1,5 +1,5 @@
 import type {
-  ComputeEngineInputs, NWayProfileStamp,
+  ComputeEngineInputs, NWayProfileStamp, NWayResponseAggregation,
 } from "./types";
 import {
   NWAY_RESPONSE_MODEL, NWAY_SELECTOR_VERSION,
@@ -41,6 +41,43 @@ export const NWAY_ARTIFACT = Object.freeze({
   sourceQualification: "dr07_not_qualified",
 } as const);
 
+// Research-only draw-latent artifact (construction B): 17 population atoms
+// from the 2026-07-30 engine-frame hierarchical refit, floored at the same
+// owner-approved 0.15 robustness floor. NOT qualified for serving: the fitter
+// payload is research_only_not_promoted / promotionForbidden, and the server
+// stamps this profile only through the explicit non-production research
+// escape (services/api/nway_profile.py). Regenerate with
+// n-way-protocol/scripts/make_engine_profile_constants.py --emit-atoms17
+// (the generator is validated bit-for-bit against the floor015 table above
+// before it is trusted; sha256 is the canonical compact sorted-key JSON of
+// the draws array, the artifact_floor.py discipline).
+export const NWAY_DRAW_LATENT_ARTIFACT = Object.freeze({
+  artifactId: "iiic-f1-engine-frame-atoms17-rd-20260730",
+  sha256: "b25bd1c5e680b77df394eeccab0961bd1f67c1593ff3d4a144d0b92eb8f90fb8",
+  robustnessFloor: 0.15,
+  draws: Object.freeze([
+    { beta: 0.6030846479252363, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.692381482844384, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.74831249929785, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.7934937607093849, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.8335652252676693, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.8709885194308897, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.9071741680803833, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.9431120331186459, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 0.9796349974777218, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.017572350455256, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.05788365900443, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.1018339586269643, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.1513013009569921, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.209442059664358, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.2824651855790978, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.3860635387599891, distractorLapse: 0.15, weight: 0.058823529411764705 },
+    { beta: 1.5912935797399814, distractorLapse: 0.15, weight: 0.058823529411764705 },
+  ] satisfies readonly ArtifactDraw[]),
+  approval: "research_only_not_promoted",
+  sourceQualification: "dr07_gate_passed_owner_ratification_pending",
+} as const);
+
 export const NWAY_PARTICLE_PROFILE = "production_1200p_ess050_30mh_rd";
 export const NWAY_ENGINE_ALGORITHM = "nway_protocol_0.2.0-rd";
 
@@ -57,12 +94,43 @@ export function expectedNWayProfile(candidateBankSha256: string): NWayProfileSta
   };
 }
 
+/** The research draw-latent stamp — stampable only through the server's
+ * explicit non-production escape; never the default for any sitting. */
+export function expectedDrawLatentNWayProfile(
+  candidateBankSha256: string,
+): NWayProfileStamp {
+  return {
+    engineProfileId: "precision_nway_f1_engine_frame_atoms17_draw_latent_rd_v1",
+    responseModel: NWAY_RESPONSE_MODEL,
+    responseArtifactId: NWAY_DRAW_LATENT_ARTIFACT.artifactId,
+    responseArtifactSha256: NWAY_DRAW_LATENT_ARTIFACT.sha256,
+    selectorVersion: NWAY_SELECTOR_VERSION,
+    particleProfileVersion: NWAY_PARTICLE_PROFILE,
+    engineAlgorithmVersion: NWAY_ENGINE_ALGORITHM,
+    candidateBankSha256,
+    responseAggregation: "draw_latent",
+  };
+}
+
 const SHA256 = /^[a-f0-9]{64}$/;
+
+/** Server-authoritative aggregation; absent means the shipping mixture. */
+export function nwayResponseAggregationOf(
+  inputs: ComputeEngineInputs,
+): NWayResponseAggregation {
+  const aggregation = inputs.nwayProfile?.responseAggregation ?? "mixture";
+  if (aggregation !== "mixture" && aggregation !== "draw_latent") {
+    throw new Error("n-way profile mismatch: responseAggregation");
+  }
+  return aggregation;
+}
 
 export function validateNWayInputs(inputs: ComputeEngineInputs): NWayProfileStamp {
   const stamp = inputs.nwayProfile;
   if (!stamp) throw new Error("production session is missing its n-way profile stamp");
-  const expected = expectedNWayProfile(stamp.candidateBankSha256);
+  const expected = nwayResponseAggregationOf(inputs) === "draw_latent"
+    ? expectedDrawLatentNWayProfile(stamp.candidateBankSha256)
+    : expectedNWayProfile(stamp.candidateBankSha256);
   for (const key of Object.keys(expected) as (keyof NWayProfileStamp)[]) {
     if (stamp[key] !== expected[key]) throw new Error(`n-way profile mismatch: ${key}`);
   }

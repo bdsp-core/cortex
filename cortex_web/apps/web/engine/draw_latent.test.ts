@@ -10,11 +10,16 @@
 // pipeline.test.ts golden suite) — no state without a responseRuntime ever
 // reaches a single new arithmetic branch.
 
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildNWayResponseRuntime, makeResponseObservation,
+  buildNWayResponseRuntime, makeResponseObservation, nwayResponseRuntimeFor,
 } from "./nway_likelihood";
+import {
+  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, expectedDrawLatentNWayProfile,
+  expectedNWayProfile, validateNWayInputs,
+} from "./nway_profile";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import {
   PosteriorUpdateError, cloneState, logLikPackedHistory, makeState,
@@ -23,10 +28,26 @@ import {
 import { precomputePriorPair } from "./prior";
 import { Rng } from "./rng";
 import type {
-  ComputeSegmentMeta, NWayResponseRuntime, ParticleState, PriorPieces,
+  ComputeEngineInputs, ComputeSegmentMeta, NWayResponseRuntime, ParticleState,
+  PriorPieces,
 } from "./types";
 
 const K = 7;
+
+function drawLatentInputs(
+  segments: ComputeSegmentMeta[] = [segment(9101, 0)],
+): ComputeEngineInputs {
+  return {
+    taskCodes: ["spike", "sz", "lpd", "gpd", "lrda", "grda", "iic"],
+    taskLabels: ["Spike", "Seizure", "LPD", "GPD", "LRDA", "GRDA", "Other"],
+    taskPatternWords: ["spike", "seizure", "lpd", "gpd", "lrda", "grda", "other"],
+    taskClasses: ["spike", "iiic", "iiic", "iiic", "iiic", "iiic", "iiic"],
+    corrL: identity(), corrT: identity(), ellStar: new Array(K).fill(0),
+    nParticles: 1200, perDomainCap: 60, terminationPolicy: "precision_v1",
+    precisionBandEdges: Array.from({ length: K }, () => [-0.5, 0.5]),
+    nwayProfile: expectedDrawLatentNWayProfile("a".repeat(64)), segments,
+  };
+}
 
 const singleAtomRuntime = (aggregation: "mixture" | "draw_latent") =>
   buildNWayResponseRuntime(aggregation, "draw-latent-single-atom", [
@@ -202,6 +223,62 @@ describe("draw-latent response aggregation (construction B)", () => {
     expect(Array.from(parallel.atomIndex!)).toEqual(Array.from(serial.atomIndex!));
     expect(parallel.lastRejuvenation).toEqual(serial.lastRejuvenation);
     expect(parallelRng.snapshot()).toEqual(serialRng.snapshot());
+  });
+
+  it("freezes and validates the research atoms17 draw-latent profile stamp", () => {
+    // Canonical-draws hash discipline (artifact_floor.py / the constants
+    // generator): SHA-256 of the compact sorted-key JSON of the draw table.
+    const canonical = JSON.stringify(
+      NWAY_DRAW_LATENT_ARTIFACT.draws.map((draw) => ({
+        beta: draw.beta,
+        distractorLapse: draw.distractorLapse,
+        weight: draw.weight,
+      })),
+    );
+    expect(createHash("sha256").update(canonical).digest("hex"))
+      .toBe(NWAY_DRAW_LATENT_ARTIFACT.sha256);
+    expect(NWAY_DRAW_LATENT_ARTIFACT.draws).toHaveLength(17);
+    expect(NWAY_DRAW_LATENT_ARTIFACT.robustnessFloor).toBe(0.15);
+    for (const draw of NWAY_DRAW_LATENT_ARTIFACT.draws) {
+      expect(draw.distractorLapse)
+        .toBeGreaterThanOrEqual(NWAY_DRAW_LATENT_ARTIFACT.robustnessFloor);
+    }
+    // Research-only: never confusable with the qualified production artifact.
+    expect(NWAY_DRAW_LATENT_ARTIFACT.approval).toBe("research_only_not_promoted");
+    expect(NWAY_DRAW_LATENT_ARTIFACT.artifactId).not.toBe(NWAY_ARTIFACT.artifactId);
+
+    const config = drawLatentInputs();
+    expect(validateNWayInputs(config).responseAggregation).toBe("draw_latent");
+    const runtime = nwayResponseRuntimeFor(config)!;
+    expect(runtime.aggregation).toBe("draw_latent");
+    expect(runtime.atoms).toHaveLength(17);
+    expect(nwayResponseRuntimeFor(config)).toBe(runtime); // cached singleton
+
+    // Tampered stamps fail closed on the exact offending key.
+    const wrongArtifact = drawLatentInputs();
+    wrongArtifact.nwayProfile = {
+      ...wrongArtifact.nwayProfile!, responseArtifactSha256: "b".repeat(64),
+    };
+    expect(() => validateNWayInputs(wrongArtifact)).toThrow(/responseArtifactSha256/);
+    expect(() => nwayResponseRuntimeFor(wrongArtifact))
+      .toThrow(/does not name the registered artifact/);
+    const wrongAggregation = drawLatentInputs();
+    wrongAggregation.nwayProfile = {
+      ...wrongAggregation.nwayProfile!,
+      responseAggregation: "blend" as unknown as "mixture",
+    };
+    expect(() => validateNWayInputs(wrongAggregation)).toThrow(/responseAggregation/);
+    // A mixture stamp claiming the draw-latent profile id is refused too.
+    const mixtureClaim = drawLatentInputs();
+    mixtureClaim.nwayProfile = {
+      ...expectedNWayProfile("a".repeat(64)),
+      engineProfileId: "precision_nway_f1_engine_frame_atoms17_draw_latent_rd_v1",
+    };
+    expect(() => validateNWayInputs(mixtureClaim)).toThrow(/engineProfileId/);
+    // And the mixture stamp resolves to NO runtime — the frozen path.
+    const mixture = drawLatentInputs();
+    mixture.nwayProfile = expectedNWayProfile("a".repeat(64));
+    expect(nwayResponseRuntimeFor(mixture)).toBeUndefined();
   });
 
   it("refuses history replay whose lineage contradicts the aggregation", () => {
