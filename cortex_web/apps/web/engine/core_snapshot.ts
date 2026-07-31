@@ -2,6 +2,7 @@ import type { SessionCore } from "./advance";
 import {
   type DistractorMonitorState, cloneDistractorMonitor,
 } from "./misspec_monitor";
+import { nwayResponseRuntimeFor } from "./nway_likelihood";
 import { AD6Policy, type PolicySnapshot } from "./policy";
 import { PrecisionPolicy } from "./precision_policy";
 import { Rng, type RngSnapshot } from "./rng";
@@ -20,6 +21,8 @@ export interface ParticleStateSnapshot {
   logLik: Float64Array;
   history: ParticleState["history"];
   lastRejuvenation?: RejuvenationTelemetry;
+  /** Per-particle artifact-atom lineage (draw-latent sessions only). */
+  atomIndex?: Int32Array;
 }
 
 /** Plain structured-clone representation of all branch-dependent state. */
@@ -54,6 +57,7 @@ export function snapshotCore(core: SessionCore): SessionCoreSnapshot {
       ...(state.lastRejuvenation
         ? { lastRejuvenation: { ...state.lastRejuvenation } }
         : {}),
+      ...(state.atomIndex ? { atomIndex: state.atomIndex.slice() } : {}),
     },
     rng: core.rng.snapshot(),
     policy: core.policy.snapshot(),
@@ -83,6 +87,24 @@ export function restoreCore(
     || snapshot.lastOutcomes.length !== expectedK) {
     throw new Error("invalid session-core snapshot dimensions");
   }
+  // Fail-closed cross-mode validation: a draw-latent session must never
+  // restore a snapshot that lost its atom lineage, and a mixture session
+  // must never adopt one that carries lineage from another mode.
+  const responseRuntime = nwayResponseRuntimeFor(inputs);
+  if (responseRuntime) {
+    if (!raw.atomIndex || raw.atomIndex.length !== raw.N) {
+      throw new Error(
+        "draw-latent session-core snapshot is missing per-particle atom lineage",
+      );
+    }
+    for (let n = 0; n < raw.N; n++) {
+      if (raw.atomIndex[n] < 0 || raw.atomIndex[n] >= responseRuntime.atoms.length) {
+        throw new Error("snapshot atom lineage is outside the artifact atoms");
+      }
+    }
+  } else if (raw.atomIndex) {
+    throw new Error("mixture session-core snapshot must not carry atom lineage");
+  }
   const state: ParticleState = {
     N: raw.N,
     K: raw.K,
@@ -98,6 +120,8 @@ export function restoreCore(
     ...(raw.lastRejuvenation
       ? { lastRejuvenation: { ...raw.lastRejuvenation } }
       : {}),
+    ...(raw.atomIndex ? { atomIndex: raw.atomIndex } : {}),
+    ...(responseRuntime ? { responseRuntime } : {}),
   };
   const policy = snapshot.policy.name === "precision_v1"
     ? PrecisionPolicy.fromInputs(inputs)
@@ -128,6 +152,7 @@ export function snapshotTransferables(snapshot: SessionCoreSnapshot): Transferab
     snapshot.state.w.buffer,
     snapshot.state.logPrior.buffer,
     snapshot.state.logLik.buffer,
+    ...(snapshot.state.atomIndex ? [snapshot.state.atomIndex.buffer] : []),
     snapshot.remaining.buffer,
     snapshot.cappedTasks.buffer,
   ];

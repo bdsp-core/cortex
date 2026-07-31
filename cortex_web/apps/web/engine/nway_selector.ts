@@ -2,10 +2,12 @@ import type { BankArrays, Chosen } from "./choose_item";
 import {
   fillResponseProbabilities, fillScreeningProbabilitiesAndJacobians,
   IIIC_TASK_INDICES, makeResponseProbabilityWorkspace, makeScreeningJacobianWorkspace,
+  nwayResponseRuntimeFor,
 } from "./nway_likelihood";
 import { posteriorMeans } from "./particles";
 import type {
-  ComputeEngineInputs, ComputeSegmentMeta, ParticleState, SelectionPhaseTimingV2,
+  ComputeEngineInputs, ComputeSegmentMeta, NWayResponseRuntime, ParticleState,
+  SelectionPhaseTimingV2,
 } from "./types";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import { speculationCancellationCheckpoint } from "./speculation_cancellation";
@@ -92,6 +94,7 @@ export function makeNWayLossWorkspace(st: NWaySelectionState): NWayLossWorkspace
 export function expectedNWayLoss(
   st: NWaySelectionState, inputs: ComputeEngineInputs,
   candidate: NWayCandidate, cached = makeNWayLossWorkspace(st),
+  runtime: NWayResponseRuntime | undefined = nwayResponseRuntimeFor(inputs),
 ): number {
   const kind = taskClass(inputs, candidate.k);
   const outcomeCount = kind === "spike" ? 2 : 6;
@@ -106,7 +109,7 @@ export function expectedNWayLoss(
     const weight = st.w[n] / weightSum;
     fillResponseProbabilities(
       kind, candidate.k, candidate.segment, st.t, st.l, n, st.K,
-      probabilities, probabilityWorkspace, false, cached.skillScale,
+      probabilities, probabilityWorkspace, false, cached.skillScale, runtime,
     );
     for (let r = 0; r < outcomeCount; r++) {
       const joint = weight * probabilities[r];
@@ -178,13 +181,14 @@ function fisherUtility(
     base2: Float64Array;
     base6: Float64Array;
   },
+  runtime?: NWayResponseRuntime,
 ): number {
   const kind = taskClass(inputs, candidate.k);
   const { meanT, meanL } = workspace;
   const base = kind === "spike" ? workspace.base2 : workspace.base6;
   fillScreeningProbabilitiesAndJacobians(
     kind, candidate.k, candidate.segment, meanT, meanL, 0, st.K,
-    base, workspace.jacobian,
+    base, workspace.jacobian, runtime,
   );
   let utility = 0;
   for (const parameter of ["bias", "skill"] as const) {
@@ -211,6 +215,7 @@ export function screenNWayDomain(
   domain: readonly NWayCandidate[], moments: NWayScreeningMoments,
 ): NWayDomainScreenResult {
   const kind = taskClass(inputs, taskK);
+  const runtime = nwayResponseRuntimeFor(inputs);
   const meanT = Float64Array.from(moments.tMean);
   const meanL = Float64Array.from(moments.lMean);
   const probabilities = new Float64Array(kind === "spike" ? 2 : 6);
@@ -219,7 +224,7 @@ export function screenNWayDomain(
   const byEntropy = highestScoring(domain, ENTROPY_PER_TASK, (candidate) => {
     fillResponseProbabilities(
       kind, taskK, candidate.segment, meanT, meanL, 0, moments.K,
-      probabilities, probabilityWorkspace,
+      probabilities, probabilityWorkspace, false, undefined, runtime,
     );
     return entropy(probabilities);
   });
@@ -233,7 +238,9 @@ export function screenNWayDomain(
   };
   const fisherStartedAt = performance.now();
   const byFisher = highestScoring(domain, FISHER_PER_TASK, (candidate) =>
-    fisherUtility({ K: moments.K }, inputs, candidate, moments, fisherWorkspace));
+    fisherUtility(
+      { K: moments.K }, inputs, candidate, moments, fisherWorkspace, runtime,
+    ));
   return {
     taskK,
     entropySegIds: byEntropy.map((candidate) => candidate.segment.segId),
@@ -251,6 +258,7 @@ function shortlist(
     if (timing) timing.shortlistCount += all.length;
     return all.slice();
   }
+  const runtime = nwayResponseRuntimeFor(inputs);
   const selected = new Set<NWayCandidate>();
   const momentsStartedAt = performance.now();
   const moments = posteriorMeans(st);
@@ -293,7 +301,7 @@ function shortlist(
         const output = kind === "spike" ? binaryProbabilities : probabilities;
         fillResponseProbabilities(
           kind, askedK, candidate.segment, meanT, meanL, 0, st.K,
-          output, probabilityWorkspace,
+          output, probabilityWorkspace, false, undefined, runtime,
         );
         return entropy(output);
       });
@@ -302,7 +310,7 @@ function shortlist(
 
     const fisherStartedAt = performance.now();
     const byFisher = highestScoring(domain, FISHER_PER_TASK, (candidate) =>
-      fisherUtility(st, inputs, candidate, moments, fisherWorkspace));
+      fisherUtility(st, inputs, candidate, moments, fisherWorkspace, runtime));
     for (const candidate of byFisher) selected.add(candidate);
     if (timing) timing.fisherScanMs += performance.now() - fisherStartedAt;
   }
@@ -325,6 +333,7 @@ function score(
     timing.candidatePreparationMs += performance.now() - candidatesStartedAt;
     timing.candidateCount += all.length;
   }
+  const runtime = nwayResponseRuntimeFor(inputs);
   const shortlisted = shortlist(st, inputs, all, timing);
   const refinementStartedAt = performance.now();
   const scored = shortlisted.map((candidate) => ({
@@ -333,7 +342,7 @@ function score(
     sSd: candidate.segment.sSd[candidate.k],
     segId: candidate.segment.segId,
     segment: candidate.segment,
-    loss: expectedNWayLoss(st, inputs, candidate, cached),
+    loss: expectedNWayLoss(st, inputs, candidate, cached, runtime),
   })).sort((a, b) => a.loss - b.loss);
   if (timing) timing.exactRefinementMs += performance.now() - refinementStartedAt;
   return scored;
@@ -431,9 +440,10 @@ export function scoreNWayCandidateLosses(
   candidateList: readonly NWayCandidate[],
 ): Float64Array {
   const cached = makeNWayLossWorkspace(st);
+  const runtime = nwayResponseRuntimeFor(inputs);
   const losses = new Float64Array(candidateList.length);
   for (let index = 0; index < candidateList.length; index++) {
-    losses[index] = expectedNWayLoss(st, inputs, candidateList[index], cached);
+    losses[index] = expectedNWayLoss(st, inputs, candidateList[index], cached, runtime);
   }
   return losses;
 }
@@ -516,6 +526,7 @@ export function predictedOutcomeDistribution(
 ): { outcome: number; probability: number }[] {
   if (!chosen.segment) throw new Error("n-way chosen item lacks segment signals");
   const kind = taskClass(inputs, chosen.k);
+  const runtime = nwayResponseRuntimeFor(inputs);
   const probabilities = new Float64Array(kind === "spike" ? 2 : 6);
   const probabilityWorkspace = makeResponseProbabilityWorkspace(st.K);
   const template = Array.from(probabilities, (_probability, index) => ({
@@ -527,7 +538,7 @@ export function predictedOutcomeDistribution(
     weightSum += st.w[n];
     fillResponseProbabilities(
       kind, chosen.k, chosen.segment, st.t, st.l, n, st.K,
-      probabilities, probabilityWorkspace,
+      probabilities, probabilityWorkspace, false, undefined, runtime,
     );
     for (let r = 0; r < probabilities.length; r++) {
       template[r].probability += st.w[n] * probabilities[r];

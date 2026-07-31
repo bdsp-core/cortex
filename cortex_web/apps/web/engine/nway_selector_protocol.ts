@@ -32,6 +32,9 @@ export type NWaySelectorWorkerRequest =
       t: Float64Array;
       l: Float64Array;
       logLikelihood: Float64Array;
+      /** Shard-relative atom lineage — present exactly on draw-latent
+       * sessions; the worker resolves the atom table from its own inputs. */
+      atomIndex?: Int32Array;
     };
 
 export type NWaySelectorWorkerResponse =

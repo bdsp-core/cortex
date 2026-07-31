@@ -1,6 +1,7 @@
 import {
   computePayloadTransferables, packComputeInputs,
 } from "./compute_payload";
+import { nwayResponseRuntimeFor } from "./nway_likelihood";
 import type {
   NWayCandidate, NWayDomainScreenResult, NWayScreeningMoments,
   NWaySelectionState,
@@ -331,14 +332,19 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   }
 
   /** Particle-index sharding preserves each particle's original history order;
-   * no floating-point reduction crosses a worker boundary. */
+   * no floating-point reduction crosses a worker boundary. Draw-latent
+   * sessions ship each shard's slice of the atom lineage alongside it. */
   async historyLikelihood(
     history: PackedParticleHistory, N: number, K: number,
     t: Float64Array, l: Float64Array,
+    atomIndex?: Int32Array,
   ): Promise<Float64Array> {
     if (this.disposed) throw new Error("n-way selector worker executor is disposed");
     if (t.length !== N * K || l.length !== N * K) {
       throw new Error("n-way history likelihood dimensions are invalid");
+    }
+    if (atomIndex && atomIndex.length !== N) {
+      throw new Error("n-way history atom lineage dimensions are invalid");
     }
     const shardCount = Math.min(this.slots.length, N);
     const shardSize = Math.ceil(N / shardCount);
@@ -359,6 +365,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const response = await this.runHistoryShard(
         slot, history, historyVersion, K,
         shardT, shardL, shardOutput, startIndex,
+        atomIndex?.slice(startIndex, endIndex),
       );
       if (response.startIndex !== startIndex
           || response.logLikelihood.length !== endIndex - startIndex) {
@@ -506,6 +513,12 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
     const shardSize = Math.ceil(N / shardCount);
     const logLikelihood = new Float64Array(N);
     const historyVersion = this.versionForHistory(history);
+    // Draw-latent sessions require a lineage on every history job; the probe
+    // uses a deterministic synthetic one (results are discarded either way).
+    const runtime = nwayResponseRuntimeFor(this.inputs);
+    const atomIndex = runtime
+      ? Int32Array.from({ length: N }, (_unused, n) => n % runtime.atoms.length)
+      : undefined;
     await Promise.all(Array.from({ length: shardCount }, async (_unused, shardIndex) => {
       const startIndex = shardIndex * shardSize;
       const endIndex = Math.min(N, startIndex + shardSize);
@@ -521,6 +534,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
       const response = await this.runHistoryShard(
         slot, history, historyVersion, K,
         shardT, shardL, shardOutput, startIndex,
+        atomIndex?.slice(startIndex, endIndex),
       );
       if (response.startIndex !== startIndex
           || response.logLikelihood.length !== endIndex - startIndex) {
@@ -735,6 +749,7 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
   private runHistoryShard(
     slot: SelectorSlot, history: PackedParticleHistory, historyVersion: number, K: number,
     t: Float64Array, l: Float64Array, logLikelihood: Float64Array, startIndex: number,
+    atomIndex?: Int32Array,
   ): Promise<Extract<NWaySelectorWorkerResponse, { type: "history_result" }>> {
     const jobId = this.nextJobId++;
     const includeHistory = slot.historyVersion !== historyVersion;
@@ -798,9 +813,13 @@ export class NWaySelectorWorkerExecutor implements NWaySelectionExecutor {
         N: tLength / K, K, historyVersion,
         ...(includeHistory ? { history } : {}),
         t, l, logLikelihood,
+        ...(atomIndex ? { atomIndex } : {}),
       };
       slot.worker.postMessage(request, {
-        transfer: [t.buffer, l.buffer, logLikelihood.buffer],
+        transfer: [
+          t.buffer, l.buffer, logLikelihood.buffer,
+          ...(atomIndex ? [atomIndex.buffer] : []),
+        ],
       });
     });
   }

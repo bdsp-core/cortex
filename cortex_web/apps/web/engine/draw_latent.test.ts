@@ -14,8 +14,19 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  advanceCore, cloneCore, type AdvanceParams, type SessionCore,
+} from "./advance";
+import type { BranchExecutor } from "./branch_executor";
+import type { AdvanceResult } from "./advance";
+import type { Chosen } from "./choose_item";
+import {
+  restoreCore, snapshotCore, snapshotTransferables,
+} from "./core_snapshot";
+import {
   buildNWayResponseRuntime, makeResponseObservation, nwayResponseRuntimeFor,
 } from "./nway_likelihood";
+import { PRECISION_STATUS, PrecisionPolicy } from "./precision_policy";
+import { WebCortexSession } from "./session";
 import {
   NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, expectedDrawLatentNWayProfile,
   expectedNWayProfile, validateNWayInputs,
@@ -295,4 +306,174 @@ describe("draw-latent response aggregation (construction B)", () => {
       undefined, undefined, state.atomIndex,
     )).toThrow(/atom lineage requires draw-latent aggregation/);
   });
+});
+
+function iiicSegment(segId: number, shift: number): ComputeSegmentMeta {
+  return {
+    segId,
+    applicableTaskIdx: [1, 2, 3, 4, 5, 6],
+    sMean: [0, shift, shift + 0.1, shift - 0.1, shift + 0.2, shift - 0.2, shift + 0.05],
+    sSd: [0.1, 0.12, 0.18, 0.15, 0.11, 0.17, 0.13],
+  };
+}
+
+function iiicBank(count: number): ComputeSegmentMeta[] {
+  return Array.from({ length: count }, (_unused, index) =>
+    iiicSegment(100 + index, [-1, 0, 1][index % 3] + index * 1e-3));
+}
+
+function withoutTiming<T extends { timing: unknown }>(value: T): Omit<T, "timing"> {
+  const { timing: _timing, ...deterministic } = value;
+  return deterministic;
+}
+
+function drawLatentCore(config: ComputeEngineInputs, nParticles: number): SessionCore {
+  const prior = precomputePriorPair(config.corrL, config.corrT);
+  const rng = new Rng(441);
+  const policy = PrecisionPolicy.fromInputs(config);
+  policy.reset(K);
+  return {
+    state: makeState(nParticles, K, prior, rng, nwayResponseRuntimeFor(config)),
+    rng,
+    policy,
+    remaining: new Set(config.segments.map((entry) => entry.segId)),
+    nPerTask: new Array(K).fill(0),
+    cappedTasks: new Set<number>(),
+    lastOutcomes: new Array(K).fill(PRECISION_STATUS.ACTIVE),
+    lastTaskK: -1,
+    streakCount: 0,
+  };
+}
+
+const CORE_PARAMS: AdvanceParams = {
+  K,
+  nParticles: 80,
+  perDomainCap: 60,
+  nMhSteps: 2,
+  essThresholdFrac: 1.1, // force the lineage-riding rejuvenation path
+  proposalScale: 2.38 / Math.sqrt(2 * K),
+  firstItemTopN: 10,
+  maxConsecutiveSameDomain: 5,
+  k7Spike: true,
+  spikeIdx: 0,
+  nSubsample: 16,
+  uncertaintyAwareSubsample: true,
+};
+
+describe("draw-latent state-carrying surfaces", () => {
+  it("carries atom lineage through core snapshot, restore, and adoption", () => {
+    const config = drawLatentInputs(iiicBank(24));
+    const core = drawLatentCore(config, 80);
+    expect(core.state.atomIndex).toHaveLength(80);
+    const prior = core.state.prior;
+    const first = config.segments[0];
+    const chosen: Chosen = {
+      k: 1, s: first.sMean[1], sSd: first.sSd[1], segId: first.segId, loss: 0,
+    };
+
+    const snapshot = snapshotCore(core);
+    // Lineage is one more owned buffer on the worker-transfer manifest.
+    expect(snapshotTransferables(snapshot)).toHaveLength(8);
+    expect(Array.from(snapshot.state.atomIndex!))
+      .toEqual(Array.from(core.state.atomIndex!));
+    const restored = restoreCore(snapshot, config, prior);
+    expect(restored.state.responseRuntime).toBe(nwayResponseRuntimeFor(config));
+    expect(Array.from(restored.state.atomIndex!))
+      .toEqual(Array.from(core.state.atomIndex!));
+
+    // A wrong categorical pick on the restored branch is bit-identical to the
+    // same step on a direct clone — including the resampled lineage.
+    const reference = advanceCore(cloneCore(core), config, chosen, 5, CORE_PARAMS, 0);
+    const adopted = advanceCore(restored, config, chosen, 5, CORE_PARAMS, 0);
+    expect(withoutTiming(adopted)).toEqual(withoutTiming(reference));
+    expect(Array.from(adopted.core.state.atomIndex!))
+      .toEqual(Array.from(reference.core.state.atomIndex!));
+    expect(adopted.core.rng.snapshot()).toEqual(reference.core.rng.snapshot());
+    // The authoritative core and its lineage stay untouched by the branch.
+    expect(Array.from(core.state.atomIndex!))
+      .toEqual(Array.from(snapshot.state.atomIndex!));
+    expect(core.state.history).toHaveLength(0);
+  });
+
+  it("fails closed when a snapshot loses lineage or crosses aggregation modes", () => {
+    const config = drawLatentInputs(iiicBank(12));
+    const core = drawLatentCore(config, 24);
+    const prior = core.state.prior;
+    const snapshot = snapshotCore(core);
+
+    const { atomIndex: _dropped, ...withoutLineage } = snapshot.state;
+    expect(() => restoreCore(
+      { ...snapshot, state: withoutLineage }, config, prior,
+    )).toThrow(/missing per-particle atom lineage/);
+
+    const outOfRange = snapshotCore(core);
+    outOfRange.state.atomIndex![0] = 99;
+    expect(() => restoreCore(outOfRange, config, prior))
+      .toThrow(/outside the artifact atoms/);
+
+    // A mixture session must refuse a snapshot that carries lineage...
+    const mixtureConfig = drawLatentInputs(iiicBank(12));
+    mixtureConfig.nwayProfile = expectedNWayProfile("a".repeat(64));
+    expect(() => restoreCore(snapshotCore(core), mixtureConfig, prior))
+      .toThrow(/must not carry atom lineage/);
+
+    // ...and a draw-latent session must refuse a mixture snapshot.
+    const mixtureCore = drawLatentCore(mixtureConfig, 24);
+    expect(mixtureCore.state.atomIndex).toBeUndefined();
+    expect(() => restoreCore(snapshotCore(mixtureCore), config, prior))
+      .toThrow(/missing per-particle atom lineage/);
+  });
+
+  it("is bit-identical serial vs speculative with snapshot branch adoption", async () => {
+    /** branch_executor.test.ts pattern: structured-clone semantics without
+     * browser globals; lineage must survive the worker snapshot protocol. */
+    class SnapshotBranchExecutor implements BranchExecutor {
+      readonly capacity = 1;
+      private readonly prior;
+      constructor(private readonly config: ComputeEngineInputs) {
+        this.prior = precomputePriorPair(config.corrL, config.corrT);
+      }
+      advance(
+        core: SessionCore, chosen: Chosen, params: AdvanceParams,
+        trialIndex: number, pick: number,
+      ): Promise<AdvanceResult> {
+        const snapshot = snapshotCore(core);
+        return Promise.resolve().then(() => {
+          const restored = restoreCore(snapshot, this.config, this.prior);
+          const result = advanceCore(
+            restored, this.config, chosen, pick, params, trialIndex,
+          );
+          result.timing.executionMode = "dual_branch";
+          result.timing.speculative = true;
+          return result;
+        });
+      }
+      dispose(): void {}
+    }
+
+    async function run(speculative: boolean) {
+      const config = drawLatentInputs(iiicBank(21));
+      let trials = 0;
+      const session = new WebCortexSession(config, "draw-latent-e2e", 7821, {
+        onItem: (item) => {
+          const wrongPick = item.taskK === 1 ? 2 : 1;
+          queueMicrotask(() => session.submitAnswer(wrongPick));
+        },
+        onTrial: () => { trials += 1; if (trials >= 2) session.abort(); },
+      }, speculative ? {
+        speculative: true,
+        branchExecutor: new SnapshotBranchExecutor(config),
+      } : {});
+      return session.run();
+    }
+
+    const serial = await run(false);
+    const speculated = await run(true);
+    expect(speculated.trials.length).toBeGreaterThanOrEqual(2);
+    expect(speculated.servedSegIds).toEqual(serial.servedSegIds);
+    expect(speculated.trials).toEqual(serial.trials);
+    expect(speculated.traj).toEqual(serial.traj);
+    expect(serial.trials[0].responseKind).toBe("categorical_f1");
+    expect(serial.nwayProfile?.responseAggregation).toBe("draw_latent");
+  }, 120_000);
 });

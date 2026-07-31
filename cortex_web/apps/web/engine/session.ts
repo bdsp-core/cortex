@@ -19,6 +19,7 @@ import { precomputePriorPair } from "./prior";
 import { makeState } from "./particles";
 import { aurocSummary } from "./auroc";
 import { BankArrays, Chosen, predictedYesProbability } from "./choose_item";
+import { nwayResponseRuntimeFor } from "./nway_likelihood";
 import { isNWaySession, validateNWayInputs } from "./nway_profile";
 import { predictedOutcomeDistribution, rankOutcomes } from "./nway_selector";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
@@ -271,7 +272,13 @@ export class WebCortexSession {
     policy.reset(K);
     const rng = new Rng(this.seed);
     const prior = precomputePriorPair(this.inputs.corrL, this.inputs.corrT);
-    const state = makeState(nParticles, K, prior, rng);
+    // Profile-resolved response runtime: undefined on every mixture session
+    // (no extra RNG is consumed, the frozen path is byte-identical); on a
+    // draw-latent stamp the state carries the atoms plus per-particle
+    // lineage sampled deterministically from the session seed — so resume
+    // replay reconstructs the identical lineage.
+    const responseRuntime = nway ? nwayResponseRuntimeFor(this.inputs) : undefined;
+    const state = makeState(nParticles, K, prior, rng, responseRuntime);
     // Phase-aware selection (desktop session_controller.py l.241+): for K=7
     // bundles with spike at index 0, run the spike block first (Phase A) until
     // spike locks or its bank exhausts, then Phase B (only IIIC).
