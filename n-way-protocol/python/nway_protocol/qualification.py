@@ -53,6 +53,11 @@ class QualificationConfig:
     # from the fitted reader population, matching label-agnostic serving where
     # any point on the continuum may sit down. Overrides truth_beta.
     truth_beta_lognormal: tuple[float, float] | None = None
+    # Uniform draw over a fixed grid of world betas (diagnostic: planting truth
+    # ON the engine's own ensemble atoms separates discrete-vs-continuous
+    # approximation error from the static mixture-averaging deficiency).
+    # Overrides truth_beta_lognormal.
+    truth_beta_choices: tuple[float, ...] | None = None
     truth_distractor_lapse: float | None = None
     truth_t_mean: float = 0.0
     truth_l_mean: float = 0.2
@@ -231,6 +236,10 @@ def _run_arm(seed: int, arm: Literal["binary", "categorical_f1"], config: Qualif
         # Seed-only derivation: both CRN arms face the identical world beta.
         world_beta = float(np.exp(
             mu + sigma * np.random.default_rng(seed + 70_000).standard_normal()
+        ))
+    if config.truth_beta_choices is not None:
+        world_beta = float(np.random.default_rng(seed + 70_000).choice(
+            np.asarray(config.truth_beta_choices)
         ))
     prior_corr = np.eye(7)
     cloud = make_cloud(
@@ -530,6 +539,7 @@ def main() -> None:
     parser.add_argument(
         "--truth-beta-lognormal", type=float, nargs=2, metavar=("MU", "SIGMA"),
     )
+    parser.add_argument("--truth-beta-grid", type=float, nargs="+")
     parser.add_argument("--truth-distractor-lapse", type=float)
     parser.add_argument("--signal-sd-scale", type=float)
     parser.add_argument("--stopping", choices=("own-cap", "precision"), default="own-cap")
@@ -574,6 +584,8 @@ def main() -> None:
         config = replace(
             config, truth_beta_lognormal=tuple(args.truth_beta_lognormal),
         )
+    if args.truth_beta_grid is not None:
+        config = replace(config, truth_beta_choices=tuple(args.truth_beta_grid))
     if args.stopping == "precision":
         # The unchanged production policy owns the stop decision; unless the
         # operator narrows the safety cap explicitly, align it with the frozen
