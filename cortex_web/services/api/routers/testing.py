@@ -19,7 +19,7 @@ from ..policy_rollout import (
 )
 from ..deps import require_auth
 from ..models import ProgressIn, ResultsIn, SessionIn
-from ..nway_profile import production_nway_profile
+from ..nway_profile import allowed_nway_profiles, nway_profile_for_new_session
 from ..percentile_rollout import profile_for as percentile_profile_for
 from ..percentile_runtime import validate_percentile_report
 
@@ -100,7 +100,10 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                 503, f"precision_v1 bundle profile incomplete: {','.join(missing)}")
         if drawn["nParticles"] != 1200 or drawn["perDomainCap"] != 60:
             raise HTTPException(503, "precision_v1 bundle profile mismatch")
-        nway_profile = production_nway_profile(bank.manifest_sha256)
+        # Refuse-by-default: the qualified production mixture stamp, unless
+        # the explicit non-production research escape is active (see
+        # nway_profile.py — production deployments refuse regardless of env).
+        nway_profile = nway_profile_for_new_session(bank.manifest_sha256)
         drawn["nwayProfile"] = nway_profile
     else:
         nway_profile = None
@@ -223,7 +226,10 @@ def active_session(req: Request, code: str = Depends(require_auth)):
             stored_nway_profile = json.loads(row["nway_profile"])
         except (TypeError, ValueError):
             return {"active": None, "washout": washout}
-        if stored_nway_profile != production_nway_profile(bank.manifest_sha256):
+        # Resume only under a stamp the current configuration could serve: a
+        # research draw-latent sitting is refused once the escape is inactive
+        # (never replayed under a different response model — fail closed).
+        if stored_nway_profile not in allowed_nway_profiles(bank.manifest_sha256):
             return {"active": None, "washout": washout}
         payload["nwayProfile"] = stored_nway_profile
     stored_percentile_profile = None
