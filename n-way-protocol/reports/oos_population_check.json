@@ -1,0 +1,5344 @@
+{
+  "analysis": "out_of_sample_reader_population_check",
+  "artifact_reference": {
+    "mu_log_beta": -0.020575228248171405,
+    "n_readers_used": 124,
+    "n_wrong_picks": 58358,
+    "path": "artifacts/iiic_conditional_f1_engine_frame_rd.json",
+    "se_mu_log_beta": 0.02646174635139151,
+    "tau_log_beta": 0.25537783624586124
+  },
+  "cross_source_check": {
+    "isolated_gold": {
+      "beta_ratio_kong_over_sparcnet": 0.5668141728411524,
+      "combined_se_mu": 0.06994443178192247,
+      "mu_difference_kong_minus_sparcnet": -0.5677237664656128,
+      "tau_ratio_kong_over_sparcnet": 1.4736047095521898,
+      "z_mu": -8.116782880382827
+    },
+    "shared_gold": {
+      "beta_ratio_kong_over_sparcnet": 0.40086190791158127,
+      "combined_se_mu": 0.04030101992588368,
+      "mu_difference_kong_minus_sparcnet": -0.9141382802820932,
+      "tau_ratio_kong_over_sparcnet": 1.2546568480286888,
+      "z_mu": -22.68275795409783
+    }
+  },
+  "results": {
+    "kong2025": {
+      "artifact_comparison": {
+        "beta_ratio_at_mu": 0.7411723181188362,
+        "combined_se_mu": 0.03180523043216483,
+        "mu_difference": -0.29952213265255623,
+        "tau_difference": 0.00450166859767781,
+        "tau_ratio": 1.017627483511701,
+        "z_mu": -9.4173860268482
+      },
+      "beta_quantiles": {
+        "0.05": 0.1731647764396663,
+        "0.25": 0.4079286779884607,
+        "0.5": 0.6541645432805178,
+        "0.75": 0.9913195295704994,
+        "0.95": 1.2943014445548622
+      },
+      "n_readers": 341,
+      "n_wrong_picks": 112412,
+      "pooled": {
+        "beta": 0.9168878602691377,
+        "distractor_lapse": 0.00445801658826955
+      },
+      "random_effects": {
+        "cochran_q": 3912.6898234473074,
+        "mu_log_beta": -0.32009736090072766,
+        "n_readers_used": 334,
+        "se_mu_log_beta": 0.017645074748431123,
+        "tau_log_beta": 0.25987950484353906
+      },
+      "reader_beta_fits": [
+        {
+          "beta": 1.28761601871149,
+          "n_wrong_picks": 212,
+          "reader_id": "rater-0",
+          "standard_error": 0.10405498734742784
+        },
+        {
+          "beta": 0.713091949970897,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10007884",
+          "standard_error": 0.16969983862283644
+        },
+        {
+          "beta": 0.6794583639853874,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10043096",
+          "standard_error": 0.10397917919768246
+        },
+        {
+          "beta": 1.096318918087532,
+          "n_wrong_picks": 928,
+          "reader_id": "rater-10044529",
+          "standard_error": 0.0439834814884802
+        },
+        {
+          "beta": 0.5647374267771437,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10046967",
+          "standard_error": 0.10313351001899157
+        },
+        {
+          "beta": 1.0157533292936383,
+          "n_wrong_picks": 695,
+          "reader_id": "rater-10069061",
+          "standard_error": 0.050844766874779804
+        },
+        {
+          "beta": 0.2786021213496802,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10159195",
+          "standard_error": 0.12442641484018704
+        },
+        {
+          "beta": 0.2971475368180271,
+          "n_wrong_picks": 342,
+          "reader_id": "rater-10195961",
+          "standard_error": 0.07597476987880267
+        },
+        {
+          "beta": 0.4291829845299935,
+          "n_wrong_picks": 254,
+          "reader_id": "rater-10262204",
+          "standard_error": 0.05731901900942138
+        },
+        {
+          "beta": 1.5472524587482752,
+          "n_wrong_picks": 270,
+          "reader_id": "rater-10282558",
+          "standard_error": 0.12540045877757725
+        },
+        {
+          "beta": 1.7710305504070525,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10619321",
+          "standard_error": 0.2157733039852753
+        },
+        {
+          "beta": 2.109899147738108,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10619322",
+          "standard_error": 0.21656962568677676
+        },
+        {
+          "beta": 1.0546012598367378,
+          "n_wrong_picks": 1459,
+          "reader_id": "rater-10619327",
+          "standard_error": 0.033306889014252626
+        },
+        {
+          "beta": 0.6608853889070422,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619328",
+          "standard_error": 0.14154328453045936
+        },
+        {
+          "beta": 0.9981542586932265,
+          "n_wrong_picks": 147,
+          "reader_id": "rater-10619330",
+          "standard_error": 0.12560087178767013
+        },
+        {
+          "beta": 0.41418233201450305,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619331",
+          "standard_error": 0.13698529126717957
+        },
+        {
+          "beta": 0.9603201250713953,
+          "n_wrong_picks": 62,
+          "reader_id": "rater-10619334",
+          "standard_error": 0.17050756831313435
+        },
+        {
+          "beta": 1.2482695035689204,
+          "n_wrong_picks": 439,
+          "reader_id": "rater-10619337",
+          "standard_error": 0.07178117337033682
+        },
+        {
+          "beta": 0.1714589954818673,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619338",
+          "standard_error": 0.1452116962146265
+        },
+        {
+          "beta": 0.9915097811478671,
+          "n_wrong_picks": 294,
+          "reader_id": "rater-10619342",
+          "standard_error": 0.11008631487694763
+        },
+        {
+          "beta": 0.988932981999159,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619344",
+          "standard_error": 0.11577985602639781
+        },
+        {
+          "beta": 1.1493297481963543,
+          "n_wrong_picks": 945,
+          "reader_id": "rater-10619346",
+          "standard_error": 0.04531030762618593
+        },
+        {
+          "beta": 0.4606958012225073,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10619349",
+          "standard_error": 0.10474884833266127
+        },
+        {
+          "beta": 0.5341999653235588,
+          "n_wrong_picks": 306,
+          "reader_id": "rater-10619350",
+          "standard_error": 0.06427698556148412
+        },
+        {
+          "beta": 0.3088381981033536,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619352",
+          "standard_error": 0.11450364300419369
+        },
+        {
+          "beta": 0.44994646935918,
+          "n_wrong_picks": 481,
+          "reader_id": "rater-10619353",
+          "standard_error": 0.052880749663695194
+        },
+        {
+          "beta": 0.8999493834378143,
+          "n_wrong_picks": 483,
+          "reader_id": "rater-10619355",
+          "standard_error": 0.06690191362874465
+        },
+        {
+          "beta": 0.8688491792964859,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619357",
+          "standard_error": 0.14419655525725214
+        },
+        {
+          "beta": 0.9902005262210337,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10619358",
+          "standard_error": 0.1632916182103729
+        },
+        {
+          "beta": 0.9966946668607374,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10619362",
+          "standard_error": 0.12178880207644169
+        },
+        {
+          "beta": 0.8940351891873407,
+          "n_wrong_picks": 167,
+          "reader_id": "rater-10619365",
+          "standard_error": 0.09831154532211142
+        },
+        {
+          "beta": 1.0606727933470035,
+          "n_wrong_picks": 696,
+          "reader_id": "rater-10619370",
+          "standard_error": 0.05236585328739952
+        },
+        {
+          "beta": 0.7485031296777999,
+          "n_wrong_picks": 239,
+          "reader_id": "rater-10619372",
+          "standard_error": 0.08373240366482294
+        },
+        {
+          "beta": 0.7755160154377385,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619376",
+          "standard_error": 0.1328771037211383
+        },
+        {
+          "beta": 0.8652774274379362,
+          "n_wrong_picks": 194,
+          "reader_id": "rater-10619377",
+          "standard_error": 0.09098611920093558
+        },
+        {
+          "beta": 1.098506153576727,
+          "n_wrong_picks": 235,
+          "reader_id": "rater-10619378",
+          "standard_error": 0.08712807271015288
+        },
+        {
+          "beta": 0.5177859957667008,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619380",
+          "standard_error": 0.211909991919441
+        },
+        {
+          "beta": 0.8790985566673011,
+          "n_wrong_picks": 324,
+          "reader_id": "rater-10619382",
+          "standard_error": 0.08404562318201561
+        },
+        {
+          "beta": 0.9370723475652419,
+          "n_wrong_picks": 1205,
+          "reader_id": "rater-10619384",
+          "standard_error": 0.038519030237276895
+        },
+        {
+          "beta": 0.5967197527027657,
+          "n_wrong_picks": 97,
+          "reader_id": "rater-10619388",
+          "standard_error": 0.14173917571826075
+        },
+        {
+          "beta": 0.8560004051928266,
+          "n_wrong_picks": 158,
+          "reader_id": "rater-10619389",
+          "standard_error": 0.08007427485209449
+        },
+        {
+          "beta": 0.9790897374821045,
+          "n_wrong_picks": 151,
+          "reader_id": "rater-10619392",
+          "standard_error": 0.11122338584181989
+        },
+        {
+          "beta": 0.740816114860339,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10619397",
+          "standard_error": 0.10517389486545163
+        },
+        {
+          "beta": 1.1274881017089158,
+          "n_wrong_picks": 6372,
+          "reader_id": "rater-10619401",
+          "standard_error": 0.01676604144874074
+        },
+        {
+          "beta": 0.848443188224818,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10619402",
+          "standard_error": 0.08946252298608451
+        },
+        {
+          "beta": 0.6646719215770824,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619403",
+          "standard_error": 0.1304108340094458
+        },
+        {
+          "beta": 1.2025647295571142,
+          "n_wrong_picks": 233,
+          "reader_id": "rater-10619405",
+          "standard_error": 0.09796689368448062
+        },
+        {
+          "beta": 1.1127825536746314,
+          "n_wrong_picks": 323,
+          "reader_id": "rater-10619406",
+          "standard_error": 0.07207790652776036
+        },
+        {
+          "beta": 0.439251841567655,
+          "n_wrong_picks": 207,
+          "reader_id": "rater-10619407",
+          "standard_error": 0.07311577300056678
+        },
+        {
+          "beta": 0.8847353827137282,
+          "n_wrong_picks": 583,
+          "reader_id": "rater-10619409",
+          "standard_error": 0.06244217288688669
+        },
+        {
+          "beta": 1.397905451438401,
+          "n_wrong_picks": 426,
+          "reader_id": "rater-10619410",
+          "standard_error": 0.08136767225501143
+        },
+        {
+          "beta": 1.385595722970413,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619411",
+          "standard_error": 0.18572022558666512
+        },
+        {
+          "beta": 1.1171142725563115,
+          "n_wrong_picks": 350,
+          "reader_id": "rater-10619415",
+          "standard_error": 0.07671761971635498
+        },
+        {
+          "beta": 1.2482888079205547,
+          "n_wrong_picks": 8865,
+          "reader_id": "rater-10619416",
+          "standard_error": 0.015428494656360732
+        },
+        {
+          "beta": 1.0379603094203405,
+          "n_wrong_picks": 255,
+          "reader_id": "rater-10619419",
+          "standard_error": 0.07950040606904263
+        },
+        {
+          "beta": 0.9336410922870028,
+          "n_wrong_picks": 137,
+          "reader_id": "rater-10619420",
+          "standard_error": 0.10407941397976528
+        },
+        {
+          "beta": 0.777174953045675,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619423",
+          "standard_error": 0.15865346785957413
+        },
+        {
+          "beta": 0.6862841090138543,
+          "n_wrong_picks": 469,
+          "reader_id": "rater-10619424",
+          "standard_error": 0.05617452570993392
+        },
+        {
+          "beta": 1.0049733155071763,
+          "n_wrong_picks": 211,
+          "reader_id": "rater-10619426",
+          "standard_error": 0.11883595117988778
+        },
+        {
+          "beta": 0.7473975144541076,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619431",
+          "standard_error": 0.09995193097575084
+        },
+        {
+          "beta": 1.121861149952931,
+          "n_wrong_picks": 2450,
+          "reader_id": "rater-10619434",
+          "standard_error": 0.026483569544004697
+        },
+        {
+          "beta": 0.8166289325201632,
+          "n_wrong_picks": 291,
+          "reader_id": "rater-10619435",
+          "standard_error": 0.08056138266104422
+        },
+        {
+          "beta": 0.9216712494640455,
+          "n_wrong_picks": 464,
+          "reader_id": "rater-10619436",
+          "standard_error": 0.06937367920167577
+        },
+        {
+          "beta": 0.6651443948801047,
+          "n_wrong_picks": 322,
+          "reader_id": "rater-10619437",
+          "standard_error": 0.06913641467588486
+        },
+        {
+          "beta": 0.4521230142383456,
+          "n_wrong_picks": 184,
+          "reader_id": "rater-10619438",
+          "standard_error": 0.09591979546257688
+        },
+        {
+          "beta": 1.086289168648193,
+          "n_wrong_picks": 279,
+          "reader_id": "rater-10619443",
+          "standard_error": 0.07841170814832514
+        },
+        {
+          "beta": 0.9599683806872986,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619444",
+          "standard_error": 0.17225370848002156
+        },
+        {
+          "beta": 1.1473058928190105,
+          "n_wrong_picks": 835,
+          "reader_id": "rater-10619454",
+          "standard_error": 0.047131748561406187
+        },
+        {
+          "beta": 0.6343305963068996,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10619455",
+          "standard_error": 0.13770924559723907
+        },
+        {
+          "beta": 1.0160132584552943,
+          "n_wrong_picks": 755,
+          "reader_id": "rater-10619459",
+          "standard_error": 0.04598506188773623
+        },
+        {
+          "beta": 0.7508252141515261,
+          "n_wrong_picks": 217,
+          "reader_id": "rater-10619461",
+          "standard_error": 0.0983915484284784
+        },
+        {
+          "beta": 1.1546983303567848,
+          "n_wrong_picks": 831,
+          "reader_id": "rater-10619470",
+          "standard_error": 0.04607437255551759
+        },
+        {
+          "beta": 0.8701396917845252,
+          "n_wrong_picks": 296,
+          "reader_id": "rater-10619474",
+          "standard_error": 0.08578841233787794
+        },
+        {
+          "beta": 0.2402541390274277,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-10619475",
+          "standard_error": 0.11370305664300201
+        },
+        {
+          "beta": 1.1484457548154607,
+          "n_wrong_picks": 554,
+          "reader_id": "rater-10619478",
+          "standard_error": 0.0613437515629288
+        },
+        {
+          "beta": 0.1224975839917667,
+          "n_wrong_picks": 150,
+          "reader_id": "rater-10619479",
+          "standard_error": 0.12719775170288752
+        },
+        {
+          "beta": 1.1518908337749698,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10619489",
+          "standard_error": 0.1031628021471544
+        },
+        {
+          "beta": 1.109322212281509,
+          "n_wrong_picks": 2642,
+          "reader_id": "rater-10619490",
+          "standard_error": 0.026947038382320432
+        },
+        {
+          "beta": 0.5742240510036853,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10619491",
+          "standard_error": 0.08620403229291644
+        },
+        {
+          "beta": 0.367784961233299,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10619496",
+          "standard_error": 0.09323122497404093
+        },
+        {
+          "beta": 3.576078318634032,
+          "n_wrong_picks": 67,
+          "reader_id": "rater-10619508",
+          "standard_error": 1.3687468826697513
+        },
+        {
+          "beta": 0.3433262163525558,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619509",
+          "standard_error": 0.11979316953516661
+        },
+        {
+          "beta": 0.5204463960287317,
+          "n_wrong_picks": 189,
+          "reader_id": "rater-10619515",
+          "standard_error": 0.0952002174877879
+        },
+        {
+          "beta": 0.22854135935814074,
+          "n_wrong_picks": 211,
+          "reader_id": "rater-10619516",
+          "standard_error": 0.09716811526559738
+        },
+        {
+          "beta": 0.6052397662438675,
+          "n_wrong_picks": 204,
+          "reader_id": "rater-10619518",
+          "standard_error": 0.11726657245173246
+        },
+        {
+          "beta": 0.8658661397015048,
+          "n_wrong_picks": 415,
+          "reader_id": "rater-10619536",
+          "standard_error": 0.07675756082192253
+        },
+        {
+          "beta": 0.06179134801697188,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619541",
+          "standard_error": 0.17547730304703138
+        },
+        {
+          "beta": 0.6120421322363878,
+          "n_wrong_picks": 1874,
+          "reader_id": "rater-10619542",
+          "standard_error": 0.02522174937481495
+        },
+        {
+          "beta": 0.2141004873876267,
+          "n_wrong_picks": 351,
+          "reader_id": "rater-10619545",
+          "standard_error": 0.06361117738876652
+        },
+        {
+          "beta": 0.6627129581404287,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10619549",
+          "standard_error": 0.12063226762471863
+        },
+        {
+          "beta": 0.8774615713099855,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10619555",
+          "standard_error": 0.20850471716797148
+        },
+        {
+          "beta": 0.8547437181788863,
+          "n_wrong_picks": 247,
+          "reader_id": "rater-10619556",
+          "standard_error": 0.07480511037463242
+        },
+        {
+          "beta": 0.5822190871669222,
+          "n_wrong_picks": 231,
+          "reader_id": "rater-10619562",
+          "standard_error": 0.0799895828263935
+        },
+        {
+          "beta": 0.2984572716868404,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10619565",
+          "standard_error": 0.08354287055673756
+        },
+        {
+          "beta": 0.6858584766909,
+          "n_wrong_picks": 890,
+          "reader_id": "rater-10619566",
+          "standard_error": 0.045113306674763556
+        },
+        {
+          "beta": 0.9188271060817202,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619567",
+          "standard_error": 0.19972922490415088
+        },
+        {
+          "beta": 1.2502248224576715,
+          "n_wrong_picks": 614,
+          "reader_id": "rater-10619568",
+          "standard_error": 0.05926699150182417
+        },
+        {
+          "beta": 1.1280397310270525,
+          "n_wrong_picks": 2025,
+          "reader_id": "rater-10619571",
+          "standard_error": 0.0311970972655066
+        },
+        {
+          "beta": 0.7092092016547319,
+          "n_wrong_picks": 229,
+          "reader_id": "rater-10619572",
+          "standard_error": 0.09078265961755781
+        },
+        {
+          "beta": 1.1313716695937581,
+          "n_wrong_picks": 136,
+          "reader_id": "rater-10619585",
+          "standard_error": 0.11084157114240129
+        },
+        {
+          "beta": 1.3072289156475982,
+          "n_wrong_picks": 253,
+          "reader_id": "rater-10619586",
+          "standard_error": 0.0964606432884834
+        },
+        {
+          "beta": 1.1275611803764038,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10619590",
+          "standard_error": 0.15833543331393715
+        },
+        {
+          "beta": 1.025622776288922,
+          "n_wrong_picks": 467,
+          "reader_id": "rater-10619592",
+          "standard_error": 0.0726410116938721
+        },
+        {
+          "beta": 0.5655858073664338,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619593",
+          "standard_error": 0.13018435404825232
+        },
+        {
+          "beta": 1.160137243614157,
+          "n_wrong_picks": 1327,
+          "reader_id": "rater-10619596",
+          "standard_error": 0.037875920129088136
+        },
+        {
+          "beta": 0.7364837989281918,
+          "n_wrong_picks": 67,
+          "reader_id": "rater-10619609",
+          "standard_error": 0.15568327482137892
+        },
+        {
+          "beta": 1.58750355092929,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619611",
+          "standard_error": 0.20020683506463072
+        },
+        {
+          "beta": 0.6960168237919123,
+          "n_wrong_picks": 461,
+          "reader_id": "rater-10619614",
+          "standard_error": 0.05957268663846324
+        },
+        {
+          "beta": 0.4713831080105202,
+          "n_wrong_picks": 89,
+          "reader_id": "rater-10619615",
+          "standard_error": 0.14323774288409277
+        },
+        {
+          "beta": 1.141476281344321,
+          "n_wrong_picks": 191,
+          "reader_id": "rater-10619617",
+          "standard_error": 0.10975635230458036
+        },
+        {
+          "beta": 1.3604396271362529,
+          "n_wrong_picks": 209,
+          "reader_id": "rater-10619619",
+          "standard_error": 0.11246051959658064
+        },
+        {
+          "beta": 1.0194229678307445,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619622",
+          "standard_error": 0.12739401373795584
+        },
+        {
+          "beta": 1.0148124359798076,
+          "n_wrong_picks": 525,
+          "reader_id": "rater-10619625",
+          "standard_error": 0.057198336300313846
+        },
+        {
+          "beta": 0.46158214929852404,
+          "n_wrong_picks": 102,
+          "reader_id": "rater-10619626",
+          "standard_error": 0.14137796005164963
+        },
+        {
+          "beta": 1.018697992461297,
+          "n_wrong_picks": 192,
+          "reader_id": "rater-10619628",
+          "standard_error": 0.0919971024042628
+        },
+        {
+          "beta": 0.8837298827497354,
+          "n_wrong_picks": 306,
+          "reader_id": "rater-10619629",
+          "standard_error": 0.09773640060629178
+        },
+        {
+          "beta": 0.3070763229561129,
+          "n_wrong_picks": 151,
+          "reader_id": "rater-10619634",
+          "standard_error": 0.09635211095752051
+        },
+        {
+          "beta": 0.927679022335593,
+          "n_wrong_picks": 203,
+          "reader_id": "rater-10619638",
+          "standard_error": 0.08224951598177299
+        },
+        {
+          "beta": 1.1573998482302228,
+          "n_wrong_picks": 7003,
+          "reader_id": "rater-10619642",
+          "standard_error": 0.01610942824557091
+        },
+        {
+          "beta": 0.8274919958564633,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619647",
+          "standard_error": 0.14576850002632546
+        },
+        {
+          "beta": 0.4465649306326231,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619648",
+          "standard_error": 0.11199361501272198
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10619649",
+          "standard_error": 93.1943667901115
+        },
+        {
+          "beta": 1.1971236536118892,
+          "n_wrong_picks": 715,
+          "reader_id": "rater-10619654",
+          "standard_error": 0.052242345328256765
+        },
+        {
+          "beta": 0.693793365229438,
+          "n_wrong_picks": 217,
+          "reader_id": "rater-10619656",
+          "standard_error": 0.09804876353822535
+        },
+        {
+          "beta": 0.46873742043729333,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619658",
+          "standard_error": 0.06862826805922383
+        },
+        {
+          "beta": 0.9991542051753551,
+          "n_wrong_picks": 115,
+          "reader_id": "rater-10619660",
+          "standard_error": 0.12759107051553534
+        },
+        {
+          "beta": 0.6899145640631428,
+          "n_wrong_picks": 106,
+          "reader_id": "rater-10619662",
+          "standard_error": 0.12937948687793938
+        },
+        {
+          "beta": 0.4773327812584998,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619665",
+          "standard_error": 0.09730356678321721
+        },
+        {
+          "beta": 1.1106393746376697,
+          "n_wrong_picks": 127,
+          "reader_id": "rater-10619669",
+          "standard_error": 0.13782878781517466
+        },
+        {
+          "beta": 0.3604750402006425,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619670",
+          "standard_error": 0.10302373196224791
+        },
+        {
+          "beta": 1.0951148227989749,
+          "n_wrong_picks": 135,
+          "reader_id": "rater-10619677",
+          "standard_error": 0.12652316472086975
+        },
+        {
+          "beta": 0.5016005175662314,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619678",
+          "standard_error": 0.1197852205655364
+        },
+        {
+          "beta": 1.06715966202308,
+          "n_wrong_picks": 771,
+          "reader_id": "rater-10619679",
+          "standard_error": 0.052125191707450266
+        },
+        {
+          "beta": 1.0370809500644529,
+          "n_wrong_picks": 677,
+          "reader_id": "rater-10619680",
+          "standard_error": 0.057542272239529554
+        },
+        {
+          "beta": 0.6835602463881069,
+          "n_wrong_picks": 240,
+          "reader_id": "rater-10619685",
+          "standard_error": 0.077835154046759
+        },
+        {
+          "beta": 0.15583589900642758,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619687",
+          "standard_error": 0.12129884296599092
+        },
+        {
+          "beta": 0.5901660794359689,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10619689",
+          "standard_error": 0.10265200700274252
+        },
+        {
+          "beta": 1.0989253077244825,
+          "n_wrong_picks": 117,
+          "reader_id": "rater-10619695",
+          "standard_error": 0.12060511803028279
+        },
+        {
+          "beta": 0.8094389073230592,
+          "n_wrong_picks": 100,
+          "reader_id": "rater-10619697",
+          "standard_error": 0.1456149721858595
+        },
+        {
+          "beta": 0.4558023983823448,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619710",
+          "standard_error": 0.08219123957944094
+        },
+        {
+          "beta": 0.31799963844836077,
+          "n_wrong_picks": 147,
+          "reader_id": "rater-10619720",
+          "standard_error": 0.10587300940000836
+        },
+        {
+          "beta": 0.9290504796737004,
+          "n_wrong_picks": 1872,
+          "reader_id": "rater-10619721",
+          "standard_error": 0.030685063776520624
+        },
+        {
+          "beta": 0.40126748427397674,
+          "n_wrong_picks": 112,
+          "reader_id": "rater-10619722",
+          "standard_error": 0.11463234912807495
+        },
+        {
+          "beta": 1.2090479558578067,
+          "n_wrong_picks": 1089,
+          "reader_id": "rater-10619723",
+          "standard_error": 0.04280885828271427
+        },
+        {
+          "beta": 0.6638958814021844,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619725",
+          "standard_error": 0.10798470794608062
+        },
+        {
+          "beta": 0.9242311958044922,
+          "n_wrong_picks": 508,
+          "reader_id": "rater-10619727",
+          "standard_error": 0.07479421156348416
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 155,
+          "reader_id": "rater-10619729",
+          "standard_error": 0.1551883918086057
+        },
+        {
+          "beta": 0.836605256739631,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10619736",
+          "standard_error": 0.14199743433118625
+        },
+        {
+          "beta": 0.10276055812814396,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10619738",
+          "standard_error": 0.13462575265508223
+        },
+        {
+          "beta": 0.6832681500493443,
+          "n_wrong_picks": 188,
+          "reader_id": "rater-10619740",
+          "standard_error": 0.1090565321197003
+        },
+        {
+          "beta": 1.1524659178164385,
+          "n_wrong_picks": 9430,
+          "reader_id": "rater-10619744",
+          "standard_error": 0.013894213475742996
+        },
+        {
+          "beta": 0.4070221961116274,
+          "n_wrong_picks": 115,
+          "reader_id": "rater-10619749",
+          "standard_error": 0.1753008303808246
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10619756",
+          "standard_error": 0.16106571526094823
+        },
+        {
+          "beta": 0.3754200274920937,
+          "n_wrong_picks": 96,
+          "reader_id": "rater-10619773",
+          "standard_error": 0.13086432361624256
+        },
+        {
+          "beta": 0.3013001906889999,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619777",
+          "standard_error": 0.09629607146900815
+        },
+        {
+          "beta": 0.5102190814802082,
+          "n_wrong_picks": 118,
+          "reader_id": "rater-10619779",
+          "standard_error": 0.10829375198705879
+        },
+        {
+          "beta": 1.0801756885622233,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619782",
+          "standard_error": 0.13191905297296902
+        },
+        {
+          "beta": 0.49136829400402837,
+          "n_wrong_picks": 453,
+          "reader_id": "rater-10619797",
+          "standard_error": 0.052066394671460986
+        },
+        {
+          "beta": 0.25782671387944356,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619800",
+          "standard_error": 0.1654809023097068
+        },
+        {
+          "beta": 0.4079286779884607,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10619801",
+          "standard_error": 0.1303408749419904
+        },
+        {
+          "beta": 0.37278310348644006,
+          "n_wrong_picks": 178,
+          "reader_id": "rater-10619803",
+          "standard_error": 0.12611654247855159
+        },
+        {
+          "beta": 0.5539756972552848,
+          "n_wrong_picks": 308,
+          "reader_id": "rater-10619805",
+          "standard_error": 0.06784322299536695
+        },
+        {
+          "beta": 0.027628930418016822,
+          "n_wrong_picks": 130,
+          "reader_id": "rater-10619808",
+          "standard_error": 0.12855871259322327
+        },
+        {
+          "beta": 0.7903811830857337,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10619812",
+          "standard_error": 0.12124193551770841
+        },
+        {
+          "beta": 0.9913195295704994,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619821",
+          "standard_error": 0.15750080077013429
+        },
+        {
+          "beta": 1.1753042280183181,
+          "n_wrong_picks": 163,
+          "reader_id": "rater-10619823",
+          "standard_error": 0.10679791924852751
+        },
+        {
+          "beta": 1.0038969159012494,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619824",
+          "standard_error": 0.14528703613162705
+        },
+        {
+          "beta": 0.9028291019249016,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10619825",
+          "standard_error": 0.16929828412862685
+        },
+        {
+          "beta": 0.8611270135038794,
+          "n_wrong_picks": 63,
+          "reader_id": "rater-10619833",
+          "standard_error": 0.14615980388584265
+        },
+        {
+          "beta": 1.2276051498436273,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10619835",
+          "standard_error": 0.1727982586088891
+        },
+        {
+          "beta": 0.660785951477906,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619836",
+          "standard_error": 0.09003636516464215
+        },
+        {
+          "beta": 0.5070173821233087,
+          "n_wrong_picks": 160,
+          "reader_id": "rater-10619837",
+          "standard_error": 0.10401330777888093
+        },
+        {
+          "beta": 0.596917281857672,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619846",
+          "standard_error": 0.12888169841879074
+        },
+        {
+          "beta": 1.2822597970414085,
+          "n_wrong_picks": 307,
+          "reader_id": "rater-10619847",
+          "standard_error": 0.0838705566169417
+        },
+        {
+          "beta": 1.0825917907215798,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10619853",
+          "standard_error": 0.15482934652825195
+        },
+        {
+          "beta": 1.0097459005558183,
+          "n_wrong_picks": 51,
+          "reader_id": "rater-10619854",
+          "standard_error": 0.16292027106369172
+        },
+        {
+          "beta": 0.599964539816915,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619856",
+          "standard_error": 0.11383425113359315
+        },
+        {
+          "beta": 0.2907491991857438,
+          "n_wrong_picks": 179,
+          "reader_id": "rater-10619857",
+          "standard_error": 0.07397798354274016
+        },
+        {
+          "beta": 0.5696620444959348,
+          "n_wrong_picks": 490,
+          "reader_id": "rater-10619860",
+          "standard_error": 0.056927115200210425
+        },
+        {
+          "beta": 0.6788191703426607,
+          "n_wrong_picks": 194,
+          "reader_id": "rater-10619864",
+          "standard_error": 0.10667706785076407
+        },
+        {
+          "beta": 1.1842603006736259,
+          "n_wrong_picks": 764,
+          "reader_id": "rater-10619870",
+          "standard_error": 0.051534366171961145
+        },
+        {
+          "beta": 0.8630731829100009,
+          "n_wrong_picks": 68,
+          "reader_id": "rater-10619871",
+          "standard_error": 0.15955508260916548
+        },
+        {
+          "beta": 1.1078745043659899,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10619873",
+          "standard_error": 0.15377084398797403
+        },
+        {
+          "beta": 0.35044022361013516,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10619874",
+          "standard_error": 0.10306931212922589
+        },
+        {
+          "beta": 0.43215833586104846,
+          "n_wrong_picks": 89,
+          "reader_id": "rater-10619875",
+          "standard_error": 0.17698130950382648
+        },
+        {
+          "beta": 1.086275808347805,
+          "n_wrong_picks": 120,
+          "reader_id": "rater-10619887",
+          "standard_error": 0.11340090360982981
+        },
+        {
+          "beta": 0.42989273834064934,
+          "n_wrong_picks": 231,
+          "reader_id": "rater-10619889",
+          "standard_error": 0.07028278789687471
+        },
+        {
+          "beta": 1.216058836213865,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619896",
+          "standard_error": 0.16100306110938004
+        },
+        {
+          "beta": 0.42662011600679045,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10619906",
+          "standard_error": 0.16152442932178557
+        },
+        {
+          "beta": 0.24952401022526144,
+          "n_wrong_picks": 83,
+          "reader_id": "rater-10619911",
+          "standard_error": 0.10542323853412792
+        },
+        {
+          "beta": 0.3277562376314384,
+          "n_wrong_picks": 153,
+          "reader_id": "rater-10619918",
+          "standard_error": 0.08584081182822687
+        },
+        {
+          "beta": 0.31498348207507954,
+          "n_wrong_picks": 47,
+          "reader_id": "rater-10619925",
+          "standard_error": 0.07865647428090292
+        },
+        {
+          "beta": 0.5801781389173599,
+          "n_wrong_picks": 506,
+          "reader_id": "rater-10619927",
+          "standard_error": 0.05411717437572453
+        },
+        {
+          "beta": 0.9340936980216737,
+          "n_wrong_picks": 264,
+          "reader_id": "rater-10619939",
+          "standard_error": 0.09704491398504395
+        },
+        {
+          "beta": 0.5256890924003255,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10619945",
+          "standard_error": 0.12375880985941794
+        },
+        {
+          "beta": 0.5495132188577171,
+          "n_wrong_picks": 124,
+          "reader_id": "rater-10619949",
+          "standard_error": 0.11418020466195364
+        },
+        {
+          "beta": 0.4292726727478543,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10619954",
+          "standard_error": 0.1150990400212886
+        },
+        {
+          "beta": 0.2278944375582738,
+          "n_wrong_picks": 264,
+          "reader_id": "rater-10619959",
+          "standard_error": 0.0717965588383214
+        },
+        {
+          "beta": 0.6073972516402637,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619960",
+          "standard_error": 0.13443112358300685
+        },
+        {
+          "beta": 1.1920900321025834,
+          "n_wrong_picks": 226,
+          "reader_id": "rater-10619971",
+          "standard_error": 0.09417604099020023
+        },
+        {
+          "beta": 0.6470864795248035,
+          "n_wrong_picks": 133,
+          "reader_id": "rater-10619974",
+          "standard_error": 0.1548335128969917
+        },
+        {
+          "beta": 0.263573328857236,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10619979",
+          "standard_error": 0.09389265838856285
+        },
+        {
+          "beta": 1.125316649397481,
+          "n_wrong_picks": 367,
+          "reader_id": "rater-10619980",
+          "standard_error": 0.07758365083935881
+        },
+        {
+          "beta": 0.2964246063442155,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10619981",
+          "standard_error": 0.07416919337182826
+        },
+        {
+          "beta": 0.3890582207905699,
+          "n_wrong_picks": 456,
+          "reader_id": "rater-10619984",
+          "standard_error": 0.08238276859467908
+        },
+        {
+          "beta": 0.34861012869812924,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619985",
+          "standard_error": 0.13156308563447827
+        },
+        {
+          "beta": 0.11756458654025624,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619989",
+          "standard_error": 0.08541566818191461
+        },
+        {
+          "beta": 0.3719961758119773,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619991",
+          "standard_error": 0.09071961096043595
+        },
+        {
+          "beta": 0.5553458045701798,
+          "n_wrong_picks": 863,
+          "reader_id": "rater-10619994",
+          "standard_error": 0.03800836174286758
+        },
+        {
+          "beta": 0.6847453464575858,
+          "n_wrong_picks": 123,
+          "reader_id": "rater-10619997",
+          "standard_error": 0.09888876163078313
+        },
+        {
+          "beta": 0.4548763485597572,
+          "n_wrong_picks": 208,
+          "reader_id": "rater-10619999",
+          "standard_error": 0.07907686493088657
+        },
+        {
+          "beta": 99.99999777567034,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10620004",
+          "standard_error": 88.84777178763574
+        },
+        {
+          "beta": 0.8038187711940927,
+          "n_wrong_picks": 32,
+          "reader_id": "rater-10620007",
+          "standard_error": 0.20785016536873985
+        },
+        {
+          "beta": 0.9135375090749716,
+          "n_wrong_picks": 169,
+          "reader_id": "rater-10620014",
+          "standard_error": 0.07797057217235331
+        },
+        {
+          "beta": 0.6600029903454967,
+          "n_wrong_picks": 85,
+          "reader_id": "rater-10620021",
+          "standard_error": 0.1545965006423681
+        },
+        {
+          "beta": 0.6750899533944843,
+          "n_wrong_picks": 473,
+          "reader_id": "rater-10620023",
+          "standard_error": 0.05096730000740786
+        },
+        {
+          "beta": 1.3873718012639065,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10620027",
+          "standard_error": 0.18620788733973156
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 128,
+          "reader_id": "rater-10620047",
+          "standard_error": 0.14245268648809603
+        },
+        {
+          "beta": 0.41989242111647596,
+          "n_wrong_picks": 154,
+          "reader_id": "rater-10620050",
+          "standard_error": 0.09936947118988815
+        },
+        {
+          "beta": 0.2616646380755851,
+          "n_wrong_picks": 226,
+          "reader_id": "rater-10620062",
+          "standard_error": 0.08375453549300234
+        },
+        {
+          "beta": 0.5247344886513756,
+          "n_wrong_picks": 100,
+          "reader_id": "rater-10620072",
+          "standard_error": 0.1320980200753565
+        },
+        {
+          "beta": 0.761813857006022,
+          "n_wrong_picks": 496,
+          "reader_id": "rater-10620080",
+          "standard_error": 0.06302771448291117
+        },
+        {
+          "beta": 0.55342191182648,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10620082",
+          "standard_error": 0.08987136917581197
+        },
+        {
+          "beta": 0.4257019199781852,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620084",
+          "standard_error": 0.11758411324499694
+        },
+        {
+          "beta": 0.6702448473087478,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10620085",
+          "standard_error": 0.17201461447687263
+        },
+        {
+          "beta": 0.15017430300835208,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10620092",
+          "standard_error": 0.11707293592107162
+        },
+        {
+          "beta": 0.6364773836127842,
+          "n_wrong_picks": 568,
+          "reader_id": "rater-10620097",
+          "standard_error": 0.05315826155174936
+        },
+        {
+          "beta": 0.515943563445029,
+          "n_wrong_picks": 304,
+          "reader_id": "rater-10620101",
+          "standard_error": 0.06277852858158683
+        },
+        {
+          "beta": 0.5046254012756352,
+          "n_wrong_picks": 277,
+          "reader_id": "rater-10620103",
+          "standard_error": 0.08691943018359721
+        },
+        {
+          "beta": 0.06867713578617171,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10620105",
+          "standard_error": 0.3416644714105013
+        },
+        {
+          "beta": 1.159543936140601,
+          "n_wrong_picks": 215,
+          "reader_id": "rater-10620107",
+          "standard_error": 0.08916985956837974
+        },
+        {
+          "beta": 0.7356417782872731,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10620113",
+          "standard_error": 0.17084694367376527
+        },
+        {
+          "beta": 0.6862337949892263,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-10620117",
+          "standard_error": 0.15119669964304272
+        },
+        {
+          "beta": 0.023989410408156532,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10620119",
+          "standard_error": 0.1622182325860188
+        },
+        {
+          "beta": 0.3186491731570519,
+          "n_wrong_picks": 158,
+          "reader_id": "rater-10620123",
+          "standard_error": 0.08260011322894732
+        },
+        {
+          "beta": 0.2944419592264629,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10620130",
+          "standard_error": 0.13291636751553845
+        },
+        {
+          "beta": 0.659374964088281,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10620133",
+          "standard_error": 0.1608238041433744
+        },
+        {
+          "beta": 0.41360883531283954,
+          "n_wrong_picks": 128,
+          "reader_id": "rater-10620137",
+          "standard_error": 0.09447409115812358
+        },
+        {
+          "beta": 0.2600054450983574,
+          "n_wrong_picks": 97,
+          "reader_id": "rater-10620141",
+          "standard_error": 0.126658763348045
+        },
+        {
+          "beta": 0.34169107379137903,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10620146",
+          "standard_error": 0.09684397174004718
+        },
+        {
+          "beta": 0.35487501238536084,
+          "n_wrong_picks": 215,
+          "reader_id": "rater-10620153",
+          "standard_error": 0.07552013607194334
+        },
+        {
+          "beta": 0.19257204196685357,
+          "n_wrong_picks": 146,
+          "reader_id": "rater-10620170",
+          "standard_error": 0.08057796984353327
+        },
+        {
+          "beta": 0.29962995257577557,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10620173",
+          "standard_error": 0.10670714957678226
+        },
+        {
+          "beta": 0.8651454420118917,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620175",
+          "standard_error": 0.11785687677126055
+        },
+        {
+          "beta": 0.40650436395876655,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620185",
+          "standard_error": 0.10647676377653573
+        },
+        {
+          "beta": 0.2959311353256703,
+          "n_wrong_picks": 87,
+          "reader_id": "rater-10620187",
+          "standard_error": 0.10914087693953393
+        },
+        {
+          "beta": 0.7438014076059897,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10620204",
+          "standard_error": 0.10390392088501055
+        },
+        {
+          "beta": 0.34317386487918955,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620213",
+          "standard_error": 0.09638930238884148
+        },
+        {
+          "beta": 0.9799176945015563,
+          "n_wrong_picks": 58,
+          "reader_id": "rater-10620227",
+          "standard_error": 0.1569419840922576
+        },
+        {
+          "beta": 0.276888141224191,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620229",
+          "standard_error": 0.12263932920883619
+        },
+        {
+          "beta": 0.2613689647170647,
+          "n_wrong_picks": 138,
+          "reader_id": "rater-10620243",
+          "standard_error": 0.09590605080679332
+        },
+        {
+          "beta": 0.31138234478826937,
+          "n_wrong_picks": 175,
+          "reader_id": "rater-10620244",
+          "standard_error": 0.10656284986734817
+        },
+        {
+          "beta": 0.23520387780343482,
+          "n_wrong_picks": 360,
+          "reader_id": "rater-10620245",
+          "standard_error": 0.06084285986611524
+        },
+        {
+          "beta": 0.6465810372683896,
+          "n_wrong_picks": 246,
+          "reader_id": "rater-10620256",
+          "standard_error": 0.09245676130513218
+        },
+        {
+          "beta": 0.01847966262137398,
+          "n_wrong_picks": 118,
+          "reader_id": "rater-10620272",
+          "standard_error": 0.10788325117110108
+        },
+        {
+          "beta": 0.3999727916909883,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10620275",
+          "standard_error": 0.10365235459796093
+        },
+        {
+          "beta": 0.4983016796350207,
+          "n_wrong_picks": 299,
+          "reader_id": "rater-10620285",
+          "standard_error": 0.0814067713554887
+        },
+        {
+          "beta": 0.4236718133782518,
+          "n_wrong_picks": 221,
+          "reader_id": "rater-10620288",
+          "standard_error": 0.0877400528534322
+        },
+        {
+          "beta": 0.8166732091839621,
+          "n_wrong_picks": 148,
+          "reader_id": "rater-10620295",
+          "standard_error": 0.1168275618496473
+        },
+        {
+          "beta": 0.25360189754027535,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10620310",
+          "standard_error": 0.14187300759533503
+        },
+        {
+          "beta": 0.5037239601079232,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10620312",
+          "standard_error": 0.1250782780243552
+        },
+        {
+          "beta": 0.5787131829838408,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10620313",
+          "standard_error": 0.1286125251494062
+        },
+        {
+          "beta": 0.4427849661804227,
+          "n_wrong_picks": 196,
+          "reader_id": "rater-10620315",
+          "standard_error": 0.0630733261391344
+        },
+        {
+          "beta": 1.0442803689608446,
+          "n_wrong_picks": 185,
+          "reader_id": "rater-10620317",
+          "standard_error": 0.09043832642563872
+        },
+        {
+          "beta": 0.24947067857022384,
+          "n_wrong_picks": 290,
+          "reader_id": "rater-10620319",
+          "standard_error": 0.076115224584099
+        },
+        {
+          "beta": 0.6175567500205666,
+          "n_wrong_picks": 251,
+          "reader_id": "rater-10620323",
+          "standard_error": 0.07873686188482495
+        },
+        {
+          "beta": 1.3336921420886922,
+          "n_wrong_picks": 415,
+          "reader_id": "rater-10620328",
+          "standard_error": 0.07535376772224715
+        },
+        {
+          "beta": 0.1731647764396663,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10620332",
+          "standard_error": 0.12248806812716916
+        },
+        {
+          "beta": 0.7767513287499556,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10620341",
+          "standard_error": 0.1410578558280854
+        },
+        {
+          "beta": 0.4720785896797782,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10620343",
+          "standard_error": 0.12747856754091327
+        },
+        {
+          "beta": 1.087040379304911,
+          "n_wrong_picks": 213,
+          "reader_id": "rater-10620349",
+          "standard_error": 0.11299567220180047
+        },
+        {
+          "beta": 0.24471783844140038,
+          "n_wrong_picks": 106,
+          "reader_id": "rater-10620351",
+          "standard_error": 0.1662730276517624
+        },
+        {
+          "beta": 0.320549841759007,
+          "n_wrong_picks": 72,
+          "reader_id": "rater-10620363",
+          "standard_error": 0.1924119005610268
+        },
+        {
+          "beta": 0.5435181035895598,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10620364",
+          "standard_error": 0.11263579563482506
+        },
+        {
+          "beta": 0.43519307583518385,
+          "n_wrong_picks": 181,
+          "reader_id": "rater-10620373",
+          "standard_error": 0.08191273092210262
+        },
+        {
+          "beta": 0.33126241462691486,
+          "n_wrong_picks": 148,
+          "reader_id": "rater-10620374",
+          "standard_error": 0.10699689701640268
+        },
+        {
+          "beta": 0.3874139528087223,
+          "n_wrong_picks": 85,
+          "reader_id": "rater-10620376",
+          "standard_error": 0.1361627736339998
+        },
+        {
+          "beta": 1.1634677875180606,
+          "n_wrong_picks": 179,
+          "reader_id": "rater-10620382",
+          "standard_error": 0.10119624474678135
+        },
+        {
+          "beta": 0.8460649311796882,
+          "n_wrong_picks": 61,
+          "reader_id": "rater-10620392",
+          "standard_error": 0.1723793151778152
+        },
+        {
+          "beta": 0.5746120935908212,
+          "n_wrong_picks": 32,
+          "reader_id": "rater-10620393",
+          "standard_error": 0.12210429081868496
+        },
+        {
+          "beta": 0.7522993753478545,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620394",
+          "standard_error": 0.17160559720839177
+        },
+        {
+          "beta": 0.3499819198150298,
+          "n_wrong_picks": 233,
+          "reader_id": "rater-10620398",
+          "standard_error": 0.07341069720820691
+        },
+        {
+          "beta": 0.293155193905875,
+          "n_wrong_picks": 174,
+          "reader_id": "rater-10620407",
+          "standard_error": 0.07217890615170271
+        },
+        {
+          "beta": 0.34563855543203365,
+          "n_wrong_picks": 501,
+          "reader_id": "rater-10620409",
+          "standard_error": 0.06011116510048216
+        },
+        {
+          "beta": 99.99999656016479,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10620410",
+          "standard_error": 2608.127605916393
+        },
+        {
+          "beta": 0.6116681659400786,
+          "n_wrong_picks": 371,
+          "reader_id": "rater-10620426",
+          "standard_error": 0.06119520052349643
+        },
+        {
+          "beta": 0.6940226276590215,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620432",
+          "standard_error": 0.15899225492082739
+        },
+        {
+          "beta": 0.35461825455453283,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620434",
+          "standard_error": 0.13163585347680068
+        },
+        {
+          "beta": 0.4944532190531064,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10620438",
+          "standard_error": 0.12408379153543661
+        },
+        {
+          "beta": 0.4466409854845932,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10620443",
+          "standard_error": 0.10819300588324664
+        },
+        {
+          "beta": 0.49225778491606725,
+          "n_wrong_picks": 121,
+          "reader_id": "rater-10620447",
+          "standard_error": 0.08789522525771402
+        },
+        {
+          "beta": 0.6645157562113597,
+          "n_wrong_picks": 141,
+          "reader_id": "rater-10620453",
+          "standard_error": 0.11134684450612034
+        },
+        {
+          "beta": 0.7335286125023165,
+          "n_wrong_picks": 138,
+          "reader_id": "rater-10620460",
+          "standard_error": 0.12159629724532485
+        },
+        {
+          "beta": 0.5073754796377197,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10620461",
+          "standard_error": 0.11146575219087812
+        },
+        {
+          "beta": 0.7089654074321641,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10620469",
+          "standard_error": 0.13992721218976706
+        },
+        {
+          "beta": 0.6904882850845209,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620475",
+          "standard_error": 0.1420483846504129
+        },
+        {
+          "beta": 0.8065554253461245,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10620479",
+          "standard_error": 0.09319748858460224
+        },
+        {
+          "beta": 0.6510487831812178,
+          "n_wrong_picks": 280,
+          "reader_id": "rater-10620481",
+          "standard_error": 0.07105446023418832
+        },
+        {
+          "beta": 0.45012875763316706,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620483",
+          "standard_error": 0.15093060769703498
+        },
+        {
+          "beta": 0.08761882634094695,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10620504",
+          "standard_error": 0.1110419059785118
+        },
+        {
+          "beta": 0.5747135417023848,
+          "n_wrong_picks": 199,
+          "reader_id": "rater-10620509",
+          "standard_error": 0.07403089759830285
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10620517",
+          "standard_error": 0.10915900921108075
+        },
+        {
+          "beta": 0.5873101418642156,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10620528",
+          "standard_error": 0.13449949591813606
+        },
+        {
+          "beta": 0.30445761434993746,
+          "n_wrong_picks": 150,
+          "reader_id": "rater-10620531",
+          "standard_error": 0.10573870264430979
+        },
+        {
+          "beta": 0.4233739127011139,
+          "n_wrong_picks": 216,
+          "reader_id": "rater-10620534",
+          "standard_error": 0.08468437160079346
+        },
+        {
+          "beta": 0.5021486047578307,
+          "n_wrong_picks": 123,
+          "reader_id": "rater-10620536",
+          "standard_error": 0.09465935390931336
+        },
+        {
+          "beta": 0.2889388285137362,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620543",
+          "standard_error": 0.1838098293145299
+        },
+        {
+          "beta": 0.6541645432805178,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10620545",
+          "standard_error": 0.15877652960892585
+        },
+        {
+          "beta": 1.2943014445548622,
+          "n_wrong_picks": 31,
+          "reader_id": "rater-10620552",
+          "standard_error": 0.262801112337176
+        },
+        {
+          "beta": 0.4902374882988756,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10620553",
+          "standard_error": 0.12481621167816055
+        },
+        {
+          "beta": 0.4731170049592747,
+          "n_wrong_picks": 339,
+          "reader_id": "rater-10620554",
+          "standard_error": 0.05788295869926775
+        },
+        {
+          "beta": 0.22115784928887627,
+          "n_wrong_picks": 103,
+          "reader_id": "rater-10620556",
+          "standard_error": 0.10600126430203394
+        },
+        {
+          "beta": 0.4635832131173212,
+          "n_wrong_picks": 270,
+          "reader_id": "rater-10620557",
+          "standard_error": 0.07608911037846604
+        },
+        {
+          "beta": 0.3009604955236931,
+          "n_wrong_picks": 102,
+          "reader_id": "rater-10620566",
+          "standard_error": 0.1337257838789285
+        },
+        {
+          "beta": 0.2597223050583529,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620567",
+          "standard_error": 0.13851627415322015
+        },
+        {
+          "beta": 0.5468944847550417,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620572",
+          "standard_error": 0.10916739195661111
+        },
+        {
+          "beta": 0.5528459108268011,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10620573",
+          "standard_error": 0.12851850832406042
+        },
+        {
+          "beta": 0.30037422076087095,
+          "n_wrong_picks": 161,
+          "reader_id": "rater-10620574",
+          "standard_error": 0.08998485656818257
+        },
+        {
+          "beta": 0.9994892460971484,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10620578",
+          "standard_error": 0.13087493689484242
+        },
+        {
+          "beta": 0.6373412311969391,
+          "n_wrong_picks": 182,
+          "reader_id": "rater-10620580",
+          "standard_error": 0.10649289507521403
+        },
+        {
+          "beta": 0.7637777585412567,
+          "n_wrong_picks": 248,
+          "reader_id": "rater-10620590",
+          "standard_error": 0.08801190401031413
+        },
+        {
+          "beta": 0.24227128611150472,
+          "n_wrong_picks": 119,
+          "reader_id": "rater-10620591",
+          "standard_error": 0.12736128890502166
+        },
+        {
+          "beta": 1.1759497591041819,
+          "n_wrong_picks": 83,
+          "reader_id": "rater-10620597",
+          "standard_error": 0.1764444133460434
+        },
+        {
+          "beta": 0.392889708908495,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10620599",
+          "standard_error": 0.11472747002898613
+        },
+        {
+          "beta": 1.1197016544145113,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10620606",
+          "standard_error": 0.13320223286386323
+        },
+        {
+          "beta": 0.34316339207914737,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10620612",
+          "standard_error": 0.08839661348207116
+        },
+        {
+          "beta": 0.6592144816732113,
+          "n_wrong_picks": 170,
+          "reader_id": "rater-10620653",
+          "standard_error": 0.09596734686488519
+        },
+        {
+          "beta": 0.48884404034575446,
+          "n_wrong_picks": 354,
+          "reader_id": "rater-10620717",
+          "standard_error": 0.06704542419545971
+        },
+        {
+          "beta": 0.18148597200423128,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620718",
+          "standard_error": 0.13943499094015643
+        },
+        {
+          "beta": 1.34258757563984,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10620722",
+          "standard_error": 0.22157748136364314
+        },
+        {
+          "beta": 0.5235626229716431,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10620737",
+          "standard_error": 0.15742858600060847
+        },
+        {
+          "beta": 0.5359362459861357,
+          "n_wrong_picks": 144,
+          "reader_id": "rater-10620740",
+          "standard_error": 0.11155292767751696
+        },
+        {
+          "beta": 0.030459333066332212,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620758",
+          "standard_error": 0.1857407064408064
+        },
+        {
+          "beta": 0.17695148687289136,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10620759",
+          "standard_error": 0.10825238136754085
+        },
+        {
+          "beta": 0.4707986883641191,
+          "n_wrong_picks": 473,
+          "reader_id": "rater-10620790",
+          "standard_error": 0.05451176846753018
+        },
+        {
+          "beta": 0.6759377972447024,
+          "n_wrong_picks": 96,
+          "reader_id": "rater-10620792",
+          "standard_error": 0.1581573251315274
+        },
+        {
+          "beta": 0.30594084024235196,
+          "n_wrong_picks": 130,
+          "reader_id": "rater-10620813",
+          "standard_error": 0.13814661340021553
+        },
+        {
+          "beta": 0.46920549335255923,
+          "n_wrong_picks": 119,
+          "reader_id": "rater-10620814",
+          "standard_error": 0.13801822041607503
+        },
+        {
+          "beta": 1.2514913363465223,
+          "n_wrong_picks": 256,
+          "reader_id": "rater-55",
+          "standard_error": 0.09337716247404615
+        },
+        {
+          "beta": 1.308149832154812,
+          "n_wrong_picks": 911,
+          "reader_id": "rater-78",
+          "standard_error": 0.05149551651246925
+        },
+        {
+          "beta": 1.8870018077359847,
+          "n_wrong_picks": 206,
+          "reader_id": "rater-97",
+          "standard_error": 0.1612093608816584
+        }
+      ],
+      "segments_with_expert_gold_pool": 50937,
+      "sensitivity_summary": {
+        "max_l": 1.5984318257652204,
+        "mean_l": 0.26688502513526496,
+        "min_l": -2.192590355874184
+      },
+      "sources": [
+        "iiic_crowdsourcing:kong2025:crowd",
+        "iiic_crowdsourcing:kong2025:expert"
+      ],
+      "stages": {
+        "readers_after_expertise_filter": 1052,
+        "readers_categorical": 1537,
+        "readers_min_reads_and_min_wrong": 341,
+        "readers_non_interior_sensitivity": 0,
+        "readers_reader_model_failed": 0,
+        "readers_stable_core": 341,
+        "readers_stable_core_also_on_centaur_roster": 9,
+        "readers_with_any_gold_read": 1052,
+        "readers_with_gold": 1052,
+        "reads_after_expertise_filter": 380237,
+        "reads_categorical": 496217,
+        "reads_on_complete_signal_segments": 496217,
+        "reads_with_gold": 256214,
+        "segments_with_gold": 5203
+      },
+      "tier_summary": {
+        "borderline": {
+          "mean_log_beta": 0.18135647138337432,
+          "median_beta": 1.096318918087532,
+          "n_readers": 3
+        },
+        "experienced": {
+          "mean_log_beta": -0.5278819181479509,
+          "median_beta": 0.6608853889070422,
+          "n_readers": 49
+        },
+        "expert": {
+          "mean_log_beta": 0.30982082760177143,
+          "median_beta": 1.510101753635015,
+          "n_readers": 6
+        },
+        "novice": {
+          "mean_log_beta": -0.5730457821287896,
+          "median_beta": 0.6364773836127842,
+          "n_readers": 283
+        }
+      }
+    },
+    "kong2025_isolated_gold": {
+      "artifact_comparison": {
+        "beta_ratio_at_mu": 1.0514518205332166,
+        "combined_se_mu": 0.06665912593885769,
+        "mu_difference": 0.05017189536118552,
+        "tau_difference": 0.028920006505072038,
+        "tau_ratio": 1.1132439953686104,
+        "z_mu": 0.7526635648839007
+      },
+      "beta_quantiles": {
+        "0.05": 0.47879922144062315,
+        "0.25": 0.8749179702588123,
+        "0.5": 1.0336821420880433,
+        "0.75": 1.3056846325610967,
+        "0.95": 99.99999700496763
+      },
+      "n_readers": 32,
+      "n_wrong_picks": 4744,
+      "pooled": {
+        "beta": 0.9998425170063654,
+        "distractor_lapse": 0.027654607203417593
+      },
+      "random_effects": {
+        "cochran_q": 207.22810925064158,
+        "mu_log_beta": 0.029596667113014116,
+        "n_readers_used": 29,
+        "se_mu_log_beta": 0.061181819611442645,
+        "tau_log_beta": 0.2842978427509333
+      },
+      "reader_beta_fits": [
+        {
+          "beta": 0.9163551552054785,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10044529",
+          "standard_error": 0.15895053863945027
+        },
+        {
+          "beta": 0.48415527074225906,
+          "n_wrong_picks": 54,
+          "reader_id": "rater-10069061",
+          "standard_error": 0.08945519457113758
+        },
+        {
+          "beta": 0.8828244549180237,
+          "n_wrong_picks": 120,
+          "reader_id": "rater-10619327",
+          "standard_error": 0.10017175317288748
+        },
+        {
+          "beta": 1.4309057664145264,
+          "n_wrong_picks": 44,
+          "reader_id": "rater-10619337",
+          "standard_error": 0.2937413135661737
+        },
+        {
+          "beta": 0.8430928945136117,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10619346",
+          "standard_error": 0.13139927007318117
+        },
+        {
+          "beta": 1.0184323649975475,
+          "n_wrong_picks": 57,
+          "reader_id": "rater-10619370",
+          "standard_error": 0.1954260093090887
+        },
+        {
+          "beta": 0.46791081686999714,
+          "n_wrong_picks": 117,
+          "reader_id": "rater-10619384",
+          "standard_error": 0.10111612092192293
+        },
+        {
+          "beta": 1.0404158661903435,
+          "n_wrong_picks": 444,
+          "reader_id": "rater-10619401",
+          "standard_error": 0.06382510519144623
+        },
+        {
+          "beta": 0.9701415127508014,
+          "n_wrong_picks": 32,
+          "reader_id": "rater-10619410",
+          "standard_error": 0.2169628072778396
+        },
+        {
+          "beta": 1.0269484179857433,
+          "n_wrong_picks": 620,
+          "reader_id": "rater-10619416",
+          "standard_error": 0.05160289732957034
+        },
+        {
+          "beta": 0.8880245015521286,
+          "n_wrong_picks": 195,
+          "reader_id": "rater-10619434",
+          "standard_error": 0.08044547241904079
+        },
+        {
+          "beta": 1.3209605108613336,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10619454",
+          "standard_error": 0.21907188122719534
+        },
+        {
+          "beta": 1.205919714947406,
+          "n_wrong_picks": 61,
+          "reader_id": "rater-10619459",
+          "standard_error": 0.20200379896333107
+        },
+        {
+          "beta": 1.1479281185611978,
+          "n_wrong_picks": 51,
+          "reader_id": "rater-10619470",
+          "standard_error": 0.20107510229716027
+        },
+        {
+          "beta": 1.1184746719635785,
+          "n_wrong_picks": 46,
+          "reader_id": "rater-10619478",
+          "standard_error": 0.19996865059678567
+        },
+        {
+          "beta": 1.3005926731276845,
+          "n_wrong_picks": 240,
+          "reader_id": "rater-10619490",
+          "standard_error": 0.11016284800988872
+        },
+        {
+          "beta": 0.4722529389608459,
+          "n_wrong_picks": 163,
+          "reader_id": "rater-10619542",
+          "standard_error": 0.08078369667877047
+        },
+        {
+          "beta": 0.8171484787446038,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619566",
+          "standard_error": 0.18444276152632025
+        },
+        {
+          "beta": 1.8337139347285798,
+          "n_wrong_picks": 47,
+          "reader_id": "rater-10619568",
+          "standard_error": 0.3524889041501093
+        },
+        {
+          "beta": 1.374776206118411,
+          "n_wrong_picks": 154,
+          "reader_id": "rater-10619571",
+          "standard_error": 0.15124954035211385
+        },
+        {
+          "beta": 49.87576854375618,
+          "n_wrong_picks": 108,
+          "reader_id": "rater-10619596",
+          "standard_error": 20.25284315093926
+        },
+        {
+          "beta": 1.011840386444766,
+          "n_wrong_picks": 563,
+          "reader_id": "rater-10619642",
+          "standard_error": 0.05313107071290535
+        },
+        {
+          "beta": 1.1075380383522075,
+          "n_wrong_picks": 59,
+          "reader_id": "rater-10619654",
+          "standard_error": 0.18030826685147275
+        },
+        {
+          "beta": 99.99999724060777,
+          "n_wrong_picks": 72,
+          "reader_id": "rater-10619679",
+          "standard_error": 205.92340409767058
+        },
+        {
+          "beta": 0.8511985162811783,
+          "n_wrong_picks": 63,
+          "reader_id": "rater-10619680",
+          "standard_error": 0.1848169560002715
+        },
+        {
+          "beta": 0.6915588290144498,
+          "n_wrong_picks": 149,
+          "reader_id": "rater-10619721",
+          "standard_error": 0.09757823576803011
+        },
+        {
+          "beta": 1.0892199247537582,
+          "n_wrong_picks": 87,
+          "reader_id": "rater-10619723",
+          "standard_error": 0.14931309479622493
+        },
+        {
+          "beta": 0.5411957778685542,
+          "n_wrong_picks": 64,
+          "reader_id": "rater-10619727",
+          "standard_error": 0.18114056637504106
+        },
+        {
+          "beta": 1.2576869519051164,
+          "n_wrong_picks": 667,
+          "reader_id": "rater-10619744",
+          "standard_error": 0.06337178747298122
+        },
+        {
+          "beta": 0.9277587885337222,
+          "n_wrong_picks": 34,
+          "reader_id": "rater-10619870",
+          "standard_error": 0.18703408572275387
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 65,
+          "reader_id": "rater-10619994",
+          "standard_error": 182.88277342053007
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 60,
+          "reader_id": "rater-78",
+          "standard_error": 230.2907453022411
+        }
+      ],
+      "segments_with_expert_gold_pool": 3150,
+      "sensitivity_summary": {
+        "max_l": 1.2665884136624348,
+        "mean_l": 0.5532436918504594,
+        "min_l": -0.2657439809806415
+      },
+      "sources": [
+        "iiic_crowdsourcing:kong2025:crowd",
+        "iiic_crowdsourcing:kong2025:expert"
+      ],
+      "stages": {
+        "readers_after_expertise_filter": 1052,
+        "readers_categorical": 1537,
+        "readers_min_reads_and_min_wrong": 32,
+        "readers_non_interior_sensitivity": 0,
+        "readers_reader_model_failed": 0,
+        "readers_stable_core": 32,
+        "readers_stable_core_also_on_centaur_roster": 2,
+        "readers_with_any_gold_read": 1012,
+        "readers_with_gold": 1012,
+        "reads_after_expertise_filter": 380237,
+        "reads_categorical": 496217,
+        "reads_on_complete_signal_segments": 496217,
+        "reads_with_gold": 24540,
+        "segments_with_gold": 200
+      },
+      "tier_summary": {
+        "borderline": {
+          "mean_log_beta": -0.40635044091227396,
+          "median_beta": 0.6660767059915647,
+          "n_readers": 2
+        },
+        "experienced": {
+          "mean_log_beta": 2.046379722022831,
+          "median_beta": 7.203578342140881,
+          "n_readers": 4
+        },
+        "novice": {
+          "mean_log_beta": 0.343809030591061,
+          "median_beta": 1.0576259634504166,
+          "n_readers": 26
+        }
+      }
+    },
+    "overall": {
+      "artifact_comparison": {
+        "beta_ratio_at_mu": 0.8277330427033464,
+        "combined_se_mu": 0.03405083090785806,
+        "mu_difference": -0.1890645887768892,
+        "tau_difference": 0.10268403132149312,
+        "tau_ratio": 1.4020866995780934,
+        "z_mu": -5.552422179902163
+      },
+      "beta_quantiles": {
+        "0.05": 0.18624352913560188,
+        "0.25": 0.44434776846988283,
+        "0.5": 0.7096841438437405,
+        "0.75": 1.1529063677014246,
+        "0.95": 1.9961444899887806
+      },
+      "n_readers": 374,
+      "n_wrong_picks": 176024,
+      "pooled": {
+        "beta": 1.2021812172559825,
+        "distractor_lapse": 0.04009584710436955
+      },
+      "random_effects": {
+        "cochran_q": 10428.367811860526,
+        "mu_log_beta": -0.2096398170250606,
+        "n_readers_used": 366,
+        "se_mu_log_beta": 0.02142977054357231,
+        "tau_log_beta": 0.35806186756735436
+      },
+      "reader_beta_fits": [
+        {
+          "beta": 2.1350193096595467,
+          "n_wrong_picks": 3893,
+          "reader_id": "rater-0",
+          "standard_error": 0.050449061027266595
+        },
+        {
+          "beta": 1.279302498628526,
+          "n_wrong_picks": 921,
+          "reader_id": "rater-10",
+          "standard_error": 0.05487596533627176
+        },
+        {
+          "beta": 1.9459827363274542,
+          "n_wrong_picks": 3567,
+          "reader_id": "rater-100",
+          "standard_error": 0.04496341047051126
+        },
+        {
+          "beta": 0.7371334561157313,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10007884",
+          "standard_error": 0.1769032510150048
+        },
+        {
+          "beta": 0.7140328772159402,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10043096",
+          "standard_error": 0.11195075340583037
+        },
+        {
+          "beta": 1.1501966861300694,
+          "n_wrong_picks": 928,
+          "reader_id": "rater-10044529",
+          "standard_error": 0.048769048975529854
+        },
+        {
+          "beta": 0.5840893363862412,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10046967",
+          "standard_error": 0.10738621616486464
+        },
+        {
+          "beta": 1.0797104073494272,
+          "n_wrong_picks": 695,
+          "reader_id": "rater-10069061",
+          "standard_error": 0.05716323992684392
+        },
+        {
+          "beta": 0.28861159090314653,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10159195",
+          "standard_error": 0.12913963458085187
+        },
+        {
+          "beta": 0.30850957904696646,
+          "n_wrong_picks": 342,
+          "reader_id": "rater-10195961",
+          "standard_error": 0.07871983823120822
+        },
+        {
+          "beta": 0.4442959432459521,
+          "n_wrong_picks": 254,
+          "reader_id": "rater-10262204",
+          "standard_error": 0.059467686377337375
+        },
+        {
+          "beta": 1.7930227837181343,
+          "n_wrong_picks": 270,
+          "reader_id": "rater-10282558",
+          "standard_error": 0.18604752458906146
+        },
+        {
+          "beta": 1.9220330044472869,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10619321",
+          "standard_error": 0.2769221978979898
+        },
+        {
+          "beta": 2.1819117934056385,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10619322",
+          "standard_error": 0.23417534708903567
+        },
+        {
+          "beta": 1.127842067387848,
+          "n_wrong_picks": 1459,
+          "reader_id": "rater-10619327",
+          "standard_error": 0.03806265856125567
+        },
+        {
+          "beta": 0.6948231078622468,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619328",
+          "standard_error": 0.15187009939358148
+        },
+        {
+          "beta": 1.0452171262508867,
+          "n_wrong_picks": 147,
+          "reader_id": "rater-10619330",
+          "standard_error": 0.13479203635031564
+        },
+        {
+          "beta": 0.4355426628551395,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619331",
+          "standard_error": 0.14427704274600245
+        },
+        {
+          "beta": 0.9973185064679629,
+          "n_wrong_picks": 62,
+          "reader_id": "rater-10619334",
+          "standard_error": 0.18408843649474363
+        },
+        {
+          "beta": 1.3066889361982856,
+          "n_wrong_picks": 439,
+          "reader_id": "rater-10619337",
+          "standard_error": 0.0793420666465671
+        },
+        {
+          "beta": 0.1767199479078165,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619338",
+          "standard_error": 0.15000038795918047
+        },
+        {
+          "beta": 1.0268436962823784,
+          "n_wrong_picks": 294,
+          "reader_id": "rater-10619342",
+          "standard_error": 0.11579390603656238
+        },
+        {
+          "beta": 1.0761821377863603,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619344",
+          "standard_error": 0.1393538679805944
+        },
+        {
+          "beta": 1.210266848939884,
+          "n_wrong_picks": 945,
+          "reader_id": "rater-10619346",
+          "standard_error": 0.050997609489845344
+        },
+        {
+          "beta": 0.47624766963282383,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10619349",
+          "standard_error": 0.10960220989057384
+        },
+        {
+          "beta": 0.5497761866024715,
+          "n_wrong_picks": 306,
+          "reader_id": "rater-10619350",
+          "standard_error": 0.066600620633437
+        },
+        {
+          "beta": 0.3207899340832649,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619352",
+          "standard_error": 0.1191002575591983
+        },
+        {
+          "beta": 0.4672700414372393,
+          "n_wrong_picks": 481,
+          "reader_id": "rater-10619353",
+          "standard_error": 0.054972993793786416
+        },
+        {
+          "beta": 0.9374007709227179,
+          "n_wrong_picks": 483,
+          "reader_id": "rater-10619355",
+          "standard_error": 0.0712646875870183
+        },
+        {
+          "beta": 0.908415168975944,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619357",
+          "standard_error": 0.1536930242588515
+        },
+        {
+          "beta": 1.0306296097107748,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10619358",
+          "standard_error": 0.17515153236991268
+        },
+        {
+          "beta": 1.0514210338612924,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10619362",
+          "standard_error": 0.13729993275376315
+        },
+        {
+          "beta": 0.9413228992624534,
+          "n_wrong_picks": 167,
+          "reader_id": "rater-10619365",
+          "standard_error": 0.1077872011041768
+        },
+        {
+          "beta": 1.1213847639046002,
+          "n_wrong_picks": 696,
+          "reader_id": "rater-10619370",
+          "standard_error": 0.05847898828295688
+        },
+        {
+          "beta": 0.7756062271686813,
+          "n_wrong_picks": 239,
+          "reader_id": "rater-10619372",
+          "standard_error": 0.08842141153575042
+        },
+        {
+          "beta": 0.8030124865000169,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619376",
+          "standard_error": 0.14075092242153894
+        },
+        {
+          "beta": 0.9171825691033126,
+          "n_wrong_picks": 194,
+          "reader_id": "rater-10619377",
+          "standard_error": 0.10139529050117907
+        },
+        {
+          "beta": 1.1529923655952152,
+          "n_wrong_picks": 235,
+          "reader_id": "rater-10619378",
+          "standard_error": 0.09689167480534017
+        },
+        {
+          "beta": 0.5356293850012832,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619380",
+          "standard_error": 0.21938073292786256
+        },
+        {
+          "beta": 0.9142847070480543,
+          "n_wrong_picks": 324,
+          "reader_id": "rater-10619382",
+          "standard_error": 0.08923027866495185
+        },
+        {
+          "beta": 0.9879940620147032,
+          "n_wrong_picks": 1205,
+          "reader_id": "rater-10619384",
+          "standard_error": 0.04223670315268343
+        },
+        {
+          "beta": 0.61613129150636,
+          "n_wrong_picks": 97,
+          "reader_id": "rater-10619388",
+          "standard_error": 0.14748599079453736
+        },
+        {
+          "beta": 0.9058224311430922,
+          "n_wrong_picks": 158,
+          "reader_id": "rater-10619389",
+          "standard_error": 0.0914770426091483
+        },
+        {
+          "beta": 1.0255587803633348,
+          "n_wrong_picks": 151,
+          "reader_id": "rater-10619392",
+          "standard_error": 0.1212093956785129
+        },
+        {
+          "beta": 0.7880235890811672,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10619397",
+          "standard_error": 0.11538783779137846
+        },
+        {
+          "beta": 1.2203012750514732,
+          "n_wrong_picks": 6372,
+          "reader_id": "rater-10619401",
+          "standard_error": 0.020356970580666007
+        },
+        {
+          "beta": 1.0749039141341665,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10619402",
+          "standard_error": 0.15633510838297404
+        },
+        {
+          "beta": 0.6858989714304269,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619403",
+          "standard_error": 0.13603668619614534
+        },
+        {
+          "beta": 1.2904920336596655,
+          "n_wrong_picks": 233,
+          "reader_id": "rater-10619405",
+          "standard_error": 0.11441656720263954
+        },
+        {
+          "beta": 1.1920519279319324,
+          "n_wrong_picks": 323,
+          "reader_id": "rater-10619406",
+          "standard_error": 0.0859565250472168
+        },
+        {
+          "beta": 0.4554248946163229,
+          "n_wrong_picks": 207,
+          "reader_id": "rater-10619407",
+          "standard_error": 0.07595380390654569
+        },
+        {
+          "beta": 0.9188000941244243,
+          "n_wrong_picks": 583,
+          "reader_id": "rater-10619409",
+          "standard_error": 0.06609750638178732
+        },
+        {
+          "beta": 1.5168180349556266,
+          "n_wrong_picks": 426,
+          "reader_id": "rater-10619410",
+          "standard_error": 0.09937727896065447
+        },
+        {
+          "beta": 1.425795028007615,
+          "n_wrong_picks": 75,
+          "reader_id": "rater-10619411",
+          "standard_error": 0.19938282016167874
+        },
+        {
+          "beta": 1.1806009616234665,
+          "n_wrong_picks": 350,
+          "reader_id": "rater-10619415",
+          "standard_error": 0.08609083509531931
+        },
+        {
+          "beta": 1.3401252620349933,
+          "n_wrong_picks": 8865,
+          "reader_id": "rater-10619416",
+          "standard_error": 0.018496307892595907
+        },
+        {
+          "beta": 1.0994881724362842,
+          "n_wrong_picks": 255,
+          "reader_id": "rater-10619419",
+          "standard_error": 0.0897330446377041
+        },
+        {
+          "beta": 1.0294262313721434,
+          "n_wrong_picks": 137,
+          "reader_id": "rater-10619420",
+          "standard_error": 0.13079110179771616
+        },
+        {
+          "beta": 0.7996450324987924,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619423",
+          "standard_error": 0.165518611213747
+        },
+        {
+          "beta": 0.7168700415139289,
+          "n_wrong_picks": 469,
+          "reader_id": "rater-10619424",
+          "standard_error": 0.05983057441741825
+        },
+        {
+          "beta": 1.0627792482647866,
+          "n_wrong_picks": 211,
+          "reader_id": "rater-10619426",
+          "standard_error": 0.12965073000595312
+        },
+        {
+          "beta": 0.7716906937996245,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619431",
+          "standard_error": 0.10468039034029467
+        },
+        {
+          "beta": 1.195622251688928,
+          "n_wrong_picks": 2450,
+          "reader_id": "rater-10619434",
+          "standard_error": 0.030916244811013006
+        },
+        {
+          "beta": 0.8417301770369858,
+          "n_wrong_picks": 291,
+          "reader_id": "rater-10619435",
+          "standard_error": 0.08435351730028234
+        },
+        {
+          "beta": 0.9672775968841085,
+          "n_wrong_picks": 464,
+          "reader_id": "rater-10619436",
+          "standard_error": 0.0749375061816314
+        },
+        {
+          "beta": 0.6852542216125729,
+          "n_wrong_picks": 322,
+          "reader_id": "rater-10619437",
+          "standard_error": 0.07215237834219601
+        },
+        {
+          "beta": 0.4673981150580141,
+          "n_wrong_picks": 184,
+          "reader_id": "rater-10619438",
+          "standard_error": 0.099579878364315
+        },
+        {
+          "beta": 1.1582012277631648,
+          "n_wrong_picks": 279,
+          "reader_id": "rater-10619443",
+          "standard_error": 0.0907403373367941
+        },
+        {
+          "beta": 1.0036155664296273,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619444",
+          "standard_error": 0.1856763135581646
+        },
+        {
+          "beta": 1.2113549391671175,
+          "n_wrong_picks": 835,
+          "reader_id": "rater-10619454",
+          "standard_error": 0.05313829146964806
+        },
+        {
+          "beta": 0.6550899095058947,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10619455",
+          "standard_error": 0.1434158539749846
+        },
+        {
+          "beta": 1.0586224103365618,
+          "n_wrong_picks": 755,
+          "reader_id": "rater-10619459",
+          "standard_error": 0.050272160926683594
+        },
+        {
+          "beta": 0.7769909684419486,
+          "n_wrong_picks": 217,
+          "reader_id": "rater-10619461",
+          "standard_error": 0.1031923335555858
+        },
+        {
+          "beta": 1.2285941486853578,
+          "n_wrong_picks": 831,
+          "reader_id": "rater-10619470",
+          "standard_error": 0.053578432365198415
+        },
+        {
+          "beta": 0.9122637986427045,
+          "n_wrong_picks": 296,
+          "reader_id": "rater-10619474",
+          "standard_error": 0.09251502876496094
+        },
+        {
+          "beta": 0.2513336207827102,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-10619475",
+          "standard_error": 0.11844792919126516
+        },
+        {
+          "beta": 1.2304064841339144,
+          "n_wrong_picks": 554,
+          "reader_id": "rater-10619478",
+          "standard_error": 0.07044075524933663
+        },
+        {
+          "beta": 0.12847313656229525,
+          "n_wrong_picks": 150,
+          "reader_id": "rater-10619479",
+          "standard_error": 0.1326732642833308
+        },
+        {
+          "beta": 1.2076185850982746,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10619489",
+          "standard_error": 0.11426804079799481
+        },
+        {
+          "beta": 1.1687864173546079,
+          "n_wrong_picks": 2642,
+          "reader_id": "rater-10619490",
+          "standard_error": 0.030114963949635337
+        },
+        {
+          "beta": 0.5998939448542722,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10619491",
+          "standard_error": 0.0914428779631522
+        },
+        {
+          "beta": 0.3807256130842171,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10619496",
+          "standard_error": 0.09653254039887366
+        },
+        {
+          "beta": 3.699190747206248,
+          "n_wrong_picks": 67,
+          "reader_id": "rater-10619508",
+          "standard_error": 1.425420261200209
+        },
+        {
+          "beta": 0.35787954413500345,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619509",
+          "standard_error": 0.12502246084480226
+        },
+        {
+          "beta": 0.5411537807263833,
+          "n_wrong_picks": 189,
+          "reader_id": "rater-10619515",
+          "standard_error": 0.09903975240860496
+        },
+        {
+          "beta": 0.23718990250575755,
+          "n_wrong_picks": 211,
+          "reader_id": "rater-10619516",
+          "standard_error": 0.10050578715039842
+        },
+        {
+          "beta": 0.6303147971783528,
+          "n_wrong_picks": 204,
+          "reader_id": "rater-10619518",
+          "standard_error": 0.12264060653999218
+        },
+        {
+          "beta": 0.9013750604315813,
+          "n_wrong_picks": 415,
+          "reader_id": "rater-10619536",
+          "standard_error": 0.08125414861696836
+        },
+        {
+          "beta": 0.06389287988565956,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619541",
+          "standard_error": 0.18160211464821613
+        },
+        {
+          "beta": 0.6480953784876782,
+          "n_wrong_picks": 1874,
+          "reader_id": "rater-10619542",
+          "standard_error": 0.027280623208888598
+        },
+        {
+          "beta": 0.22247620740006013,
+          "n_wrong_picks": 351,
+          "reader_id": "rater-10619545",
+          "standard_error": 0.06580642795757982
+        },
+        {
+          "beta": 0.7058525860691721,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10619549",
+          "standard_error": 0.13657521176574078
+        },
+        {
+          "beta": 0.9143226986448489,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10619555",
+          "standard_error": 0.21995817222254802
+        },
+        {
+          "beta": 0.8947938226855029,
+          "n_wrong_picks": 247,
+          "reader_id": "rater-10619556",
+          "standard_error": 0.08098556472252182
+        },
+        {
+          "beta": 0.6030020052920794,
+          "n_wrong_picks": 231,
+          "reader_id": "rater-10619562",
+          "standard_error": 0.08327018366082134
+        },
+        {
+          "beta": 0.30896775255143644,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10619565",
+          "standard_error": 0.0865456163401561
+        },
+        {
+          "beta": 0.7114424821767679,
+          "n_wrong_picks": 890,
+          "reader_id": "rater-10619566",
+          "standard_error": 0.047300855740832336
+        },
+        {
+          "beta": 0.9534875287830237,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619567",
+          "standard_error": 0.2094120482620744
+        },
+        {
+          "beta": 1.3534700635574775,
+          "n_wrong_picks": 614,
+          "reader_id": "rater-10619568",
+          "standard_error": 0.07187430721065896
+        },
+        {
+          "beta": 1.2064658837604512,
+          "n_wrong_picks": 2025,
+          "reader_id": "rater-10619571",
+          "standard_error": 0.035482250608820404
+        },
+        {
+          "beta": 0.7346314780633242,
+          "n_wrong_picks": 229,
+          "reader_id": "rater-10619572",
+          "standard_error": 0.0950847935720031
+        },
+        {
+          "beta": 1.2446588046681073,
+          "n_wrong_picks": 136,
+          "reader_id": "rater-10619585",
+          "standard_error": 0.14420318992752199
+        },
+        {
+          "beta": 1.4107608961038498,
+          "n_wrong_picks": 253,
+          "reader_id": "rater-10619586",
+          "standard_error": 0.1211482835896406
+        },
+        {
+          "beta": 1.298780121675025,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10619590",
+          "standard_error": 0.20781396949001538
+        },
+        {
+          "beta": 1.068922255532197,
+          "n_wrong_picks": 467,
+          "reader_id": "rater-10619592",
+          "standard_error": 0.0778987309585398
+        },
+        {
+          "beta": 0.5907401686669568,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619593",
+          "standard_error": 0.13768110590174407
+        },
+        {
+          "beta": 1.236883233480459,
+          "n_wrong_picks": 1327,
+          "reader_id": "rater-10619596",
+          "standard_error": 0.043993475112047785
+        },
+        {
+          "beta": 0.7695756674503706,
+          "n_wrong_picks": 67,
+          "reader_id": "rater-10619609",
+          "standard_error": 0.16565092588853905
+        },
+        {
+          "beta": 1.6713152977120402,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619611",
+          "standard_error": 0.22612084670485133
+        },
+        {
+          "beta": 0.7210195123046063,
+          "n_wrong_picks": 461,
+          "reader_id": "rater-10619614",
+          "standard_error": 0.06253616244378706
+        },
+        {
+          "beta": 0.5045977101173674,
+          "n_wrong_picks": 89,
+          "reader_id": "rater-10619615",
+          "standard_error": 0.1538183447327229
+        },
+        {
+          "beta": 1.1930953248631997,
+          "n_wrong_picks": 191,
+          "reader_id": "rater-10619617",
+          "standard_error": 0.1191279016846711
+        },
+        {
+          "beta": 1.4649947339868568,
+          "n_wrong_picks": 209,
+          "reader_id": "rater-10619619",
+          "standard_error": 0.1341063106814742
+        },
+        {
+          "beta": 1.0705410966992033,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619622",
+          "standard_error": 0.13794683626202472
+        },
+        {
+          "beta": 1.068541361704766,
+          "n_wrong_picks": 525,
+          "reader_id": "rater-10619625",
+          "standard_error": 0.06343305587496971
+        },
+        {
+          "beta": 0.4769163760569219,
+          "n_wrong_picks": 102,
+          "reader_id": "rater-10619626",
+          "standard_error": 0.14613585499729662
+        },
+        {
+          "beta": 1.0640049353816814,
+          "n_wrong_picks": 192,
+          "reader_id": "rater-10619628",
+          "standard_error": 0.10050045547968495
+        },
+        {
+          "beta": 0.9200715016787003,
+          "n_wrong_picks": 306,
+          "reader_id": "rater-10619629",
+          "standard_error": 0.10319364407802668
+        },
+        {
+          "beta": 0.3184317862507801,
+          "n_wrong_picks": 151,
+          "reader_id": "rater-10619634",
+          "standard_error": 0.09967000440765537
+        },
+        {
+          "beta": 0.9828594083659351,
+          "n_wrong_picks": 203,
+          "reader_id": "rater-10619638",
+          "standard_error": 0.09225765400193381
+        },
+        {
+          "beta": 1.2413763338716337,
+          "n_wrong_picks": 7003,
+          "reader_id": "rater-10619642",
+          "standard_error": 0.019148548669987654
+        },
+        {
+          "beta": 0.8920902516650061,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619647",
+          "standard_error": 0.16837446892480196
+        },
+        {
+          "beta": 0.45957110867757484,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619648",
+          "standard_error": 0.11599129325787462
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10619649",
+          "standard_error": 93.63457665631131
+        },
+        {
+          "beta": 1.2945511115602555,
+          "n_wrong_picks": 715,
+          "reader_id": "rater-10619654",
+          "standard_error": 0.06249023981558286
+        },
+        {
+          "beta": 0.7252151278519436,
+          "n_wrong_picks": 217,
+          "reader_id": "rater-10619656",
+          "standard_error": 0.10355330943767567
+        },
+        {
+          "beta": 0.4890936488348771,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619658",
+          "standard_error": 0.0727260685664816
+        },
+        {
+          "beta": 1.0826664886250386,
+          "n_wrong_picks": 115,
+          "reader_id": "rater-10619660",
+          "standard_error": 0.149446863917426
+        },
+        {
+          "beta": 0.7212735430925432,
+          "n_wrong_picks": 106,
+          "reader_id": "rater-10619662",
+          "standard_error": 0.13782248401929342
+        },
+        {
+          "beta": 0.49843565869196804,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619665",
+          "standard_error": 0.10251424137970927
+        },
+        {
+          "beta": 1.2015767401711532,
+          "n_wrong_picks": 127,
+          "reader_id": "rater-10619669",
+          "standard_error": 0.1547141189520616
+        },
+        {
+          "beta": 0.377340307206357,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10619670",
+          "standard_error": 0.10841649997217889
+        },
+        {
+          "beta": 1.1560942725866354,
+          "n_wrong_picks": 135,
+          "reader_id": "rater-10619677",
+          "standard_error": 0.14150687409820076
+        },
+        {
+          "beta": 0.5209983134958028,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10619678",
+          "standard_error": 0.12579847570490799
+        },
+        {
+          "beta": 1.125310859590099,
+          "n_wrong_picks": 771,
+          "reader_id": "rater-10619679",
+          "standard_error": 0.05753476680067472
+        },
+        {
+          "beta": 1.0954586901258045,
+          "n_wrong_picks": 677,
+          "reader_id": "rater-10619680",
+          "standard_error": 0.0634169039804188
+        },
+        {
+          "beta": 0.7089730775134968,
+          "n_wrong_picks": 240,
+          "reader_id": "rater-10619685",
+          "standard_error": 0.08182996148989465
+        },
+        {
+          "beta": 0.16079265227958542,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619687",
+          "standard_error": 0.12529525390771765
+        },
+        {
+          "beta": 0.6134905312754458,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10619689",
+          "standard_error": 0.10761318177301817
+        },
+        {
+          "beta": 1.190613241462786,
+          "n_wrong_picks": 117,
+          "reader_id": "rater-10619695",
+          "standard_error": 0.14510391554466293
+        },
+        {
+          "beta": 0.8421490620764133,
+          "n_wrong_picks": 100,
+          "reader_id": "rater-10619697",
+          "standard_error": 0.15452010752532447
+        },
+        {
+          "beta": 0.47403358645033056,
+          "n_wrong_picks": 159,
+          "reader_id": "rater-10619710",
+          "standard_error": 0.08584658102896899
+        },
+        {
+          "beta": 0.3295520422214886,
+          "n_wrong_picks": 147,
+          "reader_id": "rater-10619720",
+          "standard_error": 0.10999360071151203
+        },
+        {
+          "beta": 0.9674262681640975,
+          "n_wrong_picks": 1872,
+          "reader_id": "rater-10619721",
+          "standard_error": 0.03301177431034324
+        },
+        {
+          "beta": 0.4161184935377446,
+          "n_wrong_picks": 112,
+          "reader_id": "rater-10619722",
+          "standard_error": 0.1189204038045693
+        },
+        {
+          "beta": 1.2834825959927028,
+          "n_wrong_picks": 1089,
+          "reader_id": "rater-10619723",
+          "standard_error": 0.04952588727495447
+        },
+        {
+          "beta": 0.6883335056817687,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619725",
+          "standard_error": 0.11411915671028085
+        },
+        {
+          "beta": 0.9615903456876174,
+          "n_wrong_picks": 508,
+          "reader_id": "rater-10619727",
+          "standard_error": 0.0796023552014824
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 155,
+          "reader_id": "rater-10619729",
+          "standard_error": 0.16063228578340838
+        },
+        {
+          "beta": 0.8736140655138142,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10619736",
+          "standard_error": 0.15356013448355668
+        },
+        {
+          "beta": 0.10587238909672149,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10619738",
+          "standard_error": 0.13909990184975704
+        },
+        {
+          "beta": 0.7095138591187191,
+          "n_wrong_picks": 188,
+          "reader_id": "rater-10619740",
+          "standard_error": 0.11467349286800514
+        },
+        {
+          "beta": 1.2321189020640886,
+          "n_wrong_picks": 9430,
+          "reader_id": "rater-10619744",
+          "standard_error": 0.01638711172454556
+        },
+        {
+          "beta": 0.4214806285969223,
+          "n_wrong_picks": 115,
+          "reader_id": "rater-10619749",
+          "standard_error": 0.18252814939163192
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10619756",
+          "standard_error": 0.1664323467940372
+        },
+        {
+          "beta": 0.3883445071540022,
+          "n_wrong_picks": 96,
+          "reader_id": "rater-10619773",
+          "standard_error": 0.13667553868788587
+        },
+        {
+          "beta": 0.31231512993089605,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-10619777",
+          "standard_error": 0.09963762145903382
+        },
+        {
+          "beta": 0.5263531006545511,
+          "n_wrong_picks": 118,
+          "reader_id": "rater-10619779",
+          "standard_error": 0.11262092753425416
+        },
+        {
+          "beta": 1.1298126622730782,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10619782",
+          "standard_error": 0.14563009349137915
+        },
+        {
+          "beta": 0.50702377840918,
+          "n_wrong_picks": 453,
+          "reader_id": "rater-10619797",
+          "standard_error": 0.05389481016290754
+        },
+        {
+          "beta": 0.2681229771225562,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10619800",
+          "standard_error": 0.17161089237498794
+        },
+        {
+          "beta": 0.42264403274550827,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10619801",
+          "standard_error": 0.13537824289073164
+        },
+        {
+          "beta": 0.38468490748566964,
+          "n_wrong_picks": 178,
+          "reader_id": "rater-10619803",
+          "standard_error": 0.13045940252619745
+        },
+        {
+          "beta": 0.575509836171734,
+          "n_wrong_picks": 308,
+          "reader_id": "rater-10619805",
+          "standard_error": 0.07086900677329612
+        },
+        {
+          "beta": 0.02869206065283868,
+          "n_wrong_picks": 130,
+          "reader_id": "rater-10619808",
+          "standard_error": 0.13338226850588636
+        },
+        {
+          "beta": 0.9257175835142154,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10619812",
+          "standard_error": 0.1561319167262496
+        },
+        {
+          "beta": 1.0319955414963207,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10619821",
+          "standard_error": 0.16965655782598002
+        },
+        {
+          "beta": 1.2748734880487946,
+          "n_wrong_picks": 163,
+          "reader_id": "rater-10619823",
+          "standard_error": 0.13272241857082048
+        },
+        {
+          "beta": 1.0447791952069294,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619824",
+          "standard_error": 0.15565705290493195
+        },
+        {
+          "beta": 0.9874309356186458,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10619825",
+          "standard_error": 0.19623794942785203
+        },
+        {
+          "beta": 0.9005766836516506,
+          "n_wrong_picks": 63,
+          "reader_id": "rater-10619833",
+          "standard_error": 0.15949649423544363
+        },
+        {
+          "beta": 1.2758008891534516,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10619835",
+          "standard_error": 0.18679906054034265
+        },
+        {
+          "beta": 0.6900574217894563,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619836",
+          "standard_error": 0.09898337465061954
+        },
+        {
+          "beta": 0.5234135136052496,
+          "n_wrong_picks": 160,
+          "reader_id": "rater-10619837",
+          "standard_error": 0.10778695981750812
+        },
+        {
+          "beta": 0.6203679878443243,
+          "n_wrong_picks": 122,
+          "reader_id": "rater-10619846",
+          "standard_error": 0.13465382744181756
+        },
+        {
+          "beta": 1.3737285560388255,
+          "n_wrong_picks": 307,
+          "reader_id": "rater-10619847",
+          "standard_error": 0.10121577682897503
+        },
+        {
+          "beta": 1.1526483740200526,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10619853",
+          "standard_error": 0.1749656075102048
+        },
+        {
+          "beta": 1.08937919866783,
+          "n_wrong_picks": 51,
+          "reader_id": "rater-10619854",
+          "standard_error": 0.19475235468263735
+        },
+        {
+          "beta": 0.6239544352219509,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619856",
+          "standard_error": 0.12093349286795281
+        },
+        {
+          "beta": 0.30106505166101044,
+          "n_wrong_picks": 179,
+          "reader_id": "rater-10619857",
+          "standard_error": 0.07662102921396688
+        },
+        {
+          "beta": 0.592792121636352,
+          "n_wrong_picks": 490,
+          "reader_id": "rater-10619860",
+          "standard_error": 0.0597830042224107
+        },
+        {
+          "beta": 0.7066488157030014,
+          "n_wrong_picks": 194,
+          "reader_id": "rater-10619864",
+          "standard_error": 0.11222432698983616
+        },
+        {
+          "beta": 1.2719195016921336,
+          "n_wrong_picks": 764,
+          "reader_id": "rater-10619870",
+          "standard_error": 0.06314518684924314
+        },
+        {
+          "beta": 0.9063443661924435,
+          "n_wrong_picks": 68,
+          "reader_id": "rater-10619871",
+          "standard_error": 0.1742819626266899
+        },
+        {
+          "beta": 1.1593792152442777,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10619873",
+          "standard_error": 0.16708463662061276
+        },
+        {
+          "beta": 0.36148992269831126,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10619874",
+          "standard_error": 0.10665090379525774
+        },
+        {
+          "beta": 0.44780747942564697,
+          "n_wrong_picks": 89,
+          "reader_id": "rater-10619875",
+          "standard_error": 0.1833518127325636
+        },
+        {
+          "beta": 1.201115984832842,
+          "n_wrong_picks": 120,
+          "reader_id": "rater-10619887",
+          "standard_error": 0.14781159269567834
+        },
+        {
+          "beta": 0.4438488775075175,
+          "n_wrong_picks": 231,
+          "reader_id": "rater-10619889",
+          "standard_error": 0.07290731615591375
+        },
+        {
+          "beta": 1.3121319180320294,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10619896",
+          "standard_error": 0.193659382693322
+        },
+        {
+          "beta": 0.4445032441416749,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10619906",
+          "standard_error": 0.1681152297975472
+        },
+        {
+          "beta": 0.25960524853955735,
+          "n_wrong_picks": 83,
+          "reader_id": "rater-10619911",
+          "standard_error": 0.10957910045313106
+        },
+        {
+          "beta": 0.3400273643033234,
+          "n_wrong_picks": 153,
+          "reader_id": "rater-10619918",
+          "standard_error": 0.08929487019079341
+        },
+        {
+          "beta": 0.32862714351096994,
+          "n_wrong_picks": 47,
+          "reader_id": "rater-10619925",
+          "standard_error": 0.08462399089972993
+        },
+        {
+          "beta": 0.5999466743677327,
+          "n_wrong_picks": 506,
+          "reader_id": "rater-10619927",
+          "standard_error": 0.056389994773685025
+        },
+        {
+          "beta": 0.97061413379469,
+          "n_wrong_picks": 264,
+          "reader_id": "rater-10619939",
+          "standard_error": 0.10296581632682113
+        },
+        {
+          "beta": 0.5426420618671504,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10619945",
+          "standard_error": 0.12821754175601513
+        },
+        {
+          "beta": 0.5676411399454572,
+          "n_wrong_picks": 124,
+          "reader_id": "rater-10619949",
+          "standard_error": 0.11857182730216333
+        },
+        {
+          "beta": 0.44951386989908604,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10619954",
+          "standard_error": 0.1218857782364848
+        },
+        {
+          "beta": 0.23633724068571638,
+          "n_wrong_picks": 264,
+          "reader_id": "rater-10619959",
+          "standard_error": 0.07412758516826545
+        },
+        {
+          "beta": 0.6292199044029366,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619960",
+          "standard_error": 0.14059380744139555
+        },
+        {
+          "beta": 1.2504716939200164,
+          "n_wrong_picks": 226,
+          "reader_id": "rater-10619971",
+          "standard_error": 0.10502982647072874
+        },
+        {
+          "beta": 0.6636590925061723,
+          "n_wrong_picks": 133,
+          "reader_id": "rater-10619974",
+          "standard_error": 0.1602034276242197
+        },
+        {
+          "beta": 0.2732791448671491,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10619979",
+          "standard_error": 0.09731709927755533
+        },
+        {
+          "beta": 1.2131928464592483,
+          "n_wrong_picks": 367,
+          "reader_id": "rater-10619980",
+          "standard_error": 0.09056368692618398
+        },
+        {
+          "beta": 0.30808336297099354,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10619981",
+          "standard_error": 0.07732108216339197
+        },
+        {
+          "beta": 0.40434490852496935,
+          "n_wrong_picks": 456,
+          "reader_id": "rater-10619984",
+          "standard_error": 0.08544873539619605
+        },
+        {
+          "beta": 0.36193990057430686,
+          "n_wrong_picks": 107,
+          "reader_id": "rater-10619985",
+          "standard_error": 0.13667855669402298
+        },
+        {
+          "beta": 0.12172421410023472,
+          "n_wrong_picks": 81,
+          "reader_id": "rater-10619989",
+          "standard_error": 0.0885333064132994
+        },
+        {
+          "beta": 0.3860634551436569,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10619991",
+          "standard_error": 0.0945419201429332
+        },
+        {
+          "beta": 0.5745643100104353,
+          "n_wrong_picks": 863,
+          "reader_id": "rater-10619994",
+          "standard_error": 0.03954008631847105
+        },
+        {
+          "beta": 0.7098544285687618,
+          "n_wrong_picks": 123,
+          "reader_id": "rater-10619997",
+          "standard_error": 0.10447483428605583
+        },
+        {
+          "beta": 0.4704337226303436,
+          "n_wrong_picks": 208,
+          "reader_id": "rater-10619999",
+          "standard_error": 0.0819478981437535
+        },
+        {
+          "beta": 99.99999716640383,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10620004",
+          "standard_error": 89.45086781297383
+        },
+        {
+          "beta": 1.0046393352834984,
+          "n_wrong_picks": 32,
+          "reader_id": "rater-10620007",
+          "standard_error": 0.24943396391750916
+        },
+        {
+          "beta": 1.0363286190571535,
+          "n_wrong_picks": 169,
+          "reader_id": "rater-10620014",
+          "standard_error": 0.10168571747037226
+        },
+        {
+          "beta": 0.6796045766300955,
+          "n_wrong_picks": 85,
+          "reader_id": "rater-10620021",
+          "standard_error": 0.16087969826987775
+        },
+        {
+          "beta": 0.7001071026650882,
+          "n_wrong_picks": 473,
+          "reader_id": "rater-10620023",
+          "standard_error": 0.05359831697796721
+        },
+        {
+          "beta": 1.4672454022934716,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10620027",
+          "standard_error": 0.20865244221232415
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 128,
+          "reader_id": "rater-10620047",
+          "standard_error": 0.14751875406242398
+        },
+        {
+          "beta": 0.43627410459105337,
+          "n_wrong_picks": 154,
+          "reader_id": "rater-10620050",
+          "standard_error": 0.10342556149843751
+        },
+        {
+          "beta": 0.2705400331370513,
+          "n_wrong_picks": 226,
+          "reader_id": "rater-10620062",
+          "standard_error": 0.08650465983847579
+        },
+        {
+          "beta": 0.5458725902472676,
+          "n_wrong_picks": 100,
+          "reader_id": "rater-10620072",
+          "standard_error": 0.13892035108387019
+        },
+        {
+          "beta": 0.7978806165085529,
+          "n_wrong_picks": 496,
+          "reader_id": "rater-10620080",
+          "standard_error": 0.06722846572652628
+        },
+        {
+          "beta": 0.5838119466720267,
+          "n_wrong_picks": 93,
+          "reader_id": "rater-10620082",
+          "standard_error": 0.09753589790030766
+        },
+        {
+          "beta": 0.43840923878187626,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620084",
+          "standard_error": 0.12166160571956906
+        },
+        {
+          "beta": 0.6989577225690263,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10620085",
+          "standard_error": 0.180876491396164
+        },
+        {
+          "beta": 0.15506527997732933,
+          "n_wrong_picks": 134,
+          "reader_id": "rater-10620092",
+          "standard_error": 0.12100309873806278
+        },
+        {
+          "beta": 0.6572729512824328,
+          "n_wrong_picks": 568,
+          "reader_id": "rater-10620097",
+          "standard_error": 0.05547915611923274
+        },
+        {
+          "beta": 0.5379351752715712,
+          "n_wrong_picks": 304,
+          "reader_id": "rater-10620101",
+          "standard_error": 0.06628825182543087
+        },
+        {
+          "beta": 0.521834947750149,
+          "n_wrong_picks": 277,
+          "reader_id": "rater-10620103",
+          "standard_error": 0.09003164566629689
+        },
+        {
+          "beta": 0.0721790528622124,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10620105",
+          "standard_error": 0.35681850406937876
+        },
+        {
+          "beta": 1.2180309437440175,
+          "n_wrong_picks": 215,
+          "reader_id": "rater-10620107",
+          "standard_error": 0.10125428672271944
+        },
+        {
+          "beta": 0.7575342045553556,
+          "n_wrong_picks": 113,
+          "reader_id": "rater-10620113",
+          "standard_error": 0.17789404339357348
+        },
+        {
+          "beta": 0.728618440444227,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-10620117",
+          "standard_error": 0.1640920786984737
+        },
+        {
+          "beta": 0.024657301233120585,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10620119",
+          "standard_error": 0.16746944786106807
+        },
+        {
+          "beta": 0.33391245846580997,
+          "n_wrong_picks": 158,
+          "reader_id": "rater-10620123",
+          "standard_error": 0.086260438376668
+        },
+        {
+          "beta": 0.306129099684313,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10620130",
+          "standard_error": 0.13848735645421106
+        },
+        {
+          "beta": 0.6855337808891029,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10620133",
+          "standard_error": 0.16823782354286956
+        },
+        {
+          "beta": 0.4315243405910224,
+          "n_wrong_picks": 128,
+          "reader_id": "rater-10620137",
+          "standard_error": 0.09904366986892547
+        },
+        {
+          "beta": 0.2708515922787068,
+          "n_wrong_picks": 97,
+          "reader_id": "rater-10620141",
+          "standard_error": 0.1310411252969494
+        },
+        {
+          "beta": 0.3547558574810793,
+          "n_wrong_picks": 140,
+          "reader_id": "rater-10620146",
+          "standard_error": 0.10058790761557056
+        },
+        {
+          "beta": 0.3694856925643194,
+          "n_wrong_picks": 215,
+          "reader_id": "rater-10620153",
+          "standard_error": 0.07855331502740143
+        },
+        {
+          "beta": 0.1998689687052979,
+          "n_wrong_picks": 146,
+          "reader_id": "rater-10620170",
+          "standard_error": 0.08326172132843171
+        },
+        {
+          "beta": 0.31149726198331606,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-10620173",
+          "standard_error": 0.11078789585490392
+        },
+        {
+          "beta": 0.894152102592299,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620175",
+          "standard_error": 0.12416801442188301
+        },
+        {
+          "beta": 0.4229273827035416,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620185",
+          "standard_error": 0.11106038743003215
+        },
+        {
+          "beta": 0.3085456530500419,
+          "n_wrong_picks": 87,
+          "reader_id": "rater-10620187",
+          "standard_error": 0.11309008208388062
+        },
+        {
+          "beta": 0.7740382238961289,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10620204",
+          "standard_error": 0.11000690567203267
+        },
+        {
+          "beta": 0.35470468878204414,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620213",
+          "standard_error": 0.0997465606903592
+        },
+        {
+          "beta": 1.0926637418903822,
+          "n_wrong_picks": 58,
+          "reader_id": "rater-10620227",
+          "standard_error": 0.20777518430210126
+        },
+        {
+          "beta": 0.28623964284961934,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620229",
+          "standard_error": 0.12686818871068428
+        },
+        {
+          "beta": 0.27274841856379406,
+          "n_wrong_picks": 138,
+          "reader_id": "rater-10620243",
+          "standard_error": 0.09973316820115125
+        },
+        {
+          "beta": 0.32335916678168003,
+          "n_wrong_picks": 175,
+          "reader_id": "rater-10620244",
+          "standard_error": 0.11036160618157458
+        },
+        {
+          "beta": 0.2436759783071938,
+          "n_wrong_picks": 360,
+          "reader_id": "rater-10620245",
+          "standard_error": 0.06282685431765549
+        },
+        {
+          "beta": 0.6754836071880181,
+          "n_wrong_picks": 246,
+          "reader_id": "rater-10620256",
+          "standard_error": 0.09756712615615218
+        },
+        {
+          "beta": 0.01924915599151615,
+          "n_wrong_picks": 118,
+          "reader_id": "rater-10620272",
+          "standard_error": 0.11210904943958282
+        },
+        {
+          "beta": 0.4159871063750806,
+          "n_wrong_picks": 84,
+          "reader_id": "rater-10620275",
+          "standard_error": 0.10875480226277001
+        },
+        {
+          "beta": 0.5155279070774736,
+          "n_wrong_picks": 299,
+          "reader_id": "rater-10620285",
+          "standard_error": 0.08438160676670355
+        },
+        {
+          "beta": 0.4415323602361146,
+          "n_wrong_picks": 221,
+          "reader_id": "rater-10620288",
+          "standard_error": 0.091289584649612
+        },
+        {
+          "beta": 0.8423304335451626,
+          "n_wrong_picks": 148,
+          "reader_id": "rater-10620295",
+          "standard_error": 0.12197557349729789
+        },
+        {
+          "beta": 0.2629265953841886,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10620310",
+          "standard_error": 0.1471440663385138
+        },
+        {
+          "beta": 0.5229433998306766,
+          "n_wrong_picks": 79,
+          "reader_id": "rater-10620312",
+          "standard_error": 0.13145332512652397
+        },
+        {
+          "beta": 0.5973639210029843,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10620313",
+          "standard_error": 0.1329192061658042
+        },
+        {
+          "beta": 0.4576635195034175,
+          "n_wrong_picks": 196,
+          "reader_id": "rater-10620315",
+          "standard_error": 0.06566527291038136
+        },
+        {
+          "beta": 1.118388788047554,
+          "n_wrong_picks": 185,
+          "reader_id": "rater-10620317",
+          "standard_error": 0.10042690081132877
+        },
+        {
+          "beta": 0.2592110507822044,
+          "n_wrong_picks": 290,
+          "reader_id": "rater-10620319",
+          "standard_error": 0.07884829929655975
+        },
+        {
+          "beta": 0.6453985100714869,
+          "n_wrong_picks": 251,
+          "reader_id": "rater-10620323",
+          "standard_error": 0.08324129645030443
+        },
+        {
+          "beta": 1.424018969403406,
+          "n_wrong_picks": 415,
+          "reader_id": "rater-10620328",
+          "standard_error": 0.08959316728590451
+        },
+        {
+          "beta": 0.180457689047617,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10620332",
+          "standard_error": 0.12691067819940696
+        },
+        {
+          "beta": 0.814408345521576,
+          "n_wrong_picks": 109,
+          "reader_id": "rater-10620341",
+          "standard_error": 0.15066331408105807
+        },
+        {
+          "beta": 0.4907942425889383,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10620343",
+          "standard_error": 0.13284793501552195
+        },
+        {
+          "beta": 1.1207927530281734,
+          "n_wrong_picks": 213,
+          "reader_id": "rater-10620349",
+          "standard_error": 0.11894252521881844
+        },
+        {
+          "beta": 0.2533786568469899,
+          "n_wrong_picks": 106,
+          "reader_id": "rater-10620351",
+          "standard_error": 0.17214819989854596
+        },
+        {
+          "beta": 0.3326967190000433,
+          "n_wrong_picks": 72,
+          "reader_id": "rater-10620363",
+          "standard_error": 0.19877703533710278
+        },
+        {
+          "beta": 0.562099080035291,
+          "n_wrong_picks": 76,
+          "reader_id": "rater-10620364",
+          "standard_error": 0.11753611186989864
+        },
+        {
+          "beta": 0.4547221383791413,
+          "n_wrong_picks": 181,
+          "reader_id": "rater-10620373",
+          "standard_error": 0.0859576827638309
+        },
+        {
+          "beta": 0.3424680055203277,
+          "n_wrong_picks": 148,
+          "reader_id": "rater-10620374",
+          "standard_error": 0.11097218790505149
+        },
+        {
+          "beta": 0.3999858199344334,
+          "n_wrong_picks": 85,
+          "reader_id": "rater-10620376",
+          "standard_error": 0.14106141595852575
+        },
+        {
+          "beta": 1.2317662906065923,
+          "n_wrong_picks": 179,
+          "reader_id": "rater-10620382",
+          "standard_error": 0.1184391096204875
+        },
+        {
+          "beta": 0.8800093438968729,
+          "n_wrong_picks": 61,
+          "reader_id": "rater-10620392",
+          "standard_error": 0.1849241806804689
+        },
+        {
+          "beta": 0.5859351091015661,
+          "n_wrong_picks": 32,
+          "reader_id": "rater-10620393",
+          "standard_error": 0.12708317497452915
+        },
+        {
+          "beta": 0.7840988006342564,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620394",
+          "standard_error": 0.18091498635471906
+        },
+        {
+          "beta": 0.3621025922562372,
+          "n_wrong_picks": 233,
+          "reader_id": "rater-10620398",
+          "standard_error": 0.07590753895621004
+        },
+        {
+          "beta": 0.30305046734957347,
+          "n_wrong_picks": 174,
+          "reader_id": "rater-10620407",
+          "standard_error": 0.07478841436755229
+        },
+        {
+          "beta": 0.36004562308518934,
+          "n_wrong_picks": 501,
+          "reader_id": "rater-10620409",
+          "standard_error": 0.06246420165921159
+        },
+        {
+          "beta": 99.99999654859921,
+          "n_wrong_picks": 101,
+          "reader_id": "rater-10620410",
+          "standard_error": 2617.965230325998
+        },
+        {
+          "beta": 0.6300792216728838,
+          "n_wrong_picks": 371,
+          "reader_id": "rater-10620426",
+          "standard_error": 0.0636435544413238
+        },
+        {
+          "beta": 0.7238262270939744,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620432",
+          "standard_error": 0.16731604731745692
+        },
+        {
+          "beta": 0.36926911026002396,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620434",
+          "standard_error": 0.13671463893822564
+        },
+        {
+          "beta": 0.5087086350016887,
+          "n_wrong_picks": 94,
+          "reader_id": "rater-10620438",
+          "standard_error": 0.12789435388425138
+        },
+        {
+          "beta": 0.4677148519330398,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-10620443",
+          "standard_error": 0.11441598071210252
+        },
+        {
+          "beta": 0.5100695378996101,
+          "n_wrong_picks": 121,
+          "reader_id": "rater-10620447",
+          "standard_error": 0.09176860317559
+        },
+        {
+          "beta": 0.6901594026925284,
+          "n_wrong_picks": 141,
+          "reader_id": "rater-10620453",
+          "standard_error": 0.11728549051742024
+        },
+        {
+          "beta": 0.7751119295484337,
+          "n_wrong_picks": 138,
+          "reader_id": "rater-10620460",
+          "standard_error": 0.13164305740076124
+        },
+        {
+          "beta": 0.5241254777970901,
+          "n_wrong_picks": 111,
+          "reader_id": "rater-10620461",
+          "standard_error": 0.11555663258370769
+        },
+        {
+          "beta": 0.7420551050118209,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10620469",
+          "standard_error": 0.15049568160615706
+        },
+        {
+          "beta": 0.7165618395004605,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620475",
+          "standard_error": 0.1495315858716744
+        },
+        {
+          "beta": 0.8377148989217915,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10620479",
+          "standard_error": 0.09870189314618923
+        },
+        {
+          "beta": 0.6740267050873516,
+          "n_wrong_picks": 280,
+          "reader_id": "rater-10620481",
+          "standard_error": 0.07454840115168189
+        },
+        {
+          "beta": 0.46787685979392785,
+          "n_wrong_picks": 88,
+          "reader_id": "rater-10620483",
+          "standard_error": 0.15782797812267957
+        },
+        {
+          "beta": 0.09181530794058576,
+          "n_wrong_picks": 82,
+          "reader_id": "rater-10620504",
+          "standard_error": 0.11556749516564328
+        },
+        {
+          "beta": 0.5948937837133994,
+          "n_wrong_picks": 199,
+          "reader_id": "rater-10620509",
+          "standard_error": 0.07772874681355994
+        },
+        {
+          "beta": 0.010000373549564422,
+          "n_wrong_picks": 105,
+          "reader_id": "rater-10620517",
+          "standard_error": 0.11310378494839168
+        },
+        {
+          "beta": 0.609534046454003,
+          "n_wrong_picks": 80,
+          "reader_id": "rater-10620528",
+          "standard_error": 0.14051145288317596
+        },
+        {
+          "beta": 0.31561785555217764,
+          "n_wrong_picks": 150,
+          "reader_id": "rater-10620531",
+          "standard_error": 0.11007513427389995
+        },
+        {
+          "beta": 0.44063580076634146,
+          "n_wrong_picks": 216,
+          "reader_id": "rater-10620534",
+          "standard_error": 0.08844878497642646
+        },
+        {
+          "beta": 0.5205186111305697,
+          "n_wrong_picks": 123,
+          "reader_id": "rater-10620536",
+          "standard_error": 0.09913351042461072
+        },
+        {
+          "beta": 0.300891180276956,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620543",
+          "standard_error": 0.19105254961901805
+        },
+        {
+          "beta": 0.6775608853552212,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10620545",
+          "standard_error": 0.16746959603195552
+        },
+        {
+          "beta": 1.3348915438974067,
+          "n_wrong_picks": 31,
+          "reader_id": "rater-10620552",
+          "standard_error": 0.2831084643731558
+        },
+        {
+          "beta": 0.5077939754824451,
+          "n_wrong_picks": 71,
+          "reader_id": "rater-10620553",
+          "standard_error": 0.1299314436856246
+        },
+        {
+          "beta": 0.49078621723254195,
+          "n_wrong_picks": 339,
+          "reader_id": "rater-10620554",
+          "standard_error": 0.06025706773827551
+        },
+        {
+          "beta": 0.2287545841829507,
+          "n_wrong_picks": 103,
+          "reader_id": "rater-10620556",
+          "standard_error": 0.10977783262012016
+        },
+        {
+          "beta": 0.47968148052891324,
+          "n_wrong_picks": 270,
+          "reader_id": "rater-10620557",
+          "standard_error": 0.07893575985970924
+        },
+        {
+          "beta": 0.310833286112796,
+          "n_wrong_picks": 102,
+          "reader_id": "rater-10620566",
+          "standard_error": 0.13797521145183145
+        },
+        {
+          "beta": 0.2679932251387767,
+          "n_wrong_picks": 74,
+          "reader_id": "rater-10620567",
+          "standard_error": 0.1435662832031652
+        },
+        {
+          "beta": 0.5626698193159663,
+          "n_wrong_picks": 116,
+          "reader_id": "rater-10620572",
+          "standard_error": 0.11333374976548985
+        },
+        {
+          "beta": 0.5718487413176649,
+          "n_wrong_picks": 91,
+          "reader_id": "rater-10620573",
+          "standard_error": 0.13390740719869237
+        },
+        {
+          "beta": 0.31011290576620454,
+          "n_wrong_picks": 161,
+          "reader_id": "rater-10620574",
+          "standard_error": 0.09327422986787816
+        },
+        {
+          "beta": 1.0502602951806645,
+          "n_wrong_picks": 95,
+          "reader_id": "rater-10620578",
+          "standard_error": 0.1446839820621126
+        },
+        {
+          "beta": 0.6609695708583609,
+          "n_wrong_picks": 182,
+          "reader_id": "rater-10620580",
+          "standard_error": 0.11129542906356402
+        },
+        {
+          "beta": 0.7864233081114389,
+          "n_wrong_picks": 248,
+          "reader_id": "rater-10620590",
+          "standard_error": 0.0916845178463518
+        },
+        {
+          "beta": 0.2511898190718595,
+          "n_wrong_picks": 119,
+          "reader_id": "rater-10620591",
+          "standard_error": 0.13193038144495842
+        },
+        {
+          "beta": 1.246270188403017,
+          "n_wrong_picks": 83,
+          "reader_id": "rater-10620597",
+          "standard_error": 0.19738057227559316
+        },
+        {
+          "beta": 0.40841088149028115,
+          "n_wrong_picks": 99,
+          "reader_id": "rater-10620599",
+          "standard_error": 0.11964548335314236
+        },
+        {
+          "beta": 1.1551857636351914,
+          "n_wrong_picks": 132,
+          "reader_id": "rater-10620606",
+          "standard_error": 0.14115618591680434
+        },
+        {
+          "beta": 0.35507562221893824,
+          "n_wrong_picks": 162,
+          "reader_id": "rater-10620612",
+          "standard_error": 0.09116025375570248
+        },
+        {
+          "beta": 0.6822409410711928,
+          "n_wrong_picks": 170,
+          "reader_id": "rater-10620653",
+          "standard_error": 0.10061413975331414
+        },
+        {
+          "beta": 0.5057738073538434,
+          "n_wrong_picks": 354,
+          "reader_id": "rater-10620717",
+          "standard_error": 0.06949563611445927
+        },
+        {
+          "beta": 0.18752254160857063,
+          "n_wrong_picks": 90,
+          "reader_id": "rater-10620718",
+          "standard_error": 0.1444094395963384
+        },
+        {
+          "beta": 1.4068000229629332,
+          "n_wrong_picks": 69,
+          "reader_id": "rater-10620722",
+          "standard_error": 0.24281702282163575
+        },
+        {
+          "beta": 0.5442008682575847,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-10620737",
+          "standard_error": 0.16421300638122618
+        },
+        {
+          "beta": 0.5528345839005402,
+          "n_wrong_picks": 144,
+          "reader_id": "rater-10620740",
+          "standard_error": 0.11561075822947847
+        },
+        {
+          "beta": 0.031690628228812724,
+          "n_wrong_picks": 104,
+          "reader_id": "rater-10620758",
+          "standard_error": 0.19292585829633307
+        },
+        {
+          "beta": 0.18386822025723137,
+          "n_wrong_picks": 187,
+          "reader_id": "rater-10620759",
+          "standard_error": 0.111995961166027
+        },
+        {
+          "beta": 0.48608416556891715,
+          "n_wrong_picks": 473,
+          "reader_id": "rater-10620790",
+          "standard_error": 0.05645417145790695
+        },
+        {
+          "beta": 0.7013051733065443,
+          "n_wrong_picks": 96,
+          "reader_id": "rater-10620792",
+          "standard_error": 0.16660319004107285
+        },
+        {
+          "beta": 0.31773663825236775,
+          "n_wrong_picks": 130,
+          "reader_id": "rater-10620813",
+          "standard_error": 0.14343780109984564
+        },
+        {
+          "beta": 0.48623161642104845,
+          "n_wrong_picks": 119,
+          "reader_id": "rater-10620814",
+          "standard_error": 0.14342094688558266
+        },
+        {
+          "beta": 1.6891134756673798,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-109",
+          "standard_error": 0.23394243915086263
+        },
+        {
+          "beta": 1.6085130327149242,
+          "n_wrong_picks": 296,
+          "reader_id": "rater-110",
+          "standard_error": 0.12834086962115251
+        },
+        {
+          "beta": 1.4014428314766019,
+          "n_wrong_picks": 1733,
+          "reader_id": "rater-112",
+          "standard_error": 0.04827205552075955
+        },
+        {
+          "beta": 1.941419443521508,
+          "n_wrong_picks": 986,
+          "reader_id": "rater-115",
+          "standard_error": 0.08336162636912553
+        },
+        {
+          "beta": 2.271738152834916,
+          "n_wrong_picks": 2527,
+          "reader_id": "rater-120",
+          "standard_error": 0.06048483085633201
+        },
+        {
+          "beta": 1.823309555333816,
+          "n_wrong_picks": 2326,
+          "reader_id": "rater-125",
+          "standard_error": 0.05474124414487492
+        },
+        {
+          "beta": 2.1451934931799213,
+          "n_wrong_picks": 1863,
+          "reader_id": "rater-16",
+          "standard_error": 0.0703377612243368
+        },
+        {
+          "beta": 1.9808726142782147,
+          "n_wrong_picks": 2192,
+          "reader_id": "rater-175",
+          "standard_error": 0.05637934648827163
+        },
+        {
+          "beta": 1.9603686267629303,
+          "n_wrong_picks": 2116,
+          "reader_id": "rater-180",
+          "standard_error": 0.059084214585867184
+        },
+        {
+          "beta": 2.106588938771346,
+          "n_wrong_picks": 1291,
+          "reader_id": "rater-185",
+          "standard_error": 0.0877100957540405
+        },
+        {
+          "beta": 1.8754542513253045,
+          "n_wrong_picks": 302,
+          "reader_id": "rater-192",
+          "standard_error": 0.14658018516516805
+        },
+        {
+          "beta": 2.1812309190300705,
+          "n_wrong_picks": 3138,
+          "reader_id": "rater-20",
+          "standard_error": 0.050374047603029846
+        },
+        {
+          "beta": 2.07576352571308,
+          "n_wrong_picks": 1846,
+          "reader_id": "rater-204",
+          "standard_error": 0.06621812317949281
+        },
+        {
+          "beta": 2.285403685610305,
+          "n_wrong_picks": 647,
+          "reader_id": "rater-26",
+          "standard_error": 0.14090570658878568
+        },
+        {
+          "beta": 1.9055664910012262,
+          "n_wrong_picks": 173,
+          "reader_id": "rater-38",
+          "standard_error": 0.19355173570037817
+        },
+        {
+          "beta": 1.6984025485188121,
+          "n_wrong_picks": 612,
+          "reader_id": "rater-46",
+          "standard_error": 0.09720382379930363
+        },
+        {
+          "beta": 1.835353439492426,
+          "n_wrong_picks": 2846,
+          "reader_id": "rater-47",
+          "standard_error": 0.04582169983795131
+        },
+        {
+          "beta": 2.0245065448798356,
+          "n_wrong_picks": 470,
+          "reader_id": "rater-49",
+          "standard_error": 0.12319045267608292
+        },
+        {
+          "beta": 1.3172142608073125,
+          "n_wrong_picks": 256,
+          "reader_id": "rater-55",
+          "standard_error": 0.10546274206462183
+        },
+        {
+          "beta": 1.854852817779776,
+          "n_wrong_picks": 3803,
+          "reader_id": "rater-6",
+          "standard_error": 0.04319506308340304
+        },
+        {
+          "beta": 1.355301933976803,
+          "n_wrong_picks": 2819,
+          "reader_id": "rater-60",
+          "standard_error": 0.0337382697092276
+        },
+        {
+          "beta": 1.3295773674989733,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-63",
+          "standard_error": 0.2049641478520568
+        },
+        {
+          "beta": 1.699767523976502,
+          "n_wrong_picks": 1225,
+          "reader_id": "rater-66",
+          "standard_error": 0.06508773237551556
+        },
+        {
+          "beta": 2.042707507415515,
+          "n_wrong_picks": 459,
+          "reader_id": "rater-67",
+          "standard_error": 0.13878941931879174
+        },
+        {
+          "beta": 2.0989489002629216,
+          "n_wrong_picks": 5225,
+          "reader_id": "rater-70",
+          "standard_error": 0.04255476589454162
+        },
+        {
+          "beta": 2.07364159876758,
+          "n_wrong_picks": 324,
+          "reader_id": "rater-72",
+          "standard_error": 0.14685770236616938
+        },
+        {
+          "beta": 1.9528125099443319,
+          "n_wrong_picks": 1385,
+          "reader_id": "rater-73",
+          "standard_error": 0.07994368019239077
+        },
+        {
+          "beta": 1.6634442777867542,
+          "n_wrong_picks": 292,
+          "reader_id": "rater-76",
+          "standard_error": 0.172772243530395
+        },
+        {
+          "beta": 1.5376483441871167,
+          "n_wrong_picks": 2008,
+          "reader_id": "rater-78",
+          "standard_error": 0.04674809422776851
+        },
+        {
+          "beta": 1.4844492538829859,
+          "n_wrong_picks": 6171,
+          "reader_id": "rater-79",
+          "standard_error": 0.02571195581352296
+        },
+        {
+          "beta": 1.9226600841792154,
+          "n_wrong_picks": 878,
+          "reader_id": "rater-80",
+          "standard_error": 0.08724114794433264
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-87",
+          "standard_error": 155.73810484794672
+        },
+        {
+          "beta": 2.065533045829137,
+          "n_wrong_picks": 4701,
+          "reader_id": "rater-97",
+          "standard_error": 0.04279625933855111
+        },
+        {
+          "beta": 2.2785458542322083,
+          "n_wrong_picks": 1660,
+          "reader_id": "rater-98",
+          "standard_error": 0.08426378933639994
+        }
+      ],
+      "segments_with_expert_gold_pool": 50937,
+      "sensitivity_summary": {
+        "max_l": 1.5984318257652204,
+        "mean_l": 0.2937988869893547,
+        "min_l": -2.192590355874184
+      },
+      "sources": [
+        "iiic_crowdsourcing:kong2025:crowd",
+        "iiic_crowdsourcing:kong2025:expert",
+        "sparcnet50K"
+      ],
+      "stages": {
+        "readers_after_expertise_filter": 1171,
+        "readers_categorical": 1656,
+        "readers_min_reads_and_min_wrong": 374,
+        "readers_non_interior_sensitivity": 0,
+        "readers_reader_model_failed": 0,
+        "readers_stable_core": 374,
+        "readers_stable_core_also_on_centaur_roster": 9,
+        "readers_with_any_gold_read": 1153,
+        "readers_with_gold": 1153,
+        "reads_after_expertise_filter": 670505,
+        "reads_categorical": 786485,
+        "reads_on_complete_signal_segments": 786485,
+        "reads_with_gold": 450601,
+        "segments_with_gold": 15955
+      },
+      "tier_summary": {
+        "borderline": {
+          "mean_log_beta": 0.2668429081949324,
+          "median_beta": 1.1501966861300694,
+          "n_readers": 3
+        },
+        "experienced": {
+          "mean_log_beta": -0.46363642796598353,
+          "median_beta": 0.6915706946245784,
+          "n_readers": 50
+        },
+        "expert": {
+          "mean_log_beta": 0.6898723189303734,
+          "median_beta": 1.932016995450151,
+          "n_readers": 38
+        },
+        "novice": {
+          "mean_log_beta": -0.5271072110538827,
+          "median_beta": 0.6572729512824328,
+          "n_readers": 283
+        }
+      }
+    },
+    "sparcnet50K": {
+      "artifact_comparison": {
+        "beta_ratio_at_mu": 1.8489467407372557,
+        "combined_se_mu": 0.04486699860871166,
+        "mu_difference": 0.614616147629537,
+        "tau_difference": -0.04824589793790035,
+        "tau_ratio": 0.8110803245609289,
+        "z_mu": 13.698624082026276
+      },
+      "beta_quantiles": {
+        "0.05": 1.3169542060838189,
+        "0.25": 1.6969434995122727,
+        "0.5": 1.9446421686196813,
+        "0.75": 2.0827241395516753,
+        "0.95": 2.2815959885752397
+      },
+      "n_readers": 36,
+      "n_wrong_picks": 63577,
+      "pooled": {
+        "beta": 1.8524184210113834,
+        "distractor_lapse": 0.04033911096299579
+      },
+      "random_effects": {
+        "cochran_q": 1363.160754227679,
+        "mu_log_beta": 0.5940409193813656,
+        "n_readers_used": 35,
+        "se_mu_log_beta": 0.03623290692435196,
+        "tau_log_beta": 0.2071319383079609
+      },
+      "reader_beta_fits": [
+        {
+          "beta": 2.1169397853328427,
+          "n_wrong_picks": 3681,
+          "reader_id": "rater-0",
+          "standard_error": 0.05190567673738197
+        },
+        {
+          "beta": 1.277929447798999,
+          "n_wrong_picks": 903,
+          "reader_id": "rater-10",
+          "standard_error": 0.05614248549101671
+        },
+        {
+          "beta": 1.9469810604217155,
+          "n_wrong_picks": 3567,
+          "reader_id": "rater-100",
+          "standard_error": 0.0450148079976182
+        },
+        {
+          "beta": 1.6896448953726417,
+          "n_wrong_picks": 78,
+          "reader_id": "rater-109",
+          "standard_error": 0.23414404310501494
+        },
+        {
+          "beta": 1.6090363953267017,
+          "n_wrong_picks": 296,
+          "reader_id": "rater-110",
+          "standard_error": 0.12842813228936584
+        },
+        {
+          "beta": 1.4020762030638105,
+          "n_wrong_picks": 1733,
+          "reader_id": "rater-112",
+          "standard_error": 0.048325283552736104
+        },
+        {
+          "beta": 1.9423032768176474,
+          "n_wrong_picks": 986,
+          "reader_id": "rater-115",
+          "standard_error": 0.08344393422042604
+        },
+        {
+          "beta": 2.272730111571292,
+          "n_wrong_picks": 2527,
+          "reader_id": "rater-120",
+          "standard_error": 0.060539518648796385
+        },
+        {
+          "beta": 1.82439132381492,
+          "n_wrong_picks": 2326,
+          "reader_id": "rater-125",
+          "standard_error": 0.05482082315338815
+        },
+        {
+          "beta": 2.1462508508748486,
+          "n_wrong_picks": 1863,
+          "reader_id": "rater-16",
+          "standard_error": 0.07042208792957488
+        },
+        {
+          "beta": 1.9818389537805092,
+          "n_wrong_picks": 2192,
+          "reader_id": "rater-175",
+          "standard_error": 0.056440062240105504
+        },
+        {
+          "beta": 1.9612200160021236,
+          "n_wrong_picks": 2116,
+          "reader_id": "rater-180",
+          "standard_error": 0.05915035870765932
+        },
+        {
+          "beta": 2.1081183090368367,
+          "n_wrong_picks": 1291,
+          "reader_id": "rater-185",
+          "standard_error": 0.08785444388595869
+        },
+        {
+          "beta": 1.8763951890404502,
+          "n_wrong_picks": 302,
+          "reader_id": "rater-192",
+          "standard_error": 0.14675694739213122
+        },
+        {
+          "beta": 2.182245860396952,
+          "n_wrong_picks": 3138,
+          "reader_id": "rater-20",
+          "standard_error": 0.050426897676043206
+        },
+        {
+          "beta": 2.076826902682244,
+          "n_wrong_picks": 1846,
+          "reader_id": "rater-204",
+          "standard_error": 0.06629702778147253
+        },
+        {
+          "beta": 2.286567487621217,
+          "n_wrong_picks": 647,
+          "reader_id": "rater-26",
+          "standard_error": 0.14105023241489986
+        },
+        {
+          "beta": 1.9065754666189396,
+          "n_wrong_picks": 173,
+          "reader_id": "rater-38",
+          "standard_error": 0.19382198195968622
+        },
+        {
+          "beta": 1.6993763675588165,
+          "n_wrong_picks": 612,
+          "reader_id": "rater-46",
+          "standard_error": 0.09732466921205168
+        },
+        {
+          "beta": 1.8361910407873374,
+          "n_wrong_picks": 2846,
+          "reader_id": "rater-47",
+          "standard_error": 0.04586982003267287
+        },
+        {
+          "beta": 2.025506814314271,
+          "n_wrong_picks": 470,
+          "reader_id": "rater-49",
+          "standard_error": 0.12333391372947031
+        },
+        {
+          "beta": 1.8559332881703379,
+          "n_wrong_picks": 3803,
+          "reader_id": "rater-6",
+          "standard_error": 0.04325095691897616
+        },
+        {
+          "beta": 1.355978358663573,
+          "n_wrong_picks": 2819,
+          "reader_id": "rater-60",
+          "standard_error": 0.033778776982868755
+        },
+        {
+          "beta": 1.3299624588454253,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-63",
+          "standard_error": 0.20509054534355184
+        },
+        {
+          "beta": 1.7007473855889317,
+          "n_wrong_picks": 1225,
+          "reader_id": "rater-66",
+          "standard_error": 0.06517474085545998
+        },
+        {
+          "beta": 2.0439309298122916,
+          "n_wrong_picks": 459,
+          "reader_id": "rater-67",
+          "standard_error": 0.13892739535840112
+        },
+        {
+          "beta": 2.1004158501599695,
+          "n_wrong_picks": 5225,
+          "reader_id": "rater-70",
+          "standard_error": 0.042617560469215984
+        },
+        {
+          "beta": 2.0744023990548865,
+          "n_wrong_picks": 324,
+          "reader_id": "rater-72",
+          "standard_error": 0.14698953906896897
+        },
+        {
+          "beta": 1.9541960779854108,
+          "n_wrong_picks": 1385,
+          "reader_id": "rater-73",
+          "standard_error": 0.08006589235788744
+        },
+        {
+          "beta": 1.6654949378727555,
+          "n_wrong_picks": 292,
+          "reader_id": "rater-76",
+          "standard_error": 0.17313452521917086
+        },
+        {
+          "beta": 0.6631534000566902,
+          "n_wrong_picks": 1097,
+          "reader_id": "rater-78",
+          "standard_error": 0.028077463040925454
+        },
+        {
+          "beta": 1.48509649215671,
+          "n_wrong_picks": 6171,
+          "reader_id": "rater-79",
+          "standard_error": 0.02573527649185152
+        },
+        {
+          "beta": 1.898385478230341,
+          "n_wrong_picks": 861,
+          "reader_id": "rater-80",
+          "standard_error": 0.08853930382694991
+        },
+        {
+          "beta": 99.99999700496763,
+          "n_wrong_picks": 98,
+          "reader_id": "rater-87",
+          "standard_error": 155.74263824229152
+        },
+        {
+          "beta": 2.0137568977612097,
+          "n_wrong_picks": 4495,
+          "reader_id": "rater-97",
+          "standard_error": 0.042586988052934836
+        },
+        {
+          "beta": 2.2799388222265806,
+          "n_wrong_picks": 1660,
+          "reader_id": "rater-98",
+          "standard_error": 0.08438382797268076
+        }
+      ],
+      "segments_with_expert_gold_pool": 50937,
+      "sensitivity_summary": {
+        "max_l": 1.4217228757161124,
+        "mean_l": 0.5799330387209111,
+        "min_l": -0.37905022223520707
+      },
+      "sources": [
+        "sparcnet50K"
+      ],
+      "stages": {
+        "readers_after_expertise_filter": 124,
+        "readers_categorical": 124,
+        "readers_min_reads_and_min_wrong": 36,
+        "readers_non_interior_sensitivity": 0,
+        "readers_reader_model_failed": 0,
+        "readers_stable_core": 36,
+        "readers_stable_core_also_on_centaur_roster": 0,
+        "readers_with_any_gold_read": 106,
+        "readers_with_gold": 106,
+        "reads_after_expertise_filter": 290268,
+        "reads_categorical": 290268,
+        "reads_on_complete_signal_segments": 290268,
+        "reads_with_gold": 194387,
+        "segments_with_gold": 15477
+      },
+      "tier_summary": {
+        "experienced": {
+          "mean_log_beta": 0.1296149763174937,
+          "median_beta": 1.1383899918277014,
+          "n_readers": 2
+        },
+        "expert": {
+          "mean_log_beta": 0.7356246016951631,
+          "median_beta": 1.9446407620840918,
+          "n_readers": 34
+        }
+      }
+    },
+    "sparcnet50K_isolated_gold": {
+      "artifact_comparison": {
+        "beta_ratio_at_mu": 1.8550203416100572,
+        "combined_se_mu": 0.04300270347657552,
+        "mu_difference": 0.6178956618267983,
+        "tau_difference": -0.062451035111160846,
+        "tau_ratio": 0.7554563229557751,
+        "z_mu": 14.36876316772454
+      },
+      "beta_quantiles": {
+        "0.05": 1.3160126805116454,
+        "0.25": 1.6963850776181622,
+        "0.5": 1.9438974205906452,
+        "0.75": 2.081699384853577,
+        "0.95": 2.274847199191575
+      },
+      "n_readers": 36,
+      "n_wrong_picks": 63283,
+      "pooled": {
+        "beta": 1.8577952775296076,
+        "distractor_lapse": 0.03911746080169137
+      },
+      "random_effects": {
+        "cochran_q": 1189.2594069629997,
+        "mu_log_beta": 0.597320433578627,
+        "n_readers_used": 35,
+        "se_mu_log_beta": 0.03389702769165607,
+        "tau_log_beta": 0.1929268011347004
+      },
+      "reader_beta_fits": [
+        {
+          "beta": 2.105524510265174,
+          "n_wrong_picks": 3676,
+          "reader_id": "rater-0",
+          "standard_error": 0.05149617354196828
+        },
+        {
+          "beta": 1.2782462238245258,
+          "n_wrong_picks": 900,
+          "reader_id": "rater-10",
+          "standard_error": 0.05593701667626077
+        },
+        {
+          "beta": 1.970729463962171,
+          "n_wrong_picks": 3531,
+          "reader_id": "rater-100",
+          "standard_error": 0.046099394841723665
+        },
+        {
+          "beta": 1.7545532376035353,
+          "n_wrong_picks": 77,
+          "reader_id": "rater-109",
+          "standard_error": 0.24534632308025428
+        },
+        {
+          "beta": 1.5757239585518747,
+          "n_wrong_picks": 267,
+          "reader_id": "rater-110",
+          "standard_error": 0.1286347467625125
+        },
+        {
+          "beta": 1.3990533364167421,
+          "n_wrong_picks": 1730,
+          "reader_id": "rater-112",
+          "standard_error": 0.0480410572117888
+        },
+        {
+          "beta": 1.9399829983252848,
+          "n_wrong_picks": 984,
+          "reader_id": "rater-115",
+          "standard_error": 0.08309605930849218
+        },
+        {
+          "beta": 2.263869469074323,
+          "n_wrong_picks": 2516,
+          "reader_id": "rater-120",
+          "standard_error": 0.06025771199415304
+        },
+        {
+          "beta": 1.8185389046697602,
+          "n_wrong_picks": 2327,
+          "reader_id": "rater-125",
+          "standard_error": 0.05446008307746011
+        },
+        {
+          "beta": 2.1552892428070307,
+          "n_wrong_picks": 1857,
+          "reader_id": "rater-16",
+          "standard_error": 0.07123624815663926
+        },
+        {
+          "beta": 1.9654935626335426,
+          "n_wrong_picks": 2182,
+          "reader_id": "rater-175",
+          "standard_error": 0.05578784529547019
+        },
+        {
+          "beta": 1.9478118428560058,
+          "n_wrong_picks": 2115,
+          "reader_id": "rater-180",
+          "standard_error": 0.05844205720487035
+        },
+        {
+          "beta": 2.0998332696279167,
+          "n_wrong_picks": 1288,
+          "reader_id": "rater-185",
+          "standard_error": 0.08702322006297039
+        },
+        {
+          "beta": 1.8812550215909885,
+          "n_wrong_picks": 301,
+          "reader_id": "rater-192",
+          "standard_error": 0.14669375805312157
+        },
+        {
+          "beta": 2.1924137149650615,
+          "n_wrong_picks": 3129,
+          "reader_id": "rater-20",
+          "standard_error": 0.05066130409296264
+        },
+        {
+          "beta": 2.067618702358694,
+          "n_wrong_picks": 1836,
+          "reader_id": "rater-204",
+          "standard_error": 0.06597377471152967
+        },
+        {
+          "beta": 2.279415864663454,
+          "n_wrong_picks": 646,
+          "reader_id": "rater-26",
+          "standard_error": 0.1406467472821138
+        },
+        {
+          "beta": 1.896059564344057,
+          "n_wrong_picks": 173,
+          "reader_id": "rater-38",
+          "standard_error": 0.19194062993877836
+        },
+        {
+          "beta": 1.6966462164726586,
+          "n_wrong_picks": 612,
+          "reader_id": "rater-46",
+          "standard_error": 0.0966383896822562
+        },
+        {
+          "beta": 1.8327310893722175,
+          "n_wrong_picks": 2840,
+          "reader_id": "rater-47",
+          "standard_error": 0.04561191115898866
+        },
+        {
+          "beta": 1.9608109663442062,
+          "n_wrong_picks": 460,
+          "reader_id": "rater-49",
+          "standard_error": 0.11911128202074146
+        },
+        {
+          "beta": 1.8355807305639333,
+          "n_wrong_picks": 3775,
+          "reader_id": "rater-6",
+          "standard_error": 0.042579496040123795
+        },
+        {
+          "beta": 1.353458023446804,
+          "n_wrong_picks": 2816,
+          "reader_id": "rater-60",
+          "standard_error": 0.0335739645283201
+        },
+        {
+          "beta": 1.3286014994073518,
+          "n_wrong_picks": 70,
+          "reader_id": "rater-63",
+          "standard_error": 0.20341922285811395
+        },
+        {
+          "beta": 1.6956016610546727,
+          "n_wrong_picks": 1221,
+          "reader_id": "rater-66",
+          "standard_error": 0.06476757025097593
+        },
+        {
+          "beta": 2.0263085102632608,
+          "n_wrong_picks": 460,
+          "reader_id": "rater-67",
+          "standard_error": 0.13732379460370148
+        },
+        {
+          "beta": 2.08149605457232,
+          "n_wrong_picks": 5213,
+          "reader_id": "rater-70",
+          "standard_error": 0.04204781915287734
+        },
+        {
+          "beta": 2.082309375697347,
+          "n_wrong_picks": 324,
+          "reader_id": "rater-72",
+          "standard_error": 0.14716523709594748
+        },
+        {
+          "beta": 1.9485349685402897,
+          "n_wrong_picks": 1386,
+          "reader_id": "rater-73",
+          "standard_error": 0.0795336670180267
+        },
+        {
+          "beta": 1.6535257144335698,
+          "n_wrong_picks": 292,
+          "reader_id": "rater-76",
+          "standard_error": 0.1710744277617116
+        },
+        {
+          "beta": 0.7867324799097405,
+          "n_wrong_picks": 1072,
+          "reader_id": "rater-78",
+          "standard_error": 0.03362727766500157
+        },
+        {
+          "beta": 1.481716059794663,
+          "n_wrong_picks": 6173,
+          "reader_id": "rater-79",
+          "standard_error": 0.025633821589373076
+        },
+        {
+          "beta": 1.8888411290944744,
+          "n_wrong_picks": 861,
+          "reader_id": "rater-80",
+          "standard_error": 0.08768501435294904
+        },
+        {
+          "beta": 99.99999699687885,
+          "n_wrong_picks": 92,
+          "reader_id": "rater-87",
+          "standard_error": 412.86248253152166
+        },
+        {
+          "beta": 2.0699049192462193,
+          "n_wrong_picks": 4426,
+          "reader_id": "rater-97",
+          "standard_error": 0.044015851029043394
+        },
+        {
+          "beta": 2.2733243107009486,
+          "n_wrong_picks": 1655,
+          "reader_id": "rater-98",
+          "standard_error": 0.0840319257301714
+        }
+      ],
+      "segments_with_expert_gold_pool": 50478,
+      "sensitivity_summary": {
+        "max_l": 1.4093797479565515,
+        "mean_l": 0.5778065926815414,
+        "min_l": -0.31255131243244727
+      },
+      "sources": [
+        "sparcnet50K"
+      ],
+      "stages": {
+        "readers_after_expertise_filter": 124,
+        "readers_categorical": 124,
+        "readers_min_reads_and_min_wrong": 36,
+        "readers_non_interior_sensitivity": 0,
+        "readers_reader_model_failed": 0,
+        "readers_stable_core": 36,
+        "readers_stable_core_also_on_centaur_roster": 0,
+        "readers_with_any_gold_read": 105,
+        "readers_with_gold": 105,
+        "reads_after_expertise_filter": 290268,
+        "reads_categorical": 290268,
+        "reads_on_complete_signal_segments": 290268,
+        "reads_with_gold": 193629,
+        "segments_with_gold": 15028
+      },
+      "tier_summary": {
+        "experienced": {
+          "mean_log_beta": 0.21360538989875738,
+          "median_beta": 1.2381339782069427,
+          "n_readers": 2
+        },
+        "expert": {
+          "mean_log_beta": 0.733735810039577,
+          "median_beta": 1.94389347935459,
+          "n_readers": 34
+        }
+      }
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "../data/labels/labels.csv": "f82fe4feb2d7b43cbf708693702d7d32293ef7a123e4b70f7fc996df191cbb7b",
+    "../data/labels/raters.csv": "bc76f3e027e7f0f370bc2449415b871727d50487063a33810e1a5cc0aef1be4f",
+    "../data/labels/segment_signals.csv": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5"
+  },
+  "sources": {
+    "kong2025": [
+      "iiic_crowdsourcing:kong2025:crowd",
+      "iiic_crowdsourcing:kong2025:expert"
+    ],
+    "sparcnet50K": [
+      "sparcnet50K"
+    ]
+  },
+  "status": "research_only_diagnostic",
+  "subset_rule": {
+    "excluded_expertise": [
+      "other",
+      "unknown"
+    ],
+    "gold_rule": "leave_own_read_out_expert_plurality;one_vote_per_expert_rater",
+    "interior_abs_l_max": 2.5,
+    "min_expert_votes": 3,
+    "min_reads": 100,
+    "min_wrong_picks": 30
+  }
+}
