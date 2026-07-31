@@ -213,6 +213,15 @@ node local_server/sanity_check.mjs         # production shape (several minutes)
 node local_server/sanity_check.mjs --fast  # reduced smoke (about a minute)
 ```
 
+`--fast` (300 particles) is a plumbing check only — do not read its atom
+posterior as engine behavior. With ~18 particles per atom, early resampling
+permanently depletes atoms (they never rejuvenate), and a sharp-expert
+session can end stuck on low-beta survivors (observed: 17 → 6 atoms alive
+by trial 100, MAP drifting to the bottom atom). Browser sessions default to
+the production shape (1,200 particles), where the same reader is identified
+correctly (76% of mass above beta 1.0, MAP 1.591). Atom-depletion resistance
+at scale is a locked-campaign design item, not a local-rig concern.
+
 Boots the server on port 8735 (with a scratch persistence dir under
 `.local-server-dist/sanity-data/`), runs a simulated sharp-expert session to
 completion through the HTTP API, and asserts it stops via the policy
