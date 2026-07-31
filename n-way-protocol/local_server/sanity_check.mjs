@@ -4,12 +4,16 @@
 // sharp-expert session to completion through the HTTP API at the production
 // engine shape (1200 particles, 30 MH, 420-segment bank draw), and asserts
 // the session stops via the unchanged Precision policy with sane counts.
+// Then asserts the production-layout capture: the SQLite DB exists in the
+// scratch data dir, holds exactly this session with prod-shaped trials +
+// diag payloads, and analyze.py renders its report from it.
 //
 //   node local_server/sanity_check.mjs [--fast]
 //
 // --fast keeps the same policy but shrinks particles/bank for a quick smoke.
 
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -17,6 +21,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 8735;
 const BASE = `http://127.0.0.1:${PORT}`;
 const FAST = process.argv.includes("--fast");
+// Scratch persistence dir so the assertions below see exactly one session
+// (the real server default local_server/data/ is left untouched).
+const DATA_DIR = path.join(ROOT, ".local-server-dist", "sanity-data");
 
 const failures = [];
 function check(label, ok, detail) {
@@ -49,8 +56,11 @@ if (build.status !== 0) {
   process.exit(1);
 }
 
+rmSync(DATA_DIR, { recursive: true, force: true });
 const server = spawn("node", [".local-server-dist/local_server.mjs"], {
-  cwd: ROOT, env: { ...process.env, PORT: String(PORT) }, stdio: "ignore",
+  cwd: ROOT,
+  env: { ...process.env, PORT: String(PORT), LOCAL_SERVER_DATA_DIR: DATA_DIR },
+  stdio: "ignore",
 });
 process.on("exit", () => server.kill());
 
@@ -145,6 +155,70 @@ console.log(meanBeta > 1.0
   : "  note: posterior-mean beta did NOT exceed the population prior mean on this seed; single-session atom identification is noisy by design");
 
 console.log(`nPerTask: ${status.nPerTask.join(",")}`);
+
+// ── production-layout persistence ──────────────────────────────────────
+console.log("checking production-layout persistence...");
+const dbPath = path.join(DATA_DIR, "local_test.db");
+check("sqlite db exists after session stop", existsSync(dbPath), dbPath);
+
+const listing = await api("/sessions");
+check("GET /sessions lists exactly the smoke session",
+  listing.sessions.length === 1
+  && listing.sessions[0].session_id === sessionId
+  && listing.sessions[0].status === "complete"
+  && listing.sessions[0].n_trials === status.questionsAsked,
+  JSON.stringify(listing.sessions[0] ?? null));
+
+const PROBE = `
+import json, sqlite3, sys
+conn = sqlite3.connect(sys.argv[1])
+conn.row_factory = sqlite3.Row
+sessions = conn.execute("SELECT * FROM sessions").fetchall()
+trials = conn.execute("SELECT * FROM trials ORDER BY trial_index").fetchall()
+atoms = [len(json.loads(t["diag"]).get("atom_posterior", [])) for t in trials]
+row = sessions[0] if sessions else {}
+print(json.dumps({
+    "sessions": len(sessions),
+    "status": row["status"] if sessions else None,
+    "stop_reason": row["stop_reason"] if sessions else None,
+    "n_questions": row["n_questions"] if sessions else None,
+    "participant": row["participant"] if sessions else None,
+    "drawn": len(json.loads(row["drawn_seg_ids"])) if sessions else 0,
+    "trials": len(trials),
+    "atom_min": min(atoms, default=0),
+    "atom_max": max(atoms, default=0),
+}))
+`;
+const probeRun = spawnSync("python3", ["-c", PROBE, dbPath], { encoding: "utf8" });
+if (probeRun.status !== 0) {
+  check("sqlite probe ran", false, probeRun.stderr.trim());
+} else {
+  const probe = JSON.parse(probeRun.stdout);
+  check("sessions row count is 1", probe.sessions === 1, String(probe.sessions));
+  check("session row is complete with stop_reason populated",
+    probe.status === "complete" && probe.stop_reason === status.stopReason,
+    `${probe.status} / ${probe.stop_reason}`);
+  check("trials rows == n_questions",
+    probe.trials === status.questionsAsked
+    && probe.n_questions === status.questionsAsked,
+    `trials=${probe.trials} n_questions=${probe.n_questions} api=${status.questionsAsked}`);
+  check("every trials.diag parses with 17 atom masses",
+    probe.atom_min === 17 && probe.atom_max === 17,
+    `min=${probe.atom_min} max=${probe.atom_max}`);
+  check("participant recorded as sim:<preset>",
+    probe.participant === "sim:sharp_expert", String(probe.participant));
+  check("drawn_seg_ids carries the session draw",
+    probe.drawn === status.config.bankSegments, String(probe.drawn));
+}
+
+console.log("running analyze.py on the smoke DB...");
+const analyze = spawnSync(
+  "python3", [path.join(ROOT, "local_server", "analyze.py"), dbPath],
+  { stdio: ["ignore", "inherit", "inherit"] },
+);
+check("analyze.py rendered the report", analyze.status === 0,
+  `exit ${analyze.status}`);
+
 console.log(failures.length === 0
   ? "SANITY: all checks passed"
   : `SANITY: ${failures.length} check(s) FAILED`);

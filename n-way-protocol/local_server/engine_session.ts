@@ -308,6 +308,57 @@ export interface StepRecord {
   stepMs: number;
 }
 
+/** Browser-measured answer timing (manual answers only; simulated = nulls). */
+export interface ClientTiming {
+  reactionMs: number | null;
+  shownClientUtc: string | null;
+  answeredClientUtc: string | null;
+}
+
+/**
+ * The draw-latent measurement payload persisted INSIDE `trials.diag` (that is
+ * what the production TEXT column carries): post-update engine state after
+ * this trial's answer was absorbed.
+ */
+export interface TrialDiag {
+  /** Post-update posterior mass over the 17 artifact atoms. */
+  atom_posterior: number[];
+  atom_map_beta: number;
+  atom_mean_beta: number;
+  /** Per-domain (K=7) posterior mean + equal-tailed 95% CI. */
+  skill: { mean: number; ci95: [number, number] }[];
+  bias: { mean: number; ci95: [number, number] }[];
+  ess: number;
+  /** ESS-gated resample/rejuvenate fired on this update. */
+  resampled: boolean;
+  /** Per-domain (K=7) Precision selection states after this answer. */
+  precision_statuses: string[];
+  policy_stop: boolean;
+}
+
+/** One trial in production `trials` semantics, handed to the persistence hooks. */
+export interface TrialCapture {
+  /** 0-based, matching the production (session_id, trial_index) key. */
+  trialIndex: number;
+  /** REAL bank segment id. */
+  segId: number;
+  /** Asked class (= the presented item's class: the local-gold convention). */
+  taskK: number;
+  pick: number;
+  /** 1 iff pick === taskK (local-gold convention, see README). */
+  isCorrect: 0 | 1;
+  reactionMs: number | null;
+  shownClientUtc: string | null;
+  answeredClientUtc: string | null;
+  diag: TrialDiag;
+}
+
+export interface PersistenceHooks {
+  onCreate(session: LocalSession): void;
+  onTrial(session: LocalSession, capture: TrialCapture): void;
+  onStop(session: LocalSession): void;
+}
+
 export interface DomainStatusView {
   k: number;
   code: string;
@@ -390,6 +441,7 @@ export class LocalSession {
     artifact: ConditionalF1ArtifactEnsemble,
     profile: EngineProfile,
     options: SessionOptions,
+    private readonly hooks: PersistenceHooks | null = null,
   ) {
     sessionCounter += 1;
     this.id = `local-${Date.now().toString(36)}-${sessionCounter}`;
@@ -486,6 +538,29 @@ export class LocalSession {
       this.truth = null;
     }
     this.currentItem = this.selectNext();
+    this.hooks?.onCreate(this);
+    // Degenerate zero-question stop (a draw with no servable candidates).
+    if (this.stopped) this.hooks?.onStop(this);
+  }
+
+  /** Production `sessions.participant` value for this local sitting. */
+  get participantLabel(): string {
+    if (this.config.mode === "manual") return "owner-local";
+    const truth = this.truth;
+    return `sim:${truth?.reader.preset ?? "custom"}`;
+  }
+
+  /** REAL bank seg ids of this session's seeded draw (drawn_seg_ids). */
+  get drawnSegIds(): number[] {
+    return this.segments.map((segment) => segment.segId);
+  }
+
+  get stoppedReason(): string | null {
+    return this.stopReason;
+  }
+
+  get questionsAsked(): number {
+    return this.trialIndex;
   }
 
   private makeTruth(reader: ReaderConfig): TruthState {
@@ -542,7 +617,7 @@ export class LocalSession {
     );
   }
 
-  answer(rawPick: number): StepRecord {
+  answer(rawPick: number, clientTiming: ClientTiming | null = null): StepRecord {
     if (this.stopped || this.currentItem === null) {
       throw new HttpError(409, "session has already stopped");
     }
@@ -575,7 +650,7 @@ export class LocalSession {
     // advanceProtocol; the policy now sees the post-update cloud, incremented
     // counts, and the post-removal remaining bank (all IIIC domains,
     // regardless of selection state — matching _precision_bank_view).
-    this.lastEvaluation = evaluateFrozenPrecision({
+    const evaluation = evaluateFrozenPrecision({
       policy: this.policy,
       state: this.state,
       nPerTask: this.ledger.nPerTask,
@@ -584,9 +659,10 @@ export class LocalSession {
       )),
       remainingSegmentIds: this.ledger.remainingSegmentIds,
     });
-    if (this.lastEvaluation.stop) {
+    this.lastEvaluation = evaluation;
+    if (evaluation.stop) {
       this.stopped = true;
-      this.stopReason = this.lastEvaluation.stopReason;
+      this.stopReason = evaluation.stopReason;
       this.currentItem = null;
     } else {
       this.currentItem = this.selectNext();
@@ -605,6 +681,36 @@ export class LocalSession {
       stepMs,
     };
     this.history.push(record);
+    if (this.hooks) {
+      const mass = atomPosterior(this.state, this.artifact);
+      const betas = this.artifact.draws.map((draw) => draw.beta);
+      const mapIndex = mass.indexOf(Math.max(...mass));
+      const summaries = this.posteriorSummaries();
+      this.hooks.onTrial(this, {
+        trialIndex: this.trialIndex - 1,
+        segId: chosen.segId,
+        taskK: chosen.askedK,
+        pick: rawPick,
+        isCorrect: rawPick === chosen.askedK ? 1 : 0,
+        reactionMs: clientTiming?.reactionMs ?? null,
+        shownClientUtc: clientTiming?.shownClientUtc ?? null,
+        answeredClientUtc: clientTiming?.answeredClientUtc ?? null,
+        diag: {
+          atom_posterior: mass,
+          atom_map_beta: betas[mapIndex],
+          atom_mean_beta: betas.reduce(
+            (sum, beta, index) => sum + beta * mass[index], 0,
+          ),
+          skill: summaries.skill,
+          bias: summaries.bias,
+          ess: diagnostic.ess,
+          resampled: diagnostic.rejuvenated,
+          precision_statuses: evaluation.selectionStates.slice(),
+          policy_stop: evaluation.stop,
+        },
+      });
+      if (this.stopped) this.hooks.onStop(this);
+    }
     return record;
   }
 
@@ -628,9 +734,38 @@ export class LocalSession {
     return distribution[distribution.length - 1].outcome;
   }
 
-  status(): SessionStatusView {
+  /** Per-domain posterior mean + equal-tailed 95% CI for skill l and bias t. */
+  private posteriorSummaries(): {
+    skill: { mean: number; ci95: [number, number] }[];
+    bias: { mean: number; ci95: [number, number] }[];
+  } {
     const moments = posteriorMoments(this.state);
     const weights = this.state.w;
+    const column = new Float64Array(this.state.N);
+    const skill: { mean: number; ci95: [number, number] }[] = [];
+    const bias: { mean: number; ci95: [number, number] }[] = [];
+    for (let k = 0; k < K; k += 1) {
+      for (let n = 0; n < this.state.N; n += 1) column[n] = this.state.l[n * K + k];
+      skill.push({
+        mean: moments.lMean[k],
+        ci95: [
+          weightedQuantile(column, weights, 0.025),
+          weightedQuantile(column, weights, 0.975),
+        ],
+      });
+      for (let n = 0; n < this.state.N; n += 1) column[n] = this.state.t[n * K + k];
+      bias.push({
+        mean: moments.tMean[k],
+        ci95: [
+          weightedQuantile(column, weights, 0.025),
+          weightedQuantile(column, weights, 0.975),
+        ],
+      });
+    }
+    return { skill, bias };
+  }
+
+  status(): SessionStatusView {
     const diag = this.lastEvaluation?.diagnostics as
       | {
         skillTolerance: number[];
@@ -643,19 +778,9 @@ export class LocalSession {
     const terminalReasons = this.lastEvaluation?.terminalReasons
       ?? new Array<string | null>(K).fill(null);
     const streaks = this.lastEvaluation?.streakCounts ?? new Array<number>(K).fill(0);
+    const summaries = this.posteriorSummaries();
     const domains: DomainStatusView[] = [];
-    const column = new Float64Array(this.state.N);
     for (let k = 0; k < K; k += 1) {
-      for (let n = 0; n < this.state.N; n += 1) column[n] = this.state.l[n * K + k];
-      const skillCi: [number, number] = [
-        weightedQuantile(column, weights, 0.025),
-        weightedQuantile(column, weights, 0.975),
-      ];
-      for (let n = 0; n < this.state.N; n += 1) column[n] = this.state.t[n * K + k];
-      const biasCi: [number, number] = [
-        weightedQuantile(column, weights, 0.025),
-        weightedQuantile(column, weights, 0.975),
-      ];
       domains.push({
         k,
         code: PRECISION_TASK_CODES[k],
@@ -664,8 +789,8 @@ export class LocalSession {
         terminalReason: terminalReasons[k],
         n: this.ledger.nPerTask[k],
         streak: streaks[k],
-        skill: { mean: moments.lMean[k], ci95: skillCi },
-        bias: { mean: moments.tMean[k], ci95: biasCi },
+        skill: summaries.skill[k],
+        bias: summaries.bias[k],
         radius: diag?.skillPointCenteredRadius[k] ?? null,
         guardedRadius: diag?.guardedPrecisionStatistic[k] ?? null,
         tolerance: diag?.skillTolerance[k] ?? null,

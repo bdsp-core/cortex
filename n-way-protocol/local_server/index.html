@@ -275,6 +275,9 @@ const STATUS_META = {
 };
 let sessionId = null;
 let pollTimer = null;
+// Browser-side answer timing (persisted to trials.reaction_ms and the
+// shown/answered client stamps): armed when a question first renders.
+let shownStamp = null;
 
 function fmt(x, digits = 2) {
   return (x === null || x === undefined || Number.isNaN(x)) ? "-" : Number(x).toFixed(digits);
@@ -337,10 +340,16 @@ async function answer(pick) {
   try {
     $("session-error").textContent = "";
     setButtonsEnabled(false);
+    const body = {
+      pick,
+      shownClientUtc: shownStamp ? shownStamp.iso : null,
+      answeredClientUtc: new Date().toISOString(),
+      reactionMs: shownStamp ? performance.now() - shownStamp.perf : null,
+    };
     const status = await api(`/session/${sessionId}/answer`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pick }),
+      body: JSON.stringify(body),
     });
     render(status);
   } catch (error) {
@@ -390,6 +399,14 @@ function render(s) {
 
   const live = $("question-live");
   if (s.currentItem) {
+    // Arm the reaction clock the first time this question number renders.
+    if (!shownStamp || shownStamp.questionNumber !== s.currentItem.questionNumber) {
+      shownStamp = {
+        questionNumber: s.currentItem.questionNumber,
+        perf: performance.now(),
+        iso: new Date().toISOString(),
+      };
+    }
     live.hidden = false;
     $("stop-banner").hidden = true;
     $("qmeta").textContent =
@@ -411,6 +428,7 @@ function render(s) {
     }
     $("signal-table").innerHTML = rows.join("");
   } else {
+    shownStamp = null;
     live.hidden = true;
     const banner = $("stop-banner");
     banner.hidden = false;

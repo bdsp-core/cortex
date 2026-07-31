@@ -3,22 +3,27 @@
 // Serves a static console page plus a JSON API:
 //   GET  /                     the session console (local_server/index.html)
 //   GET  /healthz              boot/readiness probe
+//   GET  /sessions             persisted sessions (status + question counts)
 //   POST /session              create a session (mode manual|simulated)
 //   GET  /session/:id          full session status
-//   POST /session/:id/answer   {pick: 1..6} manual answer
+//   POST /session/:id/answer   {pick: 1..6, shownClientUtc?, answeredClientUtc?,
+//                               reactionMs?} manual answer with browser timing
 //   POST /session/:id/autostep {n, reader?} simulated answers
 //
 // No external network: binds 127.0.0.1 only, reads only repo-local files,
-// and uses node's built-in http module.
+// and uses node's built-in http module. Every session persists in the
+// production two-table layout (see persistence.ts / schema.sql / README.md).
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 
 import {
   buildLocalProfile, HttpError, loadAtoms17Artifact, loadServedBank,
-  LocalSession, type SessionOptions,
+  LocalSession, type ClientTiming, type SessionOptions,
 } from "./engine_session";
+import { LocalPersistence } from "./persistence";
 
 const BANK_PATH = fileURLToPath(
   new URL("../.artifacts/categorical_bank_axes.csv", import.meta.url),
@@ -28,9 +33,37 @@ const ARTIFACT_PATH = fileURLToPath(
 );
 const PAGE_PATH = fileURLToPath(new URL("../local_server/index.html", import.meta.url));
 
+const DATA_DIR = process.env.LOCAL_SERVER_DATA_DIR
+  ?? fileURLToPath(new URL("../local_server/data", import.meta.url));
+const PERSIST_SCRIPT = fileURLToPath(
+  new URL("../local_server/persist.py", import.meta.url),
+);
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
+
 const bank = loadServedBank(BANK_PATH);
 const artifact = loadAtoms17Artifact(ARTIFACT_PATH);
 const profile = buildLocalProfile(artifact, bank.sha256);
+
+/** sessions.bundle_version: branch name + short commit of HEAD. */
+function bundleVersion(): string {
+  try {
+    const git = (args: string[]) => execFileSync(
+      "git", ["-C", REPO_ROOT, ...args], { stdio: ["ignore", "pipe", "ignore"] },
+    ).toString().trim();
+    return `${git(["rev-parse", "--abbrev-ref", "HEAD"])}@${git(["rev-parse", "--short", "HEAD"])}`;
+  } catch {
+    return "unknown@unknown";
+  }
+}
+
+const persistence = new LocalPersistence({
+  dataDir: DATA_DIR,
+  persistScript: PERSIST_SCRIPT,
+  bundleVersion: bundleVersion(),
+  profile,
+  artifact,
+  candidateBankSha256: bank.sha256,
+});
 
 const sessions = new Map<string, LocalSession>();
 
@@ -138,10 +171,14 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     });
     return;
   }
+  if (method === "GET" && url.pathname === "/sessions") {
+    json(response, 200, { sessions: persistence.listSessions() });
+    return;
+  }
   if (method === "POST" && url.pathname === "/session") {
     const body = await readBody(request);
     const session = new LocalSession(
-      bank, artifact, profile, body as unknown as SessionOptions,
+      bank, artifact, profile, body as unknown as SessionOptions, persistence,
     );
     sessions.set(session.id, session);
     json(response, 201, session.status());
@@ -161,7 +198,18 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       if (typeof body.pick !== "number") {
         throw new HttpError(400, "body must carry a numeric pick");
       }
-      session.answer(body.pick);
+      // Browser-measured timing (trials.reaction_ms + client wall-clock
+      // stamps). Absent/invalid fields persist as NULL, never fabricated.
+      const timing: ClientTiming = {
+        reactionMs: typeof body.reactionMs === "number"
+          && Number.isFinite(body.reactionMs) && body.reactionMs >= 0
+          ? body.reactionMs : null,
+        shownClientUtc: typeof body.shownClientUtc === "string"
+          ? body.shownClientUtc : null,
+        answeredClientUtc: typeof body.answeredClientUtc === "string"
+          ? body.answeredClientUtc : null,
+      };
+      session.answer(body.pick, timing);
       json(response, 200, session.status());
       return;
     }
@@ -193,4 +241,5 @@ server.listen(port, "127.0.0.1", () => {
   console.log(`  artifact: ${artifact.artifactId} (${artifact.draws.length} atoms, sha256 ${artifact.sha256.slice(0, 12)}...)`);
   console.log(`  profile: ${profile.engineProfileId} responseAggregation=${profile.responseAggregation}`);
   console.log("  stopping: precision_v1 (per-domain cap 60, nMin 20, full-bank tercile band edges)");
+  console.log(`  persistence: ${persistence.dbPath} (prod-layout sessions+trials; ndjson journal under ${DATA_DIR})`);
 });
