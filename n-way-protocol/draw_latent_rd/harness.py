@@ -19,6 +19,12 @@ Cells (192 seeds, production profile, ~6 min each), in decision order:
   tau-widened 33-atom grid; static scored 0.8108.
 - ``collapse_nest``   uniform-collapse world on the widened grid plus a
   lambda=1 binary-equivalent atom: the graceful-degradation claim.
+
+``--stopping precision --real-bank PATH`` swaps the fixed direct-domain cap
+for the UNCHANGED production Precision policy on the served bank, exactly as
+``qualification.py --stopping precision`` does for the shipping arms, so the
+draw-latent arm reports deployable burden instead of a preset budget. The
+default (``own-cap``) leaves every cell above byte-identical.
 """
 from __future__ import annotations
 
@@ -32,12 +38,20 @@ import numpy as np
 
 from nway_protocol.artifact_engine_frame import population_draws
 from nway_protocol.artifact_floor import floor_draws
+from nway_protocol.precision_stop import (
+    PRECISION_PER_DOMAIN_CAP,
+    ensure_sidecar_built,
+    get_client,
+)
 from nway_protocol.qualification import (
     IIIC_GROUP,
     QualificationConfig,
     ReplicateResult,
+    _load_real_bank,
+    _precision_bank_view,
     _run_arm,
     _select,
+    _tercile_band_edges,
     _truth_and_bank,
     recommended_workers,
     summarize,
@@ -102,7 +116,7 @@ def build_atoms(name: str) -> tuple[tuple[float, float, float], ...]:
 def _run_categorical_draw_latent(
     seed: int, config: QualificationConfig,
 ) -> tuple[ReplicateResult, dict]:
-    truth_t, truth_l, s_mean, s_sd, _seg_ids = _truth_and_bank(seed, config)
+    truth_t, truth_l, s_mean, s_sd, seg_ids = _truth_and_bank(seed, config)
     world_beta = config.beta if config.truth_beta is None else config.truth_beta
     if config.truth_beta_lognormal is not None:
         mu, sigma = config.truth_beta_lognormal
@@ -129,7 +143,25 @@ def _run_categorical_draw_latent(
     counts = np.zeros(7, dtype=int)
     acceptances, ancestries = [], []
     questions = 0
+    precision_client = None
+    session_id = f"{seed}:categorical_f1_draw_latent"
+    last_rejuvenation: dict | None = None
+    last_result: dict | None = None
+    if config.stopping == "precision":
+        # qualification.py::_run_arm:259-267 verbatim -- same client factory,
+        # same identity prior blocks, same band-edge precedence (parent-supplied
+        # served-bank terciles when present, else this replicate's own bank).
+        precision_client = get_client()
+        band_edges = (
+            [list(pair) for pair in config.precision_band_edges]
+            if config.precision_band_edges is not None
+            else _tercile_band_edges(s_mean)
+        )
+        identity = np.eye(7).tolist()
+        precision_client.init_session(session_id, identity, identity, band_edges)
     while np.any(counts[1:] < config.own_cap):
+        if precision_client is not None and not remaining:
+            break
         asked_k, segment_index = _select(
             dcloud.cloud, "categorical_f1", remaining, counts, s_mean, s_sd, config,
         )
@@ -149,9 +181,29 @@ def _run_categorical_draw_latent(
             )
             acceptances.append(acceptance)
             ancestries.append(ancestry)
+            last_rejuvenation = {
+                "qIndex": questions,
+                "acceptanceRate": acceptance,
+                "distinctAncestors": int(round(ancestry * config.particles)),
+                "distinctAncestorFraction": ancestry,
+            }
         remaining.remove(segment_index)
         counts[asked_k] += 1
         questions += 1
+        if precision_client is not None:
+            # advance.ts:498-514 ordering, identical to _run_arm:317-330: the
+            # administered item is recorded, then the policy sees the
+            # post-update cloud, the incremented per-domain counts, and the
+            # post-removal remaining bank.
+            last_result = precision_client.evaluate(
+                session_id,
+                {"k": asked_k, "signal": float(s_mean[segment_index, asked_k])},
+                dcloud.cloud.t, dcloud.cloud.l, dcloud.cloud.w, last_rejuvenation,
+                counts.tolist(),
+                _precision_bank_view(remaining, seg_ids, s_mean, s_sd),
+            )
+            if last_result["stop"]:
+                break
 
     cloud = dcloud.cloud
     moments = posterior_moments(cloud)
@@ -171,6 +223,7 @@ def _run_categorical_draw_latent(
         "atoms_surviving": int(np.count_nonzero(np.asarray(mass) > 1e-12)),
         "atom_max_mass": float(max(mass)),
         "map_atom_beta": float(dcloud.atoms[int(np.argmax(mass))][0]),
+        "domain_counts": counts.tolist(),
     }
     row = ReplicateResult(
         seed=seed,
@@ -191,6 +244,9 @@ def _run_categorical_draw_latent(
         bias_sbc_ranks=[
             float(cloud.w[cloud.t[:, k] < truth_t[k]].sum()) for k in IIIC_GROUP
         ],
+        end_statuses=(
+            list(last_result["selectionStates"]) if last_result is not None else None
+        ),
     )
     return row, diagnostics
 
@@ -199,6 +255,37 @@ def run_replicate_b(seed: int, config: QualificationConfig):
     binary = _run_arm(seed, "binary", config)
     categorical, diagnostics = _run_categorical_draw_latent(seed, config)
     return binary, categorical, diagnostics
+
+
+def apply_stopping(
+    config: QualificationConfig,
+    stopping: str,
+    real_bank: Path | None,
+) -> QualificationConfig:
+    """Attach the served bank and/or the UNCHANGED Precision stopping policy.
+
+    Mirrors qualification.py::main:581-604 exactly: the real bank replaces the
+    synthetic generator; ``precision`` widens the direct-domain budget to the
+    frozen per-domain ceiling (so the policy's own CAP terminalization, not the
+    harness's historical own_cap, is what bounds a domain), precomputes the
+    full-served-bank tercile band edges in the parent, and builds the sidecar
+    bundle once before the workers fan out. ``own-cap`` is a no-op beyond the
+    optional bank swap, so every pre-existing cell is unchanged.
+    """
+    if real_bank is not None:
+        config = replace(config, real_bank=str(real_bank))
+    if stopping != "precision":
+        return config
+    config = replace(
+        config, stopping="precision", own_cap=PRECISION_PER_DOMAIN_CAP,
+    )
+    if config.real_bank is not None:
+        _, bank_mean, _ = _load_real_bank(config.real_bank)
+        config = replace(config, precision_band_edges=tuple(
+            tuple(pair) for pair in _tercile_band_edges(bank_mean)
+        ))
+    ensure_sidecar_built()
+    return config
 
 
 CELLS = {
@@ -218,6 +305,10 @@ def main() -> None:
     parser.add_argument("--replicates", type=int, default=192)
     parser.add_argument("--workers", type=int)
     parser.add_argument("--seed-base", type=int, default=62_100_000)
+    parser.add_argument(
+        "--stopping", choices=("own-cap", "precision"), default="own-cap",
+    )
+    parser.add_argument("--real-bank", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -243,6 +334,7 @@ def main() -> None:
         config = replace(
             config, truth_distractor_lapse=overrides["truth_distractor_lapse"],
         )
+    config = apply_stopping(config, args.stopping, args.real_bank)
 
     workers = args.workers or recommended_workers(config.replicates, config.particles)
     with ProcessPoolExecutor(max_workers=workers) as executor:
