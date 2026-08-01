@@ -724,11 +724,71 @@ def test_mailer_letter_mime(monkeypatch):
 
 _SES_TOKEN = "test-sns-token"
 _SES_TOPIC = "arn:aws:sns:us-west-2:000000000000:cortex-ses-events"
+_SES_CERT_URL = ("https://sns.us-west-2.amazonaws.com/"
+                 "SimpleNotificationService-test.pem")
+
+
+def _sns_keypair():
+    """One test RSA key + self-signed cert per test session (lazy)."""
+    global _SNS_KEY, _SNS_CERT_PEM
+    try:
+        return _SNS_KEY, _SNS_CERT_PEM
+    except NameError:
+        pass
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+    from cryptography.x509.oid import NameOID
+
+    key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "sns-test")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now)
+            .not_valid_after(now + datetime.timedelta(days=1))
+            .sign(key, hashes.SHA256()))
+    _SNS_KEY = key
+    _SNS_CERT_PEM = cert.public_bytes(serialization.Encoding.PEM)
+    return _SNS_KEY, _SNS_CERT_PEM
+
+
+def _sns_sign(envelope):
+    """Fill the signed SNS fields and a valid SigV1 signature in place."""
+    import base64
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    from . import sns_verify
+
+    key, _pem = _sns_keypair()
+    envelope.setdefault("MessageId", "test-message-id")
+    envelope.setdefault("Timestamp", "2026-08-01T00:00:00.000Z")
+    if envelope.get("Type") in ("SubscriptionConfirmation",
+                                "UnsubscribeConfirmation"):
+        envelope.setdefault("Message", "confirm this subscription")
+        envelope.setdefault("Token", "test-subscribe-token")
+    envelope["SignatureVersion"] = "1"
+    envelope["SigningCertURL"] = _SES_CERT_URL
+    signature = key.sign(sns_verify.canonical_string(envelope),
+                         padding.PKCS1v15(), hashes.SHA1())  # noqa: S303 — SigV1
+    envelope["Signature"] = base64.b64encode(signature).decode("ascii")
+    return envelope
 
 
 def _sns_env(monkeypatch):
+    from . import sns_verify
+
     monkeypatch.setenv("CORTEX_SNS_WEBHOOK_TOKEN", _SES_TOKEN)
     monkeypatch.setenv("CORTEX_SNS_TOPIC_ARN", _SES_TOPIC)
+    _key, pem = _sns_keypair()
+    monkeypatch.setattr(sns_verify, "_fetch_cert", lambda url: pem)
+    monkeypatch.setattr(sns_verify, "_CERT_CACHE", {})
 
 
 def _bounce_envelope(email, bounce_type="Permanent", topic=_SES_TOPIC):
@@ -746,7 +806,11 @@ def _bounce_envelope(email, bounce_type="Permanent", topic=_SES_TOPIC):
     }
 
 
-def _post_sns(client, envelope, token=_SES_TOKEN):
+def _post_sns(client, envelope, token=_SES_TOKEN, sign=True):
+    # Envelopes are SIGNED by default so every webhook test crosses the real
+    # signature gate; sign=False exercises the unsigned/tampered paths.
+    if sign and "Signature" not in envelope:
+        _sns_sign(envelope)
     # SNS posts text/plain — send raw content, not FastAPI-parsed JSON.
     return client.post(f"/api/ses/events?token={token}",
                        content=json.dumps(envelope),
@@ -756,6 +820,30 @@ def _post_sns(client, envelope, token=_SES_TOKEN):
 def test_ses_webhook_404_when_disabled(client):
     r = _post_sns(client, _bounce_envelope("x@example.test"))
     assert r.status_code == 404
+
+
+def test_ses_webhook_rejects_unsigned_and_tampered(client, monkeypatch):
+    _sns_env(monkeypatch)
+    # No signature at all.
+    r = _post_sns(client, _bounce_envelope("x@example.test"), sign=False)
+    assert r.status_code == 403
+    # Valid signature, then a tampered Message.
+    envelope = _sns_sign(_bounce_envelope("x@example.test"))
+    envelope["Message"] = envelope["Message"].replace("Bounce", "Bounce2")
+    r = _post_sns(client, envelope)
+    assert r.status_code == 403
+    # A signing cert fetched from anywhere but SNS is refused outright.
+    envelope = _sns_sign(_bounce_envelope("x@example.test"))
+    envelope["SigningCertURL"] = "https://evil.example.com/cert.pem"
+    r = _post_sns(client, envelope)
+    assert r.status_code == 403
+
+
+def test_ses_webhook_verify_off_escape_accepts_unsigned(client, monkeypatch):
+    _sns_env(monkeypatch)
+    monkeypatch.setenv("CORTEX_SNS_VERIFY", "off")
+    r = _post_sns(client, _bounce_envelope("nobody@example.test"), sign=False)
+    assert r.status_code == 200
 
 
 def test_ses_webhook_403_on_bad_token(client, monkeypatch):

@@ -9,13 +9,14 @@ email_undeliverable, and the verify screen — which polls
 POST /api/verify/status while the user waits — tells them to fix the
 address instead of letting them wait forever.
 
-Auth model (documented tradeoff): the endpoint is enabled and gated by a
-capability token in the subscription URL (CORTEX_SNS_WEBHOOK_TOKEN, known
-only to us and AWS) plus a TopicArn allowlist (CORTEX_SNS_TOPIC_ARN). We do
-NOT verify the SNS message signature — the only action here is setting a
-low-stakes UI flag, and the flag is self-healing (cleared the moment any
-code is confirmed). If this webhook ever grows a more consequential action,
-add real SigV1 signature verification first.
+Auth model: three independent gates. (1) a capability token in the
+subscription URL (CORTEX_SNS_WEBHOOK_TOKEN, known only to us and AWS);
+(2) a TopicArn allowlist (CORTEX_SNS_TOPIC_ARN); (3) the SNS message
+signature itself (sns_verify.py — SigV1/SigV2 RSA over the canonical
+string, cert pinned to https://sns.<region>.amazonaws.com/). Signature
+verification is ON by default and fails closed (403 → SNS retries with
+backoff, so a transient cert-fetch failure heals); the emergency escape is
+CORTEX_SNS_VERIFY=off, which restores the previous two-gate behavior.
 
 SNS delivery notes: posts arrive with Content-Type text/plain, so the
 envelope is parsed from the raw body, not via pydantic. Non-2xx responses
@@ -33,7 +34,7 @@ import urllib.request
 import anyio
 from fastapi import APIRouter, HTTPException, Request
 
-from .. import helpers
+from .. import helpers, sns_verify
 
 router = APIRouter(prefix="/api")
 
@@ -75,6 +76,14 @@ async def ses_events(req: Request):
         envelope = json.loads((await req.body()).decode("utf-8"))
     except Exception:
         raise HTTPException(400, "not JSON")
+
+    if os.environ.get("CORTEX_SNS_VERIFY", "").strip().lower() != "off":
+        try:
+            # Cert fetch + RSA verify off the event loop (network + CPU).
+            await anyio.to_thread.run_sync(sns_verify.verify_envelope, envelope)
+        except sns_verify.SnsVerifyError as e:
+            _log(f"rejected unverifiable envelope: {e}")
+            raise HTTPException(403, "bad signature")
 
     expected_arn = _expected_topic_arn()
     if expected_arn and envelope.get("TopicArn") != expected_arn:
