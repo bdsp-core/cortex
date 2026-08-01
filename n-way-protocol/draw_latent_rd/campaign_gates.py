@@ -136,6 +136,41 @@ def informational_cell(summary_path: Path) -> dict:
     }
 
 
+def apply_owner_waiver(verdict: dict, ratification: Path) -> dict:
+    """Layer an explicit owner waiver of the absolute-bias clause on top of
+    the pre-registered verdict, never rewriting the original outcome.
+
+    The waiver is valid only when the absolute-bias clause is the SOLE
+    failing clause in every gating cell — anything else failing keeps the
+    campaign failed regardless of the waiver.
+    """
+    import hashlib
+
+    waivable = {"absolute_bias_coverage"}
+    remaining_failures = {
+        cell: [name for name, gate in verdict[cell]["gates"].items()
+               if not gate["pass"] and name not in waivable]
+        for cell in ("cell1_continuum_sbc", "cell2_served_bank_adaptive")
+    }
+    waived_values = {
+        cell: verdict[cell]["gates"]["absolute_bias_coverage"]
+        for cell in ("cell1_continuum_sbc", "cell2_served_bank_adaptive")
+    }
+    verdict["owner_waiver"] = {
+        "clause": "absolute_bias_coverage",
+        "ratification": str(ratification),
+        "ratification_sha256": hashlib.sha256(
+            ratification.read_bytes()).hexdigest(),
+        "waived_values": waived_values,
+        "date": "2026-08-01",
+    }
+    verdict["campaign_pass_with_owner_waiver"] = bool(
+        not remaining_failures["cell1_continuum_sbc"]
+        and not remaining_failures["cell2_served_bank_adaptive"]
+    )
+    return verdict
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cell1-summary", type=Path, required=True)
@@ -144,6 +179,11 @@ def main() -> None:
     parser.add_argument("--cell2-rows", type=Path, required=True)
     parser.add_argument("--cell3-summary", type=Path, required=True)
     parser.add_argument("--cell4-summary", type=Path, required=True)
+    parser.add_argument(
+        "--waive-absolute-bias", type=Path, metavar="RATIFICATION_DOC",
+        help="path to the owner ratification document authorizing the "
+             "absolute-bias waiver (docs/CAMPAIGN_GATE_RATIFICATION_*.md)",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -158,10 +198,14 @@ def main() -> None:
         "cell4_uniform_collapse": informational_cell(args.cell4_summary),
         "campaign_pass": bool(cell1["pass"] and cell2["pass"]),
     }
+    if args.waive_absolute_bias is not None:
+        verdict = apply_owner_waiver(verdict, args.waive_absolute_bias)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n")
     print(json.dumps({
         "campaign_pass": verdict["campaign_pass"],
+        "campaign_pass_with_owner_waiver": verdict.get(
+            "campaign_pass_with_owner_waiver"),
         "cell1_gates": {k: v["pass"] for k, v in cell1["gates"].items()},
         "cell2_gates": {k: v["pass"] for k, v in cell2["gates"].items()},
     }, indent=2, sort_keys=True))

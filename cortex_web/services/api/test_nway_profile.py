@@ -62,13 +62,21 @@ def test_qualified_draw_latent_profile_shape():
 
 def test_qualified_artifact_constants_bind_to_the_canonical_artifact():
     # Canonical-draws discipline (n-way-protocol artifact_floor.py): SHA-256
-    # of the compact sorted-key JSON of the camelCase draw table.
+    # of the compact sorted-key JSON of the camelCase draw table, bound to
+    # the QUALIFIED Phase-2 re-emission (campaign + owner-ratified waiver in
+    # its provenance chain).
     artifact_path = (
         Path(__file__).resolve().parents[3]
         / "n-way-protocol/artifacts"
-        / "iiic_conditional_f1_engine_frame_nesting34_rd.json"
+        / "iiic_conditional_f1_engine_frame_nesting34_qualified.json"
     )
     payload = json.loads(artifact_path.read_text())
+    assert payload["qualification"] == "qualified"
+    assert payload["promotionForbidden"] is False
+    waiver = payload["provenance"]["qualified_by"]["owner_waiver"]
+    assert waiver["clause"] == "absolute_bias_coverage"
+    assert waiver["absolute_bias_coverage_cell1"] == 0.94575
+    assert waiver["absolute_bias_coverage_cell2"] == 0.94475
     draws = [
         {"beta": float(d["beta"]),
          "distractorLapse": float(d["distractor_lapse"]),

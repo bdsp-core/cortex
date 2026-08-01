@@ -1,0 +1,263 @@
+{
+  "bootstrap": {
+    "betaInterval95": [
+      0.6507521668020948,
+      1.474731514148047
+    ],
+    "clusterBy": "reader",
+    "distractorLapseInterval95": [
+      0.15,
+      0.15
+    ],
+    "draws": [
+      {
+        "beta": 0.45006063466124235,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.5338515402649436,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.5853398826308007,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.6258690320342144,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.6607290307229944,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.6921494038906224,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.7213101670620873,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.7489271433962023,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.7754781123007768,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.8013066377598854,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.826675844787891,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.8517989980396551,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.876858344072989,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.902017659494667,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.9274313358016507,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.9532516141780893,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.9796349974777218,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.0067486002744757,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.03477712175171,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.0639311971129428,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.0944581126131046,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.1266563244284284,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.1608960565787576,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.1976497923017944,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.237539413505655,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.2814126671003527,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.3304744229406797,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.386528288385019,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.4524633906777986,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.533363498053236,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.639534152311454,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 1.7976621886431141,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 2.132345409425831,
+        "distractor_lapse": 0.15,
+        "weight": 0.029411764705882353
+      },
+      {
+        "beta": 0.9796,
+        "distractor_lapse": 1.0,
+        "weight": 0.029411764705882353
+      }
+    ]
+  },
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "nWrongPicks": 58358,
+  "promotionForbidden": false,
+  "provenance": {
+    "adopted_subset": "stable_core",
+    "atom_grid_decision": "implementer default per DRAW_LATENT_PROMOTION_PLAN.md; owner ratification pending",
+    "derivation": "population_draws(count=33, tau_log_beta=OOS 0.3581 from oos_population_check) floored at 0.15, plus the lambda_d=1 binary-nesting atom at beta=exp(mu_log_beta); uniform 1/34 weights. Byte-identical to draw_latent_rd.harness.build_atoms('nesting34') (viability battery cells stress190/collapse_nest).",
+    "derived_from": "iiic_conditional_f1_engine_frame_rd.json",
+    "derived_from_sha256": "791a631f7f343032e2ace65214b9b341efed4e1f0d111a9da3d88b2452f22983",
+    "dr07": "qualified",
+    "dr07_criterion": "docs/DR07_CRITERION.md (v2, owner ratification pending)",
+    "dr07_gate_report": "dr07_gate_engine_frame.json",
+    "dr07_gate_report_sha256": "c1e52472ec89eb31a0e1b491e4e38e446d45b71cf5b35e81a2d53cb013c21f79",
+    "method": "engine_frame_hierarchical_v1",
+    "population_model": "dersimonian_laird_log_beta;draw_spread=sqrt(tau^2+se_mu^2)",
+    "qualified_by": {
+      "cells": {
+        "cell1_continuum_sbc": {
+          "path": "draw_latent_rd/reports/campaign_draw_latent/cell1_continuum_2000.json",
+          "sha256": "083252fc8654b77ecdc3e9e5e64887ae028f842c05180b5fd3c5647d369261f8"
+        },
+        "cell2_served_bank_adaptive": {
+          "path": "draw_latent_rd/reports/campaign_draw_latent/cell2_precision_2000.json",
+          "sha256": "0df0135410724b88b199c51ba011523fc64b5e33df3b8860fb0d03ee0a10e8d4"
+        },
+        "cell3_stress190": {
+          "path": "draw_latent_rd/reports/campaign_draw_latent/cell3_stress190_500.json",
+          "sha256": "8d3b5e560dc737414fd7fb1aa35349256c964f835a93158f2ee2973f21add9fb"
+        },
+        "cell4_uniform_collapse": {
+          "path": "draw_latent_rd/reports/campaign_draw_latent/cell4_collapse_500.json",
+          "sha256": "51beffb5ddb5000941b6857b481a0fff35fa4465a0182e0e120a58cdc7ac1286"
+        }
+      },
+      "gate_verdict": "draw_latent_rd/reports/campaign_draw_latent/GATE_VERDICT.json",
+      "gate_verdict_sha256": "5ac942994e0f1f60a5a4c6f5299c83d95bf6719950b9f7031726ba1a1af82489",
+      "owner_waiver": {
+        "absolute_bias_coverage_cell1": 0.94575,
+        "absolute_bias_coverage_cell2": 0.94475,
+        "bias_noninferiority_vs_binary": {
+          "cell1": "+0.00008 [-0.00531, +0.00547]",
+          "cell2": "-0.00425 [-0.00972, +0.00122]"
+        },
+        "clause": "absolute_bias_coverage",
+        "ratification": "docs/CAMPAIGN_GATE_RATIFICATION_20260801.md",
+        "ratification_sha256": "556fcdee93fb079609691e10e401f4e8b8b9691f29b21209c08f97e73193f370"
+      },
+      "prereg": "docs/LOCKED_CAMPAIGN_PREREG_DRAW_LATENT.md",
+      "real_response_arbitration": "draw_latent_rd/reports/real_response_arbitration.json",
+      "real_response_arbitration_sha256": "903b13d4fe2094d4bfe0c8ae4388519b76fb52a7178248732257912f781de651",
+      "research_emission_sha256": "3390932ad57da3e4647a68d6d7edd1afc88a1c04e99eae5087576f7784094806"
+    },
+    "reader_model": "per_domain_t_scalar_l_map_standard_normal_prior_binary_margins",
+    "source_sha256": {
+      "../data/labels/external/centaur_2025/case_id_to_seg_id.csv": "a16a9cabd6982d2459ccc060acb2e2964b3fe1e60696cb1ee92545bf60b9d48d",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_expert_labels.xlsx": "385392a74543e251c4e803142668fe0d238b4d493781e50ad3d19eccb6426cb7",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_novice_labels.csv": "869fc749a305f3452a168ac55135b37e15ffee148c0f282a90da7b7f0101d9e9",
+      "../data/labels/segment_signals.csv": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5"
+    },
+    "subset_rule": {
+      "interior_abs_l_max": 2.5,
+      "min_reads": 100,
+      "min_wrong_picks": 30
+    }
+  },
+  "qualification": "qualified",
+  "randomEffects": {
+    "cochran_q": 1816.196014776925,
+    "mu_log_beta": -0.020575228248171405,
+    "n_readers_used": 124,
+    "se_mu_log_beta": 0.02646174635139151,
+    "tau_log_beta": 0.25537783624586124
+  },
+  "robustnessFloor": 0.15,
+  "schemaVersion": 1,
+  "status": "qualified_for_serving",
+  "subsetReaders": 124,
+  "variant": "engine_frame_hierarchical_nesting34"
+}

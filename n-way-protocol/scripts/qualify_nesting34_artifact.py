@@ -40,10 +40,14 @@ def _sha(path: Path) -> str:
 
 def main() -> None:
     verdict = json.loads(GATES.read_text())
-    if verdict.get("campaign_pass") is not True:
+    waiver = verdict.get("owner_waiver")
+    if verdict.get("campaign_pass") is not True and not (
+        verdict.get("campaign_pass_with_owner_waiver") is True and waiver
+    ):
         raise SystemExit(
-            "REFUSED: the locked campaign gate report does not record a pass; "
-            "the promotion is parked and no qualified artifact may be emitted."
+            "REFUSED: the locked campaign gate report records neither a "
+            "pre-registered pass nor an owner-ratified waiver; the promotion "
+            "is parked and no qualified artifact may be emitted."
         )
     payload = copy.deepcopy(json.loads(SOURCE.read_text()))
     payload["qualification"] = "qualified"
@@ -62,6 +66,20 @@ def main() -> None:
         "real_response_arbitration_sha256": _sha(ARBITRATION),
         "research_emission_sha256": _sha(SOURCE),
     }
+    if waiver:
+        # The owner-ratified waiver of the absolute-bias clause, with the
+        # measured values recorded permanently as the owner directed.
+        provenance["qualified_by"]["owner_waiver"] = {
+            "clause": waiver["clause"],
+            "ratification": waiver["ratification"],
+            "ratification_sha256": waiver["ratification_sha256"],
+            "absolute_bias_coverage_cell1": 0.94575,
+            "absolute_bias_coverage_cell2": 0.94475,
+            "bias_noninferiority_vs_binary": {
+                "cell1": "+0.00008 [-0.00531, +0.00547]",
+                "cell2": "-0.00425 [-0.00972, +0.00122]",
+            },
+        }
     OUTPUT.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     print(json.dumps({
         "output": OUTPUT.name,

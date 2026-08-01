@@ -1,5 +1,6 @@
 {
   "campaign_pass": false,
+  "campaign_pass_with_owner_waiver": true,
   "cell1_continuum_sbc": {
     "cell": "campaign_continuum34",
     "gates": {
@@ -201,6 +202,30 @@
       0.9115032873924014,
       0.9307515105969466
     ]
+  },
+  "owner_waiver": {
+    "clause": "absolute_bias_coverage",
+    "date": "2026-08-01",
+    "ratification": "docs/CAMPAIGN_GATE_RATIFICATION_20260801.md",
+    "ratification_sha256": "556fcdee93fb079609691e10e401f4e8b8b9691f29b21209c08f97e73193f370",
+    "waived_values": {
+      "cell1_continuum_sbc": {
+        "coverage": 0.94575,
+        "pass": false,
+        "wilson95": [
+          0.941552700196705,
+          0.9496619922730789
+        ]
+      },
+      "cell2_served_bank_adaptive": {
+        "coverage": 0.94475,
+        "pass": false,
+        "wilson95": [
+          0.9405180390468786,
+          0.9486972934846669
+        ]
+      }
+    }
   },
   "prereg": "docs/LOCKED_CAMPAIGN_PREREG_DRAW_LATENT.md",
   "schema_version": 1
