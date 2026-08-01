@@ -1,5 +1,7 @@
 import { IIIC_TASK_INDICES } from "./nway_likelihood";
-import { NWAY_ARTIFACT } from "./nway_profile";
+import {
+  NWAY_ARTIFACT, NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT, type ArtifactDraw,
+} from "./nway_profile";
 import type {
   BinaryParticleObservation, CategoricalParticleObservation, ParticleObservation,
   ParticleState,
@@ -30,6 +32,29 @@ const UNIFORM_LOG_PROBABILITY = -Math.log(IIIC_TASK_INDICES.length - 1);
 // 100% of sessions, median 14 wrong picks.
 export const DISTRACTOR_MONITOR_THRESHOLD = 5.213009866319716;
 
+// Same OC harness re-run for the qualified nesting34 draw-latent artifact
+// (n-way-protocol reports/misspec_monitor_oc_nesting34.json, Phase 1e):
+// 1% false-trip target on the raw served-bank axes; uniform-world detection
+// 100% of sessions, median 15 wrong picks.
+export const NESTING34_MONITOR_THRESHOLD = 5.101352318244237;
+
+/** The monitor reference mixture and trip threshold for a session's stamped
+ * response artifact. The monitor stays fixed-input: the reference is the
+ * artifact's own frozen draw table, never the session posterior. Unknown or
+ * absent artifacts keep the deployed floor015 calibration — the previous
+ * behavior for every existing session. */
+export function monitorConfigFor(artifactId?: string): {
+  draws: readonly ArtifactDraw[]; threshold: number;
+} {
+  if (artifactId === NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId) {
+    return {
+      draws: NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws,
+      threshold: NESTING34_MONITOR_THRESHOLD,
+    };
+  }
+  return { draws: NWAY_ARTIFACT.draws, threshold: DISTRACTOR_MONITOR_THRESHOLD };
+}
+
 export interface DistractorMonitorState {
   statistic: number;
   tripped: boolean;
@@ -52,6 +77,7 @@ export function cloneDistractorMonitor(
  * log(robustnessFloor) because every deployed draw carries the lapse floor. */
 export function monitorIncrement(
   askedK: number, pickK: number, sMean: readonly number[],
+  draws: readonly ArtifactDraw[] = NWAY_ARTIFACT.draws,
 ): number {
   if (pickK === askedK || !IIIC_TASK_INDICES.includes(pickK)
       || !IIIC_TASK_INDICES.includes(askedK)) {
@@ -60,7 +86,7 @@ export function monitorIncrement(
   const distractors = IIIC_TASK_INDICES.filter((k) => k !== askedK);
   let probability = 0;
   let weightSum = 0;
-  for (const draw of NWAY_ARTIFACT.draws) {
+  for (const draw of draws) {
     let maxLogit = -Infinity;
     for (const k of distractors) {
       maxLogit = Math.max(maxLogit, draw.beta * sMean[k]);
@@ -84,11 +110,12 @@ export function monitorIncrement(
 /** Page's CUSUM against the model; the trip is one-way within a session. */
 export function observeDistractorMonitor(
   monitor: DistractorMonitorState, evidence: number,
+  threshold: number = DISTRACTOR_MONITOR_THRESHOLD,
 ): boolean {
   if (monitor.tripped) return true;
   monitor.wrongPicks += 1;
   monitor.statistic = Math.max(0, monitor.statistic - evidence);
-  if (monitor.statistic > DISTRACTOR_MONITOR_THRESHOLD) {
+  if (monitor.statistic > threshold) {
     monitor.tripped = true;
     monitor.trippedAt = monitor.wrongPicks;
   }

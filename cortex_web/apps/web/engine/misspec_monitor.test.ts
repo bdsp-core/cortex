@@ -5,10 +5,13 @@ import {
 } from "./advance";
 import { restoreCore, snapshotCore } from "./core_snapshot";
 import {
-  DISTRACTOR_MONITOR_THRESHOLD, binaryReduction, makeDistractorMonitor,
-  monitorIncrement, observeDistractorMonitor, rebuildBinaryReducedHistory,
+  DISTRACTOR_MONITOR_THRESHOLD, NESTING34_MONITOR_THRESHOLD, binaryReduction,
+  makeDistractorMonitor, monitorConfigFor, monitorIncrement,
+  observeDistractorMonitor, rebuildBinaryReducedHistory,
 } from "./misspec_monitor";
-import { NWAY_ARTIFACT, expectedNWayProfile } from "./nway_profile";
+import {
+  NWAY_ARTIFACT, NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT, expectedNWayProfile,
+} from "./nway_profile";
 import { makeState, updateObservation } from "./particles";
 import { precomputePriorPair } from "./prior";
 import { PRECISION_STATUS, PrecisionPolicy } from "./precision_policy";
@@ -250,5 +253,44 @@ describe("distractor-misspecification monitor", () => {
     );
     expect(actual.diag.distractorMonitor).toEqual(reference.diag.distractorMonitor);
     expect(Array.from(actual.core.state.w)).toEqual(Array.from(reference.core.state.w));
+  });
+
+  it("selects the monitor reference and threshold by stamped artifact", () => {
+    // Absent/unknown artifacts keep the deployed floor015 calibration —
+    // byte-identical behavior for every mixture and legacy session.
+    const fallback = monitorConfigFor(undefined);
+    expect(fallback.draws).toBe(NWAY_ARTIFACT.draws);
+    expect(fallback.threshold).toBe(DISTRACTOR_MONITOR_THRESHOLD);
+    expect(monitorConfigFor("something-else")).toEqual(fallback);
+
+    // The qualified draw-latent artifact carries its own Phase-1e OC.
+    const qualified = monitorConfigFor(
+      NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId,
+    );
+    expect(qualified.draws).toBe(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws);
+    expect(qualified.threshold).toBe(NESTING34_MONITOR_THRESHOLD);
+    expect(qualified.threshold).toBeCloseTo(5.101352318244237, 12);
+
+    // The nesting34 reference mixture includes the lambda=1 atom, so its
+    // increment is bounded below by log(floor + (1-floor-ish uniform mass))
+    // — concretely, it differs from the floor015 increment on the same
+    // wrong pick, and both stay finite.
+    const sMean = [-0.7, -0.3, 0.15, 0.55, -0.1, 0.8, -0.45];
+    const floorIncrement = monitorIncrement(3, 5, sMean);
+    const qualifiedIncrement = monitorIncrement(3, 5, sMean, qualified.draws);
+    expect(Number.isFinite(floorIncrement)).toBe(true);
+    expect(Number.isFinite(qualifiedIncrement)).toBe(true);
+    expect(qualifiedIncrement).not.toBe(floorIncrement);
+    // Default-parameter form is the floor015 reference exactly.
+    expect(monitorIncrement(3, 5, sMean, NWAY_ARTIFACT.draws))
+      .toBe(floorIncrement);
+
+    // The threshold parameter drives the trip point.
+    const tight = makeDistractorMonitor();
+    observeDistractorMonitor(tight, -6, 5.5);
+    expect(tight.tripped).toBe(true);
+    const loose = makeDistractorMonitor();
+    observeDistractorMonitor(loose, -6, 6.5);
+    expect(loose.tripped).toBe(false);
   });
 });

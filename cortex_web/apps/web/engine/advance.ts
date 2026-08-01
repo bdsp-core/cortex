@@ -25,7 +25,8 @@ import { makeResponseObservation } from "./nway_likelihood";
 import { isNWaySession } from "./nway_profile";
 import {
   DistractorMonitorState, binaryReduction, cloneDistractorMonitor,
-  makeDistractorMonitor, monitorIncrement, observeDistractorMonitor,
+  makeDistractorMonitor, monitorConfigFor, monitorIncrement,
+  observeDistractorMonitor,
   rebuildBinaryReducedHistory,
 } from "./misspec_monitor";
 import {
@@ -160,9 +161,17 @@ function monitoredResponse(
   if (response.kind !== "categorical_f1") return response;
   const monitor = core.distractorMonitor ??= makeDistractorMonitor();
   if (!monitor.tripped && response.pickK !== response.askedK) {
+    // The monitor reference and trip threshold follow the session's stamped
+    // response artifact (mixture sessions keep the deployed floor015
+    // calibration byte-identically; the qualified draw-latent artifact
+    // carries its own recalibrated OC — Phase 1e).
+    const config = monitorConfigFor(core.state.responseRuntime?.artifactId);
     observeDistractorMonitor(
       monitor,
-      monitorIncrement(response.askedK, response.pickK, response.sMean),
+      monitorIncrement(
+        response.askedK, response.pickK, response.sMean, config.draws,
+      ),
+      config.threshold,
     );
     if (monitor.tripped) rebuildBinaryReducedHistory(core.state);
   }
