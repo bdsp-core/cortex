@@ -96,6 +96,13 @@ try {
   await testCta.click();
   log("dashboard → certification test ✓");
 
+  // A stored unfinished sitting offers "Resume your test?" first.
+  if (await page.getByRole("button", { name: /^Resume test$/ })
+    .waitFor({ timeout: 6000 }).then(() => true).catch(() => false)) {
+    await page.getByRole("button", { name: /^Resume test$/ }).click();
+    log("resume-confirmation → Resume test ✓");
+  }
+
   // Consent appears for new sittings only; a resumed sitting skips it.
   if (await page.getByRole("button", { name: "I Accept" })
     .waitFor({ timeout: 8000 }).then(() => true).catch(() => false)) {
