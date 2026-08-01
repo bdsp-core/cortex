@@ -28,8 +28,9 @@ import {
 import { PRECISION_STATUS, PrecisionPolicy } from "./precision_policy";
 import { WebCortexSession } from "./session";
 import {
-  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, expectedDrawLatentNWayProfile,
-  expectedNWayProfile, validateNWayInputs,
+  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT,
+  expectedDrawLatentNWayProfile, expectedNWayProfile,
+  expectedQualifiedDrawLatentNWayProfile, validateNWayInputs,
 } from "./nway_profile";
 import type { NWaySelectionExecutor } from "./nway_selector_executor";
 import {
@@ -290,6 +291,65 @@ describe("draw-latent response aggregation (construction B)", () => {
     const mixture = drawLatentInputs();
     mixture.nwayProfile = expectedNWayProfile("a".repeat(64));
     expect(nwayResponseRuntimeFor(mixture)).toBeUndefined();
+  });
+
+  it("registers the QUALIFIED nesting34 artifact and resolves its runtime", () => {
+    // The canonical-draws discipline is Python's (artifact_floor.py):
+    // json.dumps renders integral floats as "1.0" where JSON.stringify says
+    // "1" — the nesting atom's lambda_d = 1 hits exactly that difference, so
+    // the re-derivation formats numbers the Python way.
+    const pyNumber = (value: number) =>
+      Number.isInteger(value) ? `${value}.0` : `${value}`;
+    const canonical = `[${NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws.map((draw) =>
+      `{"beta":${pyNumber(draw.beta)},"distractorLapse":${
+        pyNumber(draw.distractorLapse)},"weight":${pyNumber(draw.weight)}}`,
+    ).join(",")}]`;
+    expect(createHash("sha256").update(canonical).digest("hex"))
+      .toBe(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.sha256);
+    expect(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws).toHaveLength(34);
+    expect(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.robustnessFloor).toBe(0.15);
+    for (const draw of NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws) {
+      expect(draw.distractorLapse)
+        .toBeGreaterThanOrEqual(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.robustnessFloor);
+    }
+    // The lambda_d = 1 binary-nesting atom closes the grid: uniform-collapse
+    // sessions concentrate on it and the engine gracefully becomes binary.
+    const nesting = NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws.at(-1)!;
+    expect(nesting.distractorLapse).toBe(1);
+    expect(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId)
+      .not.toBe(NWAY_DRAW_LATENT_ARTIFACT.artifactId);
+
+    const config = drawLatentInputs();
+    config.nwayProfile = expectedQualifiedDrawLatentNWayProfile("a".repeat(64));
+    expect(validateNWayInputs(config).engineProfileId)
+      .toBe("precision_nway_f1_nesting34_draw_latent_v1");
+    const runtime = nwayResponseRuntimeFor(config)!;
+    expect(runtime.aggregation).toBe("draw_latent");
+    expect(runtime.atoms).toHaveLength(34);
+    expect(runtime.artifactId).toBe(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId);
+    expect(nwayResponseRuntimeFor(config)).toBe(runtime); // cached singleton
+    // The research and qualified stamps resolve DIFFERENT runtimes.
+    expect(nwayResponseRuntimeFor(drawLatentInputs())).not.toBe(runtime);
+
+    // A tampered qualified stamp fails closed on the exact offending key.
+    const wrongSha = drawLatentInputs();
+    wrongSha.nwayProfile = {
+      ...expectedQualifiedDrawLatentNWayProfile("a".repeat(64)),
+      responseArtifactSha256: "c".repeat(64),
+    };
+    expect(() => validateNWayInputs(wrongSha)).toThrow(/responseArtifactSha256/);
+    expect(() => nwayResponseRuntimeFor(wrongSha))
+      .toThrow(/does not name the registered artifact/);
+
+    // The retired legacy unfloored stamp is refused on the profile id: it
+    // matches neither the mixture nor either draw-latent expectation.
+    const legacy = drawLatentInputs();
+    legacy.nwayProfile = {
+      ...expectedNWayProfile("a".repeat(64)),
+      engineProfileId: "precision_nway_f1_ensemble9_fisher_v1",
+      responseArtifactId: "iiic-f1-crossfit-ensemble9-rd-20260720",
+    };
+    expect(() => validateNWayInputs(legacy)).toThrow(/engineProfileId/);
   });
 
   it("refuses history replay whose lineage contradicts the aggregation", () => {

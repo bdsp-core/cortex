@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local cortex_web stack for testing the draw-latent (atoms17) n-way engine
+# Local cortex_web stack for testing the QUALIFIED draw-latent n-way engine
 # through the EXACT production UI, fully isolated from prod.
 #
 #   scripts/local_cortex_stack.sh          # (re)start the stack
@@ -8,11 +8,11 @@
 # One uvicorn serves SPA + /bundle + /api (the apps/web/scripts/run_local.sh
 # idiom, CORTEX_SERVE_STATIC=1) on http://127.0.0.1:8788 with a DEDICATED
 # SQLite DB under n-way-protocol/local_server/data/ — the checked-out dev
-# cortex.db and the prod server are never touched. The research draw-latent
-# stamp requires BOTH CORTEX_NWAY_RESEARCH_UNQUALIFIED=1 AND no
-# cortex_web/RELEASE file (services/api/nway_profile.py fails closed
-# otherwise), and is scoped to ONE account by pinning the precision_v1
-# policy rollout to that account's email.
+# cortex.db and the prod server are never touched. The qualified draw-latent
+# stamp comes from the real fail-closed response-model rollout
+# (CORTEX_NWAY_RESPONSE_ROLLOUT=all; services/api/nway_profile.py), and is
+# scoped to ONE account by pinning the precision_v1 policy rollout to that
+# account's email.
 #
 # Idempotent: kills only its own previous instance (pidfile + cmdline match
 # on this stack's unique port — never a broad pkill), refuses a port squatted
@@ -34,7 +34,7 @@ PIDFILE="$DATA_DIR/.cortex_stack_${PORT}.pid"
 LOG="$DATA_DIR/cortex_stack_${PORT}.log"
 ACCOUNT_EMAIL="elikeldsen+nway-local@gmail.com"
 ACCOUNT_PASSWORD="nway-local-test-1"
-PROFILE_ID="precision_nway_f1_engine_frame_atoms17_draw_latent_rd_v1"
+PROFILE_ID="precision_nway_f1_nesting34_draw_latent_v1"
 
 mkdir -p "$DATA_DIR"
 
@@ -76,7 +76,7 @@ if [ -f "$REPO/cortex_web/RELEASE" ]; then
 fi
 
 # ── fresh dist (stale-dist trap): rebuild when any source is newer than the
-#    built index.html, then prove the bundle carries the atoms17 profile ───
+#    built index.html, then prove the bundle carries the qualified profile ──
 need_build=0
 if [ ! -f "$WEB/dist/index.html" ]; then
   need_build=1
@@ -95,14 +95,14 @@ if ! grep -rq "$PROFILE_ID" "$WEB/dist/assets"; then
   echo "wrong branch or stale build — refusing to serve it." >&2
   exit 1
 fi
-echo "▸ dist contains the atoms17 draw-latent profile id ✓"
+echo "▸ dist contains the qualified draw-latent profile id ✓"
 
 # ── start the API (single process serving SPA + bundle + API) ─────────────
 echo "▸ starting API on http://127.0.0.1:$PORT (db: $DB)"
 ( cd "$SERVICES" && \
   CORTEX_DB="$DB" \
   CORTEX_SERVE_STATIC=1 \
-  CORTEX_NWAY_RESEARCH_UNQUALIFIED=1 \
+  CORTEX_NWAY_RESPONSE_ROLLOUT=all \
   CORTEX_PRECISION_POLICY_ROLLOUT=email_allowlist \
   CORTEX_PRECISION_POLICY_EMAILS="$ACCOUNT_EMAIL" \
   CORTEX_EMAIL_BACKEND=dev \

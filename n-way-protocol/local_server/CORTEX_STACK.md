@@ -54,16 +54,17 @@ Two independent gates, both handled by the launcher:
    account fails closed to AD6 and never receives an nway stamp.
    (`compute_rollout.py` is execution placement only — left `off`, so
    `compute_mode=serial`; it never changes the response model.)
-2. **Process-wide: the research escape** (`services/api/nway_profile.py`,
-   pinned by `test_nway_profile.py` from commit `18b4423`).
-   `CORTEX_NWAY_RESEARCH_UNQUALIFIED=1` AND no `cortex_web/RELEASE` file
-   (i.e. `config.RELEASE is None`; `/api/health` must show
-   `"release":null`) → every NEW precision_v1 session is stamped
-   `precision_nway_f1_engine_frame_atoms17_draw_latent_rd_v1`
+2. **Process-wide: the response-model rollout** (`services/api/
+   nway_profile.py`, pinned by `test_nway_profile.py`). The stack runs
+   `CORTEX_NWAY_RESPONSE_ROLLOUT=all`, so every NEW precision_v1 session
+   is stamped `precision_nway_f1_nesting34_draw_latent_v1`
    (`responseAggregation: "draw_latent"`, artifact
-   `iiic-f1-engine-frame-atoms17-rd-20260730`). Any other configuration
-   fails closed to the qualified floor015 mixture profile. The launcher
-   refuses to start when a RELEASE stamp is present.
+   `iiic-f1-engine-frame-nesting34-20260730`). Off/unknown values fail
+   closed to the qualified floor015 mixture profile — this is the same
+   fail-closed gate production uses for the staged activation, not a
+   local-only escape. (The pre-qualification
+   `CORTEX_NWAY_RESEARCH_UNQUALIFIED` escape from commit `18b4423` was
+   removed once the qualified path landed.)
 
 The SPA passes the session's `nwayProfile` into the browser engine, and
 `engine/nway_likelihood.ts` builds the draw-latent runtime exactly when

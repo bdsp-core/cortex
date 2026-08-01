@@ -3,7 +3,8 @@ import {
   LAPSE_RATE, logPResponse, pResponseYes, signalZ, signalZFromScale,
 } from "./likelihood";
 import {
-  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, nwayResponseAggregationOf,
+  NWAY_ARTIFACT, NWAY_DRAW_LATENT_ARTIFACT, NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT,
+  nwayResponseAggregationOf,
   type ArtifactDraw,
 } from "./nway_profile";
 import type {
@@ -527,14 +528,16 @@ export function buildNWayResponseRuntime(
   };
 }
 
-// Built lazily once; the atoms17 constant is frozen for the process lifetime.
+// Built lazily once each; both constants are frozen for the process lifetime.
 let drawLatentRuntime: NWayResponseRuntime | null = null;
+let qualifiedDrawLatentRuntime: NWayResponseRuntime | null = null;
 
 /**
  * Resolve the profile-stamped response runtime for a session's inputs.
  * Mixture stamps (or absent stamps) resolve to undefined — the frozen
  * NWAY_ARTIFACT path, byte-identical to the shipped engine. A draw-latent
- * stamp resolves to the research atoms17 runtime, fail-closed against any
+ * stamp resolves to the runtime of the artifact it names — the qualified
+ * nesting34 table or the research atoms17 table — fail-closed against any
  * stamp/constant divergence: coordinator, selector workers, and branch
  * workers all derive the same runtime from the same server-authoritative
  * stamp, so no serialized state ever carries the table itself.
@@ -544,6 +547,15 @@ export function nwayResponseRuntimeFor(
 ): NWayResponseRuntime | undefined {
   if (nwayResponseAggregationOf(inputs) !== "draw_latent") return undefined;
   const stamp = inputs.nwayProfile;
+  if (stamp?.responseArtifactId === NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId
+      && stamp.responseArtifactSha256 === NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.sha256) {
+    qualifiedDrawLatentRuntime ??= buildNWayResponseRuntime(
+      "draw_latent",
+      NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId,
+      NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws,
+    );
+    return qualifiedDrawLatentRuntime;
+  }
   if (stamp?.responseArtifactId !== NWAY_DRAW_LATENT_ARTIFACT.artifactId
       || stamp.responseArtifactSha256 !== NWAY_DRAW_LATENT_ARTIFACT.sha256) {
     throw new Error("draw-latent stamp does not name the registered artifact");

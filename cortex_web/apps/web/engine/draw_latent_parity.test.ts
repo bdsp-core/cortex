@@ -16,7 +16,10 @@ import { describe, expect, it } from "vitest";
 import {
   makeResponseObservation, nwayResponseRuntimeFor,
 } from "./nway_likelihood";
-import { NWAY_DRAW_LATENT_ARTIFACT, expectedDrawLatentNWayProfile } from "./nway_profile";
+import {
+  NWAY_DRAW_LATENT_ARTIFACT, NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT,
+  expectedDrawLatentNWayProfile, expectedQualifiedDrawLatentNWayProfile,
+} from "./nway_profile";
 import { updateObservation } from "./particles";
 import type {
   ComputeEngineInputs, ComputeSegmentMeta, ParticleState, PriorPieces,
@@ -24,6 +27,9 @@ import type {
 
 const reference = JSON.parse(readFileSync(fileURLToPath(new URL(
   "./__testdata__/draw_latent_reference.json", import.meta.url,
+)), "utf8"));
+const referenceNesting34 = JSON.parse(readFileSync(fileURLToPath(new URL(
+  "./__testdata__/draw_latent_reference_nesting34.json", import.meta.url,
 )), "utf8"));
 const TOLERANCE = 5e-7;
 
@@ -34,27 +40,51 @@ function expectClose(actual: ArrayLike<number>, expected: number[]): void {
   }
 }
 
-function fixtureState(): ParticleState {
-  const K = reference.K as number;
+function fixtureState(
+  fixture: typeof reference,
+  profile: ReturnType<typeof expectedDrawLatentNWayProfile>,
+): ParticleState {
+  const K = fixture.K as number;
   const identity = Array.from({ length: K }, (_unused, i) =>
     Array.from({ length: K }, (_x, j) => Number(i === j)));
   const pieces: PriorPieces = { K, sigmaInv: identity, logDet: 0, L: identity };
-  const inputs = {
-    nwayProfile: expectedDrawLatentNWayProfile("a".repeat(64)),
-  } as ComputeEngineInputs;
+  const inputs = { nwayProfile: profile } as ComputeEngineInputs;
   return {
-    N: reference.t.length,
+    N: fixture.t.length,
     K,
-    t: Float64Array.from((reference.t as number[][]).flat()),
-    l: Float64Array.from((reference.l as number[][]).flat()),
-    w: Float64Array.from(reference.initialWeights as number[]),
-    logPrior: new Float64Array(reference.t.length),
-    logLik: new Float64Array(reference.t.length),
+    t: Float64Array.from((fixture.t as number[][]).flat()),
+    l: Float64Array.from((fixture.l as number[][]).flat()),
+    w: Float64Array.from(fixture.initialWeights as number[]),
+    logPrior: new Float64Array(fixture.t.length),
+    logLik: new Float64Array(fixture.t.length),
     history: [],
     prior: { tPieces: pieces, lPieces: pieces },
     responseRuntime: nwayResponseRuntimeFor(inputs),
-    atomIndex: Int32Array.from(reference.atomAssignment as number[]),
+    atomIndex: Int32Array.from(fixture.atomAssignment as number[]),
   };
+}
+
+function assertOracleTrajectory(
+  fixture: typeof reference,
+  profile: ReturnType<typeof expectedDrawLatentNWayProfile>,
+): void {
+  const state = fixtureState(fixture, profile);
+  for (const step of fixture.steps) {
+    const spec = step.observation as {
+      askedK: number; segmentIndex: number; rawPick: number; kind: string;
+    };
+    const segment = fixture.segments[spec.segmentIndex] as ComputeSegmentMeta;
+    updateObservation(state, makeResponseObservation(
+      spec.askedK, segment, spec.rawPick,
+      spec.kind === "binary" ? "spike" : "iiic",
+    ));
+    expectClose(state.w, step.weights as number[]);
+    expectClose(state.logLik, step.logLik as number[]);
+  }
+  // Final inferred draw distribution — posterior mass per artifact atom.
+  const mass = new Array<number>(fixture.atoms.length).fill(0);
+  for (let n = 0; n < state.N; n++) mass[state.atomIndex![n]] += state.w[n];
+  expectClose(mass, fixture.atomPosterior as number[]);
 }
 
 describe("draw-latent Python oracle parity (production atoms17)", () => {
@@ -73,22 +103,35 @@ describe("draw-latent Python oracle parity (production atoms17)", () => {
   });
 
   it("matches every oracle update on the fixed trajectory", () => {
-    const state = fixtureState();
-    for (const step of reference.steps) {
-      const spec = step.observation as {
-        askedK: number; segmentIndex: number; rawPick: number; kind: string;
-      };
-      const segment = reference.segments[spec.segmentIndex] as ComputeSegmentMeta;
-      updateObservation(state, makeResponseObservation(
-        spec.askedK, segment, spec.rawPick,
-        spec.kind === "binary" ? "spike" : "iiic",
-      ));
-      expectClose(state.w, step.weights as number[]);
-      expectClose(state.logLik, step.logLik as number[]);
-    }
-    // Final inferred draw distribution — posterior mass per artifact atom.
-    const mass = new Array<number>(reference.atoms.length).fill(0);
-    for (let n = 0; n < state.N; n++) mass[state.atomIndex![n]] += state.w[n];
-    expectClose(mass, reference.atomPosterior as number[]);
+    assertOracleTrajectory(
+      reference, expectedDrawLatentNWayProfile("a".repeat(64)),
+    );
+  });
+});
+
+describe("draw-latent Python oracle parity (QUALIFIED nesting34)", () => {
+  it("uses the exact qualified atom table the oracle ran", () => {
+    expect(referenceNesting34.atoms)
+      .toHaveLength(NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws.length);
+    (referenceNesting34.atoms as [number, number, number][]).forEach(
+      ([beta, distractorLapse, weight], index) => {
+        const draw = NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.draws[index];
+        expect(beta).toBe(draw.beta);
+        expect(distractorLapse).toBe(draw.distractorLapse);
+        expect(weight).toBe(draw.weight);
+      },
+    );
+    // The fixture's atom assignment covers the lambda_d = 1 nesting atom so
+    // its uniform-distractor arithmetic is pinned cross-language.
+    const nesting = referenceNesting34.atoms.length - 1;
+    expect(referenceNesting34.atomAssignment).toContain(nesting);
+    expect(referenceNesting34.atoms[nesting][1]).toBe(1);
+  });
+
+  it("matches every oracle update on the fixed trajectory", () => {
+    assertOracleTrajectory(
+      referenceNesting34,
+      expectedQualifiedDrawLatentNWayProfile("a".repeat(64)),
+    );
   });
 });

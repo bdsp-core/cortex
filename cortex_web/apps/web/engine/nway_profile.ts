@@ -78,6 +78,62 @@ export const NWAY_DRAW_LATENT_ARTIFACT = Object.freeze({
   sourceQualification: "dr07_gate_passed_owner_ratification_pending",
 } as const);
 
+// QUALIFIED draw-latent artifact (construction B, nesting34 grid): 33
+// population-quantile atoms at the out-of-sample heterogeneity (tau = 0.3581)
+// floored at the owner-approved 0.15, plus the lambda_d = 1 binary-nesting
+// atom (uniform-collapse worlds concentrate on it and the engine gracefully
+// becomes binary). Qualified by the amended locked campaign
+// (n-way-protocol/docs/LOCKED_CAMPAIGN_PREREG_DRAW_LATENT.md); the qualified
+// artifact re-emission chains the campaign reports in its provenance.
+// Regenerate with n-way-protocol/scripts/make_engine_profile_constants.py
+// --emit-nesting34 (the generator is validated bit-for-bit against the
+// deployed floor015 table before it is trusted; sha256 is the canonical
+// compact sorted-key JSON of the draws array, the artifact_floor.py
+// discipline).
+export const NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT = Object.freeze({
+  artifactId: "iiic-f1-engine-frame-nesting34-20260730",
+  sha256: "54aa8c76a64419ef7b45f754ae54795d38e4cdbee4b1b1a1a2e91f6d9de42204",
+  robustnessFloor: 0.15,
+  draws: Object.freeze([
+    { beta: 0.45006063466124235, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.5338515402649436, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.5853398826308007, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.6258690320342144, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.6607290307229944, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.6921494038906224, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.7213101670620873, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.7489271433962023, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.7754781123007768, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.8013066377598854, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.826675844787891, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.8517989980396551, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.876858344072989, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.902017659494667, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.9274313358016507, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.9532516141780893, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.9796349974777218, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.0067486002744757, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.03477712175171, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.0639311971129428, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.0944581126131046, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.1266563244284284, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.1608960565787576, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.1976497923017944, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.237539413505655, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.2814126671003527, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.3304744229406797, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.386528288385019, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.4524633906777986, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.533363498053236, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.639534152311454, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 1.7976621886431141, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 2.132345409425831, distractorLapse: 0.15, weight: 0.029411764705882353 },
+    { beta: 0.9796, distractorLapse: 1.0, weight: 0.029411764705882353 },
+  ] satisfies readonly ArtifactDraw[]),
+  approval: "qualified_locked_campaign_20260801",
+  sourceQualification: "locked_campaign_draw_latent_20260801",
+} as const);
+
 export const NWAY_PARTICLE_PROFILE = "production_1200p_ess050_30mh_rd";
 export const NWAY_ENGINE_ALGORITHM = "nway_protocol_0.2.0-rd";
 
@@ -112,6 +168,27 @@ export function expectedDrawLatentNWayProfile(
   };
 }
 
+export const NWAY_QUALIFIED_DRAW_LATENT_PROFILE_ID =
+  "precision_nway_f1_nesting34_draw_latent_v1";
+
+/** The QUALIFIED draw-latent stamp — what the server's fail-closed
+ * response-model rollout assigns to new sittings when active. */
+export function expectedQualifiedDrawLatentNWayProfile(
+  candidateBankSha256: string,
+): NWayProfileStamp {
+  return {
+    engineProfileId: NWAY_QUALIFIED_DRAW_LATENT_PROFILE_ID,
+    responseModel: NWAY_RESPONSE_MODEL,
+    responseArtifactId: NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.artifactId,
+    responseArtifactSha256: NWAY_QUALIFIED_DRAW_LATENT_ARTIFACT.sha256,
+    selectorVersion: NWAY_SELECTOR_VERSION,
+    particleProfileVersion: NWAY_PARTICLE_PROFILE,
+    engineAlgorithmVersion: NWAY_ENGINE_ALGORITHM,
+    candidateBankSha256,
+    responseAggregation: "draw_latent",
+  };
+}
+
 const SHA256 = /^[a-f0-9]{64}$/;
 
 /** Server-authoritative aggregation; absent means the shipping mixture. */
@@ -128,8 +205,14 @@ export function nwayResponseAggregationOf(
 export function validateNWayInputs(inputs: ComputeEngineInputs): NWayProfileStamp {
   const stamp = inputs.nwayProfile;
   if (!stamp) throw new Error("production session is missing its n-way profile stamp");
+  // Two draw-latent stamps exist (the qualified nesting34 default and the
+  // research atoms17 escape); the profile id picks the expected shape, and
+  // any drift from that shape — including an unknown id — still fails the
+  // exact-match loop below.
   const expected = nwayResponseAggregationOf(inputs) === "draw_latent"
-    ? expectedDrawLatentNWayProfile(stamp.candidateBankSha256)
+    ? (stamp.engineProfileId === NWAY_QUALIFIED_DRAW_LATENT_PROFILE_ID
+        ? expectedQualifiedDrawLatentNWayProfile(stamp.candidateBankSha256)
+        : expectedDrawLatentNWayProfile(stamp.candidateBankSha256))
     : expectedNWayProfile(stamp.candidateBankSha256);
   for (const key of Object.keys(expected) as (keyof NWayProfileStamp)[]) {
     if (stamp[key] !== expected[key]) throw new Error(`n-way profile mismatch: ${key}`);

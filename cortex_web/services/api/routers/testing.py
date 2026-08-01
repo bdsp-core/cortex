@@ -100,10 +100,12 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                 503, f"precision_v1 bundle profile incomplete: {','.join(missing)}")
         if drawn["nParticles"] != 1200 or drawn["perDomainCap"] != 60:
             raise HTTPException(503, "precision_v1 bundle profile mismatch")
-        # Refuse-by-default: the qualified production mixture stamp, unless
-        # the explicit non-production research escape is active (see
-        # nway_profile.py — production deployments refuse regardless of env).
-        nway_profile = nway_profile_for_new_session(bank.manifest_sha256)
+        # Refuse-by-default: the fail-closed response-model rollout decides
+        # between the qualified draw-latent stamp and the floor015 mixture
+        # (see nway_profile.py — off/unknown stamp the mixture; the research
+        # escape is unreachable on production deployments regardless of env).
+        nway_profile = nway_profile_for_new_session(
+            bank.manifest_sha256, db=db, cfg=cfg, code=code)
         drawn["nwayProfile"] = nway_profile
     else:
         nway_profile = None

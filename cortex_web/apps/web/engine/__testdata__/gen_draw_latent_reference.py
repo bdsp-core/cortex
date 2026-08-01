@@ -36,12 +36,21 @@ OUT = Path(__file__).resolve().parent / "draw_latent_reference.json"
 ARTIFACT = (
     REPO / "n-way-protocol/artifacts/iiic_conditional_f1_engine_frame_atoms17_rd.json"
 )
+OUT_NESTING34 = (
+    Path(__file__).resolve().parent / "draw_latent_reference_nesting34.json"
+)
+ARTIFACT_NESTING34 = (
+    REPO / "n-way-protocol/artifacts/iiic_conditional_f1_engine_frame_nesting34_rd.json"
+)
 
 K = 7
 N = 6
 GROUP = (1, 2, 3, 4, 5, 6)
 # Spread over the 17 atoms so several distinct betas are exercised.
 ATOM_ASSIGNMENT = (0, 4, 8, 12, 16, 9)
+# Spread over the 34 nesting34 atoms INCLUDING the lambda_d = 1 nesting atom
+# (index 33), so its uniform-distractor arithmetic is pinned cross-language.
+ATOM_ASSIGNMENT_NESTING34 = (0, 8, 16, 24, 32, 33)
 INITIAL_WEIGHTS = (0.10, 0.15, 0.20, 0.25, 0.18, 0.12)
 
 SEGMENTS = (
@@ -68,9 +77,9 @@ OBSERVATIONS = (
 )
 
 
-def production_atoms() -> tuple[tuple[float, float, float], ...]:
-    payload = json.loads(ARTIFACT.read_text())
-    assert payload["variant"] == "engine_frame_hierarchical_atoms17"
+def artifact_atoms(path: Path, variant: str) -> tuple[tuple[float, float, float], ...]:
+    payload = json.loads(path.read_text())
+    assert payload["variant"] == variant
     return tuple(
         (float(d["beta"]), float(d["distractor_lapse"]), float(d["weight"]))
         for d in payload["bootstrap"]["draws"]
@@ -83,8 +92,7 @@ def fixed_cloud_parameters() -> tuple[list[list[float]], list[list[float]]]:
     return t, l
 
 
-def main() -> None:
-    atoms = production_atoms()
+def emit(atoms, atom_assignment, out: Path) -> None:
     t, l = fixed_cloud_parameters()
     cloud = ParticleCloud(
         t=np.asarray(t, dtype=np.float64),
@@ -97,7 +105,7 @@ def main() -> None:
     )
     dcloud = DrawCloud(
         cloud=cloud, atoms=atoms,
-        draw=np.asarray(ATOM_ASSIGNMENT, dtype=np.int64),
+        draw=np.asarray(atom_assignment, dtype=np.int64),
     )
 
     steps = []
@@ -129,7 +137,7 @@ def main() -> None:
         "K": K,
         "group": list(GROUP),
         "atoms": [list(atom) for atom in atoms],
-        "atomAssignment": list(ATOM_ASSIGNMENT),
+        "atomAssignment": list(atom_assignment),
         "t": t,
         "l": l,
         "initialWeights": list(INITIAL_WEIGHTS),
@@ -137,8 +145,19 @@ def main() -> None:
         "steps": steps,
         "atomPosterior": atom_posterior(dcloud),
     }
-    OUT.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"wrote {OUT}")
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"wrote {out}")
+
+
+def main() -> None:
+    emit(
+        artifact_atoms(ARTIFACT, "engine_frame_hierarchical_atoms17"),
+        ATOM_ASSIGNMENT, OUT,
+    )
+    emit(
+        artifact_atoms(ARTIFACT_NESTING34, "engine_frame_hierarchical_nesting34"),
+        ATOM_ASSIGNMENT_NESTING34, OUT_NESTING34,
+    )
 
 
 if __name__ == "__main__":
