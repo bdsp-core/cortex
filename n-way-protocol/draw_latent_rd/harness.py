@@ -49,6 +49,7 @@ from nway_protocol.qualification import (
     ReplicateResult,
     _load_real_bank,
     _precision_bank_view,
+    _precision_eligible,
     _run_arm,
     _select,
     _tercile_band_edges,
@@ -159,12 +160,25 @@ def _run_categorical_draw_latent(
         )
         identity = np.eye(7).tolist()
         precision_client.init_session(session_id, identity, identity, band_edges)
+    last_asked, streak = -1, 0
     while np.any(counts[1:] < config.own_cap):
         if precision_client is not None and not remaining:
             break
+        eligible = None
+        if config.stopping == "precision":
+            # qualification.py::_run_arm verbatim: production-faithful
+            # ACTIVE-only selection with the advance.ts variety semantics.
+            eligible = _precision_eligible(
+                last_result, counts, config, last_asked, streak,
+            )
+            if not eligible:
+                break
         asked_k, segment_index = _select(
-            dcloud.cloud, "categorical_f1", remaining, counts, s_mean, s_sd, config,
+            dcloud.cloud, "categorical_f1", remaining, counts, s_mean, s_sd,
+            config, eligible,
         )
+        streak = streak + 1 if asked_k == last_asked else 1
+        last_asked = asked_k
         truth_probabilities = f1_probabilities(
             truth_t, truth_l, s_mean[segment_index], s_sd[segment_index],
             asked_k, IIIC_GROUP, world_beta, world_lapse,
@@ -296,6 +310,11 @@ CELLS = {
     "continuum33": ("atoms33", {"lognormal": True}),
     "stress190": ("widened33", {"truth_beta": 1.903}),
     "collapse_nest": ("nesting34", {"truth_distractor_lapse": 1.0}),
+    # Locked-campaign cells (docs/LOCKED_CAMPAIGN_PREREG_DRAW_LATENT.md): the
+    # promotion-candidate nesting34 grid against the pre-registered worlds.
+    "campaign_continuum34": ("nesting34", {"lognormal": True}),
+    "campaign_stress190_34": ("nesting34", {"truth_beta": 1.903}),
+    "campaign_collapse34": ("nesting34", {"truth_distractor_lapse": 1.0}),
 }
 
 
@@ -310,6 +329,7 @@ def main() -> None:
     )
     parser.add_argument("--real-bank", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--rows-output", type=Path)
     args = parser.parse_args()
 
     atom_name, overrides = CELLS[args.cell]
@@ -364,6 +384,26 @@ def main() -> None:
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    if args.rows_output:
+        # qualification.py rows-output discipline: config header line, then
+        # one row per arm-replicate with null optionals omitted.
+        from dataclasses import asdict
+        args.rows_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.rows_output.open("w") as handle:
+            handle.write(json.dumps({
+                "config": asdict(config), "seed_base": args.seed_base,
+                "cell": args.cell,
+            }, sort_keys=True) + "\n")
+            for binary, categorical, diagnostic in results:
+                for row in (binary, categorical):
+                    payload = {
+                        key: value for key, value in asdict(row).items()
+                        if value is not None
+                    }
+                    handle.write(json.dumps(payload, sort_keys=True) + "\n")
+                handle.write(json.dumps(
+                    {"diagnostics": diagnostic, "seed": binary.seed},
+                    sort_keys=True) + "\n")
     nw = summary["arms"]["categorical_f1"]
     print(json.dumps({
         "cell": args.cell,
