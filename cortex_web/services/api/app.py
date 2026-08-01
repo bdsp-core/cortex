@@ -171,6 +171,15 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 "CORTEX_PRECISION_COMPUTE_EMAILS",
                 ",".join(sorted(config.PRECISION_COMPUTE_EMAILS))).split(",")
             if x.strip()),
+        "nway_response_rollout": os.environ.get(
+            "CORTEX_NWAY_RESPONSE_ROLLOUT",
+            config.NWAY_RESPONSE_ROLLOUT).strip().lower(),
+        "nway_response_emails": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_NWAY_RESPONSE_EMAILS",
+                ",".join(sorted(config.NWAY_RESPONSE_EMAILS))).split(",")
+            if x.strip()),
         "percentile_mode": os.environ.get(
             "CORTEX_PERCENTILE_MODE", config.PERCENTILE_MODE).strip().lower(),
         "percentile_allowlist": frozenset(

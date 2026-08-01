@@ -104,6 +104,23 @@ PRECISION_COMPUTE_EMAILS = frozenset(
     if x.strip()
 )
 
+# N-way response-model rollout: which response model a NEW precision sitting
+# is stamped with.
+#   "all"             — every new precision sitting gets the qualified
+#                       draw-latent profile
+#   "email_allowlist" — only normalized emails in NWAY_RESPONSE_EMAILS
+#   "off"             — every new sitting keeps the floor015 mixture stamp
+# OFF is deliberately the default; unknown values fail closed to the mixture
+# in nway_profile.py. Existing sittings always retain their persisted stamp,
+# so flipping this changes only new-session assignment.
+NWAY_RESPONSE_ROLLOUT = os.environ.get(
+    "CORTEX_NWAY_RESPONSE_ROLLOUT", "off").strip().lower()
+NWAY_RESPONSE_EMAILS = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_NWAY_RESPONSE_EMAILS", "").split(",")
+    if x.strip()
+)
+
 # Provisional historical percentile rollout. OFF is deliberately the default.
 # Public exposure (cohort/all) also requires CORTEX_PERCENTILE_RELEASE_SHA256
 # to equal the verified runtime binary hash; shadow calculates and stores

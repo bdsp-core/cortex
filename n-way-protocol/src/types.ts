@@ -2,6 +2,18 @@ export type ResponseModelName = "binary_ovr_v1" | "iiic_conditional_f1_v1";
 export type ResponseLink = "binary" | "categorical_f1";
 export type ArtifactQualification = "exploratory_unqualified" | "qualified";
 
+/**
+ * How the artifact ensemble enters the categorical likelihood.
+ *
+ * - "mixture": every particle scores the pick under the fixed-weight
+ *   average across draws (the shipping behavior, and the default).
+ * - "draw_latent": each particle carries an artifact-atom index and scores
+ *   the pick under its own atom's (beta, distractorLapse); atom indices
+ *   ride resampling as lineage and never move during MH rejuvenation
+ *   (construction B, ported from draw_latent_rd/engine.py).
+ */
+export type ResponseAggregation = "mixture" | "draw_latent";
+
 export interface ResponseGroup {
   id: string;
   link: ResponseLink;
@@ -64,6 +76,8 @@ export interface EngineProfile {
   engineAlgorithmVersion: string;
   candidateBankSha256: string;
   responseGroups: ResponseGroup[];
+  /** Absent means "mixture" so every existing profile is untouched. */
+  responseAggregation?: ResponseAggregation;
 }
 
 export interface ProtocolSegment {
@@ -123,6 +137,11 @@ export interface ProtocolParticleState {
   history: Observation[];
   prior: PriorPair;
   lastRejuvenation?: RejuvenationTelemetry;
+  /**
+   * Per-particle artifact-atom lineage (draw-latent aggregation only).
+   * Entry n indexes into the normalized artifact draws for particle n.
+   */
+  atomIndex?: Int32Array;
 }
 
 export interface Candidate {
@@ -145,4 +164,5 @@ export interface ProfileStamp {
   engineAlgorithmVersion: string;
   selectorVersion: EngineProfile["selectorVersion"];
   candidateBankSha256: string;
+  responseAggregation: ResponseAggregation;
 }

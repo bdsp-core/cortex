@@ -1,0 +1,85 @@
+{
+  "alternatives": {
+    "half_drift_beta": {
+      "median_wrong_picks_to_trip": 42.0,
+      "p90_wrong_picks_to_trip": 79.0,
+      "trip_rate": 0.568,
+      "truth_beta_scale": 0.5,
+      "truth_lapse": 0.0
+    },
+    "half_drift_lapse": {
+      "median_wrong_picks_to_trip": 40.0,
+      "p90_wrong_picks_to_trip": 77.0,
+      "trip_rate": 0.6785,
+      "truth_beta_scale": 1.0,
+      "truth_lapse": 0.5
+    },
+    "uniform_n3b": {
+      "median_wrong_picks_to_trip": 15.0,
+      "p90_wrong_picks_to_trip": 28.0,
+      "trip_rate": 1.0,
+      "truth_beta_scale": 1.0,
+      "truth_lapse": 1.0
+    }
+  },
+  "config": {
+    "artifact": "iiic_conditional_f1_engine_frame_rd.json",
+    "draws": [
+      [
+        0.6507521668020948,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.7641768734924311,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.8420506304235982,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.9111635676885641,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        0.9796349974777218,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.0532518664214154,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.1396995544085053,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.2558411037712216,
+        0.15,
+        0.1111111111111111
+      ],
+      [
+        1.474731514148047,
+        0.15,
+        0.1111111111111111
+      ]
+    ],
+    "false_trip_target": 0.01,
+    "n_axes": 4000,
+    "seed": 63800001,
+    "sessions": 2000,
+    "wrong_picks_per_session": 90
+  },
+  "null_false_trip_rate": 0.01,
+  "null_mean_increment": 0.4083544950947465,
+  "schema_version": 1,
+  "status": "research_only_reference_monitor",
+  "threshold": 5.20371549979207
+}

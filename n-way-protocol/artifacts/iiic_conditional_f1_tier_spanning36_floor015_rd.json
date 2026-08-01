@@ -1,0 +1,96 @@
+{
+  "bootstrap": {
+    "betaInterval95": [
+      0.8452536169305945,
+      2.3150580914650916
+    ],
+    "clusterBy": "reader",
+    "distractorLapseInterval95": [
+      0.15,
+      0.15
+    ],
+    "draws": [
+      {
+        "beta": 0.8452536169305945,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 0.980268999362602,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.1103572030755766,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.568871354807507,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.6838274954256485,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.7454909059728898,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.828504817556338,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 1.941862509022221,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      },
+      {
+        "beta": 2.3150580914650916,
+        "distractor_lapse": 0.15,
+        "weight": 0.1111111111111111
+      }
+    ]
+  },
+  "model": "iiic_conditional_f1_v1_artifact_ensemble",
+  "nWrongPicks": 68783,
+  "promotionForbidden": true,
+  "provenance": {
+    "input": "categorical_wrong_picks_leakage_controlled.csv",
+    "input_sha256": "e63ed6060a9849f8f4d59a2f4b33a7cbc2fbe9c600f38f6378cc5b3d3a1bdda8"
+  },
+  "robustnessFloor": 0.15,
+  "schemaVersion": 1,
+  "status": "research_only_not_promoted",
+  "tiers": {
+    "expert": {
+      "bootstrap_draws": 200,
+      "n_wrong_picks": 5076,
+      "seed": 63300002,
+      "selected_betas": [
+        1.568871354807507,
+        1.6838274954256485,
+        1.7454909059728898,
+        1.828504817556338,
+        1.941862509022221,
+        2.3150580914650916
+      ]
+    },
+    "novice": {
+      "bootstrap_draws": 200,
+      "n_wrong_picks": 63707,
+      "seed": 63300003,
+      "selected_betas": [
+        0.8452536169305945,
+        0.980268999362602,
+        1.1103572030755766
+      ]
+    }
+  },
+  "variant": "tier_spanning_floored"
+}

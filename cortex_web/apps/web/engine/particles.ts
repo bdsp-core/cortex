@@ -3,7 +3,8 @@
 // mh_rejuvenate from engine/core_mcmc.py.
 
 import type {
-  PackedParticleHistory, ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
+  NWayPreparedAtom, NWayResponseRuntime, PackedParticleHistory,
+  ParticleObservation, ParticlePhaseTimingV2, ParticleState, PriorPair,
 } from "./types";
 import { logPResponse, signalZ, signalZFromScale } from "./likelihood";
 import {
@@ -24,6 +25,7 @@ export function makeState(
   K: number,
   prior: PriorPair,
   rng: Rng,
+  responseRuntime?: NWayResponseRuntime,
 ): ParticleState {
   const t = new Float64Array(N * K);
   const l = new Float64Array(N * K);
@@ -31,10 +33,78 @@ export function makeState(
   const logPrior = new Float64Array(N);
   const logLik = new Float64Array(N);
   samplePrior(N, prior.tPieces, prior.lPieces, rng, t, l, logPrior);
-  return {
+  const state: ParticleState = {
     N, K, t, l, w, logPrior, logLik, history: [],
     packedHistory: makePackedHistory(K), prior,
   };
+  if (responseRuntime) {
+    state.responseRuntime = responseRuntime;
+    if (responseRuntime.aggregation === "draw_latent") {
+      // Atom init: one categorical draw per particle from the artifact
+      // weights, taken at cloud creation AFTER the prior sample (mirrors
+      // make_draw_cloud in n-way-protocol draw_latent_rd/engine.py). The
+      // mixture path never reaches this branch, so it consumes no RNG.
+      state.atomIndex = sampleAtomLineage(N, responseRuntime.atoms, rng);
+    }
+  }
+  return state;
+}
+
+/** Categorical lineage draw from normalized atom weights (draw-latent only). */
+export function sampleAtomLineage(
+  particleCount: number,
+  atoms: readonly { weight: number }[],
+  rng: Rng,
+): Int32Array {
+  if (atoms.length === 0) throw new Error("atom lineage requires at least one atom");
+  const atomIndex = new Int32Array(particleCount);
+  for (let n = 0; n < particleCount; n++) {
+    const u = rng.random();
+    let cumulative = 0;
+    let chosen = atoms.length - 1;
+    for (let d = 0; d < atoms.length; d++) {
+      cumulative += atoms[d].weight;
+      if (u < cumulative) {
+        chosen = d;
+        break;
+      }
+    }
+    atomIndex[n] = chosen;
+  }
+  return atomIndex;
+}
+
+/**
+ * Resolve the per-particle atom table for draw-latent aggregation, or
+ * undefined for every mixture path. Fails closed: a draw-latent state without
+ * a complete in-range lineage — or a mixture state carrying one — never
+ * reaches a likelihood evaluation.
+ */
+function activeAtomDraws(
+  st: ParticleState,
+): readonly NWayPreparedAtom[] | undefined {
+  const runtime = st.responseRuntime;
+  if (!runtime || runtime.aggregation !== "draw_latent") {
+    if (st.atomIndex) {
+      throw new PosteriorUpdateError(
+        "mixture-aggregation state must not carry atom lineage",
+      );
+    }
+    return undefined;
+  }
+  if (!st.atomIndex || st.atomIndex.length !== st.N) {
+    throw new PosteriorUpdateError(
+      "draw-latent state is missing per-particle atom lineage",
+    );
+  }
+  const atoms = runtime.atoms;
+  for (let n = 0; n < st.N; n++) {
+    const atom = st.atomIndex[n];
+    if (atom < 0 || atom >= atoms.length) {
+      throw new PosteriorUpdateError("atom lineage index is outside the artifact atoms");
+    }
+  }
+  return atoms;
 }
 
 function makePackedHistory(K: number, capacity = 16): PackedParticleHistory {
@@ -148,6 +218,9 @@ export function cloneState(st: ParticleState): ParticleState {
       : {}),
     prior: st.prior,
     ...(st.lastRejuvenation ? { lastRejuvenation: { ...st.lastRejuvenation } } : {}),
+    // Atom lineage is per-branch state; the runtime (like prior) is immutable.
+    ...(st.atomIndex ? { atomIndex: st.atomIndex.slice() } : {}),
+    ...(st.responseRuntime ? { responseRuntime: st.responseRuntime } : {}),
   };
 }
 
@@ -218,6 +291,9 @@ export function updateObservation(
   st: ParticleState, observation: ParticleObservation,
   timing?: ParticlePhaseTimingV2,
 ): void {
+  // Fail closed on inconsistent aggregation state BEFORE any evidence lands;
+  // binary observations are atom-independent in both aggregation modes.
+  const atoms = activeAtomDraws(st);
   if (observation.kind === "binary") {
     update(st, observation.k, observation.s, observation.y, observation.sSd);
     st.history[st.history.length - 1] = { ...observation };
@@ -233,13 +309,16 @@ export function updateObservation(
   let maximumLogWeight = -Infinity;
   const likelihood = new Float64Array(N);
   const nextLogLik = new Float64Array(N);
-  const likelihoodWorkspace = makeObservationLikelihoodWorkspace();
+  const likelihoodWorkspace = makeObservationLikelihoodWorkspace(
+    st.responseRuntime?.atoms.length,
+  );
   for (let n = 0; n < N; n++) {
     if (!Number.isFinite(w[n]) || w[n] < 0 || !Number.isFinite(logLik[n])) {
       throw new PosteriorUpdateError("pre-update particle state is invalid");
     }
     const lp = logObservationProbability(
       observation, st.t, st.l, n, K, likelihoodWorkspace,
+      st.responseRuntime, atoms && atoms[st.atomIndex![n]],
     );
     const cumulative = logLik[n] + lp;
     if (!Number.isFinite(lp) || !Number.isFinite(cumulative)) {
@@ -295,9 +374,10 @@ export interface PackedHistoryLikelihoodScratch {
 
 export function makePackedHistoryLikelihoodScratch(
   valueCount = 0,
+  mixtureSize?: number,
 ): PackedHistoryLikelihoodScratch {
   return {
-    likelihoodWorkspace: makeObservationLikelihoodWorkspace(),
+    likelihoodWorkspace: makeObservationLikelihoodWorkspace(mixtureSize),
     skillScale: new Float64Array(valueCount),
   };
 }
@@ -310,13 +390,34 @@ export function logLikPackedHistory(
   lNew: Float64Array,
   out: Float64Array,
   scratch?: PackedHistoryLikelihoodScratch,
+  runtime?: NWayResponseRuntime,
+  atomIndex?: Int32Array,
 ): void {
   if (tNew.length !== N * K || lNew.length !== N * K || out.length !== N) {
     throw new Error("packed history likelihood shard dimensions are invalid");
   }
+  // Fail-closed lineage contract: per-atom replay requires a complete,
+  // in-range shard lineage; lineage without draw-latent aggregation is a bug.
+  let atoms: readonly NWayPreparedAtom[] | undefined;
+  if (runtime?.aggregation === "draw_latent") {
+    if (!atomIndex || atomIndex.length !== N) {
+      throw new Error("draw-latent history replay is missing per-particle atom lineage");
+    }
+    atoms = runtime.atoms;
+    for (let n = 0; n < N; n++) {
+      if (atomIndex[n] < 0 || atomIndex[n] >= atoms.length) {
+        throw new Error("atom lineage index is outside the artifact atoms");
+      }
+    }
+  } else if (atomIndex) {
+    throw new Error("atom lineage requires draw-latent aggregation");
+  }
   out.fill(0);
-  const likelihoodWorkspace = scratch?.likelihoodWorkspace
-    ?? makeObservationLikelihoodWorkspace();
+  let likelihoodWorkspace = scratch?.likelihoodWorkspace
+    ?? makeObservationLikelihoodWorkspace(runtime?.atoms.length);
+  if (runtime && likelihoodWorkspace.mixture.length < runtime.atoms.length) {
+    likelihoodWorkspace = makeObservationLikelihoodWorkspace(runtime.atoms.length);
+  }
   let skillScale = scratch?.skillScale;
   if (!skillScale || skillScale.length !== lNew.length) {
     skillScale = new Float64Array(lNew.length);
@@ -346,6 +447,7 @@ export function logLikPackedHistory(
           taskK, pickK,
           history.signalMean, history.signalSd, signalOffset,
           tNew, lNew, n, K, likelihoodWorkspace, skillScale,
+          runtime, atoms && atoms[atomIndex![n]],
         );
       }
     }
@@ -359,7 +461,10 @@ function logLikHistory(
   lNew: Float64Array,
   out: Float64Array,
 ): void {
-  logLikPackedHistory(ensurePackedHistory(st), st.N, st.K, tNew, lNew, out);
+  logLikPackedHistory(
+    ensurePackedHistory(st), st.N, st.K, tNew, lNew, out,
+    undefined, st.responseRuntime, st.atomIndex,
+  );
 }
 
 // Multinomial resample, then n MH-rejuvenation steps. proposalScale =
@@ -387,6 +492,13 @@ export function resampleAndRejuvenate(
     l2.set(st.l.subarray(src * K, src * K + K), n * K);
     lp2[n] = st.logPrior[src];
     ll2[n] = st.logLik[src];
+  }
+  if (st.atomIndex) {
+    // Atom indices ride ancestor selection as lineage; the MH sweep below
+    // proposes (t, l) only, so the lineage is fixed for the rest of the sweep.
+    const atomIndex = new Int32Array(N);
+    for (let n = 0; n < N; n++) atomIndex[n] = st.atomIndex[idx[n]];
+    st.atomIndex = atomIndex;
   }
   st.t = t2;
   st.l = l2;
@@ -513,6 +625,12 @@ export async function resampleAndRejuvenateWithExecutor(
     lp2[n] = st.logPrior[src];
     ll2[n] = st.logLik[src];
   }
+  if (st.atomIndex) {
+    // Same lineage transport as the synchronous path above.
+    const atomIndex = new Int32Array(N);
+    for (let n = 0; n < N; n++) atomIndex[n] = st.atomIndex[idx[n]];
+    st.atomIndex = atomIndex;
+  }
   st.t = t2;
   st.l = l2;
   st.logPrior = lp2;
@@ -572,15 +690,23 @@ export async function resampleAndRejuvenateWithExecutor(
     const historyStartedAt = performance.now();
     if (parallelAvailable) {
       try {
-        llNew.set(await executor.historyLikelihood(history, N, K, tNew, lNew));
+        llNew.set(await executor.historyLikelihood(
+          history, N, K, tNew, lNew, st.atomIndex,
+        ));
       } catch (error) {
         if (isSpeculationCancelled(error)) throw error;
         executor.dispose();
         parallelAvailable = false;
-        logLikPackedHistory(history, N, K, tNew, lNew, llNew);
+        logLikPackedHistory(
+          history, N, K, tNew, lNew, llNew,
+          undefined, st.responseRuntime, st.atomIndex,
+        );
       }
     } else {
-      logLikPackedHistory(history, N, K, tNew, lNew, llNew);
+      logLikPackedHistory(
+        history, N, K, tNew, lNew, llNew,
+        undefined, st.responseRuntime, st.atomIndex,
+      );
     }
     if (timing) timing.mhHistoryLikelihoodMs += performance.now() - historyStartedAt;
     await speculationCancellationCheckpoint(cancellationSignal);

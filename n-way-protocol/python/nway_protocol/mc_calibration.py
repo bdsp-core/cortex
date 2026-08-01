@@ -90,7 +90,7 @@ def _qualification_config(config: MCCalibrationConfig) -> QualificationConfig:
 def _make_fixed_history(seed: int, config: MCCalibrationConfig):
     """Generate one frozen categorical history with the baseline profile."""
     qualification = _qualification_config(config)
-    truth_t, truth_l, s_mean, s_sd = _truth_and_bank(seed, qualification)
+    truth_t, truth_l, s_mean, s_sd, _ = _truth_and_bank(seed, qualification)
     cloud = make_cloud(
         config.history_particles,
         np.eye(7),

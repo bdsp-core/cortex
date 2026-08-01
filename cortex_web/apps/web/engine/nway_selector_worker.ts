@@ -1,4 +1,5 @@
 import { unpackComputeInputs } from "./compute_payload";
+import { nwayResponseRuntimeFor } from "./nway_likelihood";
 import {
   scoreNWayCandidateLosses, screenNWayDomain,
   type NWayCandidate,
@@ -6,7 +7,7 @@ import {
 import type {
   NWaySelectorWorkerRequest, NWaySelectorWorkerResponse,
 } from "./nway_selector_protocol";
-import type { ComputeEngineInputs } from "./types";
+import type { ComputeEngineInputs, NWayResponseRuntime } from "./types";
 import {
   logLikPackedHistory, makePackedHistoryLikelihoodScratch,
   type PackedHistoryLikelihoodScratch,
@@ -14,6 +15,7 @@ import {
 
 let inputs: ComputeEngineInputs | null = null;
 let segmentsById: Map<number, ComputeEngineInputs["segments"][number]> | null = null;
+let responseRuntime: NWayResponseRuntime | undefined;
 let cachedHistory: Extract<
   NWaySelectorWorkerRequest, { type: "history_likelihood" }
 >["history"] = undefined;
@@ -29,9 +31,14 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
     if (message.type === "init") {
       inputs = unpackComputeInputs(message.payload);
       segmentsById = new Map(inputs.segments.map((segment) => [segment.segId, segment]));
+      // Same profile-stamp resolution as the coordinator: undefined on every
+      // mixture session, the research atoms runtime on a draw-latent stamp.
+      responseRuntime = nwayResponseRuntimeFor(inputs);
       cachedHistory = undefined;
       cachedHistoryVersion = null;
-      historyLikelihoodScratch = makePackedHistoryLikelihoodScratch();
+      historyLikelihoodScratch = makePackedHistoryLikelihoodScratch(
+        0, responseRuntime?.atoms.length,
+      );
       post({ type: "ready" });
       return;
     }
@@ -57,9 +64,15 @@ self.onmessage = (event: MessageEvent<NWaySelectorWorkerRequest>) => {
       } else if (!cachedHistory || cachedHistoryVersion !== message.historyVersion) {
         throw new Error("n-way history worker cache is unavailable or stale");
       }
+      // Fail closed on any lineage/profile disagreement between the shard
+      // and this worker's server-authoritative stamp.
+      if (responseRuntime ? !message.atomIndex : !!message.atomIndex) {
+        throw new Error("history shard atom lineage does not match the session profile");
+      }
       logLikPackedHistory(
         cachedHistory, message.N, message.K,
         message.t, message.l, message.logLikelihood, historyLikelihoodScratch,
+        responseRuntime, message.atomIndex,
       );
       post({
         type: "history_result", jobId: message.jobId,

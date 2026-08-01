@@ -1032,6 +1032,79 @@ def test_precision_compute_rollout_is_server_owned_and_resume_stable(client):
     assert fallback["computeMode"] == "serial"
 
 
+def test_nway_response_rollout_stamps_and_legacy_sittings_supersede(client):
+    """The response-model rollout is server-owned and fail-closed; the
+    retired legacy unfloored stamp ends sittings SOFTLY (active: null →
+    fresh start supersedes), never with an opaque error."""
+    from api.nway_profile import (
+        production_nway_profile, qualified_draw_latent_nway_profile,
+    )
+
+    client.app.state.cfg["precision_policy_rollout"] = "all"
+    pilot_email, pilot_pw = _make_participant(client)
+    db = client.app.state.db
+    pilot_code = db.get_participant_by_email(pilot_email)["code"]
+    db.update_email(pilot_code, "response-pilot@example.test")
+    hdr = _auth_header(client, "RESPONSE-PILOT@EXAMPLE.TEST", pilot_pw)
+    bank_sha = client.app.state.get_precision_bank().manifest_sha256
+
+    # Default (off) and unknown rollout values stamp the floor015 mixture.
+    for rollout in ("off", "unexpected"):
+        client.app.state.cfg["nway_response_rollout"] = rollout
+        body = client.post("/api/session", headers=hdr,
+                           json={"participant": {}, "sampleSeed": 601}).json()
+        assert body["bank"]["nwayProfile"] == production_nway_profile(bank_sha)
+
+    # email_allowlist: only the allowlisted account gets the qualified
+    # draw-latent stamp.
+    client.app.state.cfg["nway_response_rollout"] = "email_allowlist"
+    client.app.state.cfg["nway_response_emails"] = frozenset({
+        "response-pilot@example.test",
+    })
+    body = client.post("/api/session", headers=hdr,
+                       json={"participant": {}, "sampleSeed": 602}).json()
+    assert body["bank"]["nwayProfile"] == (
+        qualified_draw_latent_nway_profile(bank_sha))
+    assert (json.loads(db.get_session(body["sessionId"])["nway_profile"])
+            == qualified_draw_latent_nway_profile(bank_sha))
+
+    other_email, other_pw = _make_participant(client)
+    other_code = db.get_participant_by_email(other_email)["code"]
+    db.update_email(other_code, "not-listed@example.test")
+    other_hdr = _auth_header(client, "NOT-LISTED@EXAMPLE.TEST", other_pw)
+    other = client.post("/api/session", headers=other_hdr,
+                        json={"participant": {}, "sampleSeed": 603}).json()
+    assert other["bank"]["nwayProfile"] == production_nway_profile(bank_sha)
+
+    # A draw-latent sitting keeps its stamp on resume even after the rollout
+    # is switched off: rollback changes only new-session assignment.
+    first_seg = body["bank"]["segments"][0]["segId"]
+    assert client.post("/api/progress", headers=hdr, json={
+        "sessionId": body["sessionId"],
+        "trial": {"trialIndex": 0, "segId": first_seg, "taskK": 0, "pick": 0},
+    }).status_code == 200
+    client.app.state.cfg["nway_response_rollout"] = "off"
+    active = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert active["bank"]["nwayProfile"] == (
+        qualified_draw_latent_nway_profile(bank_sha))
+
+    # Plant the retired 2026-07 legacy unfloored stamp on the open sitting:
+    # resume is refused SOFTLY (nothing to resume), and the next new sitting
+    # supersedes it — the owner-accepted clean restart path.
+    legacy = production_nway_profile(bank_sha)
+    legacy["engineProfileId"] = "precision_nway_f1_ensemble9_fisher_v1"
+    legacy["responseArtifactId"] = "iiic-f1-crossfit-ensemble9-rd-20260720"
+    with db._connection() as conn:
+        conn.execute(db._q(
+            "UPDATE sessions SET nway_profile=? WHERE session_id=?"),
+            (json.dumps(legacy), body["sessionId"]))
+    assert client.get("/api/session/active", headers=hdr).json()["active"] is None
+    replacement = client.post("/api/session", headers=hdr,
+                              json={"participant": {}, "sampleSeed": 604})
+    assert replacement.status_code == 200, replacement.text
+    assert db.get_session(body["sessionId"])["status"] == "superseded"
+
+
 def test_progress_rejects_foreign_session(client):
     code_a, pw_a = _make_participant(client)
     code_b, pw_b = _make_participant(client)

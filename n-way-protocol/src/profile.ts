@@ -65,7 +65,8 @@ export function validateProfile(
   if (profile.responseModel === "binary_ovr_v1") {
     if (categorical || profile.responseArtifactId !== null
         || profile.responseArtifactSha256 !== null
-        || profile.selectorVersion !== "binary_totalvar_v1") {
+        || profile.selectorVersion !== "binary_totalvar_v1"
+        || (profile.responseAggregation ?? "mixture") !== "mixture") {
       throw new Error("binary profile contains categorical configuration");
     }
     return;
@@ -97,6 +98,7 @@ export function profileStamp(profile: EngineProfile): ProfileStamp {
     engineAlgorithmVersion: profile.engineAlgorithmVersion,
     selectorVersion: profile.selectorVersion,
     candidateBankSha256: profile.candidateBankSha256,
+    responseAggregation: profile.responseAggregation ?? "mixture",
   };
 }
 

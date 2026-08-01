@@ -1,0 +1,89 @@
+{
+  "checks": {
+    "identifiability": {
+      "beta_curvature": 21980.82791743901,
+      "lapse_profile_slope_at_zero": 74.68616458936594,
+      "mode": "boundary_lambda_zero",
+      "pass": true
+    },
+    "split_half_stability": {
+      "beta_relative_difference": 0.050441534462395375,
+      "half_a": {
+        "beta": 1.1813358780904362,
+        "distractor_lapse": 0.0008486636351562533,
+        "n_wrong_picks": 27222
+      },
+      "half_b": {
+        "beta": 1.1232133777363977,
+        "distractor_lapse": 0.0,
+        "n_wrong_picks": 31136
+      },
+      "pass": false
+    },
+    "state_coverage": {
+      "min_count": 656,
+      "pass": true,
+      "states": {
+        "1->2": 1031,
+        "1->3": 1006,
+        "1->4": 1036,
+        "1->5": 674,
+        "1->6": 2915,
+        "2->1": 2485,
+        "2->3": 2736,
+        "2->4": 2958,
+        "2->5": 1703,
+        "2->6": 4025,
+        "3->1": 2770,
+        "3->2": 1734,
+        "3->4": 1082,
+        "3->5": 1780,
+        "3->6": 4805,
+        "4->1": 1437,
+        "4->2": 2436,
+        "4->3": 1311,
+        "4->5": 2869,
+        "4->6": 1988,
+        "5->1": 1403,
+        "5->2": 1376,
+        "5->3": 1899,
+        "5->4": 2136,
+        "5->6": 2011,
+        "6->1": 2046,
+        "6->2": 1326,
+        "6->3": 1882,
+        "6->4": 842,
+        "6->5": 656
+      }
+    }
+  },
+  "criterion_doc": "docs/DR07_CRITERION.md",
+  "frame": "engine",
+  "gate": "dr07_f1_conditional_v1",
+  "n_readers": 124,
+  "n_wrong_picks": 58358,
+  "pooled_fit": {
+    "beta": 1.1489684552796628,
+    "distractor_lapse": 0.0
+  },
+  "provenance": {
+    "source_sha256": {
+      "../data/labels/external/centaur_2025/case_id_to_seg_id.csv": "a16a9cabd6982d2459ccc060acb2e2964b3fe1e60696cb1ee92545bf60b9d48d",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_expert_labels.xlsx": "385392a74543e251c4e803142668fe0d238b4d493781e50ad3d19eccb6426cb7",
+      "../data/labels/external/centaur_iiic_goldpanel_raw/centaur_iiic_novice_labels.csv": "869fc749a305f3452a168ac55135b37e15ffee148c0f282a90da7b7f0101d9e9",
+      "../data/labels/segment_signals.csv": "54570b867bc5c6b1c18309bf47eeaab7594207c55a1f0dd874d4261bb92884e5"
+    }
+  },
+  "schema_version": 1,
+  "subset_rule": {
+    "interior_abs_l_max": 2.5,
+    "min_reads": 100,
+    "min_wrong_picks": 30
+  },
+  "thresholds": {
+    "beta_rel_tol": 0.05,
+    "condition_max": 10000.0,
+    "min_state_count": 5
+  },
+  "verdict": "fail"
+}

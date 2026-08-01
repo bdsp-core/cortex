@@ -15,6 +15,8 @@ export interface ProtocolStateSnapshot {
   logLik: Float64Array;
   history: Observation[];
   lastRejuvenation?: RejuvenationTelemetry;
+  /** Per-particle artifact-atom lineage (draw-latent aggregation only). */
+  atomIndex?: Int32Array;
 }
 
 export function snapshotProtocolState(
@@ -35,6 +37,7 @@ export function snapshotProtocolState(
     ...(state.lastRejuvenation
       ? { lastRejuvenation: { ...state.lastRejuvenation } }
       : {}),
+    ...(state.atomIndex ? { atomIndex: state.atomIndex.slice() } : {}),
   };
 }
 
@@ -52,6 +55,13 @@ export function restoreProtocolState(
       || prior.lPieces.K !== snapshot.K) {
     throw new Error("invalid protocol snapshot dimensions");
   }
+  if (snapshot.profile.responseAggregation === "draw_latent") {
+    if (!snapshot.atomIndex || snapshot.atomIndex.length !== snapshot.N) {
+      throw new Error("draw-latent snapshot is missing per-particle atom lineage");
+    }
+  } else if (snapshot.atomIndex) {
+    throw new Error("mixture snapshot must not carry atom lineage");
+  }
   return {
     N: snapshot.N,
     K: snapshot.K,
@@ -65,6 +75,7 @@ export function restoreProtocolState(
     ...(snapshot.lastRejuvenation
       ? { lastRejuvenation: { ...snapshot.lastRejuvenation } }
       : {}),
+    ...(snapshot.atomIndex ? { atomIndex: snapshot.atomIndex.slice() } : {}),
   };
 }
 

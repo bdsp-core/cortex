@@ -69,6 +69,46 @@ export type ComputeEngineInputs = EngineInputs<ComputeSegmentMeta>;
 export const NWAY_RESPONSE_MODEL = "iiic_conditional_f1_v1" as const;
 export const NWAY_SELECTOR_VERSION = "categorical_fisher_totalvar_v1" as const;
 
+/**
+ * How the response-artifact ensemble enters the categorical likelihood.
+ *
+ * - "mixture": every particle scores the pick under the fixed-weight average
+ *   across draws (the shipping behavior; absent means "mixture" so every
+ *   existing stamp is untouched).
+ * - "draw_latent": each particle carries an artifact-atom index and scores the
+ *   pick under its own atom's (beta, distractorLapse); atom indices ride
+ *   resampling as lineage and never move during MH rejuvenation
+ *   (construction B, ported from n-way-protocol draw_latent_rd/engine.py).
+ */
+export type NWayResponseAggregation = "mixture" | "draw_latent";
+
+/** One artifact atom with its observation-invariant log-domain terms
+ * precomputed (identical arithmetic to the frozen history-draw preparation). */
+export interface NWayPreparedAtom {
+  beta: number;
+  distractorLapse: number;
+  weight: number;
+  logWeight: number;
+  uniformLogProbability: number;
+  directedLogProbability: number;
+}
+
+/**
+ * Profile-resolved response-model runtime. Absent on a ParticleState means the
+ * frozen NWAY_ARTIFACT mixture path — byte-identical to the shipped engine.
+ * Present, it names the artifact whose atoms the session scores under:
+ * aggregation "draw_latent" scores each particle under its own atom (the state
+ * must carry atomIndex lineage); aggregation "mixture" mixes the same table
+ * with fixed weights (the degenerate-reduction test harness path).
+ */
+export interface NWayResponseRuntime {
+  aggregation: NWayResponseAggregation;
+  artifactId: string;
+  atoms: readonly NWayPreparedAtom[];
+  /** Single moment-matched draw used only by the cheap Fisher shortlist screen. */
+  screen: readonly { beta: number; distractorLapse: number; weight: number }[];
+}
+
 export interface NWayProfileStamp {
   engineProfileId: string;
   responseModel: typeof NWAY_RESPONSE_MODEL;
@@ -78,6 +118,8 @@ export interface NWayProfileStamp {
   particleProfileVersion: string;
   engineAlgorithmVersion: string;
   candidateBankSha256: string;
+  /** Absent means "mixture", so every existing stamp is untouched. */
+  responseAggregation?: NWayResponseAggregation;
 }
 
 export interface BinaryParticleObservation {
@@ -136,6 +178,14 @@ export interface ParticleState {
   // diagnostics (acceptance 0.20 / ancestry 0.35); quantile_mcse reliability
   // remains the load-bearing guard in the frozen profile.
   lastRejuvenation?: RejuvenationTelemetry;
+  // Draw-latent aggregation (construction B): per-particle artifact-atom
+  // lineage; entry n indexes responseRuntime.atoms for particle n. Present
+  // exactly when responseRuntime.aggregation is "draw_latent"; absent on every
+  // mixture-path session so the shipped state shape is untouched.
+  atomIndex?: Int32Array;
+  // Profile-resolved response-model runtime, shared immutably across clones
+  // like `prior`. Absent → the frozen NWAY_ARTIFACT mixture path.
+  responseRuntime?: NWayResponseRuntime;
 }
 
 export type TerminationPolicyName = "ad6" | "precision_v1";
