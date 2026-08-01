@@ -186,8 +186,18 @@ export class PrecisionSidecar {
   private init(request: InitRequest): SidecarResponse {
     const perDomainCap = request.perDomainCap ?? PRECISION_PER_DOMAIN_CAP;
     const nMin = request.nMin ?? PRECISION_N_MIN;
-    // session.ts:285-287 + policy.reset(K) at session.ts:296.
-    const policy = PrecisionPolicy.fromInputs(frozenInputs(request), perDomainCap, nMin);
+    // The FROZEN production policy has no override surface — the wire keeps
+    // the optional fields for shape compatibility, but any value other than
+    // the frozen constants is refused loudly rather than silently applied
+    // (the 3-argument fromInputs exists only on the WIP engine branch).
+    if (perDomainCap !== PRECISION_PER_DOMAIN_CAP || nMin !== PRECISION_N_MIN) {
+      throw new Error(
+        `the frozen precision policy accepts only perDomainCap=${
+          PRECISION_PER_DOMAIN_CAP} and nMin=${PRECISION_N_MIN}`,
+      );
+    }
+    // session.ts:262 + policy.reset(K).
+    const policy = PrecisionPolicy.fromInputs(frozenInputs(request));
     policy.reset(K);
     this.sessionId = request.sessionId;
     this.policy = policy;
