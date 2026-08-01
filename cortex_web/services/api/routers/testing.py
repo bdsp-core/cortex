@@ -18,7 +18,7 @@ from ..policy_rollout import (
     termination_policy_for,
 )
 from ..deps import require_auth
-from ..models import ProgressIn, ResultsIn, SessionIn
+from ..models import ProgressBatchIn, ProgressIn, ResultsIn, SessionIn
 from ..nway_profile import allowed_nway_profiles, nway_profile_for_new_session
 from ..percentile_rollout import profile_for as percentile_profile_for
 from ..percentile_runtime import validate_percentile_report
@@ -262,6 +262,26 @@ def progress(body: ProgressIn, req: Request, code: str = Depends(require_auth)):
         raise HTTPException(404, "unknown session")
     db.upsert_trial(body.sessionId, body.trial)
     return {"ok": True}
+
+
+# The SPA's outbox coalesces checkpoints into small batches (and fires a
+# keepalive batch on tab-hide); each batch lands in ONE transaction. The
+# single-trial endpoint above stays for pre-batch tabs still running an older
+# SPA build out of the append-only /assets path.
+PROGRESS_BATCH_MAX = 100
+
+
+@router.post("/progress/batch")
+def progress_batch(body: ProgressBatchIn, req: Request,
+                   code: str = Depends(require_auth)):
+    if len(body.trials) > PROGRESS_BATCH_MAX:
+        raise HTTPException(400, f"batch exceeds {PROGRESS_BATCH_MAX} trials")
+    db = req.app.state.db
+    sess = db.get_session(body.sessionId)
+    if sess is None or sess["code"] != code:
+        raise HTTPException(404, "unknown session")
+    db.upsert_trials(body.sessionId, body.trials)
+    return {"ok": True, "count": len(body.trials)}
 
 
 @router.post("/results")

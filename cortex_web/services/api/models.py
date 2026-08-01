@@ -54,6 +54,11 @@ class ProgressIn(BaseModel):
     trial: dict[str, Any]
 
 
+class ProgressBatchIn(BaseModel):
+    sessionId: str
+    trials: list[dict[str, Any]]
+
+
 class ResultsIn(BaseModel):
     sessionId: str
     result: dict[str, Any] = Field(default_factory=dict)

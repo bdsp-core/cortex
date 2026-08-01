@@ -673,12 +673,9 @@ class Database:
         return row["f"] if row and row["f"] else None
 
     # ── trials ────────────────────────────────────────────────────
-    def upsert_trial(self, session_id: str, trial: dict) -> None:
-        # Re-posting a trial (checkpoint retry) overwrites it on the
-        # (session_id, trial_index) PK.
-        sql = _upsert_sql("trials", TRIAL_COLUMNS,
-                          ("session_id", "trial_index"), pg=self._pg)
-        self._write(sql, (
+    @staticmethod
+    def _trial_params(session_id: str, trial: dict, received_utc: str) -> tuple:
+        return (
             session_id,
             int(trial.get("trialIndex", trial.get("trial_index", 0))),
             trial.get("segId", trial.get("seg_id")),
@@ -687,10 +684,31 @@ class Database:
             1 if trial.get("isCorrect") else 0 if "isCorrect" in trial else None,
             trial.get("reactionMs", trial.get("reaction_ms")),
             json.dumps(trial.get("diag")) if trial.get("diag") is not None else None,
-            utc_now(),
+            received_utc,
             trial.get("shownClientUtc"),
             trial.get("answeredClientUtc"),
-        ))
+        )
+
+    def upsert_trial(self, session_id: str, trial: dict) -> None:
+        # Re-posting a trial (checkpoint retry) overwrites it on the
+        # (session_id, trial_index) PK.
+        sql = _upsert_sql("trials", TRIAL_COLUMNS,
+                          ("session_id", "trial_index"), pg=self._pg)
+        self._write(sql, self._trial_params(session_id, trial, utc_now()))
+
+    def upsert_trials(self, session_id: str, trials: list[dict]) -> None:
+        """Batched checkpoint upsert: every trial in ONE unit of work, so a
+        client-side batch lands atomically (no partial-batch gap can break the
+        contiguous-prefix resume replay) and N trials cost one commit."""
+        if not trials:
+            return
+        sql = _upsert_sql("trials", TRIAL_COLUMNS,
+                          ("session_id", "trial_index"), pg=self._pg)
+        received = utc_now()
+        with self._connection() as conn:
+            for trial in trials:
+                conn.execute(self._q(sql),
+                             self._trial_params(session_id, trial, received))
 
     def session_trials(self, session_id: str) -> list[dict]:
         return self._fetchall(

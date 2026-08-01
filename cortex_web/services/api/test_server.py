@@ -1105,6 +1105,52 @@ def test_nway_response_rollout_stamps_and_legacy_sittings_supersede(client):
     assert db.get_session(body["sessionId"])["status"] == "superseded"
 
 
+def test_progress_batch_upserts_atomically(client):
+    code, pw = _make_participant(client)
+    hdr = _auth_header(client, code, pw)
+    sid = client.post("/api/session", headers=hdr,
+                      json={"participant": {}}).json()["sessionId"]
+    trials = [{"trialIndex": i, "segId": 100 + i, "taskK": 0, "pick": 0,
+               "diag": {"i": i}} for i in range(5)]
+    posted = client.post("/api/progress/batch", headers=hdr,
+                         json={"sessionId": sid, "trials": trials})
+    assert posted.status_code == 200 and posted.json()["count"] == 5
+    db = client.app.state.db
+    rows = db.session_trials(sid)
+    assert [r["trial_index"] for r in rows] == [0, 1, 2, 3, 4]
+    assert [r["seg_id"] for r in rows] == [100, 101, 102, 103, 104]
+    # Re-posting a batch (checkpoint retry) overwrites on the PK — no dupes.
+    trials[2]["segId"] = 999
+    again = client.post("/api/progress/batch", headers=hdr,
+                        json={"sessionId": sid, "trials": trials})
+    assert again.status_code == 200
+    rows = db.session_trials(sid)
+    assert len(rows) == 5 and rows[2]["seg_id"] == 999
+    # An empty batch is a no-op, not an error (idempotent flush of nothing).
+    empty = client.post("/api/progress/batch", headers=hdr,
+                        json={"sessionId": sid, "trials": []})
+    assert empty.status_code == 200 and empty.json()["count"] == 0
+
+
+def test_progress_batch_rejects_foreign_session_and_oversize(client):
+    code_a, pw_a = _make_participant(client)
+    code_b, pw_b = _make_participant(client)
+    hdr_a = _auth_header(client, code_a, pw_a)
+    hdr_b = _auth_header(client, code_b, pw_b)
+    sid = client.post("/api/session", headers=hdr_a,
+                      json={"participant": {}}).json()["sessionId"]
+    foreign = client.post("/api/progress/batch", headers=hdr_b, json={
+        "sessionId": sid,
+        "trials": [{"trialIndex": 0, "segId": 1, "taskK": 0, "pick": 0}],
+    })
+    assert foreign.status_code == 404
+    oversize = client.post("/api/progress/batch", headers=hdr_a, json={
+        "sessionId": sid,
+        "trials": [{"trialIndex": i} for i in range(101)],
+    })
+    assert oversize.status_code == 400
+
+
 def test_progress_rejects_foreign_session(client):
     code_a, pw_a = _make_participant(client)
     code_b, pw_b = _make_participant(client)

@@ -119,3 +119,79 @@ describe("Outbox", () => {
     expect(box.size).toBe(2);
   });
 });
+
+describe("Outbox batched drain", () => {
+  type Item = { session: string; n: number };
+  const opts = (batches: Item[][]) => ({
+    send: async () => { throw new Error("single send must not be used"); },
+    sendBatch: async (items: Item[]) => { batches.push(items.slice()); },
+    maxBatch: 3,
+    groupKey: (item: Item) => item.session,
+  });
+
+  it("drains as maxBatch-capped chunks in order", async () => {
+    const batches: Item[][] = [];
+    const box = new Outbox<Item>(opts(batches));
+    for (let n = 1; n <= 7; n++) box.push({ session: "a", n });
+    await box.flush();
+    expect(batches.map((b) => b.map((i) => i.n))).toEqual([[1, 2, 3], [4, 5, 6], [7]]);
+    expect(box.size).toBe(0);
+  });
+
+  it("never mixes group keys inside one batch", async () => {
+    const batches: Item[][] = [];
+    const box = new Outbox<Item>(opts(batches));
+    box.push({ session: "a", n: 1 });
+    box.push({ session: "a", n: 2 });
+    box.push({ session: "b", n: 3 });
+    await box.flush();
+    expect(batches.map((b) => b.map((i) => `${i.session}${i.n}`)))
+      .toEqual([["a1", "a2"], ["b3"]]);
+  });
+
+  it("keeps the whole chunk on a transient failure and resumes", async () => {
+    const batches: Item[][] = [];
+    let failFirst = true;
+    const box = new Outbox<Item>({
+      ...opts(batches),
+      sendBatch: async (items: Item[]) => {
+        if (failFirst) { failFirst = false; throw new Error("blip"); }
+        batches.push(items.slice());
+      },
+    });
+    box.push({ session: "a", n: 1 });
+    box.push({ session: "a", n: 2 });
+    await box.flush();
+    expect(box.size).toBe(2);
+    await box.flush();
+    expect(batches[0].map((i) => i.n)).toEqual([1, 2]);
+    expect(box.size).toBe(0);
+  });
+
+  it("drops a poison chunk when shouldDrop says so, and continues", async () => {
+    const batches: Item[][] = [];
+    let first = true;
+    const box = new Outbox<Item>({
+      ...opts(batches),
+      sendBatch: async (items: Item[]) => {
+        if (first) { first = false; throw new Error("permanent rejection"); }
+        batches.push(items.slice());
+      },
+      shouldDrop: (e) => String(e).includes("permanent"),
+    });
+    for (let n = 1; n <= 4; n++) box.push({ session: "a", n });
+    await box.flush();
+    // First chunk (1,2,3) dropped as poison; remainder delivered.
+    expect(batches.map((b) => b.map((i) => i.n))).toEqual([[4]]);
+    expect(box.size).toBe(0);
+  });
+
+  it("peekBatch exposes the batchable prefix without dequeuing", () => {
+    const box = new Outbox<Item>(opts([]));
+    box.push({ session: "a", n: 1 });
+    box.push({ session: "a", n: 2 });
+    box.push({ session: "b", n: 3 });
+    expect(box.peekBatch(8).map((i) => i.n)).toEqual([1, 2]);
+    expect(box.size).toBe(3);
+  });
+});

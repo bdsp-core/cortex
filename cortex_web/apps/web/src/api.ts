@@ -676,19 +676,91 @@ export function bootstrap(): Promise<BootstrapData> {
 // carries every trial, so a checkpoint that never lands costs only mid-test
 // crash granularity, not data. In-memory by design: a tab crash loses the
 // outbox exactly like it loses the session.)
+const PROGRESS_MAX_BATCH = 10;
+const PROGRESS_DEBOUNCE_MS = 2_000;
+// fetch keepalive caps in-flight body at ~64 KB; a checkpoint with diag runs
+// ~2–4 KB, so 8 stays comfortably under it.
+const PROGRESS_KEEPALIVE_MAX = 8;
+
 const progressOutbox = new Outbox<{ sessionId: string; trial: TrialCheckpoint }>({
   send: (item) => authedFetch("/api/progress", {
     method: "POST",
     body: JSON.stringify(item),
   }, { timeoutMs: 15_000 }),
+  // Batched drain: N queued checkpoints for one session travel as ONE
+  // request and land in one server transaction (idempotent upsert on
+  // (sessionId, trialIndex) either way).
+  sendBatch: (items) => authedFetch("/api/progress/batch", {
+    method: "POST",
+    body: JSON.stringify({
+      sessionId: items[0].sessionId,
+      trials: items.map((item) => item.trial),
+    }),
+  }, { timeoutMs: 15_000 }),
+  maxBatch: PROGRESS_MAX_BATCH,
+  groupKey: (item) => item.sessionId,
   // Permanent rejections (bad payload / unknown session — anything 4xx except
   // an expired-token 401, which heals on re-login) must not wedge the queue.
   shouldDrop: (e) => e instanceof ApiError && e.status !== 401 && e.status < 500,
 });
 
+let progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Trailing debounce: bursts of answers coalesce into one batched flush, a
+// full batch flushes immediately, and a lull flushes whatever accumulated.
+// The durability trade is bounded by the lifecycle keepalive flush below —
+// a hidden/closing tab fires its queued checkpoints immediately.
 export function postProgress(sessionId: string, trial: TrialCheckpoint): void {
   progressOutbox.push({ sessionId, trial });
-  void progressOutbox.flush();
+  if (progressOutbox.size >= PROGRESS_MAX_BATCH) {
+    if (progressFlushTimer) { clearTimeout(progressFlushTimer); progressFlushTimer = null; }
+    void progressOutbox.flush();
+    return;
+  }
+  if (progressFlushTimer) return;
+  progressFlushTimer = setTimeout(() => {
+    progressFlushTimer = null;
+    void progressOutbox.flush();
+  }, PROGRESS_DEBOUNCE_MS);
+}
+
+/** Await delivery of every queued checkpoint (results path calls this). */
+export function flushProgress(): Promise<void> {
+  if (progressFlushTimer) { clearTimeout(progressFlushTimer); progressFlushTimer = null; }
+  return progressOutbox.flush();
+}
+
+// Tab-hide/close delivery: fire the queued checkpoints as ONE keepalive
+// batch the browser is allowed to finish after the page dies. Items are NOT
+// dequeued — if the tab survives, the normal flush re-sends them and the
+// idempotent upsert makes the duplicate free; if the tab dies, the keepalive
+// request is the delivery. At-least-once, never at-most-once.
+function keepaliveProgressFlush(): void {
+  const items = progressOutbox.peekBatch(PROGRESS_KEEPALIVE_MAX);
+  if (!items.length) return;
+  void authedFetch("/api/progress/batch", {
+    method: "POST",
+    keepalive: true,
+    body: JSON.stringify({
+      sessionId: items[0].sessionId,
+      trials: items.map((item) => item.trial),
+    }),
+  }, { timeoutMs: 10_000 }).catch(() => { /* best-effort by design */ });
+}
+
+/** Install once from the app shell: delivers queued checkpoints when the tab
+ *  hides or closes. Returns an uninstaller (tests). */
+export function installProgressLifecycleFlush(): () => void {
+  const onHide = () => {
+    if (document.visibilityState === "hidden") keepaliveProgressFlush();
+  };
+  const onPageHide = () => keepaliveProgressFlush();
+  document.addEventListener("visibilitychange", onHide);
+  window.addEventListener("pagehide", onPageHide);
+  return () => {
+    document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("pagehide", onPageHide);
+  };
 }
 
 export async function postResults(
@@ -746,7 +818,7 @@ export async function submitResults(
 ): Promise<boolean> {
   // Give any straggler trial checkpoints one last chance to land before the
   // session is finalized (best-effort — the result blob carries them anyway).
-  await progressOutbox.flush();
+  await flushProgress();
   // Persist FIRST (durable retry copy), then attempt delivery of THIS result
   // directly. We don't route delivery through flushPendingResults() because if
   // the storage write failed (quota / private mode) the item wouldn't be in

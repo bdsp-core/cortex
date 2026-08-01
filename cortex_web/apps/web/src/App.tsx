@@ -112,6 +112,10 @@ export function App() {
     if (api.isAuthed()) void api.flushPendingResults();
   }, [phase]);
 
+  // Deliver queued trial checkpoints when the tab hides or closes (one
+  // keepalive batch the browser finishes after the page dies).
+  useEffect(() => api.installProgressLifecycleFlush(), []);
+
   // Session expiry (the 6 h token running out). Without this every surface
   // swallowed its own 401 and rendered an empty state, so an expired session
   // looked like a dashboard that had simply lost its data.

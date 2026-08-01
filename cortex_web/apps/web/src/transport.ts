@@ -61,7 +61,16 @@ export async function transportFetch(
 
 export interface OutboxOpts<T> {
   send: (item: T) => Promise<void>;
-  /** Return true to DISCARD the failed item instead of retrying it. */
+  /** Batched drain: when present, flush() sends up to `maxBatch` queued
+   *  items (the longest same-`groupKey` prefix) in ONE request instead of
+   *  one request per item. Failure semantics mirror `send`: a transient
+   *  failure keeps the whole chunk queued; `shouldDrop` discards it. */
+  sendBatch?: (items: T[]) => Promise<void>;
+  /** Upper bound on a batched drain chunk (default 10). */
+  maxBatch?: number;
+  /** Items sharing a group key may travel in one batch (e.g. sessionId). */
+  groupKey?: (item: T) => string;
+  /** Return true to DISCARD the failed item/chunk instead of retrying it. */
   shouldDrop?: (err: unknown) => boolean;
   /** Oldest items are evicted beyond this size (default 500). */
   cap?: number;
@@ -83,6 +92,21 @@ export class Outbox<T> {
     while (this.queue.length > cap) this.queue.shift();
   }
 
+  /** The longest queue prefix batchable together (same group key), capped. */
+  peekBatch(limit?: number): T[] {
+    const max = Math.min(
+      limit ?? this.opts.maxBatch ?? 10, this.queue.length,
+    );
+    if (max <= 0) return [];
+    const key = this.opts.groupKey?.(this.queue[0]);
+    const chunk: T[] = [];
+    for (let i = 0; i < max; i++) {
+      if (key !== undefined && this.opts.groupKey?.(this.queue[i]) !== key) break;
+      chunk.push(this.queue[i]);
+    }
+    return chunk;
+  }
+
   /** Drain the queue in order. Stops (keeping the remainder) on the first
    *  transient failure; never throws. Concurrent calls coalesce. */
   async flush(): Promise<void> {
@@ -90,12 +114,18 @@ export class Outbox<T> {
     this.flushing = true;
     try {
       while (this.queue.length) {
+        const chunk = this.opts.sendBatch ? this.peekBatch() : null;
         try {
-          await this.opts.send(this.queue[0]);
-          this.queue.shift();
+          if (chunk && this.opts.sendBatch) {
+            await this.opts.sendBatch(chunk);
+            this.queue.splice(0, chunk.length);
+          } else {
+            await this.opts.send(this.queue[0]);
+            this.queue.shift();
+          }
         } catch (e) {
           if (this.opts.shouldDrop?.(e)) {
-            this.queue.shift();
+            this.queue.splice(0, chunk ? chunk.length : 1);
             continue;
           }
           return;   // transient — retry on a later flush

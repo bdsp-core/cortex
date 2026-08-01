@@ -65,6 +65,11 @@ try {
         }
       } else if (method === "POST" && url.endsWith("/api/progress")) {
         if (res.ok()) report.trialsPosted += 1;
+      } else if (method === "POST" && url.endsWith("/api/progress/batch")) {
+        if (res.ok()) {
+          const posted = JSON.parse(res.request().postData() ?? "{}");
+          report.trialsPosted += posted.trials?.length ?? 0;
+        }
       } else if (method === "POST" && url.endsWith("/api/results")) {
         report.resultStatus = res.status();
         report.resultPosted = JSON.parse(
