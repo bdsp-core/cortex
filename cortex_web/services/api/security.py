@@ -77,21 +77,27 @@ class TokenError(Exception):
 _FILE_SECRET_CACHE: dict[str, bytes] = {}
 
 
-def _jwt_secret() -> bytes:
-    """Resolve the signing secret.
+def _jwt_secrets() -> list[bytes]:
+    """Resolve the secret list: first entry SIGNS, every entry VERIFIES.
 
-    Priority: env CORTEX_JWT_SECRET (prod) → a persisted dev secret file so a
-    server restart doesn't invalidate live sessions during local testing.
+    CORTEX_JWT_SECRET may hold a comma-separated list to support zero-logout
+    key rotation: put the fresh secret first, keep the outgoing one behind it
+    for at least the token TTL (and the 15-minute email-code TTL), then drop
+    it. A single-value env behaves exactly as before. Falls back to the
+    persisted dev secret file so a server restart doesn't invalidate live
+    sessions during local testing.
     """
     env = os.environ.get("CORTEX_JWT_SECRET")
     if env:
-        return env.encode("utf-8")
+        parts = [p.strip() for p in env.split(",") if p.strip()]
+        if parts:
+            return [p.encode("utf-8") for p in parts]
     path = Path(os.environ.get("CORTEX_JWT_SECRET_FILE",
                                Path(__file__).with_name(".jwt_secret")))
     key = str(path)
     cached = _FILE_SECRET_CACHE.get(key)
     if cached is not None:
-        return cached
+        return [cached]
     if path.exists():
         secret = path.read_bytes()
     else:
@@ -102,7 +108,12 @@ def _jwt_secret() -> bytes:
         except OSError:
             pass  # read-only FS (e.g. Lambda) — keep the in-process secret
     _FILE_SECRET_CACHE[key] = secret
-    return secret
+    return [secret]
+
+
+def _jwt_secret() -> bytes:
+    """The SIGNING secret (first of the list)."""
+    return _jwt_secrets()[0]
 
 
 def issue_token(subject: str, *, ttl_seconds: int = 6 * 3600,
@@ -127,12 +138,18 @@ def decode_token(token: str, *, now: int | None = None) -> dict:
     except ValueError:
         raise TokenError("malformed token")
     signing_input = f"{seg_h}.{seg_p}".encode("ascii")
-    expected = hmac.new(_jwt_secret(), signing_input, hashlib.sha256).digest()
     try:
         got = _b64d(seg_s)
     except Exception:
         raise TokenError("bad signature encoding")
-    if not hmac.compare_digest(got, expected):
+    # Any secret in the rotation list may have signed this token. Every
+    # candidate is checked with a constant-time compare; the loop bound is
+    # the configured key count, not attacker-controlled input.
+    if not any(
+        hmac.compare_digest(
+            got, hmac.new(secret, signing_input, hashlib.sha256).digest())
+        for secret in _jwt_secrets()
+    ):
         raise TokenError("bad signature")
     try:
         claims = json.loads(_b64d(seg_p))
@@ -165,8 +182,18 @@ def hash_code(code: str) -> str:
 
 
 def verify_code(code: str, stored_hash: str) -> bool:
-    """Constant-time compare of a presented code against a stored hash."""
+    """Constant-time compare of a presented code against a stored hash.
+
+    Codes are peppered with the signing secret; during a key rotation an
+    in-flight code may have been hashed under the outgoing secret, so every
+    secret in the rotation list is a candidate pepper."""
     try:
-        return hmac.compare_digest(hash_code(code), stored_hash)
+        return any(
+            hmac.compare_digest(
+                _b64e(hmac.new(secret, code.encode("utf-8"),
+                               hashlib.sha256).digest()),
+                stored_hash)
+            for secret in _jwt_secrets()
+        )
     except Exception:
         return False

@@ -58,6 +58,32 @@ def test_jwt_tamper_rejected():
         security.decode_token(forged)
 
 
+def test_jwt_key_rotation_verifies_old_and_signs_with_new(monkeypatch):
+    """CORTEX_JWT_SECRET as a list: first entry signs, every entry verifies —
+    zero-logout rotation. Dropping the outgoing key ends its tokens."""
+    now = 1_000_000
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "old-secret")
+    old_tok = security.issue_token("cortex-x", ttl_seconds=3600, now=now)
+    old_code_hash = security.hash_code("123456")
+
+    # Rotation window: new signer in front, outgoing key still verifiable.
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "new-secret,old-secret")
+    assert security.decode_token(old_tok, now=now + 10)["sub"] == "cortex-x"
+    new_tok = security.issue_token("cortex-y", ttl_seconds=3600, now=now)
+    assert security.decode_token(new_tok, now=now + 10)["sub"] == "cortex-y"
+    # In-flight email codes peppered under the outgoing key still verify.
+    assert security.verify_code("123456", old_code_hash)
+    assert not security.verify_code("654321", old_code_hash)
+
+    # New tokens are signed with the FIRST entry: they survive dropping the
+    # old key; the old token does not.
+    monkeypatch.setenv("CORTEX_JWT_SECRET", "new-secret")
+    assert security.decode_token(new_tok, now=now + 10)["sub"] == "cortex-y"
+    with pytest.raises(security.TokenError):
+        security.decode_token(old_tok, now=now + 10)
+    assert not security.verify_code("123456", old_code_hash)
+
+
 # ───────────────────────── API round-trip ─────────────────────────
 
 def _write_test_bank(bundle_dir, version="test-bank", per_class=8):
