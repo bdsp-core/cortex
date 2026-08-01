@@ -1,0 +1,207 @@
+{
+  "campaign_pass": false,
+  "cell1_continuum_sbc": {
+    "cell": "campaign_continuum34",
+    "gates": {
+      "absolute_bias_coverage": {
+        "coverage": 0.94575,
+        "pass": false,
+        "wilson95": [
+          0.941552700196705,
+          0.9496619922730789
+        ]
+      },
+      "absolute_skill_coverage": {
+        "coverage": 0.9554166666666667,
+        "pass": true,
+        "wilson95": [
+          0.951575899810756,
+          0.9589659387286662
+        ]
+      },
+      "noninferiority_bias": {
+        "ci95": [
+          -0.005308013434506466,
+          0.005474680101173133
+        ],
+        "confidence_pass": true,
+        "mean": 8.333333333333359e-05,
+        "pass": true,
+        "point_pass": true
+      },
+      "noninferiority_skill": {
+        "ci95": [
+          0.004897647159912251,
+          0.015935686173421077
+        ],
+        "confidence_pass": true,
+        "mean": 0.010416666666666664,
+        "pass": true,
+        "point_pass": true
+      },
+      "tightening_skill_width": {
+        "cluster95": [
+          0.620009679949093,
+          0.6273421067363566
+        ],
+        "mean_ratio": 0.6236758933427248,
+        "n_seeds": 2000,
+        "pass": true
+      }
+    },
+    "pass": false,
+    "reported": {
+      "bias_rmse": {
+        "binary": 0.48705929526492614,
+        "categorical_f1": 0.411116685212353
+      },
+      "bias_sbc_ks": {
+        "binary": 0.009711631832827083,
+        "categorical_f1": 0.018027189374323793
+      },
+      "draw_latent_diagnostics": {
+        "map_atom_tracks_world": 0.4205,
+        "mean_atom_max_mass": 0.22354674290240337,
+        "mean_atoms_surviving": 19.6905
+      },
+      "mean_acceptance": {
+        "binary": 0.2259335411245792,
+        "categorical_f1": 0.21400054467090093
+      },
+      "mean_ancestry": {
+        "binary": 0.46398979073012653,
+        "categorical_f1": 0.4640914010609816
+      },
+      "questions": {
+        "binary": 90.0,
+        "categorical_f1": 90.0
+      },
+      "skill_rmse": {
+        "binary": 0.5745505859504743,
+        "categorical_f1": 0.35294696115696333
+      },
+      "skill_sbc_ks": {
+        "binary": 0.013432479420946941,
+        "categorical_f1": 0.06967070084355276
+      }
+    }
+  },
+  "cell2_served_bank_adaptive": {
+    "cell": "campaign_continuum34",
+    "gates": {
+      "absolute_bias_coverage": {
+        "coverage": 0.94475,
+        "pass": false,
+        "wilson95": [
+          0.9405180390468786,
+          0.9486972934846669
+        ]
+      },
+      "absolute_skill_coverage": {
+        "coverage": 0.9483333333333334,
+        "pass": true,
+        "wilson95": [
+          0.9442273774791748,
+          0.9521523281643919
+        ]
+      },
+      "noninferiority_bias": {
+        "ci95": [
+          -0.00972169258130394,
+          0.0012216925813039415
+        ],
+        "confidence_pass": true,
+        "mean": -0.0042499999999999994,
+        "pass": true,
+        "point_pass": true
+      },
+      "noninferiority_skill": {
+        "ci95": [
+          -0.001768862431497517,
+          0.009768862431497514
+        ],
+        "confidence_pass": true,
+        "mean": 0.003999999999999998,
+        "pass": true,
+        "point_pass": true
+      },
+      "tightening_skill_width": {
+        "cluster95": [
+          0.8186769838095543,
+          0.8276360342380188
+        ],
+        "mean_ratio": 0.8231565090237866,
+        "n_seeds": 2000,
+        "pass": true
+      }
+    },
+    "pass": false,
+    "reported": {
+      "bias_rmse": {
+        "binary": 0.358499905618623,
+        "categorical_f1": 0.33113839811866214
+      },
+      "bias_sbc_ks": {
+        "binary": 0.004864928499075383,
+        "categorical_f1": 0.012490003343246237
+      },
+      "draw_latent_diagnostics": {
+        "map_atom_tracks_world": 0.4275,
+        "mean_atom_max_mass": 0.2748377509867374,
+        "mean_atoms_surviving": 16.036
+      },
+      "mean_acceptance": {
+        "binary": 0.22812887090795828,
+        "categorical_f1": 0.21703572087311934
+      },
+      "mean_ancestry": {
+        "binary": 0.4794832984820707,
+        "categorical_f1": 0.4803601635423914
+      },
+      "questions": {
+        "binary": 290.8985,
+        "categorical_f1": 228.5185
+      },
+      "skill_rmse": {
+        "binary": 0.43628485445171217,
+        "categorical_f1": 0.35444466408797937
+      },
+      "skill_sbc_ks": {
+        "binary": 0.008388041769749055,
+        "categorical_f1": 0.03866443605626091
+      }
+    }
+  },
+  "cell3_stress190": {
+    "binary_skill_coverage": 0.944,
+    "cell": "campaign_stress190_34",
+    "draw_latent_diagnostics": {
+      "map_atom_tracks_world": 0.62,
+      "mean_atom_max_mass": 0.3306142024937122,
+      "mean_atoms_surviving": 16.648
+    },
+    "gating": false,
+    "nway_skill_coverage": 0.9123333333333333,
+    "nway_skill_wilson95": [
+      0.901678528659824,
+      0.9219334753819338
+    ]
+  },
+  "cell4_uniform_collapse": {
+    "binary_skill_coverage": 0.945,
+    "cell": "campaign_collapse34",
+    "draw_latent_diagnostics": {
+      "map_atom_tracks_world": 0.932,
+      "mean_atom_max_mass": 0.9362021674294604,
+      "mean_atoms_surviving": 3.868
+    },
+    "gating": false,
+    "nway_skill_coverage": 0.9216666666666667,
+    "nway_skill_wilson95": [
+      0.9115032873924014,
+      0.9307515105969466
+    ]
+  },
+  "prereg": "docs/LOCKED_CAMPAIGN_PREREG_DRAW_LATENT.md",
+  "schema_version": 1
+}
