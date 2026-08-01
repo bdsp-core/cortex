@@ -104,10 +104,10 @@ def _domain_counts_recorder():
     captured: list[np.ndarray] = []
     original = qualification._select
 
-    def recording(cloud, arm, remaining, counts, s_mean, s_sd, config):
+    def recording(cloud, arm, remaining, counts, s_mean, s_sd, config, *args, **kwargs):
         if not captured:
             captured.append(counts)
-        return original(cloud, arm, remaining, counts, s_mean, s_sd, config)
+        return original(cloud, arm, remaining, counts, s_mean, s_sd, config, *args, **kwargs)
 
     qualification._select = recording
     try:

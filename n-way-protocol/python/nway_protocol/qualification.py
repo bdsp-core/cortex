@@ -35,6 +35,10 @@ from .reference import (
 
 IIIC_GROUP = (1, 2, 3, 4, 5, 6)
 
+# Production variety cap (cortex_web/apps/web/engine/session.ts:71): after five
+# consecutive questions in one domain, another ACTIVE domain is preferred.
+MAX_CONSECUTIVE_SAME_DOMAIN = 5
+
 
 @dataclass(frozen=True)
 class QualificationConfig:
@@ -171,6 +175,50 @@ def _truth_and_bank(seed: int, config: QualificationConfig):
     return truth_t, truth_l, s_mean, s_sd, np.arange(config.bank_segments)
 
 
+def _precision_eligible(
+    last_result: dict | None,
+    counts: np.ndarray,
+    config: QualificationConfig,
+    last_asked: int,
+    streak: int,
+) -> list[int]:
+    """Domains production would allow next, given the policy's fresh statuses.
+
+    Mirrors advance.ts:283-302 (and the executor twin at :399-418): selection
+    is restricted to domains whose Precision status is ACTIVE with budget and
+    candidates left; after MAX_CONSECUTIVE_SAME_DOMAIN consecutive questions
+    in one domain another ACTIVE domain is preferred, and if the streak domain
+    is the only ACTIVE one an ESTIMATE_COMPLETE domain may absorb the variety
+    question (and can consequently reopen). Sticky terminal domains and
+    domains at cap are never revived. Before the first evaluation the policy
+    has just been reset, so every domain is ACTIVE. Candidate availability is
+    uniform here: every remaining segment carries all six IIIC axes, so the
+    per-domain bank is non-empty exactly while ``remaining`` is non-empty
+    (the caller's loop guard).
+    """
+    statuses = None if last_result is None else last_result["selectionStates"]
+    active = [
+        k for k in IIIC_GROUP
+        if counts[k] < config.own_cap
+        and (statuses is None or statuses[k] == "ACTIVE")
+    ]
+    allowed = active
+    if streak >= MAX_CONSECUTIVE_SAME_DOMAIN and last_asked in active:
+        others = [k for k in active if k != last_asked]
+        if others:
+            allowed = others
+        elif statuses is not None:
+            variety = [
+                k for k in IIIC_GROUP
+                if k != last_asked
+                and statuses[k] == "ESTIMATE_COMPLETE"
+                and counts[k] < config.own_cap
+            ]
+            if variety:
+                allowed = variety
+    return allowed
+
+
 def _select(
     cloud,
     arm: str,
@@ -179,10 +227,11 @@ def _select(
     s_mean: np.ndarray,
     s_sd: np.ndarray,
     config: QualificationConfig,
+    eligible: list[int] | None = None,
 ) -> tuple[int, int]:
     best = (math.inf, -1, -1)
     ordered = np.array(sorted(remaining), dtype=int)
-    for asked_k in IIIC_GROUP:
+    for asked_k in (IIIC_GROUP if eligible is None else eligible):
         if counts[asked_k] >= config.own_cap:
             continue
         # Stable quantile representatives keep smoke and full runs bounded.
@@ -268,12 +317,26 @@ def _run_arm(seed: int, arm: Literal["binary", "categorical_f1"], config: Qualif
     # own_cap bounds each domain in both modes. Under precision stopping it is
     # only a hard safety cap: the session normally ends when the unchanged
     # policy reports stop (or the bank legitimately empties first).
+    last_asked, streak = -1, 0
     while np.any(counts[1:] < config.own_cap):
         if precision_client is not None and not remaining:
             break
+        eligible = None
+        if config.stopping == "precision":
+            # Production-faithful selection: only domains the policy still
+            # reports as ACTIVE may be asked (advance.ts:283,399), with the
+            # same variety semantics. No eligible domain mirrors NO_ITEM in
+            # the production selector: the sitting is over.
+            eligible = _precision_eligible(
+                last_result, counts, config, last_asked, streak,
+            )
+            if not eligible:
+                break
         asked_k, segment_index = _select(
-            cloud, arm, remaining, counts, s_mean, s_sd, config,
+            cloud, arm, remaining, counts, s_mean, s_sd, config, eligible,
         )
+        streak = streak + 1 if asked_k == last_asked else 1
+        last_asked = asked_k
         truth_probabilities = f1_probabilities(
             truth_t, truth_l, s_mean[segment_index], s_sd[segment_index],
             asked_k, IIIC_GROUP,
