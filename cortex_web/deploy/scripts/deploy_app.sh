@@ -182,4 +182,27 @@ else
   exit 1
 fi
 
+# Every gate has passed, so retire release directories that nothing references.
+# Kept: every release named by a /opt/cortex/release-state file (current,
+# previous, and any pinned marker such as latency-six-baseline). Only
+# timestamp-named release directories are candidates, so legacy snapshots and
+# other siblings are never touched. A prune failure must not fail the deploy.
+say "pruning releases not referenced by release-state"
+ssh "$SSH_HOST" 'sudo bash -s' <<'PRUNE' || say "release prune failed; the deployed release is unaffected"
+set -euo pipefail
+STATE=/opt/cortex/release-state
+RELEASES=/opt/cortex/releases
+keep=$(cat "$STATE"/* | xargs -n1 basename | sort -u)
+for dir in "$RELEASES"/*/; do
+  name=$(basename "$dir")
+  case "$name" in
+    20[0-9][0-9][0-1][0-9][0-3][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z-*) ;;
+    *) continue ;;
+  esac
+  printf '%s\n' "$keep" | grep -qxF "$name" && continue
+  rm -rf --one-file-system "$RELEASES/$name"
+  printf 'pruned %s\n' "$name"
+done
+PRUNE
+
 say "deployed $RELEASE_ID successfully"
