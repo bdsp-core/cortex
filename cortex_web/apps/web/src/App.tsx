@@ -405,10 +405,13 @@ export function App() {
       // sample; the allowlisted Precision pilot receives the complete
       // exposure-eligible served bank required by its frozen profile.
       const {
-        sessionId, sampleSeed, bank, computeMode, percentileProfile,
+        sessionId, sampleSeed, bank: wireBank, computeMode, percentileProfile,
       } = await api.startSession(
         { ...(participantRef.current ?? {}) },
       );
+      // A lean response carries no segment array; rebuild it from the
+      // CDN-cached immutable manifest (hash-verified against the stamp).
+      const bank = await api.hydrateSessionBank(wireBank);
       console.info(
         `[cortex] session bank: ${bank.segments.length} of ${bank.nPool} pool ` +
         `(seed ${sampleSeed})`,
@@ -441,8 +444,9 @@ export function App() {
     try {
       console.info(
         `[cortex] resuming session ${active.sessionId} at trial ${active.trials.length}`);
-      await runSession(active.sessionId, active.bank.sampleSeed ?? 0,
-        active.bank, active.trials, active.computeMode,
+      const bank = await api.hydrateSessionBank(active.bank);
+      await runSession(active.sessionId, bank.sampleSeed ?? 0,
+        bank, active.trials, active.computeMode,
         active.percentileProfile);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));

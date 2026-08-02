@@ -66,7 +66,9 @@ export {
 export interface StartSessionResult {
   sessionId: string;
   sampleSeed: number;
-  bank: SessionBank;        // the server-drawn per-session question subset
+  // The server-drawn per-session question subset — possibly LEAN (no
+  // segment array); pass through hydrateSessionBank before use.
+  bank: WireSessionBank;
   terminationPolicy: TerminationPolicyName;
   computeMode: RequestedComputeMode;
   percentileProfile: PercentileProfile | null;
@@ -76,7 +78,9 @@ export interface ActiveSession {
   sessionId: string;
   startedUtc: string;
   computeMode: RequestedComputeMode;
-  bank: SessionBank;        // the sitting's ORIGINAL drawn pool, verbatim order
+  // The sitting's ORIGINAL drawn pool, verbatim order — possibly LEAN;
+  // pass through hydrateSessionBank before use.
+  bank: WireSessionBank;
   trials: { trialIndex: number; segId: number; pick: number }[];
   percentileProfile: PercentileProfile | null;
 }
@@ -570,10 +574,50 @@ export async function startSession(
   // it begins. The endpoint creates a session row, so a retry after an
   // ambiguous failure can leave a benign orphan in_progress row (no trials,
   // never finalized) — accepted trade for a start that survives blips.
+  // leanBank: precision responses carry the exclusion list + manifest hash
+  // instead of the full 35k segment array; hydrateSessionBank rebuilds the
+  // pool from the CDN-cached immutable manifest. An older server ignores
+  // the flag and returns the full payload — hydrate passes that through.
   return authedFetch("/api/session", {
     method: "POST",
-    body: JSON.stringify({ participant }),
+    body: JSON.stringify({ participant, leanBank: true }),
   }, { retries: 2, timeoutMs: 30_000 });
+}
+
+// A lean precision bank as it travels on the wire: everything but the
+// segment array, plus what's needed to reconstruct it verifiably.
+export type WireSessionBank = SessionBank | (Omit<SessionBank, "segments"> & {
+  leanBank: true;
+  manifestSha256: string;
+  exclusion: number[];
+});
+
+/** Rebuild a full SessionBank from a lean wire payload: fetch the immutable
+ *  manifest the bank names, verify its BYTES hash to the server-stamped
+ *  SHA-256, then filter the exclusion list in manifest order — the identical
+ *  pool the server would have sent. Full payloads pass through untouched. */
+export async function hydrateSessionBank(
+  bank: WireSessionBank, fetchImpl: typeof fetch = fetch,
+): Promise<SessionBank> {
+  if (!("leanBank" in bank) || !bank.leanBank) return bank as SessionBank;
+  const response = await fetchImpl(`${bank.bundleUrl}/manifest.json`);
+  if (!response.ok) {
+    throw new Error(`bank manifest fetch failed: ${response.status}`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex !== bank.manifestSha256) {
+    throw new Error("bank manifest hash mismatch — refusing to reconstruct");
+  }
+  const manifest = JSON.parse(new TextDecoder().decode(bytes));
+  const excluded = new Set((bank.exclusion ?? []).map(Number));
+  const segments = (manifest.segments as SessionBank["segments"])
+    .filter((segment) => !excluded.has(Number(segment.segId)));
+  const { leanBank: _lean, manifestSha256: _sha, exclusion: _excl,
+    ...rest } = bank;
+  return { ...rest, segments } as SessionBank;
 }
 
 // Draw the candidate pool for a TRAINING sitting. A separate endpoint from
@@ -605,7 +649,7 @@ export function activeSession(): Promise<{
   // starting an exam will 409 until reopensAtUtc.
   washout: { reopensAtUtc: string } | null;
 }> {
-  return authedFetch("/api/session/active", {}, { retries: 2 });
+  return authedFetch("/api/session/active?lean=1", {}, { retries: 2 });
 }
 
 // Light resume/washout status: what the dashboard CTA labels need, without

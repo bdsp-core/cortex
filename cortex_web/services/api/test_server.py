@@ -1219,6 +1219,48 @@ def test_nway_response_rollout_stamps_and_legacy_sittings_supersede(client):
     assert db.get_session(body["sessionId"])["status"] == "superseded"
 
 
+def test_lean_bank_carries_exclusion_and_hash_instead_of_segments(client):
+    client.app.state.cfg["precision_policy_rollout"] = "all"
+    code, pw = _make_participant(client)
+    hdr = _auth_header(client, code, pw)
+    bank = client.app.state.get_precision_bank()
+
+    fat = client.post("/api/session", headers=hdr,
+                      json={"participant": {}, "sampleSeed": 11}).json()
+    assert "segments" in fat["bank"] and "leanBank" not in fat["bank"]
+
+    lean = client.post("/api/session", headers=hdr, json={
+        "participant": {}, "sampleSeed": 12, "leanBank": True}).json()
+    lb = lean["bank"]
+    assert lb["leanBank"] is True and "segments" not in lb
+    assert lb["manifestSha256"] == bank.manifest_sha256
+    assert isinstance(lb["exclusion"], list)
+    # Engine fields still travel (the SPA only reconstructs segments).
+    for key in ("corrL", "corrT", "nParticles", "perDomainCap",
+                "precisionBandEdges", "taskCodes", "bundleUrl", "nwayProfile"):
+        assert key in lb, key
+    # nPool reflects the exclusion-filtered pool.
+    assert lb["nPool"] == bank.n_segments - len(lb["exclusion"])
+
+    # Resume: default stays fat; ?lean=1 returns the lean form with the
+    # SITTING's stored exclusion.
+    first_seg = json.loads(
+        client.app.state.db.get_session(lean["sessionId"])["candidate_exclusion"])
+    assert client.post("/api/progress", headers=hdr, json={
+        "sessionId": lean["sessionId"],
+        "trial": {"trialIndex": 0,
+                  "segId": bank.segments[0]["segId"], "taskK": 0, "pick": 0},
+    }).status_code == 200
+    fat_resume = client.get("/api/session/active", headers=hdr).json()["active"]
+    assert "segments" in fat_resume["bank"]
+    lean_resume = client.get("/api/session/active?lean=1",
+                             headers=hdr).json()["active"]
+    assert lean_resume["bank"]["leanBank"] is True
+    assert "segments" not in lean_resume["bank"]
+    assert lean_resume["bank"]["exclusion"] == sorted(first_seg)
+    assert lean_resume["bank"]["manifestSha256"] == bank.manifest_sha256
+
+
 def test_progress_batch_upserts_atomically(client):
     code, pw = _make_participant(client)
     hdr = _auth_header(client, code, pw)

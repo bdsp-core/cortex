@@ -185,6 +185,24 @@ class SessionBank:
             "segments": segs,
         }
 
+    def lean(self, seed: int, exclude: Optional[set] = None) -> dict:
+        """`full()` minus the segment array: the client reconstructs the pool
+        from its CDN-cached immutable manifest (byte-hash-verified against
+        ``manifestSha256``) filtered by ``exclusion`` — manifest order
+        retained on both sides, so the engine sees an identical bank. Drops
+        the per-session dynamic payload from megabytes to ~1 KB."""
+        exclude = exclude or set()
+        return {
+            **self.engine,
+            "bundleUrl": self.bundle_url,
+            "sampleSeed": seed,
+            "nPool": len(self.segments) - sum(
+                1 for seg in self.segments if seg["segId"] in exclude),
+            "leanBank": True,
+            "manifestSha256": self.manifest_sha256,
+            "exclusion": sorted(exclude),
+        }
+
     def example(self) -> dict:
         """A single representative IIIC segment for the in-context tutorial (the
         spectrogram + red-box walkthrough), in the same shape as draw() so the

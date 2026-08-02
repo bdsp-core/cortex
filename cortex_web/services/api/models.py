@@ -47,6 +47,11 @@ class ResetIn(BaseModel):
 class SessionIn(BaseModel):
     participant: dict[str, Any] = Field(default_factory=dict)
     sampleSeed: Optional[int] = None
+    # Lean-bank opt-in (precision only): the response carries the exclusion
+    # list + manifest hash instead of the full segment array; the SPA
+    # reconstructs the pool from its CDN-cached immutable manifest after
+    # verifying the hash. Absent/false = the full payload (pre-lean tabs).
+    leanBank: bool = False
 
 
 class ProgressIn(BaseModel):

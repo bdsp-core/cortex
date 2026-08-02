@@ -90,8 +90,10 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
             else random.randint(0, 2**31 - 1))
     exclude = db.get_exposure_exclusion(
         code, cfg["spacing_days"], cfg["spacing_sessions"])
-    drawn = (bank.full(seed, exclude) if termination_policy == PRECISION_POLICY
-             else bank.draw(seed, cfg["session_sample"], exclude))
+    drawn = (
+        (bank.lean(seed, exclude) if body.leanBank else bank.full(seed, exclude))
+        if termination_policy == PRECISION_POLICY
+        else bank.draw(seed, cfg["session_sample"], exclude))
     if termination_policy == PRECISION_POLICY:
         required = ("corrT", "nParticles", "perDomainCap", "precisionBandEdges")
         missing = [key for key in required if key not in drawn]
@@ -182,7 +184,8 @@ def session_status(db, bank, code: str, precision_bank_getter=None) -> dict:
 
 
 @router.get("/session/active")
-def active_session(req: Request, code: str = Depends(require_auth)):
+def active_session(req: Request, code: str = Depends(require_auth),
+                   lean: int = 0):
     """The participant's most recent resumable sitting: its exact drawn pool
     plus the logged trials — powers mid-test resume after a refresh/crash.
     Replay contract: AD6 returns sessions.drawn_seg_ids verbatim; Precision
@@ -208,9 +211,10 @@ def active_session(req: Request, code: str = Depends(require_auth)):
                 or row.get("candidate_bank_sha256") != bank.manifest_sha256
                 or row.get("nway_profile") is None):
             return {"active": None, "washout": washout}
-        payload = bank.full(
-            int(row.get("sample_seed") or 0),
-            set(json.loads(row["candidate_exclusion"])))
+        exclusion = set(json.loads(row["candidate_exclusion"]))
+        payload = (bank.lean(int(row.get("sample_seed") or 0), exclusion)
+                   if lean
+                   else bank.full(int(row.get("sample_seed") or 0), exclusion))
     else:
         if not row.get("drawn_seg_ids"):
             return {"active": None, "washout": washout}
