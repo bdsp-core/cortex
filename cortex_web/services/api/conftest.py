@@ -20,3 +20,11 @@ from . import helpers
 def _dns_check_open(monkeypatch):
     monkeypatch.setattr(helpers, "email_domain_deliverable",
                         lambda domain: True)
+
+
+@pytest.fixture(autouse=True)
+def _result_verify_off(monkeypatch):
+    """The post-ingest replay hook spawns a node engine replay — never wanted
+    as a side effect of ordinary API tests. The dedicated result_verify tests
+    drive verification synchronously with a stubbed runner instead."""
+    monkeypatch.setenv("CORTEX_RESULT_VERIFY", "off")

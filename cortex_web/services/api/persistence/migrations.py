@@ -78,6 +78,15 @@ TRIALS: list[Column] = [
     ("answered_client_utc", "TEXT"),
 ]
 
+# Server-side deterministic replay verification of ingested results
+# (api.result_verify): the client computes verdicts, so the server re-derives
+# each complete sitting from its stored picks and records agreement here.
+RESULTS: list[Column] = [
+    ("verify_status", "TEXT"),      # NULL=pending · pass · divergent · error
+    ("verify_detail", "TEXT"),
+    ("verified_utc", "TEXT"),
+]
+
 BY_TABLE: tuple[tuple[str, list[Column]], ...] = (
     ("param_trajectories", PARAM_TRAJECTORIES),
     ("training_sessions", TRAINING_SESSIONS),
@@ -85,4 +94,5 @@ BY_TABLE: tuple[tuple[str, list[Column]], ...] = (
     ("training_trials", TRAINING_TRIALS),
     ("trials", TRIALS),
     ("training_sessions", TRAINING_SESSIONS_ENGINE),
+    ("results", RESULTS),
 )

@@ -764,6 +764,31 @@ class Database:
             "SELECT result FROM results WHERE session_id=?", (session_id,))
         return json.loads(row["result"]) if row else None
 
+    # ── server-side replay verification bookkeeping (api.result_verify) ──
+
+    def set_result_verification(self, session_id: str, status: str,
+                                detail: str | None) -> None:
+        self._write(
+            "UPDATE results SET verify_status=?, verify_detail=?, "
+            "verified_utc=? WHERE session_id=?",
+            (status, detail, utc_now(), session_id))
+
+    def unverified_result_sessions(self, limit: int = 20) -> list[str]:
+        """Complete precision sittings whose stored result nobody replayed yet
+        (or whose last attempt errored — divergent stays divergent)."""
+        rows = self._fetchall(
+            "SELECT r.session_id FROM results r JOIN sessions s "
+            "ON s.session_id = r.session_id "
+            "WHERE s.termination_policy='precision_v1' AND s.status='complete' "
+            "AND (r.verify_status IS NULL OR r.verify_status='error') "
+            "ORDER BY r.received_utc LIMIT ?", (limit,))
+        return [row["session_id"] for row in rows]
+
+    def result_verification(self, session_id: str) -> Optional[dict]:
+        return self._fetchone(
+            "SELECT verify_status, verify_detail, verified_utc FROM results "
+            "WHERE session_id=?", (session_id,))
+
     def all_sessions(self) -> list[dict]:
         return self._fetchall(
             "SELECT * FROM sessions ORDER BY started_utc")

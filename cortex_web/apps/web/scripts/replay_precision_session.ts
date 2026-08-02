@@ -21,6 +21,9 @@ interface ReplayFixture {
   trials: Array<{ pick: number; diag: TrialDiag }>;
   result: Record<string, any>;
   stopReason?: string;
+  /** The session's server-stamped n-way profile. Absent = the pre-n-way
+   *  binary precision flow, exactly as before. */
+  nwayProfile?: Record<string, any>;
 }
 
 interface ComparisonStats {
@@ -149,6 +152,10 @@ async function main(): Promise<void> {
     precisionBandEdges: bandEdges(manifest),
     terminationPolicy: "precision_v1",
     segments: manifest.segments.filter((segment: any) => !excluded.has(Number(segment.segId))),
+    // n-way sessions replay under their stored stamp (validated by the same
+    // validateNWayInputs gate the browser ran); a fixture without a stamp is
+    // the pre-n-way binary flow.
+    ...(fixture.nwayProfile ? { nwayProfile: fixture.nwayProfile } : {}),
   } as EngineInputs;
 
   const stats: ComparisonStats = {

@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from .. import awards, dashboard_logic, timeutil
+from .. import awards, dashboard_logic, result_verify, timeutil
 from ..compute_rollout import compute_mode_for
 from ..policy_rollout import (
     AD6_POLICY,
@@ -330,4 +330,10 @@ def results(body: ResultsIn, req: Request, code: str = Depends(require_auth)):
     # Recognition AFTER the write lands: badge award/revoke + cert milestones
     # (awards.py). Internally best-effort; can never fail the ingest.
     awards.evaluate_certification(db, code, body.result)
+    # Server-side deterministic replay of the sitting (fire-and-forget,
+    # serialized worker): the client computed these verdicts, so the server
+    # re-derives them from the stored picks and records agreement on the
+    # results row (api.result_verify). Precision sittings only.
+    if expected_policy == PRECISION_POLICY:
+        result_verify.schedule_verification(db, body.sessionId)
     return {"ok": True}
