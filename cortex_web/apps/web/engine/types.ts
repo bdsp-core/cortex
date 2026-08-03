@@ -49,6 +49,12 @@ export interface EngineInputs<S extends ComputeSegmentMeta = SegmentMeta> {
   // is created and returned unchanged on resume; clients never choose it.
   // Absent on legacy/local fixtures => AD6 (the public rollback/default path).
   terminationPolicy?: TerminationPolicyName;
+  // Server-authoritative precision_v1 stopping recalibration stamp ("c1" =
+  // evidence floor n_min 20->0 + declaration persistence 2->3, qualified by
+  // the 2026-08 nmin-stopping-study). Written at sitting creation, persisted,
+  // and returned unchanged on resume/replay; clients never choose it. Absent
+  // => the shipped 20/2 configuration, byte-identical to pre-c1 behavior.
+  precisionRecalibration?: "c1";
   // Server-authoritative response/selector profile. New production sittings
   // carry this exact stamp; it is persisted with the sitting and checked on
   // resume/result ingest so an engine upgrade cannot silently reinterpret an

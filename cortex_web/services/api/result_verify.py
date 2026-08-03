@@ -125,6 +125,10 @@ def export_fixture(db, session_id: str) -> tuple[dict, str]:
     }
     if session.get("nway_profile"):
         fixture["nwayProfile"] = json.loads(session["nway_profile"])
+    if session.get("precision_recalibration"):
+        # Replay under the sitting's stored stopping recalibration (c1 =
+        # n_min 0 / persistence 3); absent = the shipped 20/2 configuration.
+        fixture["precisionRecalibration"] = session["precision_recalibration"]
     return fixture, str(session.get("bundle_version") or "")
 
 

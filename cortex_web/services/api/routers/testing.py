@@ -15,6 +15,7 @@ from ..compute_rollout import compute_mode_for
 from ..policy_rollout import (
     AD6_POLICY,
     PRECISION_POLICY,
+    precision_recalibration_for,
     termination_policy_for,
 )
 from ..deps import require_auth
@@ -112,6 +113,14 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
     else:
         nway_profile = None
     drawn["terminationPolicy"] = termination_policy
+    # Server-authoritative c1 stopping-recalibration stamp (n_min 0 /
+    # persistence 3). Persisted with the sitting so resume and server-side
+    # replay verification always run the sitting's own stopping constants;
+    # absent => the shipped 20/2 configuration.
+    precision_recalibration = precision_recalibration_for(
+        db, cfg, code, termination_policy)
+    if precision_recalibration:
+        drawn["precisionRecalibration"] = precision_recalibration
     session_id = uuid.uuid4().hex
     # A fresh sitting retires any still-open one (at most one resumable
     # session per account; see GET /api/session/active).
@@ -133,6 +142,7 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                           bank.manifest_sha256
                           if termination_policy == PRECISION_POLICY else None),
                       nway_profile=nway_profile,
+                      precision_recalibration=precision_recalibration,
                       norm_profile=percentile_profile)
     return {"sessionId": session_id, "sampleSeed": seed,
             "terminationPolicy": termination_policy,
@@ -238,6 +248,10 @@ def active_session(req: Request, code: str = Depends(require_auth),
         if stored_nway_profile not in allowed_nway_profiles(bank.manifest_sha256):
             return {"active": None, "washout": washout}
         payload["nwayProfile"] = stored_nway_profile
+    if row.get("precision_recalibration"):
+        # Resume replays under the sitting's stored stopping recalibration,
+        # independent of the current rollout configuration.
+        payload["precisionRecalibration"] = row["precision_recalibration"]
     stored_percentile_profile = None
     if row.get("norm_profile"):
         try:

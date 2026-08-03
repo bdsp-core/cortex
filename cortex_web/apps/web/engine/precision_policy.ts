@@ -38,6 +38,15 @@ export const PRECISION_BAND_MIN = 3;
 export const PRECISION_N_MIN = 20;
 export const PRECISION_PER_DOMAIN_CAP = 60;
 export const PRECISION_PERSISTENCE = 2;
+// c1 stopping recalibration (2026-08-02): evidence floor n_min 20->0 with
+// declaration persistence 2->3 as the compensating tightening; band floor,
+// tolerances, guard, and cap unchanged. Qualified by the nmin-stopping-study
+// CRN campaigns + locked reserved-seed confirmation; mirrors the Python
+// PRECISION_C1_PROFILE. Applied ONLY when the server stamps the sitting with
+// precisionRecalibration="c1" (CORTEX_PRECISION_C1_ROLLOUT); an unstamped
+// sitting is byte-identical to the shipped 20/2 path.
+export const PRECISION_N_MIN_C1 = 0;
+export const PRECISION_PERSISTENCE_C1 = 3;
 export const PRECISION_ESS_FLOOR_FRACTION = 0.5;
 export const PRECISION_RADIUS_MCSE_Z = 1.645;
 // Shipped guard inflation (mc-guard v2, default since 2026-07-18): used with
@@ -269,9 +278,9 @@ function cloneDiag(d: PrecisionDiagnostics | null): PrecisionDiagnostics | null 
 export class PrecisionPolicy implements EngineTerminationPolicy {
   readonly name = "precision_v1" as const;
   readonly activeLabel = PRECISION_STATUS.ACTIVE;
-  readonly nMin = PRECISION_N_MIN;
+  readonly nMin: number;
   readonly perDomainCap = PRECISION_PER_DOMAIN_CAP;
-  readonly persistence = PRECISION_PERSISTENCE;
+  readonly persistence: number;
   readonly bandMin = PRECISION_BAND_MIN;
   readonly bandEdges: number[][];
   readonly skillTolerance: number[];
@@ -285,7 +294,11 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   private constructor(
     private readonly varPrior: number[],
     bandEdges: number[][],
+    private readonly recalibration: "c1" | null = null,
   ) {
+    this.nMin = recalibration === "c1" ? PRECISION_N_MIN_C1 : PRECISION_N_MIN;
+    this.persistence = recalibration === "c1"
+      ? PRECISION_PERSISTENCE_C1 : PRECISION_PERSISTENCE;
     assertFiniteVector(varPrior, "varPrior");
     if (varPrior.some((x) => x <= 0)) throw new Error("varPrior must be positive");
     this.bandEdges = bandEdges.map((x) => x.slice());
@@ -310,7 +323,8 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     if (edges.length !== varPrior.length || edges.some(
       (x) => x.length !== 2 || !Number.isFinite(x[0]) || !Number.isFinite(x[1]) || x[0] >= x[1],
     )) throw new Error("precision_v1 requires two increasing band edges per domain");
-    return new PrecisionPolicy(varPrior, edges);
+    return new PrecisionPolicy(
+      varPrior, edges, inputs.precisionRecalibration ?? null);
   }
 
   reset(K: number): void {
@@ -325,7 +339,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   }
 
   clone(): PrecisionPolicy {
-    const p = new PrecisionPolicy(this.varPrior, this.bandEdges);
+    const p = new PrecisionPolicy(this.varPrior, this.bandEdges, this.recalibration);
     p.restore(this.snapshot());
     return p;
   }

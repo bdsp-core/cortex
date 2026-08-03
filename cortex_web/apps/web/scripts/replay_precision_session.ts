@@ -24,6 +24,9 @@ interface ReplayFixture {
   /** The session's server-stamped n-way profile. Absent = the pre-n-way
    *  binary precision flow, exactly as before. */
   nwayProfile?: Record<string, any>;
+  /** The session's server-stamped stopping recalibration ("c1" = n_min 0 /
+   *  persistence 3). Absent = the shipped 20/2 configuration. */
+  precisionRecalibration?: "c1";
 }
 
 interface ComparisonStats {
@@ -156,6 +159,10 @@ async function main(): Promise<void> {
     // validateNWayInputs gate the browser ran); a fixture without a stamp is
     // the pre-n-way binary flow.
     ...(fixture.nwayProfile ? { nwayProfile: fixture.nwayProfile } : {}),
+    // A c1 sitting replays under its stored recalibration stamp; a fixture
+    // without one replays the shipped 20/2 stopping configuration.
+    ...(fixture.precisionRecalibration
+      ? { precisionRecalibration: fixture.precisionRecalibration } : {}),
   } as EngineInputs;
 
   const stats: ComparisonStats = {

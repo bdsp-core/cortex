@@ -21,6 +21,7 @@ from .policy import (
 from .profile import (
     FROZEN_PRECISION_PROFILE,
     LEGACY_PRECISION_15MH_PROFILE,
+    PRECISION_C1_PROFILE,
     FrozenPrecisionProfile,
     build_frozen_precision_policy,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "PrecisionPolicy",
     "FrozenPrecisionProfile",
     "FROZEN_PRECISION_PROFILE",
+    "PRECISION_C1_PROFILE",
     "build_frozen_precision_policy",
     "ACTIVE",
     "ESTIMATE_COMPLETE",

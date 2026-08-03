@@ -27,7 +27,13 @@ import pytest
 
 from . import dashboard_logic, engine_trainer
 from .compute_rollout import DUAL_BRANCH_AUTO, SERIAL, compute_mode_for
-from .policy_rollout import AD6_POLICY, PRECISION_POLICY, termination_policy_for
+from .policy_rollout import (
+    AD6_POLICY,
+    PRECISION_C1,
+    PRECISION_POLICY,
+    precision_recalibration_for,
+    termination_policy_for,
+)
 
 
 class _Db:
@@ -127,6 +133,32 @@ def test_alloc_for_matrix(cfg, code, participant, expected):
 ])
 def test_termination_policy_matrix(cfg, participant, expected):
     assert termination_policy_for(_Db(participant), cfg, "reader") == expected
+
+
+# ── precision_recalibration_for: gated on Precision, then all|allowlist ────
+
+@pytest.mark.parametrize("cfg,participant,policy,expected", [
+    # AD6 sittings never carry a recalibration, whatever the rollout says.
+    ({"precision_c1_rollout": "all"}, PARTICIPANT, AD6_POLICY, None),
+    ({"precision_c1_rollout": "all"}, None, PRECISION_POLICY, PRECISION_C1),
+    ({"precision_c1_rollout": "off"}, PARTICIPANT, PRECISION_POLICY, None),
+    ({}, PARTICIPANT, PRECISION_POLICY, None),        # unset fails closed
+    ({"precision_c1_rollout": "bogus"}, PARTICIPANT, PRECISION_POLICY, None),
+    ({"precision_c1_rollout": "email_allowlist"},
+     PARTICIPANT, PRECISION_POLICY, None),            # no allowlist
+    ({"precision_c1_rollout": "email_allowlist",
+      "precision_c1_emails": frozenset({"pilot@example.test"})},
+     PARTICIPANT, PRECISION_POLICY, PRECISION_C1),
+    ({"precision_c1_rollout": "email_allowlist",
+      "precision_c1_emails": frozenset({"pilot@example.test"})},
+     {"email": "  Pilot@Example.Test  "}, PRECISION_POLICY, PRECISION_C1),
+    ({"precision_c1_rollout": "email_allowlist",
+      "precision_c1_emails": frozenset({"pilot@example.test"})},
+     None, PRECISION_POLICY, None),                   # no participant row
+])
+def test_precision_recalibration_matrix(cfg, participant, policy, expected):
+    assert precision_recalibration_for(
+        _Db(participant), cfg, "reader", policy) == expected
 
 
 # ── compute_mode_for: gated on Precision, then all | allowlist ─────────────

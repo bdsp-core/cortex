@@ -49,6 +49,7 @@ SESSIONS: list[Column] = [
     ("candidate_exclusion", "TEXT"),
     ("candidate_bank_sha256", "TEXT"),
     ("nway_profile", "TEXT"),
+    ("precision_recalibration", "TEXT"),
     ("norm_id", "TEXT"),
     ("norm_sha256", "TEXT"),
     ("score_schema_version", "TEXT"),

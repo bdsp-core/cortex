@@ -92,6 +92,19 @@ PRECISION_POLICY_EMAILS = frozenset(
     if x.strip()
 )
 
+# Precision c1 stopping-recalibration rollout (n_min 20->0, persistence
+# 2->3; qualified by the 2026-08 nmin-stopping-study). OFF by default —
+# unknown modes fail closed to the shipped 20/2 configuration. Stamped per
+# sitting (sessions.precision_recalibration) so resume and server-side
+# replay verification always use the sitting's own stopping constants.
+PRECISION_C1_ROLLOUT = os.environ.get(
+    "CORTEX_PRECISION_C1_ROLLOUT", "off").strip().lower()
+PRECISION_C1_EMAILS = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_PRECISION_C1_EMAILS", "").split(",")
+    if x.strip()
+)
+
 # Precision browser-compute rollout. This is deliberately independent of the
 # stopping-policy rollout: it changes execution placement only, is OFF by
 # default, and is stamped per sitting so resume never changes execution mode

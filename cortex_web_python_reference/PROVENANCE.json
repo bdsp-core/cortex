@@ -78,7 +78,7 @@
       "termination-policy/src/cortex_termination_policy/contract.py": "e3255982fde8e83211dcef07fa7e45e6dddd2b03ed5428afda72ddc1a5f10941",
       "ad6-policy/src/ad6_policy/policy.py": "0b82700831868fa4359b8dea95ac933b6d72788b4bc55a530e40825575728cc5",
       "precision-policy/src/precision_policy/policy.py": "66771bac206cf2c7ffbcff390b97f0abf7d85dfaf4caf7e935132c533b29eeea",
-      "precision-policy/src/precision_policy/profile.py": "30c2385b18996ec314f184f4d7a9b998b8eb8e2b4a5cd988bde4268076e52e4a",
+      "precision-policy/src/precision_policy/profile.py": "b3d55a161f7068fc9df9f9ccf653644ef824b8496ca9536c746c629d52623884",
       "precision-policy/src/precision_policy/reporting.py": "036979fd3edd35a23221f5079851845077fd98c28055a5b0fb0c708951610398"
     }
   },

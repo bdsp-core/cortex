@@ -587,6 +587,7 @@ class Database:
                         candidate_exclusion: Optional[str] = None,
                         candidate_bank_sha256: Optional[str] = None,
                         nway_profile: Optional[dict] = None,
+                        precision_recalibration: Optional[str] = None,
                         norm_profile: Optional[dict] = None) -> None:
         # A distinct open-state is a rollback interlock. Older releases search
         # only status='in_progress', so after an application rollback they
@@ -598,12 +599,14 @@ class Database:
             "INSERT INTO sessions(session_id, code, participant, sample_seed, "
             "bundle_version, drawn_seg_ids, termination_policy, "
             "compute_mode, candidate_exclusion, candidate_bank_sha256, nway_profile, "
+            "precision_recalibration, "
             "norm_id, norm_sha256, score_schema_version, norm_profile, "
-            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "started_utc, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (session_id, code, json.dumps(participant), sample_seed,
              bundle_version, drawn_seg_ids, termination_policy, compute_mode,
              candidate_exclusion, candidate_bank_sha256,
              json.dumps(nway_profile, sort_keys=True) if nway_profile else None,
+             precision_recalibration,
              norm_profile.get("normId") if norm_profile else None,
              norm_profile.get("normSha256") if norm_profile else None,
              norm_profile.get("scoreSchemaVersion") if norm_profile else None,

@@ -80,6 +80,7 @@ export class Bundle {
       nParticles: m.nParticles,     // v15 OPT-IN (undefined → engine defaults to 600)
       perDomainCap: m.perDomainCap,
       terminationPolicy: m.terminationPolicy,
+      precisionRecalibration: m.precisionRecalibration,
       nwayProfile: m.nwayProfile,
       precisionBandEdges: m.precisionBandEdges,
       ellStar: m.ellStar,

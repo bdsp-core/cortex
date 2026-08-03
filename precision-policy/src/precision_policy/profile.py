@@ -43,6 +43,13 @@ class FrozenPrecisionProfile:
     precision_statistic: str = "point_centered_radius"
     n_mh_steps: int = DEFAULT_N_MH_STEPS
     radius_mcse_inflation: float = DEFAULT_RADIUS_MCSE_INFLATION
+    # Evidence floor + declaration persistence. Defaults are the shipped
+    # values; the c1 recalibration (n_min=0, persistence=3) is served only
+    # when the server stamps a sitting with recalibration "c1"
+    # (CORTEX_PRECISION_C1_ROLLOUT). "precision_v1" stays the policy
+    # identity — c1 recalibrates two criteria constants inside it.
+    n_min: int = 20
+    persistence: int = 2
 
     @property
     def maximum_k7_questions(self) -> int:
@@ -81,6 +88,17 @@ LEGACY_PRECISION_15MH_PROFILE = FrozenPrecisionProfile(
     radius_mcse_inflation=PRECISION_RADIUS_MCSE_INFLATION,
 )
 
+# The c1 stopping recalibration (2026-08-02): evidence floor n_min 20->0 with
+# declaration persistence 2->3 as the compensating tightening. Qualified by
+# the nmin-stopping-study (stage-2/3 CRN campaigns + locked reserved-seed
+# confirmation); band floor, tolerances, guard, and cap are unchanged. Served
+# per sitting via the server-side c1 rollout; FROZEN_PRECISION_PROFILE stays
+# the default until the rollout is promoted to "all".
+PRECISION_C1_PROFILE = FrozenPrecisionProfile(
+    n_min=0,
+    persistence=3,
+)
+
 
 def build_frozen_precision_policy(
     inputs, profile: FrozenPrecisionProfile = FROZEN_PRECISION_PROFILE
@@ -102,9 +120,9 @@ def build_frozen_precision_policy(
     policy = PrecisionPolicy.from_inputs(
         inputs,
         confidence=0.95,
-        n_min=20,
+        n_min=profile.n_min,
         per_domain_cap=profile.per_domain_cap,
-        persistence=2,
+        persistence=profile.persistence,
         band_min=PRECISION_BAND_MIN,
         reliability_mode=profile.reliability_mode,
         ess_floor_fraction=PRECISION_ESS_FLOOR_FRACTION,

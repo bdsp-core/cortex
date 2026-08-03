@@ -149,6 +149,41 @@ describe("PrecisionPolicy frozen boundary semantics", () => {
     );
   });
 
+  it("keeps the shipped 20/2 floors on an unstamped sitting (drift guard)", () => {
+    const policy = PrecisionPolicy.fromInputs(inputs());
+    expect(policy.nMin).toBe(20);
+    expect(policy.persistence).toBe(2);
+    // Below the evidence floor the shipped policy never completes, however
+    // many consecutive evaluations pass the precision criterion.
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    expect(policy.domainStatuses).toEqual(
+      new Array(7).fill(PRECISION_STATUS.ACTIVE),
+    );
+  });
+
+  it("applies the c1 recalibration only under the server stamp", () => {
+    const policy = PrecisionPolicy.fromInputs(
+      { ...inputs(), precisionRecalibration: "c1" });
+    expect(policy.nMin).toBe(0);
+    expect(policy.persistence).toBe(3);
+    // Two passing evaluations are no longer enough (persistence 3)...
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    expect(policy.domainStatuses).toEqual(
+      new Array(7).fill(PRECISION_STATUS.ACTIVE),
+    );
+    // ...the third completes, below the retired 20-question floor.
+    policy.evaluate(state("narrow"), new Array(7).fill(10), telemetry());
+    expect(policy.domainStatuses).toEqual(
+      new Array(7).fill(PRECISION_STATUS.ESTIMATE_COMPLETE),
+    );
+    // Speculative-branch clones carry the recalibration with them.
+    expect(policy.clone().nMin).toBe(0);
+    expect(policy.clone().persistence).toBe(3);
+  });
+
   it("can terminalize an infeasible bank before the first question", () => {
     const policy = PrecisionPolicy.fromInputs(inputs());
     const decision = policy.observeBankFeasibility({
