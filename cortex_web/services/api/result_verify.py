@@ -123,6 +123,11 @@ def export_fixture(db, session_id: str) -> tuple[dict, str]:
         "result": result,
         "stopReason": session.get("stop_reason"),
     }
+    if session.get("compute_mode"):
+        # dual_branch_auto sittings update without the distractor monitor
+        # (only the serial advance path consults it); the replay mirrors the
+        # sitting's actual execution placement.
+        fixture["computeMode"] = session["compute_mode"]
     if session.get("nway_profile"):
         fixture["nwayProfile"] = json.loads(session["nway_profile"])
     if session.get("precision_recalibration"):

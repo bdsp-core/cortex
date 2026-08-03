@@ -447,6 +447,19 @@ export function advanceCore(
   params: AdvanceParams, trialIndex: number,
   preparedPrecisionBank?: BankArrays,
   deferSelection = false,
+  // Forced-path replay only (scripts/replay_precision_session.ts); undefined
+  // on every live/production call => byte-identical pre-existing behavior.
+  // - rejuvenationOverride: replay the sitting's RECORDED rejuvenation
+  //   schedule instead of re-deriving it from the ESS threshold, because
+  //   last-bit cross-engine float drift can move a near-threshold ESS to the
+  //   other side and fork the stochastic path.
+  // - distractorMonitorInactive: mirror advanceCoreWithSelectionExecutor's
+  //   update path (which does not consult the monitor) when replaying a
+  //   dual_branch_auto sitting.
+  replay?: {
+    rejuvenationOverride?: boolean;
+    distractorMonitorInactive?: boolean;
+  },
 ): AdvanceResult {
   const startedAt = performance.now();
   const { state, rng, policy } = core;
@@ -464,14 +477,19 @@ export function advanceCore(
         kind: "binary" as const, k: chosen.k, s: chosen.s, sSd: chosen.sSd,
         y: rawPick === chosen.k ? 1 as const : 0 as const, rawPick,
       };
-  updateObservation(state, monitoredResponse(core, response), phaseV2.particle);
+  updateObservation(
+    state,
+    replay?.distractorMonitorInactive ? response : monitoredResponse(core, response),
+    phaseV2.particle,
+  );
   const y: 0 | 1 = rawPick === chosen.k ? 1 : 0;
   const updatedAt = performance.now();
   let rejuv = false;
   const essStartedAt = performance.now();
   const currentEss = ess(state.w);
   phaseV2.particle.essMs += performance.now() - essStartedAt;
-  if (currentEss < params.essThresholdFrac * params.nParticles) {
+  if (replay?.rejuvenationOverride
+      ?? currentEss < params.essThresholdFrac * params.nParticles) {
     resampleAndRejuvenate(
       state, rng, params.nMhSteps, params.proposalScale, trialIndex, phaseV2.particle,
     );
