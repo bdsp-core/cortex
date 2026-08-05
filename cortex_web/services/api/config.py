@@ -105,6 +105,20 @@ PRECISION_C1_EMAILS = frozenset(
     if x.strip()
 )
 
+# Graded bias-flag reporting rollout (bias-flag-tiers-v1; report-only, never
+# read by stopping/selection/verdicts). "all" serves the graded WATCH/EXTREME/
+# EXTREME_CONFIRMED flags + withheld reasons; LEGACY by default — unknown
+# modes fail closed to the historical interval-clears flags. Stamped per
+# sitting (sessions.bias_flag_tiers) so resume and server-side replay
+# verification always use the sitting's own reporting mode.
+BIAS_FLAG_TIERS = os.environ.get(
+    "CORTEX_BIAS_FLAG_TIERS", "legacy").strip().lower()
+BIAS_FLAG_TIERS_EMAILS = frozenset(
+    x.strip().lower()
+    for x in os.environ.get("CORTEX_BIAS_FLAG_TIERS_EMAILS", "").split(",")
+    if x.strip()
+)
+
 # Precision browser-compute rollout. This is deliberately independent of the
 # stopping-policy rollout: it changes execution placement only, is OFF by
 # default, and is stamped per sitting so resume never changes execution mode

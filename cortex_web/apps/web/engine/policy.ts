@@ -57,8 +57,13 @@ export interface FinalPolicyResult {
   skillIntervals?: [number, number][];
   biasIntervals?: [number, number][];
   // Report-only response-tendency flags derived from biasIntervals; never an
-  // input to stopping or the cut classification.
+  // input to stopping or the cut classification. Strings are drawn from the
+  // graded BIAS_FLAG const (legacy members unchanged).
   biasFlags?: (string | null)[];
+  // Per-domain machine-readable reason a graded flag was withheld
+  // ("insufficient_evidence" | "undeterminable_domain"), null where the flag
+  // was eligible to fire. Absent on legacy-snapshot finalizes and AD6.
+  biasFlagWithheldReasons?: (string | null)[];
 }
 
 export interface EngineTerminationPolicy {

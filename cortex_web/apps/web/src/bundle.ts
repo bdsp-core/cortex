@@ -81,6 +81,7 @@ export class Bundle {
       perDomainCap: m.perDomainCap,
       terminationPolicy: m.terminationPolicy,
       precisionRecalibration: m.precisionRecalibration,
+      biasFlagTiers: m.biasFlagTiers,
       nwayProfile: m.nwayProfile,
       precisionBandEdges: m.precisionBandEdges,
       ellStar: m.ellStar,

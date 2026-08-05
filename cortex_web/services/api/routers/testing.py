@@ -15,6 +15,7 @@ from ..compute_rollout import compute_mode_for
 from ..policy_rollout import (
     AD6_POLICY,
     PRECISION_POLICY,
+    bias_flag_tiers_for,
     precision_recalibration_for,
     termination_policy_for,
 )
@@ -121,6 +122,13 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
         db, cfg, code, termination_policy)
     if precision_recalibration:
         drawn["precisionRecalibration"] = precision_recalibration
+    # Server-authoritative graded bias-flag reporting stamp (report-only).
+    # Persisted with the sitting so resume and server-side replay
+    # verification always use the sitting's own reporting mode; absent =>
+    # the historical interval-clears flags.
+    bias_flag_tiers = bias_flag_tiers_for(db, cfg, code, termination_policy)
+    if bias_flag_tiers:
+        drawn["biasFlagTiers"] = bias_flag_tiers
     session_id = uuid.uuid4().hex
     # A fresh sitting retires any still-open one (at most one resumable
     # session per account; see GET /api/session/active).
@@ -143,6 +151,7 @@ def new_session(body: SessionIn, req: Request, code: str = Depends(require_auth)
                           if termination_policy == PRECISION_POLICY else None),
                       nway_profile=nway_profile,
                       precision_recalibration=precision_recalibration,
+                      bias_flag_tiers=bias_flag_tiers,
                       norm_profile=percentile_profile)
     return {"sessionId": session_id, "sampleSeed": seed,
             "terminationPolicy": termination_policy,
@@ -252,6 +261,10 @@ def active_session(req: Request, code: str = Depends(require_auth),
         # Resume replays under the sitting's stored stopping recalibration,
         # independent of the current rollout configuration.
         payload["precisionRecalibration"] = row["precision_recalibration"]
+    if row.get("bias_flag_tiers"):
+        # Resume reports under the sitting's stored bias-flag tiers,
+        # independent of the current rollout configuration.
+        payload["biasFlagTiers"] = row["bias_flag_tiers"]
     stored_percentile_profile = None
     if row.get("norm_profile"):
         try:

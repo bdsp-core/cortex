@@ -343,6 +343,7 @@ export function App() {
             skillIntervals: r.skillIntervals,
             biasIntervals: r.biasIntervals,
             biasFlags: r.biasFlags,
+            biasFlagWithheldReasons: r.biasFlagWithheldReasons,
             percentiles: percentile?.status === "available"
               ? percentile.domains : undefined,
           });
@@ -359,6 +360,7 @@ export function App() {
             skillIntervals: r.skillIntervals,
             biasIntervals: r.biasIntervals,
             biasFlags: r.biasFlags,
+            biasFlagWithheldReasons: r.biasFlagWithheldReasons,
             perTask,
             roc,
             servedSegIds: r.servedSegIds,

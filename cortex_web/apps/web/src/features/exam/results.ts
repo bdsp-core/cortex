@@ -101,6 +101,7 @@ export interface PerTaskRecord {
   skillInterval: unknown;
   biasInterval: unknown;
   biasFlag: unknown;
+  biasFlagWithheldReason: unknown;
   percentile: PercentileDomainScore | null;
 }
 
@@ -122,6 +123,7 @@ export function buildPerTaskRecords(args: {
   skillIntervals?: unknown[];
   biasIntervals?: unknown[];
   biasFlags?: unknown[];
+  biasFlagWithheldReasons?: unknown[];
   percentiles?: Record<string, PercentileDomainScore>;
 }): PerTaskRecord[] {
   const { inputs, lastDiag: d, sdPerTask, roc } = args;
@@ -140,6 +142,7 @@ export function buildPerTaskRecords(args: {
     skillInterval: args.skillIntervals?.[k] ?? null,
     biasInterval: args.biasIntervals?.[k] ?? null,
     biasFlag: args.biasFlags?.[k] ?? null,
+    biasFlagWithheldReason: args.biasFlagWithheldReasons?.[k] ?? null,
     percentile: args.percentiles?.[code] ?? null,
   }));
 }

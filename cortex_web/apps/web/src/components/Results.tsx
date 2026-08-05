@@ -37,11 +37,22 @@ export interface ResultSummary {
   percentile?: PercentileReport | null;
 }
 
+// Graded tiers (bias-flag-tiers-v1): WATCH < EXTREME < EXTREME_CONFIRMED.
+// The two legacy strings keep their exact wording; withheld flags arrive as
+// null and render nothing. Unknown strings miss the lookup and render nothing.
 const BIAS_FLAG_LABEL: Record<string, string> = {
+  WATCH_OVERCALLER:
+    "Calibration note: mild tendency to over-report this pattern relative to panel consensus.",
+  WATCH_UNDERCALLER:
+    "Calibration note: mild tendency to under-report this pattern relative to panel consensus.",
   EXTREME_OVERCALLER:
     "Calibration note: tendency to over-report this pattern relative to panel consensus.",
   EXTREME_UNDERCALLER:
     "Calibration note: tendency to under-report this pattern relative to panel consensus.",
+  EXTREME_CONFIRMED_OVERCALLER:
+    "Calibration note: consistent, strongly supported tendency to over-report this pattern relative to panel consensus.",
+  EXTREME_CONFIRMED_UNDERCALLER:
+    "Calibration note: consistent, strongly supported tendency to under-report this pattern relative to panel consensus.",
 };
 
 const DEFAULT_IIIC = [
@@ -147,8 +158,9 @@ export function Results({ summary, onFinish, onReturn }: {
                   </span>
                 </div>
                 {flagLabel && (
-                  <div style={{ color: COLORS.referBorderline, fontSize: 12,
-                                padding: "0 0 10px" }}>
+                  <div style={{ color: flag!.startsWith("WATCH_")
+                                  ? COLORS.textTertiary : COLORS.referBorderline,
+                                fontSize: 12, padding: "0 0 10px" }}>
                     {flagLabel}
                   </div>
                 )}

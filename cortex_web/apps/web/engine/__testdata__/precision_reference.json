@@ -4127,7 +4127,55 @@
           0.5389299228375996,
           0.5389299228375996
         ]
-      }
+      },
+      "bias_tail_over": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bias_tail_under": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "graded_flags": [
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        }
+      ]
     },
     {
       "stop": true,
@@ -4465,7 +4513,55 @@
           0.5389299228375996,
           0.5389299228375996
         ]
-      }
+      },
+      "bias_tail_over": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bias_tail_under": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "graded_flags": [
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        }
+      ]
     },
     {
       "stop": false,
@@ -4803,7 +4899,55 @@
           3.3533417421006186,
           3.3533417421006186
         ]
-      }
+      },
+      "bias_tail_over": [
+        0.013961988304093568,
+        0.02105263157894737,
+        0.02821637426900585,
+        0.04276315789473684,
+        0.050146198830409355,
+        0.057602339181286544,
+        0.06513157894736842
+      ],
+      "bias_tail_under": [
+        0.12236842105263157,
+        0.10906432748538011,
+        0.09568713450292399,
+        0.08223684210526316,
+        0.05511695906432748,
+        0.04144736842105263,
+        0.0277046783625731
+      ],
+      "graded_flags": [
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        },
+        {
+          "flag": null,
+          "withheld_reason": null
+        }
+      ]
     }
   ]
 }
