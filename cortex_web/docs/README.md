@@ -17,6 +17,9 @@ guess which document governs a release.
   fail-closed exposure gate, qualification, monitoring, and approval boundary.
 - `PERCENTILE_PREVIEW_VALIDATION.md` — local statistical/runtime parity,
   performance, regression, browser-smoke, and release-boundary evidence.
+- `PRODUCTION_BASELINE.md` — authoritative production snapshot and operating
+  assumptions (verified 2026-08-05; includes the graded bias-flag reporting
+  release and its rollback contract).
 - `MODULARIZATION_REPORT.md` — repository-hygiene changes, module boundaries,
   compatibility strategy, and qualification evidence.
 - `../LOCAL_DEV.md` — local development and production-shaped smoke setup.
