@@ -55,6 +55,13 @@ export interface EngineInputs<S extends ComputeSegmentMeta = SegmentMeta> {
   // and returned unchanged on resume/replay; clients never choose it. Absent
   // => the shipped 20/2 configuration, byte-identical to pre-c1 behavior.
   precisionRecalibration?: "c1";
+  // Server-authoritative graded bias-flag reporting stamp
+  // (CORTEX_BIAS_FLAG_TIERS). "all" => the session summary carries the graded
+  // WATCH/EXTREME/EXTREME_CONFIRMED flags plus withheld reasons; absent or any
+  // other value => the historical interval-clears flags, byte-identical to
+  // pre-tier behavior (fail-closed). Report-only: never read by stopping,
+  // selection, or verdicts.
+  biasFlagTiers?: "legacy" | "all";
   // Server-authoritative response/selector profile. New production sittings
   // carry this exact stamp; it is persisted with the sitting and checked on
   // resume/result ingest so an engine upgrade cannot silently reinterpret an

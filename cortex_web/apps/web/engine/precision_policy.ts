@@ -64,11 +64,38 @@ export const PRECISION_SURROGATE_ANCESTRY_FLOOR = 0.35;
 // interval (±1.96, always straddling zero) can never flag. Never consulted by
 // evaluate() gates or the finalizeResult() cut classification.
 export const PRECISION_BIAS_FLAG_TAU = 1.0;
+// Graded bias-flag firing thresholds on the posterior tail mass
+// P(|t_k| > PRECISION_BIAS_FLAG_TAU). Calibrated on the 100-reader
+// current-engine campaign, served draw-latent profile, pre-registered
+// rule (max sensitivity s.t. specificity >= 0.95 on calibration readers,
+// validated held-out: sens/spec 0.600/0.935 at Q=100).
+// bias-reporting-policy/g5_operating_point.json
+// sha256 b5b8ed5fb51d6f9381cfa1a4e7df203e8d0dc189b7db91daed407266495291bc
+// 2026-08-05. Regenerate the qualification (G5 harness) on ANY
+// nwayProfile/response-artifact change — see the drift guard test.
+export const PRECISION_BIAS_FLAG_P_STAR = 0.575;
+export const PRECISION_BIAS_FLAG_P_WATCH = 0.5;
+// The confirmed tier IS the historical interval-clears rule: tail mass
+// >= 0.975 is equivalent to the 95% interval clearing ±TAU (proven on
+// all four campaign panels; G1 addenda flag table).
+export const PRECISION_BIAS_FLAG_P_CONFIRMED = 0.975;
+// Tiers are nested — CONFIRMED ⊂ EXTREME ⊂ WATCH; a domain reports the
+// HIGHEST tier attained. The historical strings now mean "extreme by the
+// calibrated rule", and the historical firing set maps exactly onto
+// EXTREME_CONFIRMED_*. Old members unchanged so existing comparisons keep
+// working.
 export const BIAS_FLAG = {
   EXTREME_OVERCALLER: "EXTREME_OVERCALLER",
   EXTREME_UNDERCALLER: "EXTREME_UNDERCALLER",
+  WATCH_OVERCALLER: "WATCH_OVERCALLER",
+  WATCH_UNDERCALLER: "WATCH_UNDERCALLER",
+  EXTREME_CONFIRMED_OVERCALLER: "EXTREME_CONFIRMED_OVERCALLER",
+  EXTREME_CONFIRMED_UNDERCALLER: "EXTREME_CONFIRMED_UNDERCALLER",
 } as const;
 export type BiasFlag = (typeof BIAS_FLAG)[keyof typeof BIAS_FLAG] | null;
+export type BiasFlagWithheldReason =
+  | "insufficient_evidence"
+  | "undeterminable_domain";
 
 type Interval = [number, number];
 
@@ -84,6 +111,11 @@ export interface PrecisionDiagnostics extends Record<string, unknown> {
   confidence: number;
   skillIntervals: Interval[];
   biasIntervals: Interval[];
+  // Posterior tail masses P(t_k > +TAU) / P(t_k < -TAU) behind the graded
+  // bias flags. OPTIONAL so legacy snapshots (recorded before the graded
+  // tiers shipped) restore unchanged — resume_replay compatibility.
+  biasTailOver?: number[];
+  biasTailUnder?: number[];
   skillPosteriorMean: number[];
   skillIntervalHalfwidth: number[];
   skillPointCenteredRadius: number[];
@@ -239,10 +271,54 @@ function classifyIntervalAgainstCut(interval: Interval, cut: number): string {
 // Report-only overcall/undercall flag (t > 0 = endorses the pattern at lower
 // signal = overcaller). Derived from the already-reported bias interval;
 // deliberately outside every stopping gate and certification verdict.
+/**
+ * @deprecated Historical interval-clears rule, retained for external callers
+ * and legacy snapshots. New reporting goes through gradedBiasFlagFor, whose
+ * EXTREME_CONFIRMED tier (tail mass >= PRECISION_BIAS_FLAG_P_CONFIRMED) is
+ * this rule's exact equivalent.
+ */
 export function biasFlagFor(interval: Interval): BiasFlag {
   if (interval[0] > PRECISION_BIAS_FLAG_TAU) return BIAS_FLAG.EXTREME_OVERCALLER;
   if (interval[1] < -PRECISION_BIAS_FLAG_TAU) return BIAS_FLAG.EXTREME_UNDERCALLER;
   return null;
+}
+
+export interface GradedBiasFlag {
+  flag: BiasFlag;
+  withheldReason: BiasFlagWithheldReason | null;
+}
+
+// Graded, gated, calibrated bias flag (bias-reporting-policy G2). The firing
+// statistic is the MCSE-guarded tail mass
+//   m = π̂ − PRECISION_RADIUS_MCSE_Z · sqrt(π̂(1−π̂)/max(ESS,1))
+// compared against the three nested thresholds; the flag is WITHHELD (with a
+// machine-readable reason) for domains whose evidence would not qualify a
+// skill statement: UNDETERMINABLE_* status, or unmet evidence/content/ESS
+// floors (G2 §5, critic A13). Gating inputs are the values evaluate() already
+// recorded — never recomputed here. Like biasFlagFor, this is outside every
+// stopping gate and certification verdict.
+export function gradedBiasFlagFor(
+  tailOver: number, tailUnder: number, essValue: number, essPass: boolean,
+  status: string, evidenceMet: boolean, contentMet: boolean,
+): GradedBiasFlag {
+  if (status.startsWith("UNDETERMINABLE_")) {
+    return { flag: null, withheldReason: "undeterminable_domain" };
+  }
+  if (!evidenceMet || !contentMet || !essPass) {
+    return { flag: null, withheldReason: "insufficient_evidence" };
+  }
+  const guarded = (p: number): number =>
+    p - PRECISION_RADIUS_MCSE_Z * Math.sqrt((p * (1 - p)) / Math.max(essValue, 1));
+  const over = guarded(tailOver);
+  const under = guarded(tailUnder);
+  let flag: BiasFlag = null;
+  if (over >= PRECISION_BIAS_FLAG_P_CONFIRMED) flag = BIAS_FLAG.EXTREME_CONFIRMED_OVERCALLER;
+  else if (under >= PRECISION_BIAS_FLAG_P_CONFIRMED) flag = BIAS_FLAG.EXTREME_CONFIRMED_UNDERCALLER;
+  else if (over >= PRECISION_BIAS_FLAG_P_STAR) flag = BIAS_FLAG.EXTREME_OVERCALLER;
+  else if (under >= PRECISION_BIAS_FLAG_P_STAR) flag = BIAS_FLAG.EXTREME_UNDERCALLER;
+  else if (over >= PRECISION_BIAS_FLAG_P_WATCH) flag = BIAS_FLAG.WATCH_OVERCALLER;
+  else if (under >= PRECISION_BIAS_FLAG_P_WATCH) flag = BIAS_FLAG.WATCH_UNDERCALLER;
+  return { flag, withheldReason: null };
 }
 
 function cloneDiag(d: PrecisionDiagnostics | null): PrecisionDiagnostics | null {
@@ -251,6 +327,8 @@ function cloneDiag(d: PrecisionDiagnostics | null): PrecisionDiagnostics | null 
     ...d,
     skillIntervals: d.skillIntervals.map((x) => [...x] as Interval),
     biasIntervals: d.biasIntervals.map((x) => [...x] as Interval),
+    ...(d.biasTailOver ? { biasTailOver: d.biasTailOver.slice() } : {}),
+    ...(d.biasTailUnder ? { biasTailUnder: d.biasTailUnder.slice() } : {}),
     skillPosteriorMean: d.skillPosteriorMean.slice(),
     skillIntervalHalfwidth: d.skillIntervalHalfwidth.slice(),
     skillPointCenteredRadius: d.skillPointCenteredRadius.slice(),
@@ -279,7 +357,7 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   readonly name = "precision_v1" as const;
   readonly activeLabel = PRECISION_STATUS.ACTIVE;
   readonly nMin: number;
-  readonly perDomainCap = PRECISION_PER_DOMAIN_CAP;
+  readonly perDomainCap: number;
   readonly persistence: number;
   readonly bandMin = PRECISION_BAND_MIN;
   readonly bandEdges: number[][];
@@ -295,10 +373,24 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     private readonly varPrior: number[],
     bandEdges: number[][],
     private readonly recalibration: "c1" | null = null,
+    qualificationPerDomainCap?: number,
+    qualificationNMin?: number,
   ) {
-    this.nMin = recalibration === "c1" ? PRECISION_N_MIN_C1 : PRECISION_N_MIN;
+    // Research/qualification-only overrides. Serving sessions never pass
+    // them: floors come from the recalibration stamp (c1 -> 0/3, unstamped
+    // -> shipped 20/2) and the ceiling stays PRECISION_PER_DOMAIN_CAP.
+    this.nMin = qualificationNMin
+      ?? (recalibration === "c1" ? PRECISION_N_MIN_C1 : PRECISION_N_MIN);
     this.persistence = recalibration === "c1"
       ? PRECISION_PERSISTENCE_C1 : PRECISION_PERSISTENCE;
+    this.perDomainCap = qualificationPerDomainCap ?? PRECISION_PER_DOMAIN_CAP;
+    if (!Number.isInteger(this.nMin) || this.nMin < 0) {
+      throw new Error("precision_v1 minimum questions must be a nonnegative integer");
+    }
+    if (!Number.isInteger(this.perDomainCap)
+        || this.perDomainCap < Math.max(this.nMin, 1)) {
+      throw new Error("precision_v1 per-domain ceiling must exceed its minimum questions");
+    }
     assertFiniteVector(varPrior, "varPrior");
     if (varPrior.some((x) => x <= 0)) throw new Error("varPrior must be positive");
     this.bandEdges = bandEdges.map((x) => x.slice());
@@ -311,7 +403,11 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     this.bandAdministered = Array.from({ length: varPrior.length }, () => [0, 0, 0]);
   }
 
-  static fromInputs(inputs: ComputeEngineInputs): PrecisionPolicy {
+  static fromInputs(
+    inputs: ComputeEngineInputs,
+    qualificationPerDomainCap?: number,
+    qualificationNMin?: number,
+  ): PrecisionPolicy {
     if (inputs.taskCodes.join(",") !== PRECISION_TASK_CODES.join(",")) {
       throw new Error(
         `precision_v1 requires task order ${PRECISION_TASK_CODES.join(",")}`,
@@ -324,7 +420,8 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       (x) => x.length !== 2 || !Number.isFinite(x[0]) || !Number.isFinite(x[1]) || x[0] >= x[1],
     )) throw new Error("precision_v1 requires two increasing band edges per domain");
     return new PrecisionPolicy(
-      varPrior, edges, inputs.precisionRecalibration ?? null);
+      varPrior, edges, inputs.precisionRecalibration ?? null,
+      qualificationPerDomainCap, qualificationNMin);
   }
 
   reset(K: number): void {
@@ -339,7 +436,9 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
   }
 
   clone(): PrecisionPolicy {
-    const p = new PrecisionPolicy(this.varPrior, this.bandEdges, this.recalibration);
+    const p = new PrecisionPolicy(
+      this.varPrior, this.bandEdges, this.recalibration,
+      this.perDomainCap, this.nMin);
     p.restore(this.snapshot());
     return p;
   }
@@ -509,6 +608,8 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
     const qLow = 0.025, qHigh = 0.975;
     const intervals: Interval[] = [];
     const biasIntervals: Interval[] = [];
+    const biasTailOver: number[] = [];
+    const biasTailUnder: number[] = [];
     const means: number[] = [];
     const halfwidths: number[] = [];
     const radii: number[] = [];
@@ -536,6 +637,17 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
         weightedQuantileInOrder(bias, weights, qLow, biasOrder),
         weightedQuantileInOrder(bias, weights, qHigh, biasOrder),
       ]);
+      // Graded-flag tail masses, accumulated over the same normalized weights
+      // and stable order the bias interval consumed — report-only, no reads
+      // by any gate below.
+      let tailOver = 0, tailUnder = 0;
+      for (let i = 0; i < biasOrder.length; i++) {
+        const value = bias[biasOrder[i]];
+        if (value > PRECISION_BIAS_FLAG_TAU) tailOver += weights[biasOrder[i]];
+        else if (value < -PRECISION_BIAS_FLAG_TAU) tailUnder += weights[biasOrder[i]];
+      }
+      biasTailOver.push(tailOver);
+      biasTailUnder.push(tailUnder);
       means.push(mean);
       halfwidths.push((high - low) / 2);
       radii.push(radius);
@@ -586,6 +698,8 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       confidence: 0.95,
       skillIntervals: intervals,
       biasIntervals,
+      biasTailOver,
+      biasTailUnder,
       skillPosteriorMean: means,
       skillIntervalHalfwidth: halfwidths,
       skillPointCenteredRadius: radii,
@@ -652,6 +766,26 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       }
       return status;
     });
+    const diag = this.lastDiag;
+    let biasFlags: (string | null)[] | undefined;
+    let biasFlagWithheldReasons: (string | null)[] | undefined;
+    if (diag) {
+      if (diag.biasTailOver && diag.biasTailUnder) {
+        // Gating inputs are the floors evaluate() recorded plus the policy's
+        // own current statuses (authoritative at finalize — a bank
+        // terminalization between the last evaluate and session end lands in
+        // this.statuses first, matching the verdict mapping above).
+        const graded = diag.biasTailOver.map((tailOver, k) => gradedBiasFlagFor(
+          tailOver, diag.biasTailUnder![k], diag.ess, diag.essPass,
+          this.statuses[k], diag.evidenceFloorMet[k], diag.contentFloorMet[k],
+        ));
+        biasFlags = graded.map((x) => x.flag);
+        biasFlagWithheldReasons = graded.map((x) => x.withheldReason);
+      } else {
+        // Legacy snapshot without tail masses: exact historical reporting.
+        biasFlags = diag.biasIntervals.map(biasFlagFor);
+      }
+    }
     return {
       verdicts,
       domainStatuses: this.statuses.slice(),
@@ -660,7 +794,8 @@ export class PrecisionPolicy implements EngineTerminationPolicy {
       terminalReasons: this.terminalReasons.slice(),
       skillIntervals: intervals?.map((x) => [...x] as Interval),
       biasIntervals: this.lastDiag?.biasIntervals.map((x) => [...x] as Interval),
-      biasFlags: this.lastDiag?.biasIntervals.map(biasFlagFor),
+      biasFlags,
+      biasFlagWithheldReasons,
     };
   }
 }

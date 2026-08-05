@@ -29,8 +29,10 @@ from . import dashboard_logic, engine_trainer
 from .compute_rollout import DUAL_BRANCH_AUTO, SERIAL, compute_mode_for
 from .policy_rollout import (
     AD6_POLICY,
+    BIAS_FLAG_TIERS_ALL,
     PRECISION_C1,
     PRECISION_POLICY,
+    bias_flag_tiers_for,
     precision_recalibration_for,
     termination_policy_for,
 )
@@ -158,6 +160,32 @@ def test_termination_policy_matrix(cfg, participant, expected):
 ])
 def test_precision_recalibration_matrix(cfg, participant, policy, expected):
     assert precision_recalibration_for(
+        _Db(participant), cfg, "reader", policy) == expected
+
+
+# ── bias_flag_tiers_for: gated on Precision, then all | allowlist ──────────
+
+@pytest.mark.parametrize("cfg,participant,policy,expected", [
+    # AD6 sittings never carry the reporting stamp, whatever the rollout says.
+    ({"bias_flag_tiers": "all"}, PARTICIPANT, AD6_POLICY, None),
+    ({"bias_flag_tiers": "all"}, None, PRECISION_POLICY, BIAS_FLAG_TIERS_ALL),
+    ({"bias_flag_tiers": "legacy"}, PARTICIPANT, PRECISION_POLICY, None),
+    ({}, PARTICIPANT, PRECISION_POLICY, None),        # unset fails closed
+    ({"bias_flag_tiers": "bogus"}, PARTICIPANT, PRECISION_POLICY, None),
+    ({"bias_flag_tiers": "email_allowlist"},
+     PARTICIPANT, PRECISION_POLICY, None),            # no allowlist
+    ({"bias_flag_tiers": "email_allowlist",
+      "bias_flag_tiers_emails": frozenset({"pilot@example.test"})},
+     PARTICIPANT, PRECISION_POLICY, BIAS_FLAG_TIERS_ALL),
+    ({"bias_flag_tiers": "email_allowlist",
+      "bias_flag_tiers_emails": frozenset({"pilot@example.test"})},
+     {"email": "  Pilot@Example.Test  "}, PRECISION_POLICY, BIAS_FLAG_TIERS_ALL),
+    ({"bias_flag_tiers": "email_allowlist",
+      "bias_flag_tiers_emails": frozenset({"pilot@example.test"})},
+     None, PRECISION_POLICY, None),                   # no participant row
+])
+def test_bias_flag_tiers_matrix(cfg, participant, policy, expected):
+    assert bias_flag_tiers_for(
         _Db(participant), cfg, "reader", policy) == expected
 
 

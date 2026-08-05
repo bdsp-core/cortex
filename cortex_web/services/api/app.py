@@ -171,6 +171,15 @@ def create_app(db_path: Optional[str | Path] = None) -> FastAPI:
                 "CORTEX_PRECISION_C1_EMAILS",
                 ",".join(sorted(config.PRECISION_C1_EMAILS))).split(",")
             if x.strip()),
+        "bias_flag_tiers": os.environ.get(
+            "CORTEX_BIAS_FLAG_TIERS",
+            config.BIAS_FLAG_TIERS).strip().lower(),
+        "bias_flag_tiers_emails": frozenset(
+            x.strip().lower()
+            for x in os.environ.get(
+                "CORTEX_BIAS_FLAG_TIERS_EMAILS",
+                ",".join(sorted(config.BIAS_FLAG_TIERS_EMAILS))).split(",")
+            if x.strip()),
         "precision_compute_rollout": os.environ.get(
             "CORTEX_PRECISION_COMPUTE_ROLLOUT",
             config.PRECISION_COMPUTE_ROLLOUT).strip().lower(),

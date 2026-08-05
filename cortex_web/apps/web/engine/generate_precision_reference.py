@@ -43,6 +43,38 @@ def cloud(width: float) -> dict:
     return {"l": l, "t": t, "w": weights}
 
 
+# Graded bias-flag reference (bias-reporting-policy APPLY_PLAN §4). Computed
+# HERE, not in the Python policy package: precision-policy/ carries no flag
+# surface by charter. Constants mirror the TS engine's PRECISION_BIAS_FLAG_*
+# block (g5_operating_point.json sha256 b5b8ed5f…91bc) and the guard z is the
+# policy's radius_mcse_z.
+BIAS_FLAG_TAU = 1.0
+BIAS_FLAG_TIERS = (
+    (0.975, "EXTREME_CONFIRMED_OVERCALLER", "EXTREME_CONFIRMED_UNDERCALLER"),
+    (0.575, "EXTREME_OVERCALLER", "EXTREME_UNDERCALLER"),
+    (0.5, "WATCH_OVERCALLER", "WATCH_UNDERCALLER"),
+)
+BIAS_FLAG_MCSE_Z = 1.645
+
+
+def graded_flag(tail_over, tail_under, ess, ess_pass, status, evidence, content):
+    if status.startswith("UNDETERMINABLE_"):
+        return {"flag": None, "withheld_reason": "undeterminable_domain"}
+    if not (evidence and content and ess_pass):
+        return {"flag": None, "withheld_reason": "insufficient_evidence"}
+
+    def guarded(p):
+        return p - BIAS_FLAG_MCSE_Z * np.sqrt(p * (1.0 - p) / max(ess, 1.0))
+
+    over, under = guarded(tail_over), guarded(tail_under)
+    for threshold, over_name, under_name in BIAS_FLAG_TIERS:
+        if over >= threshold:
+            return {"flag": over_name, "withheld_reason": None}
+        if under >= threshold:
+            return {"flag": under_name, "withheld_reason": None}
+    return {"flag": None, "withheld_reason": None}
+
+
 def serializable(value):
     if isinstance(value, np.ndarray):
         return value.tolist()
@@ -86,6 +118,29 @@ def main() -> None:
     expected = []
     for state in (narrow, narrow, broad):
         decision = policy(state, telemetry, n_per_task, 7)
+        # ADDITIVE graded-flag reference: tail masses over the same normalized
+        # weights the intervals consume, then the graded/gated rule fed by the
+        # step's own recorded diagnostics.
+        diag = decision.diagnostics
+        weights = state["w"] / state["w"].sum()
+        tail_over = [
+            float(weights[state["t"][:, k] > BIAS_FLAG_TAU].sum()) for k in range(7)
+        ]
+        tail_under = [
+            float(weights[state["t"][:, k] < -BIAS_FLAG_TAU].sum()) for k in range(7)
+        ]
+        graded = [
+            graded_flag(
+                tail_over[k],
+                tail_under[k],
+                diag["ess"],
+                diag["ess_pass"],
+                diag["statuses"][k],
+                diag["evidence_floor_met"][k],
+                diag["content_floor_met"][k],
+            )
+            for k in range(7)
+        ]
         expected.append(
             {
                 "stop": decision.stop,
@@ -93,6 +148,9 @@ def main() -> None:
                 "domain_statuses": decision.domain_statuses,
                 "streak_counts": decision.streak_counts,
                 "diagnostics": decision.diagnostics,
+                "bias_tail_over": tail_over,
+                "bias_tail_under": tail_under,
+                "graded_flags": graded,
             }
         )
 

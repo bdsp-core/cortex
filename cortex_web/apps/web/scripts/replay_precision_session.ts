@@ -66,6 +66,10 @@ interface ReplayFixture {
   /** The session's server-stamped stopping recalibration ("c1" = n_min 0 /
    *  persistence 3). Absent = the shipped 20/2 configuration. */
   precisionRecalibration?: "c1";
+  /** The sitting's server-stamped bias-flag reporting mode. Report-only:
+   *  absent = the historical interval-clears flags; never read by the
+   *  agreement comparator either way. */
+  biasFlagTiers?: "legacy" | "all";
   /** The sitting's execution placement. dual_branch_auto (every production
    *  precision sitting, and the default when absent) updates WITHOUT the
    *  distractor monitor — advanceCoreWithSelectionExecutor never consults
@@ -209,6 +213,9 @@ async function main(): Promise<void> {
     // without one replays the shipped 20/2 stopping configuration.
     ...(fixture.precisionRecalibration
       ? { precisionRecalibration: fixture.precisionRecalibration } : {}),
+    // A graded-tier sitting reports under its stored stamp (report-only).
+    ...(fixture.biasFlagTiers
+      ? { biasFlagTiers: fixture.biasFlagTiers } : {}),
   } as EngineInputs;
 
   const stats: ComparisonStats = {

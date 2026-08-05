@@ -134,6 +134,10 @@ def export_fixture(db, session_id: str) -> tuple[dict, str]:
         # Replay under the sitting's stored stopping recalibration (c1 =
         # n_min 0 / persistence 3); absent = the shipped 20/2 configuration.
         fixture["precisionRecalibration"] = session["precision_recalibration"]
+    if session.get("bias_flag_tiers"):
+        # Replay reports under the sitting's stored bias-flag tiers (report-
+        # only; the agreement comparator never reads flags either way).
+        fixture["biasFlagTiers"] = session["bias_flag_tiers"]
     return fixture, str(session.get("bundle_version") or "")
 
 

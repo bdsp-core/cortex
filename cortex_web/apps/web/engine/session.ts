@@ -24,7 +24,7 @@ import { isNWaySession, validateNWayInputs } from "./nway_profile";
 import { predictedOutcomeDistribution, rankOutcomes } from "./nway_selector";
 import { AD6Policy, EngineTerminationPolicy } from "./policy";
 import {
-  PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
+  biasFlagFor, PRECISION_PER_DOMAIN_CAP, PRECISION_STATUS, PrecisionPolicy,
 } from "./precision_policy";
 import { Rng } from "./rng";
 import type { BranchExecutor } from "./branch_executor";
@@ -99,6 +99,17 @@ export interface SessionOptions {
   selectionExecutor?: NWaySelectionExecutor;
   /** Qualification control; production defaults to bounded rank-two expansion. */
   rankedSpeculation?: boolean;
+  /**
+   * Research/qualification-only ceiling override. The shipped production path
+   * leaves this unset and remains frozen at PRECISION_PER_DOMAIN_CAP.
+   */
+  qualificationPrecisionPerDomainCap?: number;
+  /**
+   * Research/qualification-only override for the precision evidence floor.
+   * Unset, the floor follows the sitting's recalibration stamp (c1 -> 0,
+   * unstamped -> the shipped 20).
+   */
+  qualificationPrecisionNMin?: number;
 }
 
 export interface SessionResult {
@@ -113,6 +124,7 @@ export interface SessionResult {
   skillIntervals?: [number, number][];
   biasIntervals?: [number, number][];
   biasFlags?: (string | null)[];
+  biasFlagWithheldReasons?: (string | null)[];
   nwayProfile?: ComputeEngineInputs["nwayProfile"];
   servedSegIds: number[];
   trials: TrialDiag[];
@@ -154,6 +166,8 @@ export class WebCortexSession {
   private branchExecutor?: BranchExecutor;
   private selectionExecutor?: NWaySelectionExecutor;
   private rankedSpeculation: boolean;
+  private qualificationPrecisionPerDomainCap?: number;
+  private qualificationPrecisionNMin?: number;
   private cb: SessionCallbacks;
   private answerResolver: ((answer: SubmittedAnswer) => void) | null = null;
   private selectionRecovery: Promise<void> | null = null;
@@ -172,6 +186,20 @@ export class WebCortexSession {
     this.branchExecutor = opts.branchExecutor;
     this.selectionExecutor = opts.selectionExecutor;
     this.rankedSpeculation = opts.rankedSpeculation ?? true;
+    this.qualificationPrecisionPerDomainCap = opts.qualificationPrecisionPerDomainCap;
+    this.qualificationPrecisionNMin = opts.qualificationPrecisionNMin;
+    if (this.qualificationPrecisionPerDomainCap !== undefined
+        && (!Number.isInteger(this.qualificationPrecisionPerDomainCap)
+          || this.qualificationPrecisionPerDomainCap < PRECISION_PER_DOMAIN_CAP)) {
+      throw new Error(
+        `qualificationPrecisionPerDomainCap must be an integer >= ${PRECISION_PER_DOMAIN_CAP}`,
+      );
+    }
+    if (this.qualificationPrecisionNMin !== undefined
+        && (!Number.isInteger(this.qualificationPrecisionNMin)
+          || this.qualificationPrecisionNMin < 0)) {
+      throw new Error("qualificationPrecisionNMin must be a nonnegative integer");
+    }
   }
 
   // The GUI calls this with the raw 0-based 6-way pick after each item.
@@ -259,9 +287,13 @@ export class WebCortexSession {
       if ((this.inputs.perDomainCap ?? PER_DOMAIN_CAP) !== PRECISION_PER_DOMAIN_CAP) {
         throw new Error(`precision_v1 freezes perDomainCap=${PRECISION_PER_DOMAIN_CAP}`);
       }
-      policy = PrecisionPolicy.fromInputs(this.inputs);
+      policy = PrecisionPolicy.fromInputs(
+        this.inputs, this.qualificationPrecisionPerDomainCap,
+        this.qualificationPrecisionNMin,
+      );
       nParticles = PRECISION_N_PARTICLES;
-      perDomainCap = PRECISION_PER_DOMAIN_CAP;
+      perDomainCap = this.qualificationPrecisionPerDomainCap
+        ?? PRECISION_PER_DOMAIN_CAP;
     } else if (policyName === "ad6") {
       policy = AD6Policy.fromInputs(this.inputs.ellStar, this.inputs.corrL);
       nParticles = this.inputs.nParticles ?? N_PARTICLES;
@@ -730,6 +762,16 @@ export class WebCortexSession {
     }
 
     const finalized = this.core.policy.finalizeResult(this.inputs.ellStar);
+    // Per-sitting graded bias-flag stamp (CORTEX_BIAS_FLAG_TIERS, c1 stamp
+    // precedent). Unstamped or unknown values fail closed to the historical
+    // interval-clears flags, byte-identical to the pre-tier payload.
+    const servesGradedFlags = this.inputs.biasFlagTiers === "all";
+    const biasFlags = servesGradedFlags
+      ? finalized.biasFlags
+      : finalized.biasIntervals?.map(biasFlagFor);
+    const biasFlagWithheldReasons = servesGradedFlags
+      ? finalized.biasFlagWithheldReasons
+      : undefined;
     const { mean: finalAuroc, hw: finalAurocHw } = aurocSummary(
       this.core.state.l, this.core.state.w, this.core.state.N, K,
     );
@@ -752,7 +794,8 @@ export class WebCortexSession {
       ...(finalized.terminalReasons ? { terminalReasons: finalized.terminalReasons } : {}),
       ...(finalized.skillIntervals ? { skillIntervals: finalized.skillIntervals } : {}),
       ...(finalized.biasIntervals ? { biasIntervals: finalized.biasIntervals } : {}),
-      ...(finalized.biasFlags ? { biasFlags: finalized.biasFlags } : {}),
+      ...(biasFlags ? { biasFlags } : {}),
+      ...(biasFlagWithheldReasons ? { biasFlagWithheldReasons } : {}),
       ...(this.inputs.nwayProfile ? { nwayProfile: { ...this.inputs.nwayProfile } } : {}),
       servedSegIds: this.served,
       trials: this.trials,
