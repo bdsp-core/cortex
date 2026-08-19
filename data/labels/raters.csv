@@ -77,13 +77,13 @@ rater_id,canonical_name,aliases,groups,expertise_level,affiliation,years_eeg,neu
 75,Jesse Lassor,"[""'Jesse Lassor'""]","[""sparcnet50K""]",experienced,,,,,,,,,,True
 76,Ji Yeoun Yoo,"[""'Ji Yeoun Yoo'"", ""Jiyeoun Yoo""]","[""Bonobo"", ""sparcnet50K""]",expert,,,False,False,False,False,,,1861.0,True
 77,Jimmy Yang,"[""'Jimmy Yang'""]","[""sparcnet50K""]",experienced,,,,,,,,,,True
-78,Jin Jing,"[""'Jin Jing'"", ""jj""]","[""New28"", ""sparcnet50K"", ""iiic_crowdsourcing:kong2025""]",experienced,,,False,False,False,False,,,2868.0,True
+78,Jin Jing,"[""'Jin Jing'"", ""jj""]","[""New28"", ""sparcnet50K"", ""iiic_crowdsourcing:kong2025""]",expert,,,False,False,False,False,,,2868.0,True
 79,Jonathan J. Halford,"[""'Jon Halford'"", ""jon""]","[""Super8"", ""sparcnet50K""]",expert,,,False,False,False,False,,,14282.0,True
 80,Jong Woo Lee,"[""'Jong Woo Lee'""]","[""sparcnet50K"", ""iiic_crowdsourcing:kong2025""]",expert,,,,,,,,,,True
 81,Joseph Cohen,"[""'Joseph Cohen'""]","[""sparcnet50K""]",expert,,,,,,,,,,True
 82,Julia Carlson,"[""Julia-Carlson""]","[""New28""]",novice,MGH,3.0,True,False,False,False,,,1000.0,True
 83,Kara Houghton,"[""'Kara Houghton'""]","[""sparcnet50K""]",expert,,,,,,,,,,True
-84,Karan Poddar,"[""'Karan Poddar'""]","[""sparcnet50K""]",experienced,,,,,,,,,,True
+84,Karan Poddar,"[""'Karan Poddar'""]","[""sparcnet50K""]",expert,,,,,,,,,,True
 85,Kenneth C. Sassower,"[""'Kenneth C. Sassower'""]","[""sparcnet50K""]",expert,,,,,,,,,,True
 86,Klein,"[""'Klein'""]","[""sparcnet50K""]",,,,,,,,,,,True
 87,Kristy Nordstrom,"[""'Kristy Nordstrom'""]","[""sparcnet50K""]",expert,,,,,,,,,,True
