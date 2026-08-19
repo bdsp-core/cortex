@@ -141,3 +141,8 @@ data/eeg_bank_pre_*.h5
 
 # Stray vite metadata from running vite outside apps/web.
 .vite/
+
+# Defensive D9 ignore: the Python-reference sandbox keeps a local copy of the
+# PHI-bearing spike bank for parity work. Same rule as data/eeg_bank.h5 —
+# never committed (and >100 MB, so GitHub would reject the push anyway).
+cortex_web_python_reference/data/eeg_bank.h5
