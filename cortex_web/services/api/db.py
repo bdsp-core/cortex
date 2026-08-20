@@ -247,7 +247,18 @@ class Database:
             max_size=int(os.environ.get("CORTEX_PG_POOL_MAX", "10")),
             open=True,
             check=ConnectionPool.check_connection,
-            kwargs={"row_factory": dict_row},
+            kwargs={
+                "row_factory": dict_row,
+                # 2026-08-18 outage: with no timeout at any layer, requests
+                # blocked behind one long-lived lock holder wedged every
+                # DB-touching route for 25 h with nothing logged. Bound every
+                # session so a lock wait becomes a fast, visible error. Values
+                # mirror the ALTER ROLE cortex settings on the prod cluster;
+                # carrying them in conninfo keeps the guard when the DB moves.
+                "connect_timeout": 5,
+                "options": "-c statement_timeout=60000 -c lock_timeout=15000"
+                           " -c idle_in_transaction_session_timeout=120000",
+            },
         )
 
     @contextmanager

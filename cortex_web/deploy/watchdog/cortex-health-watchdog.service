@@ -1,0 +1,6 @@
+[Unit]
+Description=CORTEX — deep-health watchdog probe (restarts cortex after sustained failure)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cortex/watchdog/cortex_health_watchdog.sh
