@@ -210,6 +210,12 @@ seriously.
   equivalent under test, and the engine produces identical results across
   machines. Nothing here is "trust me."
 
+**Archived local files (2026-10-11).** The derived EEG test banks (`data/eeg_bank.h5`, `data/eeg_bank_v2_300.h5`,
+`data/test_h5/`), the simulation outputs in `results/`, the correlation-stopping experiment outputs, the slide decks,
+and the web app's demo access-code file were archived to the BDSP internal staging bucket
+(`s3://bdsp-staging/local-backups/2026-10-11/ideal-test-multi/`) when the local working copy was retired. The anonymized experiment outputs are also on
+branch `local-sync-2026-10-11`. The test banks are derived from `spike-test/v2`, `iiic-irr-crowd` and `morgoth1` on S3.
+
 ## Status, license, and citation
 
 This is active research software accompanying a manuscript in preparation.
