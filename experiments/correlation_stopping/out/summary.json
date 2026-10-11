@@ -1,0 +1,61 @@
+{
+  "config": {
+    "stop_p": 0.95,
+    "delta": 0.1,
+    "n_min_per_task": 3,
+    "n_max_per_task": 80,
+    "pool": 3000,
+    "r_ell_prior": 0.3665635031658195,
+    "seeds": [
+      0
+    ]
+  },
+  "real": {
+    "per_task": {
+      "median_corr": 344.0,
+      "median_indep": 351.5,
+      "median_saving": 4.0,
+      "mean_saving": 5.348522167487685,
+      "pct_saving": 1.1379800853485065,
+      "frac_faster": 0.5320197044334976
+    },
+    "aggregate": {
+      "median_corr": 403.0,
+      "median_indep": 480.0,
+      "median_saving": 0.0,
+      "mean_saving": 10.386699507389162,
+      "pct_saving": 0.0,
+      "frac_faster": 0.3411330049261084
+    },
+    "per_task_acc": {
+      "correlated": 0.9501661129568106,
+      "independent": 0.9611602753195674
+    },
+    "agg_acc": {
+      "correlated": 0.9112271540469974,
+      "independent": 0.9575596816976127
+    }
+  },
+  "pop": {
+    "per_task": {
+      "median_corr": 361.5,
+      "median_indep": 366.5,
+      "median_saving": 2.0,
+      "mean_saving": 3.66875,
+      "pct_saving": 0.5457025920873124,
+      "frac_faster": 0.51
+    },
+    "aggregate": {
+      "median_corr": 480.0,
+      "median_indep": 480.0,
+      "median_saving": 0.0,
+      "mean_saving": 6.67125,
+      "pct_saving": 0.0,
+      "frac_faster": 0.25
+    },
+    "agg_acc": {
+      "correlated": 0.975975975975976,
+      "independent": 0.9903536977491961
+    }
+  }
+}
